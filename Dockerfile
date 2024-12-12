@@ -15,8 +15,8 @@ WORKDIR /app
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /go/bin/isley /app/isley
-COPY web/templates ./templates
-COPY web/static ./static
+COPY web/templates ./web/templates
+COPY web/static ./web/static
 COPY migrations ./migrations
 # make the data dir and initialize the isley.db file
 RUN mkdir data && touch data/isley.db
