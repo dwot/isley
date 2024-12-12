@@ -22,7 +22,7 @@ Follow these steps to install and run Isley:
 
 1. **Clone the Repository:**
    ```bash
-   git clone https://github.com/your-repository/isley.git
+   git clone https://github.com/dwot/isley.git
    cd isley
    ```
 
@@ -42,7 +42,7 @@ If you prefer to run Isley manually using `docker run`, follow these steps:
 
 1. **Clone the Repository:**
    ```bash
-   git clone https://github.com/your-repository/isley.git
+   git clone https://github.com/dwot/isley.git
    cd isley
    ```
 
