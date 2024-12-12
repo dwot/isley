@@ -1,0 +1,138 @@
+{{ define "views/index.html"}}
+<!--index.html-->
+
+<!--Embed the header.html template at this location-->
+{{ template "layouts/header.html" .}}
+<meta http-equiv="refresh" content="300">
+<style>
+    .clickable-row {
+        cursor: pointer;
+    }
+</style>
+{{ template "layouts/header2.html" .}}
+
+
+<header class="masthead text-center">
+    <div class="overlay"></div>
+    <div class="container">
+        <!-- Cards Row -->
+        <div class="container py-5">
+            <h1 class="display-5 text-primary mb-4">Grow Status</h1>
+
+            <div id="sensorsOverview">
+                <!-- Dynamic content will be inserted here -->
+            </div>
+        </div>
+
+        <!-- Table Row -->
+        <div class="row">
+            <div class="col-12">
+                <table class="table table-dark table-bordered table-hover">
+                    <thead>
+                    <tr>
+                        <th scope="col">Plant</th>
+                        <th scope="col">Strain</th>
+                        <th scope="col">Breeder</th>
+                        <th scope="col">Start Date</th>
+                        <th scope="col">Current Week</th>
+                        <th scope="col">Current Day</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <!-- Iterate over plantList and display each plant's information in a table row -->
+                    {{ range .plantList }}
+                    <tr class="clickable-row" data-id="{{ .ID }}">
+                        <th scope="row">{{ .Name }}</th>
+                        <td>{{ .StrainName }}</td>
+                        <td>{{ .BreederName }}</td>
+                        <td>{{ formatDate .StartDT }}</td>
+                        <td>{{ .CurrentWeek }}</td>
+                        <td>{{ .CurrentDay }}</td>
+                    </tr>
+                    {{ end }}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</header>
+
+
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        // Add click event to rows
+        document.querySelectorAll(".clickable-row").forEach(row => {
+            row.addEventListener("click", () => {
+                const plantId = row.getAttribute("data-id");
+                if (plantId) {
+                    window.location.href = `/plant/${plantId}`;
+                }
+            });
+        });
+    });
+</script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const sensorsOverview = document.getElementById("sensorsOverview");
+
+        // Fetch grouped sensor data
+        fetch("/sensors/grouped")
+            .then(response => response.json())
+            .then(data => {
+                sensorsOverview.innerHTML = ""; // Clear any existing content
+
+                Object.keys(data).forEach(zone => {
+                    // Zone Header
+                    const zoneRow = document.createElement("div");
+                    zoneRow.classList.add("row", "mb-4");
+                    zoneRow.innerHTML = `<div class="col-12"><h3 class="text-secondary">${zone}</h3></div>`;
+                    sensorsOverview.appendChild(zoneRow);
+
+                    Object.keys(data[zone]).forEach(device => {
+                        // Device Header
+                        const deviceRow = document.createElement("div");
+                        deviceRow.classList.add("row", "mb-3");
+                       //deviceRow.innerHTML = `<div class="col-12"><h5 class="text-info">${device}</h5></div>`;
+                        sensorsOverview.appendChild(deviceRow);
+
+                        // Device Sensors Row
+                        const sensorsRow = document.createElement("div");
+                        sensorsRow.classList.add("row", "row-cols-1", "row-cols-md-2", "row-cols-lg-6", "g-6");
+
+                        data[zone][device].forEach(sensor => {
+                            const cardCol = document.createElement("div");
+                            cardCol.classList.add("col");
+
+                            // Sensor Card
+                            const card = `
+                                <a href="/graph/${sensor.id}" class="text-decoration-none">
+                                    <div class="card bg-dark text-center h-100 shadow">
+                                        <div class="card-body">
+                                            <div class="display-6 fw-bold text-primary">${sensor.value} ${sensor.unit}</div>
+                                            <div class="text-uppercase small text-secondary">${sensor.name}</div>
+                                        </div>
+                                    </div>
+                                </a>
+                            `;
+                            cardCol.innerHTML = card;
+                            sensorsRow.appendChild(cardCol);
+                        });
+
+                        sensorsOverview.appendChild(sensorsRow);
+                    });
+                });
+            })
+            .catch(error => {
+                console.error("Error fetching grouped sensors:", error);
+            });
+    });
+</script>
+
+
+
+<!--Embed the footer.html template at this location-->
+{{ template "layouts/footer.html" .}}
+
+{{ end }}

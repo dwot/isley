@@ -1,0 +1,666 @@
+{{ define "views/settings.html"}}
+<!--index.html-->
+
+<!--Embed the header.html template at this location-->
+{{ template "layouts/header.html" .}}
+
+{{ template "layouts/header2.html" .}}
+<div class="container py-5">
+    <h1 class="display-5 text-primary mb-4">Settings</h1>
+    <form id="settingsForm">
+        <!-- AC Infinity Section -->
+        <div class="mb-4">
+            <h5 class="text-secondary">AC Infinity</h5>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="aciEnabled" {{ if .settings.ACI.Enabled }}checked{{ end }}>
+                <label class="form-check-label" for="aciEnabled">Enable AC Infinity Sensor Monitoring</label>
+            </div>
+            <div class="d-flex align-items-center mt-3">
+                <label for="aciToken" class="form-label me-3">API Token</label>
+                <input type="text" class="form-control me-3" id="aciToken" value="{{ .settings.ACI.Token }}" placeholder="Enter AC Infinity API Token">
+                <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#aciLoginModal">Get Token from Login</button>
+            </div>
+        </div>
+
+        <!-- EcoWitt Section -->
+        <div class="mb-4">
+            <h5 class="text-secondary">EcoWitt</h5>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="ecEnabled" {{ if .settings.EC.Enabled }}checked{{ end }}>
+                <label class="form-check-label" for="ecEnabled">Enable EcoWitt Sensor Monitoring</label>
+            </div>
+            <div class="mt-3">
+                <label for="ecServer" class="form-label">Local Server IP</label>
+                <input type="text" class="form-control" id="ecServer" value="{{ .settings.EC.Server }}" placeholder="Enter Local Server IP">
+            </div>
+        </div>
+
+        <!-- Save Button -->
+        <div class="text-end">
+            <button type="submit" class="btn btn-primary">Save Settings</button>
+        </div>
+
+        <hr class="my-5">
+        
+        <!-- Zones Table -->
+        <div class="mt-5">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3 class="text-secondary">Zones</h3>
+                <!-- Add Zone Button -->
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addZoneModal">
+                    <i class="fa-solid fa-plus"></i> Add Zone
+                </button>
+            </div>
+            <table class="table table-striped table-bordered table-hover">
+                <thead class="table-dark">
+                <tr>
+                    <th>Zone</th>
+                </tr>
+                </thead>
+                <tbody>
+                <!-- Iterate over zone and display each row -->
+                {{ range .zones }}
+                <tr class="clickable-row zone-row" data-zone='{{ json . }}'>
+                    <td>{{ .Name }}</td>
+                </tr>
+                {{ end }}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Activities Table -->
+        <div class="mt-5">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3 class="text-secondary">Activities</h3>
+                <!-- Add Activity Button -->
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addActivityModal">
+                    <i class="fa-solid fa-plus"></i> Add Activity
+                </button>
+            </div>
+            <table class="table table-striped table-bordered table-hover">
+                <thead class="table-dark">
+                <tr>
+                    <th>Activity</th>
+                </tr>
+                </thead>
+                <tbody>
+                <!-- Iterate over zone and display each row -->
+                {{ range .activities }}
+                <tr class="clickable-row activity-row" data-activity='{{ json . }}'>
+                    <td>{{ .Name }}</td>
+                </tr>
+                {{ end }}
+                </tbody>
+            </table>
+        </div>
+            
+        <!-- Metrics Table -->
+        <div class="mt-5">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3 class="text-secondary">Metrics</h3>
+                <!-- Add Metric Button -->
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMetricModal">
+                    <i class="fa-solid fa-plus"></i> Add Metric
+                </button>
+            </div>
+            <table class="table table-striped table-bordered table-hover">
+                <thead class="table-dark">
+                <tr>
+                    <th>Metric</th>
+                    <th>Unit</th>
+                </tr>
+                </thead>
+                <tbody>
+                <!-- Iterate over zone and display each row -->
+                {{ range .metrics }}
+                <tr class="clickable-row metric-row" data-metric='{{ json . }}'>
+                    <td>{{ .Name }}</td>
+                    <td>{{ .Unit }}</td>
+                </tr>
+                {{ end }}
+                </tbody>
+            </table>
+        </div>
+
+
+    </form>
+</div>
+
+<!-- AC Infinity Login Modal -->
+<div class="modal fade" id="aciLoginModal" tabindex="-1" aria-labelledby="aciLoginModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="aciLoginModalLabel">AC Infinity Login</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="aciLoginForm">
+                    <div class="mb-3">
+                        <label for="aciEmail" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="aciEmail" placeholder="Enter AC Infinity Email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="aciPassword" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="aciPassword" placeholder="Enter AC Infinity Password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Login</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Zone Modal -->
+<div class="modal fade" id="addZoneModal" tabindex="-1" aria-labelledby="addZoneModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addZoneModalLabel">Add Zone</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addZoneForm">
+                    <!-- Zone Name Input -->
+                    <div class="mb-3">
+                        <label for="zoneName" class="form-label">Zone Name</label>
+                        <input type="text" class="form-control" id="zoneName" step="any" required>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-primary">Add Zone</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Activity Modal -->
+<div class="modal fade" id="addActivityModal" tabindex="-1" aria-labelledby="addActivityModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addActivityModalLabel">Add Activity</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addActivityForm">
+                    <!-- Activity Name Input -->
+                    <div class="mb-3">
+                        <label for="activityName" class="form-label">Activity Name</label>
+                        <input type="text" class="form-control" id="activityName" step="any" required>
+                    </div>
+                    
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-primary">Add Activity</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Metric Modal -->
+<div class="modal fade" id="addMetricModal" tabindex="-1" aria-labelledby="addMetricModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addMetricModalLabel">Add Metric</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addMetricForm">
+                    <!-- Metric Name Input -->
+                    <div class="mb-3">
+                        <label for="metricName" class="form-label">Metric Name</label>
+                        <input type="text" class="form-control" id="metricName" step="any" required>
+                    </div>
+                    
+                    <!-- Metric Unit Input -->
+                    <div class="mb-3">
+                        <label for="metricUnit" class="form-label">Metric Unit</label>
+                        <input type="text" class="form-control" id="metricUnit" step="any" required>
+                    </div>
+                    
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-primary">Add Metric</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Zone Edit Modal -->
+<div class="modal fade" id="editZoneModal" tabindex="-1" aria-labelledby="editZoneModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editZoneModalLabel">Edit Zone</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editZoneForm">
+                    <input type="hidden" id="zoneId">
+                    <div class="mb-3">
+                        <label for="editZoneName" class="form-label">Zone Name</label>
+                        <input type="text" class="form-control" id="editZoneName" step="any" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
+                    <button type="button" class="btn btn-danger" id="deleteZone"><i class="fa-solid fa-trash"></i> Delete Zone</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Activity Edit Modal -->
+<div class="modal fade" id="editActivityModal" tabindex="-1" aria-labelledby="editActivityModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editActivityModalLabel">Edit Activity</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="editActivityModalBody">
+                <form id="editActivityForm">
+                    <input type="hidden" id="activityId">
+                    <div class="mb-3">
+                        <label for="editActivityName" class="form-label">Activity Name</label>
+                        <input type="text" class="form-control" id="editActivityName" step="any" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
+                    <button type="button" class="btn btn-danger" id="deleteActivity"><i class="fa-solid fa-trash"></i> Delete Activity</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Metric Edit Modal -->
+<div class="modal fade" id="editMetricModal" tabindex="-1" aria-labelledby="editMetricModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editMetricModalLabel">Edit Metric</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="editMetricModalBody">
+                <form id="editMetricForm">
+                    <input type="hidden" id="metricId">
+                    <div class="mb-3">
+                        <label for="editMetricName" class="form-label">Metric Name</label>
+                        <input type="text" class="form-control" id="editMetricName" step="any" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editMetricUnit" class="form-label">Metric Unit</label>
+                        <input type="text" class="form-control" id="editMetricUnit" step="any" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
+                    <button type="button" class="btn btn-danger" id="deleteMetric"><i class="fa-solid fa-trash"></i> Delete Metric</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const form = document.getElementById("addZoneForm");
+        const addZoneModal = document.getElementById("addZoneModal");
+
+        form.addEventListener("submit", (e) => {
+            e.preventDefault();
+
+            // Gather form data
+            const zoneId = document.getElementById("zoneId").value;
+            const zoneName = document.getElementById("zoneName").value;
+
+            // Construct the payload
+            const payload = {
+                zone_name: zoneName,
+            };
+
+            //alert(JSON.stringify(payload));
+
+            // Send POST request to /plantMeasurement
+            fetch("/zones", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error("Failed to add zone");
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    // Success: Close modal and reload page
+                    const modal = bootstrap.Modal.getInstance(document.getElementById("addZoneModal"));
+                    modal.hide();
+                    window.location.reload(); // Refresh page to show updated data
+                })
+                .catch((error) => {
+                    console.error("Error:", error);
+                    alert("Failed to add zone. Please try again.");
+                });
+        });
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const editZoneModal = new bootstrap.Modal(document.getElementById("editZoneModal"));
+        const zoneForm = document.getElementById("editZoneForm");
+        const deleteZoneButton = document.getElementById("deleteZone");
+
+        document.querySelectorAll(".zone-row").forEach(row => {
+            row.addEventListener("click", () => {
+                const zoneData = JSON.parse(row.getAttribute("data-zone"));
+
+                document.getElementById("zoneId").value = zoneData.id;
+                document.getElementById("editZoneName").value = zoneData.name;
+
+                editZoneModal.show();
+            });
+        });
+
+        zoneForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const zoneId = document.getElementById("zoneId").value;
+            const payload = {
+                zone_name: document.getElementById("editZoneName").value,
+            };
+
+            fetch(`/zones/${zoneId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            })
+                .then(response => response.json())
+                .then(() => location.reload())
+                .catch(err => alert("Failed to update zone"));
+        });
+
+        deleteZoneButton.addEventListener("click", () => {
+            const zoneId = document.getElementById("zoneId").value;
+
+            if (confirm("Are you sure you want to delete this zone?")) {
+                fetch(`/zones/${zoneId}`, { method: "DELETE" })
+                    .then(response => response.json())
+                    .then(() => location.reload())
+                    .catch(err => alert("Failed to delete zone"));
+            }
+        });
+    });
+</script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const aciLoginForm = document.getElementById("aciLoginForm");
+
+        aciLoginForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById("aciEmail").value;
+            const password = document.getElementById("aciPassword").value;
+
+            fetch("/aci/login", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ email, password }),
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    if (data.success) {
+                        document.getElementById("aciToken").value = data.token;
+                        const modal = bootstrap.Modal.getInstance(document.getElementById("aciLoginModal"));
+                        modal.hide();
+                        //alert("Token fetched successfully!");
+                    } else {
+                        alert("Failed to fetch token: " + data.message);
+                    }
+                })
+                .catch((error) => {
+                    console.error("Error fetching token:", error);
+                    alert("An error occurred. Please try again.");
+                });
+        });
+    });
+
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const form = document.getElementById("settingsForm");
+
+        form.addEventListener("submit", (e) => {
+            e.preventDefault();
+
+            // Gather form data
+            const settings = {
+                aci: {
+                    enabled: document.getElementById("aciEnabled").checked,
+                    token: document.getElementById("aciToken").value,
+                },
+                ec: {
+                    enabled: document.getElementById("ecEnabled").checked,
+                    server: document.getElementById("ecServer").value,
+                },
+            };
+
+            // Send POST request to save settings
+            fetch("/settings", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(settings),
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error("Failed to save settings");
+                    }
+                    //alert("Settings saved successfully!");
+                })
+                .catch((error) => {
+                    console.error("Error:", error);
+                    alert("Failed to save settings. Please try again.");
+                });
+        });
+    });
+
+</script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const form = document.getElementById("addActivityForm");
+        const addActivityModal = document.getElementById("addActivityModal");
+
+        form.addEventListener("submit", (e) => {
+            e.preventDefault();
+
+            // Gather form data
+            const activityId = document.getElementById("activityId").value;
+            const activityName = document.getElementById("activityName").value;
+
+            // Construct the payload
+            const payload = {
+                activity_name: activityName,
+            };
+
+            //alert(JSON.stringify(payload));
+
+            // Send POST request to /plantMeasurement
+            fetch("/activities", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error("Failed to add activity");
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    // Success: Close modal and reload page
+                    const modal = bootstrap.Modal.getInstance(document.getElementById("addActivityModal"));
+                    modal.hide();
+                    window.location.reload(); // Refresh page to show updated data
+                })
+                .catch((error) => {
+                    console.error("Error:", error);
+                    alert("Failed to add activity. Please try again.");
+                });
+        });
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const editActivityModal = new bootstrap.Modal(document.getElementById("editActivityModal"));
+        const activityForm = document.getElementById("editActivityForm");
+        const deleteActivityButton = document.getElementById("deleteActivity");
+
+        document.querySelectorAll(".activity-row").forEach(row => {
+            row.addEventListener("click", () => {
+                const activityData = JSON.parse(row.getAttribute("data-activity"));
+
+                document.getElementById("activityId").value = activityData.id;
+                document.getElementById("editActivityName").value = activityData.name;
+
+                editActivityModal.show();
+            });
+        });
+
+        activityForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const activityId = document.getElementById("activityId").value;
+            const payload = {
+                activity_name: document.getElementById("editActivityName").value,
+            };
+
+            fetch(`/activities/${activityId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            })
+                .then(response => response.json())
+                .then(() => location.reload())
+                .catch(err => alert("Failed to update activity"));
+        });
+
+        deleteActivityButton.addEventListener("click", () => {
+            const activityId = document.getElementById("activityId").value;
+
+            if (confirm("Are you sure you want to delete this activity?")) {
+                fetch(`/activities/${activityId}`, { method: "DELETE" })
+                    .then(response => response.json())
+                    .then(() => location.reload())
+                    .catch(err => alert("Failed to delete activity"));
+            }
+        });
+    });
+</script>
+
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const form = document.getElementById("addMetricForm");
+        const addMetricModal = document.getElementById("addMetricModal");
+
+        form.addEventListener("submit", (e) => {
+            e.preventDefault();
+
+            // Gather form data
+            const metricId = document.getElementById("metricId").value;
+            const metricName = document.getElementById("metricName").value;
+            const metricUnit = document.getElementById("metricUnit").value;
+
+            // Construct the payload
+            const payload = {
+                metric_name: metricName,
+                metric_unit: metricUnit,
+            };
+
+            //alert(JSON.stringify(payload));
+
+            // Send POST request to /plantMeasurement
+            fetch("/metrics", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error("Failed to add metric");
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    // Success: Close modal and reload page
+                    const modal = bootstrap.Modal.getInstance(document.getElementById("addMetricModal"));
+                    modal.hide();
+                    window.location.reload(); // Refresh page to show updated data
+                })
+                .catch((error) => {
+                    console.error("Error:", error);
+                    alert("Failed to add metric. Please try again.");
+                });
+        });
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const editMetricModal = new bootstrap.Modal(document.getElementById("editMetricModal"));
+        const metricForm = document.getElementById("editMetricForm");
+        const deleteMetricButton = document.getElementById("deleteMetric");
+
+        document.querySelectorAll(".metric-row").forEach(row => {
+            row.addEventListener("click", () => {
+                const metricData = JSON.parse(row.getAttribute("data-metric"));
+
+                document.getElementById("metricId").value = metricData.id;
+                document.getElementById("editMetricName").value = metricData.name;
+                document.getElementById("editMetricUnit").value = metricData.unit;
+
+                editMetricModal.show();
+            });
+        });
+
+        metricForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const metricId = document.getElementById("metricId").value;
+            const payload = {
+                metric_name: document.getElementById("editMetricName").value,
+                metric_unit: document.getElementById("editMetricUnit").value,
+            };
+
+            fetch(`/metrics/${metricId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            })
+                .then(response => response.json())
+                .then(() => location.reload())
+                .catch(err => alert("Failed to update metric"));
+        });
+
+        deleteMetricButton.addEventListener("click", () => {
+            const metricId = document.getElementById("metricId").value;
+
+            if (confirm("Are you sure you want to delete this metric?")) {
+                fetch(`/metrics/${metricId}`, { method: "DELETE" })
+                    .then(response => response.json())
+                    .then(() => location.reload())
+                    .catch(err => alert("Failed to delete metric"));
+            }
+        });
+    });
+</script>
+
+<!--Embed the footer.html template at this location-->
+{{ template "layouts/footer.html" .}}
+
+{{ end }}

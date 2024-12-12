@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  isley:
+    image: isley
+    ports:
+      - "8080:8080"
+    volumes:
+      - isley-db:/app/db
+      - isley-uploads:/app/uploads
+    restart: unless-stopped
+
+volumes:
+  isley-db:
+  isley-uploads:

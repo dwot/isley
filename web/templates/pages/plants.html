@@ -1,0 +1,289 @@
+{{ define "views/plants.html"}}
+<!--index.html-->
+
+<!--Embed the header.html template at this location-->
+{{ template "layouts/header.html" .}}
+<meta http-equiv="refresh" content="300">
+<style>
+    .clickable-row {
+        cursor: pointer;
+    }
+</style>
+{{ template "layouts/header2.html" .}}
+
+
+<header class="masthead text-center">
+    <div class="overlay"></div>
+    <div class="container">
+        <!-- Table Row -->
+        <div class="mb-3 text-end">
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addPlantModal"><i class="fa-solid fa-plus"></i> Add Plant</button>
+        </div>
+
+        <div class="row">
+            <div class="col-12">
+                <table class="table table-striped table-bordered table-hover">
+                    <thead>
+                    <tr>
+                        <th scope="col">Plant</th>
+                        <th scope="col">Strain</th>
+                        <th scope="col">Breeder</th>
+                        <th scope="col">Start Date</th>
+                        <th scope="col">Current Week</th>
+                        <th scope="col">Current Day</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <!-- Iterate over plantList and display each plant's information in a table row -->
+                    {{ range .plantList }}
+                    <tr class="clickable-row" data-id="{{ .ID }}">
+                        <th scope="row">{{ .Name }}</th>
+                        <td>{{ .StrainName }}</td>
+                        <td>{{ .BreederName }}</td>
+                        <td>{{ formatDate .StartDT }}</td>
+                        <td>{{ .CurrentWeek }}</td>
+                        <td>{{ .CurrentDay }}</td>
+                    </tr>
+                    {{ end }}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- Add Plant Modal -->
+<div class="modal fade" id="addPlantModal" tabindex="-1" aria-labelledby="addPlantModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addPlantModalLabel">Add New Plant</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addPlantForm">
+                    <!-- Plant Name -->
+                    <div class="mb-3">
+                        <label for="plantName" class="form-label">Plant Name</label>
+                        <input type="text" class="form-control" id="plantName" placeholder="Enter Plant Name" required>
+                    </div>
+
+                    <!-- Zone Dropdown -->
+                    <div class="mb-3">
+                        <label for="zoneSelect" class="form-label">Zone</label>
+                        <select class="form-select" id="zoneSelect" required>
+                            {{ range .zones }}
+                            <option value="{{ .ID }}">{{ .Name }}</option>
+                            {{ end }}
+                            <option value="new">Add New Zone</option>
+                        </select>
+                    </div>
+
+                    <!-- New Zone Input -->
+                    <div class="mb-3 d-none" id="newZoneInput">
+                        <label for="newZoneName" class="form-label">New Zone Name</label>
+                        <input type="text" class="form-control" id="newZoneName" placeholder="Enter Zone Name">
+                    </div>
+
+                    <!-- Strain Dropdown -->
+                    <div class="mb-3">
+                        <label for="strainSelect" class="form-label">Strain</label>
+                        <select class="form-select" id="strainSelect" required>
+                            {{ range .strains }}
+                            <option value="{{ .ID }}">{{ .Name }} ({{ .Breeder }})</option>
+                            {{ end }}
+                            <option value="new">Add New Strain</option>
+                        </select>
+                    </div>
+
+                    <!-- New Strain Inputs -->
+                    <div class="mb-3 d-none" id="newStrainInputs">
+                        <label for="newStrainName" class="form-label">Strain Name</label>
+                        <input type="text" class="form-control" id="newStrainName" placeholder="Enter Strain Name">
+
+                        <!-- Breeder Dropdown -->
+                        <div class="mb-3">
+                            <label for="breederSelect" class="form-label">Breeder</label>
+                            <select class="form-select" id="breederSelect">
+                                {{ range .breeders }}
+                                <option value="{{ .ID }}">{{ .Name }}</option>
+                                {{ end }}
+                                <option value="new">Add New Breeder</option>
+                            </select>
+                        </div>
+
+                        <!-- New Breeder Input -->
+                        <div class="mb-3 d-none" id="newBreederInput">
+                            <label for="newBreederName" class="form-label">New Breeder Name</label>
+                            <input type="text" class="form-control" id="newBreederName" placeholder="Enter Breeder Name">
+                        </div>
+                    </div>
+
+                    <!-- Status Dropdown -->
+                    <div class="mb-3">
+                        <label for="statusSelect" class="form-label">Status</label>
+                        <select class="form-select" id="statusSelect" required>
+                            {{ range .statuses }}
+                            <option value="{{ .ID }}">{{ .Status }}</option>
+                            {{ end }}
+                        </select>
+                    </div>
+
+                    <!-- Date Picker -->
+                    <div class="mb-3">
+                        <label for="startDate" class="form-label">Date</label>
+                        <input type="date" class="form-control" id="startDate" required>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-primary">Add Plant</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        // Add click event to rows
+        document.querySelectorAll(".clickable-row").forEach(row => {
+            row.addEventListener("click", () => {
+                const plantId = row.getAttribute("data-id");
+                if (plantId) {
+                    window.location.href = `/plant/${plantId}`;
+                }
+            });
+        });
+    });
+</script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const addPlantForm = document.getElementById("addPlantForm");
+        const zoneSelect = document.getElementById("zoneSelect");
+        const newZoneInput = document.getElementById("newZoneInput");
+        const strainSelect = document.getElementById("strainSelect");
+        const newStrainInputs = document.getElementById("newStrainInputs");
+        const breederSelect = document.getElementById("breederSelect");
+        const newBreederInput = document.getElementById("newBreederInput");
+        const plantName = document.getElementById("plantName");
+        const statusSelect = document.getElementById("statusSelect");
+        const newZoneName = document.getElementById("newZoneName");
+        const newStrainName = document.getElementById("newStrainName");
+        const newBreederName = document.getElementById("newBreederName");
+        const startDt = document.getElementById("startDate");
+        const addPlantModal = document.getElementById("addPlantModal");
+
+        // Set default date to today
+        const setDefaultDate = () => {
+            const today = new Date().toISOString().split("T")[0];
+            startDt.value = today;
+        };
+
+        // Reset Zone Selection
+        const resetZoneSelection = () => {
+            zoneSelect.disabled = false;
+            zoneSelect.value = "";
+            newZoneInput.classList.add("d-none");
+        };
+
+        // Reset Strain Selection
+        const resetStrainSelection = () => {
+            strainSelect.value = "";
+            newStrainInputs.classList.add("d-none");
+            resetBreederSelection();
+        };
+
+        // Reset Breeder Selection
+        const resetBreederSelection = () => {
+            breederSelect.value = "";
+            newBreederInput.classList.add("d-none");
+        };
+
+        // Set default behaviors when the modal is shown
+        addPlantModal.addEventListener("show.bs.modal", () => {
+            setDefaultDate();
+            resetZoneSelection();
+            resetStrainSelection();
+        });
+
+        // Show/Hide New Zone Input
+        zoneSelect.addEventListener("change", () => {
+            if (zoneSelect.value === "new") {
+                newZoneInput.classList.remove("d-none");
+            } else {
+                newZoneInput.classList.add("d-none");
+            }
+        });
+
+        // Show/Hide New Strain Inputs
+        strainSelect.addEventListener("change", () => {
+            if (strainSelect.value === "new") {
+                newStrainInputs.classList.remove("d-none");
+            } else {
+                newStrainInputs.classList.add("d-none");
+            }
+        });
+
+        // Show/Hide New Breeder Input
+        breederSelect.addEventListener("change", () => {
+            if (breederSelect.value === "new") {
+                newBreederInput.classList.remove("d-none");
+            } else {
+                newBreederInput.classList.add("d-none");
+            }
+        });
+
+        // Handle Add Plant Form Submission
+        addPlantForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+
+            // Gather form data
+            const payload = {
+                name: plantName.value,
+                zone_id: zoneSelect.value === "new" ? null : parseInt(zoneSelect.value, 10),
+                new_zone: zoneSelect.value === "new" ? newZoneName.value : null,
+                strain_id: strainSelect.value === "new" ? null : parseInt(strainSelect.value, 10),
+                new_strain: strainSelect.value === "new" ? {
+                    name: newStrainName.value,
+                    breeder_id: breederSelect.value === "new" ? null : parseInt(breederSelect.value, 10),
+                    new_breeder: breederSelect.value === "new" ? newBreederName.value : null
+                } : null,
+                status_id: parseInt(statusSelect.value, 10),
+                date: startDt.value,
+            };
+
+            // Send POST request to add the plant
+            fetch("/plants", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error("Failed to add plant");
+                    }
+                    return response.json();
+                })
+                .then(() => {
+                    location.reload(); // Reload the page to show the new plant
+                })
+                .catch((error) => {
+                    console.error("Error:", error);
+                    alert("Failed to add plant. Please try again.");
+                });
+        });
+    });
+
+
+</script>
+
+
+<!--Embed the footer.html template at this location-->
+{{ template "layouts/footer.html" .}}
+
+{{ end }}

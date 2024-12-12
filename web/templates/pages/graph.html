@@ -1,0 +1,120 @@
+{{ define "views/graph.html"}}
+<!--index.html-->
+
+<!--Embed the header.html template at this location-->
+{{ template "layouts/header.html" .}}
+<meta http-equiv="refresh" content="300">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+<style>
+    /* Ensure the graph container has a taller height */
+    .graph-container {
+        height: 500px; /* Adjust this value as needed */
+    }
+</style>
+{{ template "layouts/header2.html" .}}
+
+<div class="container py-5">
+    <h1 class="display-5 text-primary mb-4">Sensor Graph</h1>
+
+    <!-- Time Range Selector -->
+    <div class="mb-4 d-flex align-items-center">
+        <label for="timeRange" class="form-label me-3">Time Range:</label>
+        <select id="timeRange" class="form-select w-auto me-3">
+            <option value="60">1 Hour</option>
+            <option value="360">6 Hours</option>
+            <option value="1440" selected>24 Hours</option>
+            <option value="2880">48 Hours</option>
+            <option value="4320">72 Hours</option>
+            <option value="10080">1 Week</option>
+            <option value="20160">2 Weeks</option>
+        </select>
+        <input type="hidden" id="sensorID" value="{{ .SensorID }}">
+        <button id="updateChart" class="btn btn-primary">Update</button>
+    </div>
+
+    <!-- Graph Display -->
+    <div class="card">
+        <div class="card-body graph-container">
+            <canvas id="chart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const ctx = document.getElementById('chart').getContext('2d');
+        const timeRangeSelect = document.getElementById('timeRange');
+        const updateChartButton = document.getElementById('updateChart');
+        let chart;
+
+        // Function to fetch data and render the chart
+        const fetchAndRenderData = (minutes) => {
+            const sensorId = document.getElementById('sensorID').value;
+            fetch(`/sensorData/${sensorId}/${minutes}`)
+                .then(response => response.json())
+                .then(data => {
+                    const formattedData = data.map(item => ({
+                        x: new Date(item.create_dt),
+                        y: item.value
+                    }));
+
+                    if (chart) {
+                        chart.destroy(); // Destroy the existing chart before creating a new one
+                    }
+
+                    chart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            datasets: [{
+                                label: 'Measurement',
+                                data: formattedData,
+                                borderColor: 'rgba(75, 192, 192, 1)',
+                                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                                borderWidth: 1,
+                                tension: 0.4,
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false, // Allow the chart to fill the container's height
+                            scales: {
+                                x: {
+                                    type: 'time',
+                                    time: {
+                                        tooltipFormat: 'MMM D, h:mm a',
+                                        unit: 'hour',
+                                    },
+                                    title: {
+                                        display: true,
+                                        text: 'Time'
+                                    }
+                                },
+                                y: {
+                                    title: {
+                                        display: true,
+                                        text: 'Sensor Value'
+                                    }
+                                }
+                            }
+                        }
+                    });
+                })
+                .catch(error => console.error('Error fetching data:', error));
+        };
+
+        // Initial rendering with default time range
+        fetchAndRenderData(1440);
+
+        // Update chart on button click
+        updateChartButton.addEventListener('click', () => {
+            const minutes = parseInt(timeRangeSelect.value, 10);
+            fetchAndRenderData(minutes);
+        });
+    });
+</script>
+
+<!--Embed the footer.html template at this location-->
+{{ template "layouts/footer.html" .}}
+
+{{ end }}

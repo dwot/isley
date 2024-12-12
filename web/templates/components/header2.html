@@ -1,0 +1,49 @@
+{{ define "layouts/header2.html" }}
+
+</head>
+
+<body>
+<header class="d-flex flex-wrap justify-content-between align-items-center py-3 mb-4 border-bottom container">
+    <!-- Logo and Title -->
+    <a href="/" class="d-flex align-items-center text-decoration-none link-body-emphasis">
+        <i class="fa fa-leaf fa-2xl me-2"></i>
+        <span class="fs-4">{{ .version }} - {{ .title }}</span>
+    </a>
+
+    <!-- Navigation Links -->
+    <ul class="nav nav-pills">
+        <li class="nav-item">
+            <a href="/" class="nav-link" aria-label="Home">
+                <i class="fa fa-home" title="Home"></i>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a href="/plants" class="nav-link" aria-label="Plants">
+                <i class="fa fa-cannabis" title="Plants"></i>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a href="/strains" class="nav-link" aria-label="Strains">
+                <i class="fa fa-dna" title="Strains"></i>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a href="/graphs" class="nav-link" aria-label="Charts">
+                <i class="fa fa-line-chart" title="Charts"></i>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a href="/sensors" class="nav-link" aria-label="Sensors">
+                <i class="fa fa-thermometer-half" title="Sensors"></i>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a href="/settings" class="nav-link" aria-label="Settings">
+                <i class="fa fa-cog" title="Settings"></i>
+            </a>
+        </li>
+    </ul>
+</header>
+
+
+{{ end }}

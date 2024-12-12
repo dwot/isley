@@ -1,0 +1,331 @@
+{{ define "views/sensors.html"}}
+<!--index.html-->
+
+<!--Embed the header.html template at this location-->
+{{ template "layouts/header.html" .}}
+<style>
+    .clickable-row {
+        cursor: pointer;
+    }
+
+    .clickable-row:hover {
+        background-color: #f8f9fa; /* Optional: Light background on hover */
+    }
+</style>
+
+{{ template "layouts/header2.html" .}}
+
+<div class="container py-5">
+    <h1 class="display-5 text-primary mb-4">Sensors</h1>
+
+    <!-- Action Buttons -->
+    <div class="mb-4">
+        {{ if .settings.ACI.Enabled }}
+        <button class="btn btn-primary me-2" id="scanACI">
+            <i class="fa-solid fa-search"></i> Scan and Add AC Infinity Sensors
+        </button>
+        {{ end }}
+
+        {{ if .settings.EC.Enabled }}
+        <button class="btn btn-success" id="scanEC">
+            <i class="fa-solid fa-search"></i> Scan and Add EcoWitt Sensors
+        </button>
+        {{ end }}
+    </div>
+
+    <!-- Sensors Table -->
+    <div class="table-responsive">
+        <table class="table table-striped table-bordered table-hover">
+            <thead class="table-dark">
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Zone</th>
+                <th>Source</th>
+                <th>Device</th>
+                <th>Type</th>
+                <th>Unit</th>
+                <th>Show/Hide</th>
+                <th>Created</th>
+                <th>Updated</th>
+            </tr>
+            </thead>
+            <tbody>
+            {{ range .sensors }}
+            <tr class="clickable-row" data-sensor='{{ json . }}'>
+                <td>{{ .id }}</td>
+                <td>{{ .name }}</td>
+                <td>{{ .zone }}</td>
+                <td>{{ .source }}</td>
+                <td>{{ .device }}</td>
+                <td>{{ .type }}</td>
+                <td>{{ .unit }}</td>
+                <td>{{ if .visible }}Show{{ else }}Hide{{ end }}</td>
+                <td>{{ formatStringDate .create_dt }}</td>
+                <td>{{ formatStringDate .update_dt }}</td>
+            </tr>
+            {{ end }}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+
+<!-- Zone Selection Modal -->
+<div class="modal fade" id="zoneModal" tabindex="-1" aria-labelledby="zoneModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="zoneModalLabel">Select Zone</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="zoneForm">
+                    <div class="mb-3">
+                        <label for="zoneSelect" class="form-label">Zone</label>
+                        <select class="form-select" id="zoneSelect" required>
+                            {{ range .zones }}
+                            <option value="{{ .ID }}">{{ .Name }}</option>
+                            {{ end }}
+                            <option value="new">Add New Zone</option>
+                        </select>
+                        <div class="form-text" id="noZoneHelp" style="display: none;">
+                            No zones available. Please add a new zone.
+                        </div>
+                    </div>
+                    <div class="mb-3 d-none" id="newZoneInput">
+                        <label for="newZoneName" class="form-label">New Zone Name</label>
+                        <input type="text" class="form-control" id="newZoneName" placeholder="Enter Zone Name">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Proceed</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<!-- Modal for Edit Sensor -->
+<div class="modal fade" id="editSensorModal" tabindex="-1" aria-labelledby="editSensorModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editSensorModalLabel">Edit Sensor</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editSensorForm">
+                    <!-- Sensor ID (Hidden) -->
+                    <input type="hidden" id="sensorId">
+
+                    <!-- Sensor Name -->
+                    <div class="mb-3">
+                        <label for="sensorName" class="form-label">Sensor Name</label>
+                        <input type="text" class="form-control" id="sensorName" required>
+                    </div>
+
+                    <!-- Show/Hide -->
+                    <div class="mb-3">
+                        <label for="sensorVisibility" class="form-label">Visibility</label>
+                        <select class="form-select" id="sensorVisibility" required>
+                            <option value="true">Show</option>
+                            <option value="false">Hide</option>
+                        </select>
+                    </div>
+
+                    <!-- Zone Dropdown -->
+                    <div class="mb-3">
+                        <label for="sensorZone" class="form-label">Zone</label>
+                        <select class="form-select" id="sensorZone" required>
+                            {{ range .zones }}
+                            <option value="{{ .ID }}">{{ .Name }}</option>
+                            {{ end }}
+                        </select>
+                    </div>
+
+                    <!-- Unit -->
+                    <div class="mb-3">
+                        <label for="sensorUnit" class="form-label">Unit</label>
+                        <input type="text" class="form-control" id="sensorUnit" required>
+                    </div>
+
+                    <!-- Buttons -->
+                    <div class="d-flex justify-content-between">
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
+                        <button type="button" class="btn btn-danger" id="deleteSensor"><i class="fa-solid fa-trash"></i> Delete Sensor</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        let currentScanEndpoint = "";
+
+        // Show the modal when scan buttons are clicked
+        document.getElementById("scanACI")?.addEventListener("click", () => {
+            currentScanEndpoint = "/sensors/scanACI";
+            showZoneModal();
+        });
+
+        document.getElementById("scanEC")?.addEventListener("click", () => {
+            currentScanEndpoint = "/sensors/scanEC";
+            showZoneModal();
+        });
+
+        const showZoneModal = () => {
+            const zoneSelect = document.getElementById("zoneSelect");
+            const newZoneInput = document.getElementById("newZoneInput");
+            const noZoneHelp = document.getElementById("noZoneHelp");
+
+            // Ensure dropdown is enabled and helper text is hidden
+            zoneSelect.disabled = false;
+            noZoneHelp.style.display = "none";
+
+            // Reset selection and new zone input visibility
+            zoneSelect.value = "";
+            newZoneInput.classList.add("d-none");
+
+            const modal = new bootstrap.Modal(document.getElementById("zoneModal"));
+            modal.show();
+        };
+
+        // Toggle New Zone Input
+        document.getElementById("zoneSelect").addEventListener("change", (e) => {
+            const newZoneInput = document.getElementById("newZoneInput");
+            if (e.target.value === "new") {
+                newZoneInput.classList.remove("d-none");
+            } else {
+                newZoneInput.classList.add("d-none");
+            }
+        });
+
+        // Handle Zone Form Submission
+        document.getElementById("zoneForm").addEventListener("submit", (e) => {
+            e.preventDefault();
+
+            const zoneSelect = document.getElementById("zoneSelect");
+            const newZoneName = document.getElementById("newZoneName").value;
+
+            // Prepare payload
+            const payload = {
+                zone_id: zoneSelect.value === "new" ? null : parseInt(zoneSelect.value, 10),
+                new_zone: zoneSelect.value === "new" ? newZoneName : null,
+            };
+
+            // Send POST request to the selected scan endpoint
+            fetch(currentScanEndpoint, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error("Failed to scan sensors");
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    //alert("Sensors scanned and added successfully!");
+                    window.location.reload();
+                })
+                .catch((error) => {
+                    console.error("Error:", error);
+                    alert("Failed to scan sensors.");
+                });
+        });
+    });
+
+</script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const editSensorModal = new bootstrap.Modal(document.getElementById("editSensorModal"));
+        const sensorForm = document.getElementById("editSensorForm");
+        const deleteButton = document.getElementById("deleteSensor");
+
+        let currentSensor = null;
+
+        // Row click opens the modal with sensor data
+        document.querySelectorAll(".clickable-row").forEach(row => {
+            row.addEventListener("click", () => {
+                const sensorData = JSON.parse(row.getAttribute("data-sensor"));
+                currentSensor = sensorData;
+
+                // Populate modal fields
+                document.getElementById("sensorId").value = sensorData.id;
+                document.getElementById("sensorName").value = sensorData.name;
+
+                // Populate visibility (ensure it's boolean in the backend)
+                document.getElementById("sensorVisibility").value = sensorData.visible ? "true" : "false";
+
+                // Populate unit
+                document.getElementById("sensorUnit").value = sensorData.unit;
+
+                // Populate zone dropdown
+                document.getElementById("sensorZone").value = sensorData.zone_id;
+
+                editSensorModal.show();
+            });
+        });
+
+        // Save changes
+        sensorForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+
+            const payload = {
+                id: parseInt(document.getElementById("sensorId").value, 10),
+                name: document.getElementById("sensorName").value,
+                visible: document.getElementById("sensorVisibility").value === "true",
+                zone_id: parseInt(document.getElementById("sensorZone").value, 10),
+                unit: document.getElementById("sensorUnit").value,
+            };
+
+            fetch("/sensors/edit", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            })
+                .then(response => {
+                    if (!response.ok) throw new Error("Failed to save changes");
+                    return response.json();
+                })
+                .then(data => {
+                    //alert("Sensor updated successfully!");
+                    window.location.reload();
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                    alert("Failed to update sensor.");
+                });
+        });
+
+        // Delete sensor
+        deleteButton.addEventListener("click", () => {
+            if (confirm("Are you sure you want to delete this sensor? This action cannot be undone.")) {
+                fetch(`/sensors/delete/${currentSensor.id}`, { method: "DELETE" })
+                    .then(response => {
+                        if (!response.ok) throw new Error("Failed to delete sensor");
+                        //alert("Sensor deleted successfully!");
+                        window.location.reload();
+                    })
+                    .catch(error => {
+                        console.error("Error:", error);
+                        alert("Failed to delete sensor.");
+                    });
+            }
+        });
+    });
+</script>
+
+
+<!--Embed the footer.html template at this location-->
+{{ template "layouts/footer.html" .}}
+
+{{ end }}

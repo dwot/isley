@@ -1,0 +1,142 @@
+{{ define "views/graphs.html"}}
+<!--index.html-->
+
+<!--Embed the header.html template at this location-->
+{{ template "layouts/header.html" .}}
+<meta http-equiv="refresh" content="300">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+{{ template "layouts/header2.html" .}}
+
+<div class="container py-5">
+    <h1 class="display-5 text-primary mb-4">Sensor Graphs</h1>
+
+    <!-- Time Frame Selector -->
+    <div class="mb-4">
+        <label for="timeFrame" class="form-label">Time Frame</label>
+        <select class="form-select" id="timeFrame">
+            <option value="60">1 Hour</option>
+            <option value="180">3 Hours</option>
+            <option value="360">6 Hours</option>
+            <option value="720">12 Hours</option>
+            <option value="1440" selected>24 Hours</option>
+            <option value="4320">3 Days</option>
+            <option value="10080">7 Days</option>
+            <option value="20160">14 Days</option>
+        </select>
+    </div>
+
+    <!-- Graphs Container -->
+    <div id="graphsContainer"></div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const graphsContainer = document.getElementById("graphsContainer");
+        const timeFrameSelector = document.getElementById("timeFrame");
+
+        // Function to load graphs
+        function loadGraphs(timeFrame) {
+            fetch("/sensors/grouped")
+                .then(response => response.json())
+                .then(data => {
+                    graphsContainer.innerHTML = ""; // Clear existing graphs
+
+                    Object.keys(data).forEach(zone => {
+                        // Create Zone Header
+                        const zoneHeader = document.createElement("div");
+                        zoneHeader.classList.add("mb-5");
+                        zoneHeader.innerHTML = `<h3 class="text-secondary mt-4">${zone}</h3>`;
+                        graphsContainer.appendChild(zoneHeader);
+
+                        Object.keys(data[zone]).forEach(device => {
+                            // Create Device Header
+                            const deviceHeader = document.createElement("div");
+                            deviceHeader.classList.add("mb-3");
+                            deviceHeader.innerHTML = `<h5 class="text-info mt-2">Device: ${device}</h5>`;
+                            graphsContainer.appendChild(deviceHeader);
+
+                            // Create Graphs for Each Sensor
+                            data[zone][device].forEach(sensor => {
+                                const graphDiv = document.createElement("div");
+                                graphDiv.classList.add("mb-4");
+
+                                // Sensor Chart
+                                graphDiv.innerHTML = `
+                                        <div class="card">
+                                            <div class="card-body">
+                                                <h6 class="card-title text-center">${sensor.type} - ${sensor.name}</h6>
+                                                <canvas id="chart-${sensor.id}" height="150"></canvas>
+                                            </div>
+                                        </div>
+                                    `;
+                                graphsContainer.appendChild(graphDiv);
+
+                                // Fetch and Render Chart Data
+                                fetch(`/sensorData/${sensor.id}/${timeFrame}`)
+                                    .then(response => response.json())
+                                    .then(sensorData => {
+                                        const ctx = document.getElementById(`chart-${sensor.id}`).getContext("2d");
+                                        const formattedData = sensorData.map(item => ({
+                                            x: new Date(item.create_dt),
+                                            y: item.value,
+                                        }));
+
+                                        new Chart(ctx, {
+                                            type: "line",
+                                            data: {
+                                                datasets: [{
+                                                    label: `${sensor.type}`,
+                                                    data: formattedData,
+                                                    borderColor: "rgba(75, 192, 192, 1)",
+                                                    backgroundColor: "rgba(75, 192, 192, 0.2)",
+                                                    borderWidth: 1,
+                                                    tension: 0.4,
+                                                }],
+                                            },
+                                            options: {
+                                                responsive: true,
+                                                scales: {
+                                                    x: {
+                                                        type: "time",
+                                                        time: {
+                                                            unit: "hour",
+                                                            tooltipFormat: "MMM D, h:mm a",
+                                                        },
+                                                        title: {
+                                                            display: true,
+                                                            text: "Time",
+                                                        },
+                                                    },
+                                                    y: {
+                                                        title: {
+                                                            display: true,
+                                                            text: `${sensor.type} Value`,
+                                                        },
+                                                    },
+                                                },
+                                            },
+                                        });
+                                    })
+                                    .catch(err => console.error(`Error fetching sensor data for ID ${sensor.id}:`, err));
+                            });
+                        });
+                    });
+                })
+                .catch(err => console.error("Error fetching grouped sensors:", err));
+        }
+
+        // Initial Load with Default Time Frame
+        loadGraphs(timeFrameSelector.value);
+
+        // Reload Graphs on Time Frame Change
+        timeFrameSelector.addEventListener("change", () => {
+            loadGraphs(timeFrameSelector.value);
+        });
+    });
+</script>
+
+<!--Embed the footer.html template at this location-->
+{{ template "layouts/footer.html" .}}
+
+{{ end }}
