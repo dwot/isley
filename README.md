@@ -8,7 +8,7 @@ Isley is a self-hosted cannabis grow journal.
  - Integrates with AC Infinity controllers, tracking temperature, humidity and VPD
  - Integrates with Ecowitt soil sensors to track soil moisture
 
-![Isley Sensors](https://isley.dwot.io/images/sensors.png)
+![Isley Sensors](https://isley.dwot.io/images/isley_sensors.png)
 
 - Sensor Data Graphed and presented in a dashboard
 
