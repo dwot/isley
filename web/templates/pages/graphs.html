@@ -30,8 +30,6 @@
 
 
 <div class="container py-5">
-    <h1 class="display-5 text-primary mb-4">Sensor Graphs</h1>
-
     <!-- Time Frame Selector -->
     <div class="time-frame-selector">
         <label for="timeFrame" class="form-label me-2">Time Frame:</label>
@@ -99,11 +97,20 @@
                 .then(data => {
                     graphsContainer.innerHTML = ""; // Clear existing graphs
 
+                    showZoneHeader = true;
+                    //If only one zone is present, set zone header show boolean to false
+                    if (Object.keys(data).length == 1) {
+                        showZoneHeader = false;
+                    }
+
+
                     Object.keys(data).forEach(zone => {
                         const zoneHeader = document.createElement("h3");
                         zoneHeader.classList.add("text-secondary", "mt-4", "mb-3");
                         zoneHeader.textContent = zone;
-                        graphsContainer.appendChild(zoneHeader);
+                        if (showZoneHeader) {
+                            graphsContainer.appendChild(zoneHeader);
+                        }
 
                         Object.keys(data[zone]).forEach(device => {
                             const sensors = data[zone][device];
