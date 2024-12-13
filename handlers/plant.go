@@ -455,7 +455,7 @@ func GetPlantList() []PlantListResponse {
 	if err != nil {
 		return plants
 	}
-	rows, err := db.Query("SELECT p.id, p.name, p.description, p.start_dt, s.name as strain_name, b.name as breeder_name, z.name as zone_name, (select ps.status from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as current_status  FROM plant p LEFT OUTER JOIN strain s on p.strain_id = s.id left outer join breeder b on b.id = s.breeder_id LEFT OUTER JOIN zones z on p.zone_id = z.id ORDER BY start_dt")
+	rows, err := db.Query("SELECT p.id, p.name, p.description, p.start_dt, s.name as strain_name, b.name as breeder_name, z.name as zone_name, (select ps.status from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as current_status  FROM plant p LEFT OUTER JOIN strain s on p.strain_id = s.id left outer join breeder b on b.id = s.breeder_id LEFT OUTER JOIN zones z on p.zone_id = z.id WHERE current_status not in ('Success','Dead') ORDER BY start_dt")
 	if err != nil {
 		fmt.Println(err)
 		return plants
@@ -1063,4 +1063,111 @@ func UpdatePlant(c *gin.Context) {
 		log.Printf("Status unchanged, not updating")
 	}
 	c.JSON(http.StatusCreated, input)
+}
+
+// Plant represents the structure of a plant record.
+type PlantTableResponse struct {
+	ID          int    `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Clone       bool   `json:"clone"`
+	StrainName  string `json:"strain_name"`
+	BreederName string `json:"breeder_name"`
+	ZoneName    string `json:"zone_name"`
+	StartDT     string `json:"start_dt"`
+	CurrentWeek int    `json:"current_week"`
+	CurrentDay  int    `json:"current_day"`
+}
+
+func getPlantsByStatus(statuses []int) ([]PlantTableResponse, error) {
+	// Generate placeholders for the number of statuses
+	placeholders := make([]string, len(statuses))
+	args := make([]interface{}, len(statuses))
+	for i, status := range statuses {
+		placeholders[i] = "?"
+		args[i] = status
+	}
+
+	// Join the placeholders with commas
+	inClause := "(" + strings.Join(placeholders, ",") + ")"
+
+	// Use the dynamic IN clause in the query
+	query := `
+		SELECT p.id, p.name, p.description, p.clone, s.name AS strain_name, b.name AS breeder_name, z.name AS zone_name, 
+		       p.start_dt, 
+		       ((strftime('%j', 'now') - strftime('%j', p.start_dt)) / 7) +1 AS current_week,
+		       (strftime('%j', 'now') - strftime('%j', p.start_dt)) +1 AS current_day
+		FROM plant p
+		JOIN strain s ON p.strain_id = s.id
+		JOIN breeder b ON s.breeder_id = b.id
+		LEFT JOIN zones z ON p.zone_id = z.id
+		JOIN plant_status_log psl ON p.id = psl.plant_id
+		JOIN plant_status ps ON psl.status_id = ps.id
+		WHERE ps.id IN ` + inClause + ` AND psl.date = (
+			SELECT MAX(date) FROM plant_status_log WHERE plant_id = p.id
+		)
+		ORDER BY p.name;
+	`
+
+	// Open the database connection
+	db, err := sql.Open("sqlite", model.DbPath())
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	// Execute the query
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	plants := []PlantTableResponse{}
+	for rows.Next() {
+		var plant PlantTableResponse
+		if err := rows.Scan(&plant.ID, &plant.Name, &plant.Description, &plant.Clone, &plant.StrainName, &plant.BreederName, &plant.ZoneName, &plant.StartDT, &plant.CurrentWeek, &plant.CurrentDay); err != nil {
+			return nil, err
+		}
+		plants = append(plants, plant)
+	}
+
+	return plants, nil
+}
+
+// LivingPlantsHandler handles the /plants/living endpoint.
+func LivingPlantsHandler(c *gin.Context) {
+
+	statuses := []int{2, 3, 4, 5, 6} // Seedling, Veg, Flower, Drying, Curing
+	plants, err := getPlantsByStatus(statuses)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve plants"})
+		return
+	}
+
+	c.JSON(http.StatusOK, plants)
+}
+
+// HarvestedPlantsHandler handles the /plants/harvested endpoint.
+func HarvestedPlantsHandler(c *gin.Context) {
+	statuses := []int{7} // Success
+	plants, err := getPlantsByStatus(statuses)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve plants"})
+		return
+	}
+
+	c.JSON(http.StatusOK, plants)
+}
+
+// DeadPlantsHandler handles the /plants/dead endpoint.
+func DeadPlantsHandler(c *gin.Context) {
+	statuses := []int{8} // Dead
+	plants, err := getPlantsByStatus(statuses)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve plants"})
+		return
+	}
+
+	c.JSON(http.StatusOK, plants)
 }

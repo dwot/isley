@@ -169,49 +169,49 @@ func main() {
 	})
 
 	// API endpoints
-	r.POST("/plantMeasurement", func(c *gin.Context) { handlers.CreatePlantMeasurement(c) })
-	r.POST("/plantActivity", func(c *gin.Context) { handlers.CreatePlantActivity(c) })
+	r.POST("/plants", handlers.AddPlant)
+	r.GET("/plants/living", handlers.LivingPlantsHandler)
+	r.GET("/plants/harvested", handlers.HarvestedPlantsHandler)
+	r.GET("/plants/dead", handlers.DeadPlantsHandler)
+
 	r.POST("/plant", func(c *gin.Context) { handlers.UpdatePlant(c) })
-	r.POST("/settings", handlers.SaveSettings)
+	r.DELETE("/plant/delete/:id", handlers.DeletePlant)
+	r.POST("/plant/link-sensors", handlers.LinkSensorsToPlant)
+	r.POST("/plantStatus/edit", handlers.EditStatus)
+	r.DELETE("/plantStatus/delete/:id", handlers.DeleteStatus)
+	r.POST("/plantMeasurement", func(c *gin.Context) { handlers.CreatePlantMeasurement(c) })
+	r.POST("/plantMeasurement/edit", handlers.EditMeasurement)
+	r.DELETE("/plantMeasurement/delete/:id", handlers.DeleteMeasurement)
+	r.POST("/plantActivity", func(c *gin.Context) { handlers.CreatePlantActivity(c) })
+	r.POST("/plantActivity/edit", handlers.EditActivity)
+	r.DELETE("/plantActivity/delete/:id", handlers.DeleteActivity)
+	r.POST("/plant/:plantID/images/upload", handlers.UploadPlantImages)
+	r.DELETE("/plant/images/:imageID/delete", handlers.DeletePlantImage)
+
 	r.POST("/sensors/scanACI", handlers.ScanACInfinitySensors)
 	r.POST("/sensors/scanEC", handlers.ScanEcoWittSensors)
 	r.POST("/sensors/edit", handlers.EditSensor)
 	r.DELETE("/sensors/delete/:id", handlers.DeleteSensor)
-	r.POST("/plants", handlers.AddPlant)
-	r.POST("/plantStatus/edit", handlers.EditStatus)
-	r.DELETE("/plantStatus/delete/:id", handlers.DeleteStatus)
-	r.POST("/strains", handlers.AddStrainHandler)
-	r.GET("/strains/:id", handlers.GetStrainHandler)
-	r.PUT("/strains/:id", handlers.UpdateStrainHandler)
-	r.DELETE("/strains/:id", handlers.DeleteStrainHandler)
-
-	r.POST("/plantMeasurement/edit", handlers.EditMeasurement)
-	r.DELETE("/plantMeasurement/delete/:id", handlers.DeleteMeasurement)
-
-	r.POST("/plantActivity/edit", handlers.EditActivity)
-	r.DELETE("/plantActivity/delete/:id", handlers.DeleteActivity)
-
-	r.DELETE("/plant/delete/:id", handlers.DeletePlant)
-	r.POST("/plant/link-sensors", handlers.LinkSensorsToPlant)
-
-	r.POST("/plant/:plantID/images/upload", handlers.UploadPlantImages)
-	r.DELETE("/plant/images/:imageID/delete", handlers.DeletePlantImage)
-
 	r.GET("/sensorData/:id/:duration", func(c *gin.Context) { handlers.ChartHandler(c, c.Param("id"), c.Param("duration")) })
 	r.GET("/sensors/grouped", func(c *gin.Context) {
 		groupedSensors := handlers.GetGroupedSensorsWithLatestReading()
 		c.JSON(http.StatusOK, groupedSensors)
 	})
+
+	r.POST("/strains", handlers.AddStrainHandler)
+	r.GET("/strains/:id", handlers.GetStrainHandler)
+	r.PUT("/strains/:id", handlers.UpdateStrainHandler)
+	r.DELETE("/strains/:id", handlers.DeleteStrainHandler)
+
+	r.POST("/settings", handlers.SaveSettings)
 	r.POST("/aci/login", handlers.ACILoginHandler)
-	// Define routes for Zones, Metrics, and Activities
+
 	r.POST("/zones", handlers.AddZoneHandler)
 	r.PUT("/zones/:id", handlers.UpdateZoneHandler)
 	r.DELETE("/zones/:id", handlers.DeleteZoneHandler)
-
 	r.POST("/metrics", handlers.AddMetricHandler)
 	r.PUT("/metrics/:id", handlers.UpdateMetricHandler)
 	r.DELETE("/metrics/:id", handlers.DeleteMetricHandler)
-
 	r.POST("/activities", handlers.AddActivityHandler)
 	r.PUT("/activities/:id", handlers.UpdateActivityHandler)
 	r.DELETE("/activities/:id", handlers.DeleteActivityHandler)
