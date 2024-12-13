@@ -380,7 +380,7 @@
         deleteZoneButton.addEventListener("click", () => {
             const zoneId = document.getElementById("zoneId").value;
 
-            if (confirm("Are you sure you want to delete this zone?")) {
+            if (confirm("Are you sure you want to delete this zone?  This will also delete all associate plants and sensors along with their data.")) {
                 fetch(`/zones/${zoneId}`, { method: "DELETE" })
                     .then(response => response.json())
                     .then(() => location.reload())
@@ -548,7 +548,7 @@
         deleteActivityButton.addEventListener("click", () => {
             const activityId = document.getElementById("activityId").value;
 
-            if (confirm("Are you sure you want to delete this activity?")) {
+            if (confirm("Are you sure you want to delete this activity? This will also delete any instances of this activity tracked against any plants.")) {
                 fetch(`/activities/${activityId}`, { method: "DELETE" })
                     .then(response => response.json())
                     .then(() => location.reload())
@@ -645,7 +645,7 @@
         deleteMetricButton.addEventListener("click", () => {
             const metricId = document.getElementById("metricId").value;
 
-            if (confirm("Are you sure you want to delete this metric?")) {
+            if (confirm("Are you sure you want to delete this metric?  This will also delete any instances of this metric tracked against any plants.")) {
                 fetch(`/metrics/${metricId}`, { method: "DELETE" })
                     .then(response => response.json())
                     .then(() => location.reload())
