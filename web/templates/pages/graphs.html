@@ -6,14 +6,35 @@
 <meta http-equiv="refresh" content="300">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+
+<style>
+    /* Ensure consistent chart sizing */
+    .chart-container {
+        position: relative;
+        height: 300px;
+    }
+
+    /* Center the time frame selector with improved spacing */
+    .time-frame-selector {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        margin-bottom: 20px;
+    }
+
+    .time-frame-selector select {
+        max-width: 200px;
+    }
+</style>
 {{ template "layouts/header2.html" .}}
+
 
 <div class="container py-5">
     <h1 class="display-5 text-primary mb-4">Sensor Graphs</h1>
 
     <!-- Time Frame Selector -->
-    <div class="mb-4">
-        <label for="timeFrame" class="form-label">Time Frame</label>
+    <div class="time-frame-selector">
+        <label for="timeFrame" class="form-label me-2">Time Frame:</label>
         <select class="form-select" id="timeFrame">
             <option value="60">1 Hour</option>
             <option value="180">3 Hours</option>
@@ -27,13 +48,49 @@
     </div>
 
     <!-- Graphs Container -->
-    <div id="graphsContainer"></div>
+    <div id="graphsContainer" class="row gy-4"></div>
+
+    <!-- Expanded Chart Modal -->
+    <div class="modal fade" id="expandedChartModal" tabindex="-1" aria-labelledby="expandedChartModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="expandedChartModalLabel">Expanded Chart</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <canvas id="expandedChartCanvas" style="height: 400px;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
     document.addEventListener("DOMContentLoaded", () => {
         const graphsContainer = document.getElementById("graphsContainer");
         const timeFrameSelector = document.getElementById("timeFrame");
+        const expandedChartModal = new bootstrap.Modal(document.getElementById("expandedChartModal"));
+        const expandedChartCanvas = document.getElementById("expandedChartCanvas");
+        let expandedChartInstance = null;
+
+        // Function to group sensors by type
+        function groupSensorsByType(sensors) {
+            const grouped = {};
+            sensors.forEach(sensor => {
+                const key = sensor.zone + ":" + sensor.device + ":" + sensor.type;
+                if (sensor.type.startsWith("Soil.")) {
+                    // Group soil moisture sensors
+                    const soilKey = sensor.zone + ":" + sensor.device + ":Soil";
+                    grouped[soilKey] = grouped[soilKey] || [];
+                    grouped[soilKey].push(sensor);
+                } else {
+                    grouped[key] = grouped[key] || [];
+                    grouped[key].push(sensor);
+                }
+            });
+            return grouped;
+        }
 
         // Function to load graphs
         function loadGraphs(timeFrame) {
@@ -43,87 +100,173 @@
                     graphsContainer.innerHTML = ""; // Clear existing graphs
 
                     Object.keys(data).forEach(zone => {
-                        // Create Zone Header
-                        const zoneHeader = document.createElement("div");
-                        zoneHeader.classList.add("mb-5");
-                        zoneHeader.innerHTML = `<h3 class="text-secondary mt-4">${zone}</h3>`;
+                        const zoneHeader = document.createElement("h3");
+                        zoneHeader.classList.add("text-secondary", "mt-4", "mb-3");
+                        zoneHeader.textContent = zone;
                         graphsContainer.appendChild(zoneHeader);
 
                         Object.keys(data[zone]).forEach(device => {
-                            // Create Device Header
-                            const deviceHeader = document.createElement("div");
-                            deviceHeader.classList.add("mb-3");
-                            deviceHeader.innerHTML = `<h5 class="text-info mt-2">Device: ${device}</h5>`;
-                            graphsContainer.appendChild(deviceHeader);
+                            const sensors = data[zone][device];
+                            const groupedSensors = groupSensorsByType(sensors);
 
-                            // Create Graphs for Each Sensor
-                            data[zone][device].forEach(sensor => {
+                            Object.keys(groupedSensors).forEach(groupKey => {
+                                const grouped = groupedSensors[groupKey];
                                 const graphDiv = document.createElement("div");
-                                graphDiv.classList.add("mb-4");
+                                graphDiv.classList.add("col-lg-6", "chart-container");
 
-                                // Sensor Chart
+                                // Card structure for graphs
                                 graphDiv.innerHTML = `
-                                        <div class="card">
-                                            <div class="card-body">
-                                                <h6 class="card-title text-center">${sensor.type} - ${sensor.name}</h6>
-                                                <canvas id="chart-${sensor.id}" height="150"></canvas>
-                                            </div>
+                                    <div class="card shadow-sm clickable-chart" data-sensors='${JSON.stringify(grouped)}'>
+                                        <div class="card-body">
+                                            <h6 class="card-title text-center">${grouped[0].type} - ${grouped[0].name}</h6>
+                                            <canvas id="chart-${groupKey}"></canvas>
                                         </div>
-                                    `;
+                                    </div>
+                                `;
                                 graphsContainer.appendChild(graphDiv);
 
-                                // Fetch and Render Chart Data
-                                fetch(`/sensorData/${sensor.id}/${timeFrame}`)
-                                    .then(response => response.json())
-                                    .then(sensorData => {
-                                        const ctx = document.getElementById(`chart-${sensor.id}`).getContext("2d");
-                                        const formattedData = sensorData.map(item => ({
-                                            x: new Date(item.create_dt),
-                                            y: item.value,
-                                        }));
-
-                                        new Chart(ctx, {
-                                            type: "line",
-                                            data: {
-                                                datasets: [{
-                                                    label: `${sensor.type}`,
-                                                    data: formattedData,
-                                                    borderColor: "rgba(75, 192, 192, 1)",
-                                                    backgroundColor: "rgba(75, 192, 192, 0.2)",
-                                                    borderWidth: 1,
-                                                    tension: 0.4,
-                                                }],
-                                            },
-                                            options: {
-                                                responsive: true,
-                                                scales: {
-                                                    x: {
-                                                        type: "time",
-                                                        time: {
-                                                            unit: "hour",
-                                                            tooltipFormat: "MMM D, h:mm a",
-                                                        },
-                                                        title: {
-                                                            display: true,
-                                                            text: "Time",
-                                                        },
-                                                    },
-                                                    y: {
-                                                        title: {
-                                                            display: true,
-                                                            text: `${sensor.type} Value`,
-                                                        },
-                                                    },
-                                                },
-                                            },
-                                        });
-                                    })
-                                    .catch(err => console.error(`Error fetching sensor data for ID ${sensor.id}:`, err));
+                                // Fetch and render grouped chart data
+                                const chartId = `chart-${groupKey}`;
+                                fetchSensorData(grouped, timeFrame, chartId);
                             });
                         });
                     });
+
+                    attachChartExpansionListeners();
                 })
                 .catch(err => console.error("Error fetching grouped sensors:", err));
+        }
+
+        // Fetch and render chart data
+        function fetchSensorData(sensors, timeFrame, chartId) {
+            const requests = sensors.map(sensor =>
+                fetch(`/sensorData/${sensor.id}/${timeFrame}`).then(response => response.json())
+            );
+
+            Promise.all(requests)
+                .then(dataSets => {
+                    const ctx = document.getElementById(chartId).getContext("2d");
+
+                    const datasets = sensors.map((sensor, index) => ({
+                        label: `${sensor.type} (${sensor.name})`,
+                        data: dataSets[index].map(item => ({
+                            x: new Date(item.create_dt),
+                            y: item.value,
+                        })),
+                        borderColor: getRandomColor(index),
+                        backgroundColor: "transparent",
+                        borderWidth: 1,
+                        tension: 0.4,
+                    }));
+
+                    new Chart(ctx, {
+                        type: "line",
+                        data: { datasets },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            scales: {
+                                x: {
+                                    type: "time",
+                                    time: {
+                                        unit: "hour",
+                                        tooltipFormat: "MMM D, h:mm a",
+                                    },
+                                    title: {
+                                        display: true,
+                                        text: "Time",
+                                    },
+                                },
+                                y: {
+                                    title: {
+                                        display: true,
+                                        text: "Value",
+                                    },
+                                },
+                            },
+                        },
+                    });
+                })
+                .catch(err => console.error("Error fetching sensor data:", err));
+        }
+
+        // Attach chart expansion listeners
+        function attachChartExpansionListeners() {
+            document.querySelectorAll(".clickable-chart").forEach(card => {
+                card.addEventListener("click", () => {
+                    const sensors = JSON.parse(card.dataset.sensors);
+
+                    // Destroy existing expanded chart instance if exists
+                    if (expandedChartInstance) {
+                        expandedChartInstance.destroy();
+                    }
+
+                    const requests = sensors.map(sensor =>
+                        fetch(`/sensorData/${sensor.id}/${timeFrameSelector.value}`).then(response => response.json())
+                    );
+
+                    Promise.all(requests)
+                        .then(dataSets => {
+                            const ctx = expandedChartCanvas.getContext("2d");
+
+                            const datasets = sensors.map((sensor, index) => ({
+                                label: `${sensor.type} (${sensor.name})`,
+                                data: dataSets[index].map(item => ({
+                                    x: new Date(item.create_dt),
+                                    y: item.value,
+                                })),
+                                borderColor: getRandomColor(index),
+                                backgroundColor: "transparent",
+                                borderWidth: 1,
+                                tension: 0.4,
+                            }));
+
+                            expandedChartInstance = new Chart(ctx, {
+                                type: "line",
+                                data: { datasets },
+                                options: {
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    scales: {
+                                        x: {
+                                            type: "time",
+                                            time: {
+                                                unit: "hour",
+                                                tooltipFormat: "MMM D, h:mm a",
+                                            },
+                                            title: {
+                                                display: true,
+                                                text: "Time",
+                                            },
+                                        },
+                                        y: {
+                                            title: {
+                                                display: true,
+                                                text: "Value",
+                                            },
+                                        },
+                                    },
+                                },
+                            });
+
+                            expandedChartModal.show();
+                        })
+                        .catch(err => console.error("Error fetching expanded sensor data:", err));
+                });
+            });
+        }
+
+        // Generate random colors for chart lines
+        function getRandomColor(index) {
+            const colors = [
+                "rgba(75, 192, 192, 1)",
+                "rgba(255, 99, 132, 1)",
+                "rgba(54, 162, 235, 1)",
+                "rgba(255, 206, 86, 1)",
+                "rgba(153, 102, 255, 1)",
+                "rgba(255, 159, 64, 1)",
+            ];
+            return colors[index % colors.length];
         }
 
         // Initial Load with Default Time Frame

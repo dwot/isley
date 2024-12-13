@@ -135,12 +135,43 @@ func querySensorHistory(sensor string, timeMinutes string) []types.SensorData {
 		sensorData = append(sensorData, types.SensorData{ID: uint(id), SensorID: sensor_id, Value: value, CreateDT: create_dt})
 	}
 
+	//Filter down the sensorData density.
+	//If timeMinutes > 3 hours of data, show all data
+	//If timeMinutes > 6+ hours of data, show every 5th data point
+	//If timeMinutes > 48+ hours of data, show every 10th data point
+	//If timeMinutes > 1+ week of data, show every 20th data point
+	// end rules
+	filteredSensorData := []types.SensorData{}
+	if len(sensorData) > 0 {
+		if timeMinutesInt > 60*24*7 {
+			for i, v := range sensorData {
+				if i%20 == 0 {
+					filteredSensorData = append(filteredSensorData, v)
+				}
+			}
+		} else if timeMinutesInt > 60*24 {
+			for i, v := range sensorData {
+				if i%10 == 0 {
+					filteredSensorData = append(filteredSensorData, v)
+				}
+			}
+		} else if timeMinutesInt > 60*6 {
+			for i, v := range sensorData {
+				if i%5 == 0 {
+					filteredSensorData = append(filteredSensorData, v)
+				}
+			}
+		} else {
+			filteredSensorData = sensorData
+		}
+	}
+
 	// Close the db
 	err = db.Close()
 	if err != nil {
 		fmt.Println(err)
-		return sensorData
+		return filteredSensorData
 	}
 
-	return sensorData
+	return filteredSensorData
 }

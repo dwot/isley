@@ -2,13 +2,30 @@
 
 Isley is a self-hosted cannabis grow journal.
 
+![Isley Dashboard](https://isley.dwot.io/images/dashboard.png)
+
 ## Features
- - Track your grow from seed to harvest
- - Notes, Photos, measurements, feedings, waterings, trimmings, trainings, and more all trackable
- - Maintain a seed inventory with strain library
  - Integrates with AC Infinity controllers, tracking temperature, humidity and VPD
  - Integrates with Ecowitt soil sensors to track soil moisture
 
+![Isley Sensors](https://isley.dwot.io/images/sensors.png)
+
+- Sensor Data Graphed and presented in a dashboard
+
+![Isley Graphs](https://isley.dwot.io/images/graphs.png)
+
+- Track your grow from seed to harvest
+- Notes, Photos, measurements, feedings, waterings, trimmings, trainings, and more all trackable
+
+  ![Isley Plant Data](https://isley.dwot.io/images/isley_plant.png)
+
+- Maintain a seed inventory with strain library
+- More features being actively including:
+  - Alerting
+  - Additional Sensor Sources
+  - AC Infinity Device Monitoring
+  - Harvest Tracking
+  - and more 
 
 # Installation
 
