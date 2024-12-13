@@ -37,6 +37,7 @@ type SettingsData struct {
 func SaveSettings(c *gin.Context) {
 	var settings Settings
 	if err := c.ShouldBindJSON(&settings); err != nil {
+		fmt.Println("Failed to save settings", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -63,14 +64,14 @@ func updateSetting(name string, value string) {
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Failed to open database", err)
 		return
 	}
 	existId := 0
 	// Query settings table and write result to console
 	rows, err := db.Query("SELECT * FROM settings where name = $1", name)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Failed to read settings", err)
 		return
 	}
 	// Iterate over rows
@@ -83,7 +84,7 @@ func updateSetting(name string, value string) {
 		var update_dt string
 		err = rows.Scan(&id, &name, &value, &create_dt, &update_dt)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("Failed to read settings", err)
 		}
 		existId = id
 	}
@@ -92,20 +93,20 @@ func updateSetting(name string, value string) {
 		//Insert new setting
 		_, err = db.Exec("INSERT INTO settings (name, value) VALUES ($1, $2)", name, value)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("Failed to insert setting", err)
 		}
 	} else {
 		//Update existing setting
 		_, err = db.Exec("UPDATE settings SET value = $1 WHERE id = $2", value, existId)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("Failed to update setting", err)
 		}
 	}
 
 	// Close the db
 	err = db.Close()
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Failed to close database", err)
 		return
 	}
 
@@ -114,7 +115,7 @@ func updateSetting(name string, value string) {
 func GetSettings() SettingsData {
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Failed to read settings", err)
 		return SettingsData{}
 	}
 	defer db.Close()
@@ -123,7 +124,7 @@ func GetSettings() SettingsData {
 
 	rows, err := db.Query("SELECT * FROM settings")
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Failed to read settings", err)
 		return SettingsData{}
 	}
 	defer rows.Close()
@@ -133,7 +134,7 @@ func GetSettings() SettingsData {
 		var name, value, createDt, updateDt string
 		err = rows.Scan(&id, &name, &value, &createDt, &updateDt)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("Failed to read settings", err)
 			continue
 		}
 
@@ -156,6 +157,7 @@ func AddZoneHandler(c *gin.Context) {
 		Name string `json:"zone_name"`
 	}
 	if err := c.ShouldBindJSON(&zone); err != nil {
+		fmt.Println("Failed to add zone", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
 		return
 	}
@@ -163,7 +165,7 @@ func AddZoneHandler(c *gin.Context) {
 	// Add zone to database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Failed to add zone", err)
 		return
 	}
 	defer db.Close()
@@ -172,6 +174,7 @@ func AddZoneHandler(c *gin.Context) {
 	var id int
 	err = db.QueryRow("INSERT INTO zones (name) VALUES ($1) RETURNING id", zone.Name).Scan(&id)
 	if err != nil {
+		fmt.Println("Failed to add zone", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add zone"})
 		return
 	}
@@ -186,6 +189,7 @@ func AddMetricHandler(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&metric); err != nil {
+		fmt.Println("Failed to add metric", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
 		return
 	}
@@ -193,7 +197,7 @@ func AddMetricHandler(c *gin.Context) {
 	// Add metric to database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Failed to add metric", err)
 		return
 	}
 	defer db.Close()
@@ -202,6 +206,7 @@ func AddMetricHandler(c *gin.Context) {
 	var id int
 	err = db.QueryRow("INSERT INTO metric (name, unit) VALUES ($1, $2) RETURNING id", metric.Name, metric.Unit).Scan(&id)
 	if err != nil {
+		fmt.Println("Failed to add metric", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add metric"})
 		return
 	}
@@ -214,6 +219,7 @@ func AddActivityHandler(c *gin.Context) {
 		Name string `json:"activity_name"`
 	}
 	if err := c.ShouldBindJSON(&activity); err != nil {
+		fmt.Println("Failed to add activity", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
 		return
 	}
@@ -221,7 +227,7 @@ func AddActivityHandler(c *gin.Context) {
 	// Add activity to database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Failed to add activity", err)
 		return
 	}
 	defer db.Close()
@@ -230,6 +236,7 @@ func AddActivityHandler(c *gin.Context) {
 	var id int
 	err = db.QueryRow("INSERT INTO activity (name) VALUES ($1) RETURNING id", activity.Name).Scan(&id)
 	if err != nil {
+		fmt.Println("Failed to add activity", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add activity"})
 		return
 	}
@@ -242,6 +249,7 @@ func UpdateZoneHandler(c *gin.Context) {
 		Name string `json:"zone_name"`
 	}
 	if err := c.ShouldBindJSON(&zone); err != nil {
+		fmt.Println("Failed to update zone", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
 		return
 	}
@@ -249,7 +257,7 @@ func UpdateZoneHandler(c *gin.Context) {
 	// Update zone in database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Failed to update zone", err)
 		return
 	}
 	defer db.Close()
@@ -257,6 +265,7 @@ func UpdateZoneHandler(c *gin.Context) {
 	// Update zone in database
 	_, err = db.Exec("UPDATE zones SET name = $1 WHERE id = $2", zone.Name, id)
 	if err != nil {
+		fmt.Println("Failed to update zone", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update zone"})
 		return
 	}
@@ -271,6 +280,7 @@ func UpdateMetricHandler(c *gin.Context) {
 		Unit string `json:"metric_unit"`
 	}
 	if err := c.ShouldBindJSON(&metric); err != nil {
+		fmt.Println("Failed to update metric", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
 		return
 	}
@@ -278,7 +288,7 @@ func UpdateMetricHandler(c *gin.Context) {
 	// Update metric in database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Failed to update metric", err)
 		return
 	}
 	defer db.Close()
@@ -286,6 +296,7 @@ func UpdateMetricHandler(c *gin.Context) {
 	// Update metric in database
 	_, err = db.Exec("UPDATE metric SET name = $1, unit = $2 WHERE id = $3", metric.Name, metric.Unit, id)
 	if err != nil {
+		fmt.Println("Failed to update metric", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update metric"})
 		return
 	}
@@ -299,6 +310,7 @@ func UpdateActivityHandler(c *gin.Context) {
 		Name string `json:"activity_name"`
 	}
 	if err := c.ShouldBindJSON(&activity); err != nil {
+		fmt.Println("Failed to update activity", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
 		return
 	}
@@ -306,7 +318,7 @@ func UpdateActivityHandler(c *gin.Context) {
 	// Update activity in database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Failed to update activity", err)
 		return
 	}
 	defer db.Close()
@@ -314,6 +326,7 @@ func UpdateActivityHandler(c *gin.Context) {
 	// Update activity in database
 	_, err = db.Exec("UPDATE activity SET name = $1 WHERE id = $2", activity.Name, id)
 	if err != nil {
+		fmt.Println("Failed to update activity", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update activity"})
 		return
 	}
@@ -326,14 +339,61 @@ func DeleteZoneHandler(c *gin.Context) {
 	// Delete zone from database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Failed to delete zone", err)
 		return
 	}
 	defer db.Close()
 
+	//Build a list of plants associated with this zoen to delete first
+	rows, err := db.Query("SELECT id FROM plant WHERE zone_id = $1", id)
+	if err != nil {
+		fmt.Println("Failed to delete plants", err)
+		return
+	}
+	defer rows.Close()
+
+	plantList := []int{}
+	for rows.Next() {
+		var plantId int
+		err = rows.Scan(&plantId)
+		if err != nil {
+			fmt.Println("Failed to delete plant", err)
+			continue
+		}
+		plantList = append(plantList, plantId)
+	}
+
+	for _, plantId := range plantList {
+		DeletePlantById(fmt.Sprintf("%d", plantId))
+	}
+
+	//Build a list of sensors associated with this zoen to delete first
+	rows, err = db.Query("SELECT id FROM sensors WHERE zone_id = $1", id)
+	if err != nil {
+		fmt.Println("Failed to delete sensors", err)
+		return
+	}
+	defer rows.Close()
+
+	sensorList := []int{}
+	for rows.Next() {
+		var sensorId int
+		err = rows.Scan(&sensorId)
+		if err != nil {
+			fmt.Println("Failed to delete sensor", err)
+			continue
+		}
+		sensorList = append(sensorList, sensorId)
+	}
+
+	for _, sensorId := range sensorList {
+		DeleteSensorByID(fmt.Sprintf("%d", sensorId))
+	}
+
 	// Delete zone from database
 	_, err = db.Exec("DELETE FROM zones WHERE id = $1", id)
 	if err != nil {
+		fmt.Println("Failed to delete zone", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete zone"})
 		return
 	}
@@ -352,9 +412,18 @@ func DeleteMetricHandler(c *gin.Context) {
 	}
 	defer db.Close()
 
+	// Delete any measurements associated with this metric
+	_, err = db.Exec("DELETE FROM plant_measurements WHERE metric_id = $1", id)
+	if err != nil {
+		fmt.Println("Failed to delete measurements", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete measurements"})
+		return
+	}
+
 	// Delete metric from database
 	_, err = db.Exec("DELETE FROM metric WHERE id = $1", id)
 	if err != nil {
+		fmt.Println("Failed to delete metric", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete metric"})
 		return
 	}
@@ -373,9 +442,18 @@ func DeleteActivityHandler(c *gin.Context) {
 	}
 	defer db.Close()
 
+	// Delete any plant_activities associated with this activity
+	_, err = db.Exec("DELETE FROM plant_activity WHERE activity_id = $1", id)
+	if err != nil {
+		fmt.Println("Failed to delete plant_activities", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete plant_activities"})
+		return
+	}
+
 	// Delete activity from database
 	_, err = db.Exec("DELETE FROM activity WHERE id = $1", id)
 	if err != nil {
+		fmt.Println("Failed to delete activity", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete activity"})
 		return
 	}

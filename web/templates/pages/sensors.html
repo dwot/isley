@@ -27,11 +27,48 @@
         {{ end }}
 
         {{ if .settings.EC.Enabled }}
-        <button class="btn btn-success" id="scanEC">
+        <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#ecScanModal" id="scanEC">
             <i class="fa-solid fa-search"></i> Scan and Add EcoWitt Sensors
         </button>
         {{ end }}
     </div>
+
+    <!-- EcoWitt Scan Modal -->
+    <div class="modal fade" id="ecScanModal" tabindex="-1" aria-labelledby="ecScanModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ecScanModalLabel">Scan EcoWitt Sensors</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="ecScanForm">
+                        <!-- Server Address -->
+                        <div class="mb-3">
+                            <label for="serverAddress" class="form-label">Server Address</label>
+                            <input type="text" class="form-control" id="serverAddress" placeholder="Enter EcoWitt Hub Address (IP or Domain)" required>
+                        </div>
+                        <!-- Zone Selection -->
+                        <div class="mb-3">
+                            <label for="ecZoneSelect" class="form-label">Zone</label>
+                            <select class="form-select" id="ecZoneSelect" required>
+                                {{ range .zones }}
+                                <option value="{{ .ID }}">{{ .Name }}</option>
+                                {{ end }}
+                                <option value="new">Add New Zone</option>
+                            </select>
+                        </div>
+                        <div class="mb-3 d-none" id="ecNewZoneInput">
+                            <label for="ecNewZoneName" class="form-label">New Zone Name</label>
+                            <input type="text" class="form-control" id="ecNewZoneName" placeholder="Enter Zone Name">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Scan Sensors</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
 
     <!-- Sensors Table -->
     <div class="table-responsive">
@@ -166,36 +203,20 @@
     document.addEventListener("DOMContentLoaded", () => {
         let currentScanEndpoint = "";
 
-        // Show the modal when scan buttons are clicked
+        // Show the modal for ACI scan
         document.getElementById("scanACI")?.addEventListener("click", () => {
             currentScanEndpoint = "/sensors/scanACI";
             showZoneModal();
         });
 
+        // Show the modal for EcoWitt scan
         document.getElementById("scanEC")?.addEventListener("click", () => {
             currentScanEndpoint = "/sensors/scanEC";
-            showZoneModal();
+            showEcoWittZoneModal();
         });
 
-        const showZoneModal = () => {
-            const zoneSelect = document.getElementById("zoneSelect");
-            const newZoneInput = document.getElementById("newZoneInput");
-            const noZoneHelp = document.getElementById("noZoneHelp");
-
-            // Ensure dropdown is enabled and helper text is hidden
-            zoneSelect.disabled = false;
-            noZoneHelp.style.display = "none";
-
-            // Reset selection and new zone input visibility
-            zoneSelect.value = "";
-            newZoneInput.classList.add("d-none");
-
-            const modal = new bootstrap.Modal(document.getElementById("zoneModal"));
-            modal.show();
-        };
-
-        // Toggle New Zone Input
-        document.getElementById("zoneSelect").addEventListener("change", (e) => {
+        // ACI Modal: Handle Zone Dropdown Change
+        document.getElementById("zoneSelect")?.addEventListener("change", (e) => {
             const newZoneInput = document.getElementById("newZoneInput");
             if (e.target.value === "new") {
                 newZoneInput.classList.remove("d-none");
@@ -204,18 +225,87 @@
             }
         });
 
-        // Handle Zone Form Submission
+        // EcoWitt Modal: Handle Zone Dropdown Change
+        document.getElementById("ecZoneSelect")?.addEventListener("change", (e) => {
+            const ecNewZoneInput = document.getElementById("ecNewZoneInput");
+            if (e.target.value === "new") {
+                ecNewZoneInput.classList.remove("d-none");
+            } else {
+                ecNewZoneInput.classList.add("d-none");
+            }
+        });
+
+        // Show Zone Modal for ACI Scan
+        const showZoneModal = () => {
+            const zoneSelect = document.getElementById("zoneSelect");
+            const newZoneInput = document.getElementById("newZoneInput");
+            const noZoneHelp = document.getElementById("noZoneHelp");
+
+            // Reset the modal state
+            zoneSelect.value = "";
+            newZoneInput.classList.add("d-none");
+            noZoneHelp.style.display = "none";
+
+            // If no zones exist, automatically select "Add New Zone"
+            if (zoneSelect.options.length <= 1) {
+                zoneSelect.value = "new";
+                newZoneInput.classList.remove("d-none");
+                noZoneHelp.style.display = "block";
+            }
+
+            const modal = new bootstrap.Modal(document.getElementById("zoneModal"));
+            modal.show();
+        };
+
+        // Show EcoWitt Zone Modal
+        const showEcoWittZoneModal = () => {
+            const ecZoneSelect = document.getElementById("ecZoneSelect");
+            const ecNewZoneInput = document.getElementById("ecNewZoneInput");
+            const ecNewZoneName = document.getElementById("ecNewZoneName");
+
+            ecZoneSelect.value = "";
+            ecNewZoneInput.classList.add("d-none");
+            ecNewZoneName.value = "";
+
+            if (ecZoneSelect.options.length <= 1) {
+                ecZoneSelect.value = "new";
+                ecNewZoneInput.classList.remove("d-none");
+            }
+
+            const modal = new bootstrap.Modal(document.getElementById("ecScanModal"));
+            modal.show();
+        };
+
+
+        // Ensure modal cleanup on hide
+        const modals = [document.getElementById("zoneModal"), document.getElementById("ecScanModal")];
+        modals.forEach(modalElement => {
+            modalElement.addEventListener("hidden.bs.modal", () => {
+                // Remove lingering modal-backdrop elements
+                document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+
+                // Ensure the body class does not remain disabled
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+            });
+        });
+
+        // Handle Zone Form Submission (shared logic for both AC Infinity and EcoWitt)
         document.getElementById("zoneForm").addEventListener("submit", (e) => {
             e.preventDefault();
 
             const zoneSelect = document.getElementById("zoneSelect");
             const newZoneName = document.getElementById("newZoneName").value;
 
-            // Prepare payload
             const payload = {
                 zone_id: zoneSelect.value === "new" ? null : parseInt(zoneSelect.value, 10),
                 new_zone: zoneSelect.value === "new" ? newZoneName : null,
             };
+
+            if (!currentScanEndpoint) {
+                alert("No scan endpoint defined.");
+                return;
+            }
 
             // Send POST request to the selected scan endpoint
             fetch(currentScanEndpoint, {
@@ -231,8 +321,7 @@
                     }
                     return response.json();
                 })
-                .then((data) => {
-                    //alert("Sensors scanned and added successfully!");
+                .then(() => {
                     window.location.reload();
                 })
                 .catch((error) => {
@@ -240,7 +329,51 @@
                     alert("Failed to scan sensors.");
                 });
         });
+
+        // Handle EcoWitt-specific Zone Form Submission
+        document.getElementById("ecScanForm")?.addEventListener("submit", (e) => {
+            e.preventDefault();
+
+            const ecZoneSelect = document.getElementById("ecZoneSelect");
+            const ecNewZoneName = document.getElementById("ecNewZoneName").value;
+
+            const serverAddress = document.getElementById("serverAddress").value;
+
+            const payload = {
+                zone_id: ecZoneSelect.value === "new" ? null : parseInt(ecZoneSelect.value, 10),
+                new_zone: ecZoneSelect.value === "new" ? ecNewZoneName : null,
+                server_address: serverAddress,
+            };
+
+            if (!currentScanEndpoint) {
+                alert("No scan endpoint defined.");
+                return;
+            }
+
+            // Send POST request to the EcoWitt scan endpoint
+            fetch(currentScanEndpoint, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error("Failed to scan EcoWitt sensors");
+                    }
+                    return response.json();
+                })
+                .then(() => {
+                    window.location.reload();
+                })
+                .catch((error) => {
+                    console.error("Error:", error);
+                    alert("Failed to scan EcoWitt sensors.");
+                });
+        });
     });
+
 
 </script>
 

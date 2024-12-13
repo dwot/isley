@@ -393,22 +393,59 @@ func CreateNewStrain(newStrain *struct {
 func DeletePlant(c *gin.Context) {
 	id := c.Param("id")
 
-	// Init the db
-	db, err := sql.Open("sqlite", model.DbPath())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to database"})
-		return
-	}
-	defer db.Close()
-
-	// Delete the plant
-	_, err = db.Exec("DELETE FROM plant WHERE id = ?", id)
+	err := DeletePlantById(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete plant"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Plant deleted successfully"})
+}
+
+func DeletePlantById(id string) interface{} {
+	// Init the db
+	db, err := sql.Open("sqlite", model.DbPath())
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	defer db.Close()
+
+	// Delete the plant's images
+	_, err = db.Exec("DELETE FROM plant_images WHERE plant_id = ?", id)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+
+	// Delete the plant's measurements
+	_, err = db.Exec("DELETE FROM plant_measurements WHERE plant_id = ?", id)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+
+	// Delete the plant's activities
+	_, err = db.Exec("DELETE FROM plant_activity WHERE plant_id = ?", id)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+
+	// Delete the plant's status log
+	_, err = db.Exec("DELETE FROM plant_status_log WHERE plant_id = ?", id)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+
+	// Delete the plant
+	_, err = db.Exec("DELETE FROM plant WHERE id = ?", id)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	return nil
 }
 
 func GetPlantList() []PlantListResponse {

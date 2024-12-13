@@ -227,8 +227,9 @@ func ScanACInfinitySensors(c *gin.Context) {
 
 func ScanEcoWittSensors(c *gin.Context) {
 	var input struct {
-		ZoneID  *int   `json:"zone_id"`  // Pointer to allow null values
-		NewZone string `json:"new_zone"` // Optional new zone name
+		ZoneID        *int   `json:"zone_id"`  // Pointer to allow null values
+		NewZone       string `json:"new_zone"` // Optional new zone name
+		ServerAddress string `json:"server_address"`
 	}
 	// Bind the JSON payload to the input struct
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -244,7 +245,6 @@ func ScanEcoWittSensors(c *gin.Context) {
 		}
 		input.ZoneID = &zoneID // Set the created zone ID
 	}
-	ecServer := ""
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
@@ -252,33 +252,9 @@ func ScanEcoWittSensors(c *gin.Context) {
 		return
 	}
 
-	// Query settings table and write result to console
-	rows, err := db.Query("SELECT * FROM settings where name = 'ec.server'")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	// Iterate over rows
-	for rows.Next() {
-		//write row
-		var id int
-		var name string
-		var value string
-		var create_dt string
-		var update_dt string
-		err = rows.Scan(&id, &name, &value, &create_dt, &update_dt)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		if name == "ec.server" {
-			ecServer = value
-		}
-	}
+	fmt.Println("Scanning EcoWitt sensors on server: ", input.ServerAddress)
 
-	fmt.Println("Scanning EcoWitt sensors on server: ", ecServer)
-
-	url := "http://" + ecServer + "/get_livedata_info"
+	url := "http://" + input.ServerAddress + "/get_livedata_info"
 	reqBody := bytes.NewBuffer([]byte(""))
 	req, err := http.NewRequest("GET", url, reqBody)
 	if err != nil {
@@ -313,14 +289,14 @@ func ScanEcoWittSensors(c *gin.Context) {
 			wh.InTemp, wh.Unit, wh.InHumi, wh.Abs, wh.Rel)
 
 		sensorType := "WH25.InTemp"
-		device := ecServer
+		device := input.ServerAddress
 		source := "ecowitt"
-		name := "EC (" + ecServer + ") InTemp"
+		name := "EC (" + input.ServerAddress + ") InTemp"
 		unit := "°F"
 		checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
 
 		sensorType = "WH25.InHumi"
-		name = "EC (" + ecServer + ") InHumi"
+		name = "EC (" + input.ServerAddress + ") InHumi"
 		unit = "%"
 		checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
 
@@ -332,7 +308,7 @@ func ScanEcoWittSensors(c *gin.Context) {
 			ch.Channel, ch.Name, ch.Battery, ch.Humidity)
 
 		sensorType := "Soil." + ch.Channel
-		device := ecServer
+		device := input.ServerAddress
 		source := "ecowitt"
 		name := ch.Name
 		unit := "%"
@@ -573,18 +549,34 @@ func EditSensor(c *gin.Context) {
 func DeleteSensor(c *gin.Context) {
 	sensorID := c.Param("id")
 
-	db, err := sql.Open("sqlite", model.DbPath())
+	err := DeleteSensorByID(sensorID)
 	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer db.Close()
-	_, err = db.Exec("DELETE FROM sensors WHERE id = ?", sensorID)
-	if err != nil {
-		fmt.Println("Error deleting sensor:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete sensor"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Sensor deleted successfully"})
+}
+
+func DeleteSensorByID(id string) interface{} {
+	db, err := sql.Open("sqlite", model.DbPath())
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	defer db.Close()
+
+	// Delete sensor_data for this sensor
+	_, err = db.Exec("DELETE FROM sensor_data WHERE sensor_id = ?", id)
+	if err != nil {
+		fmt.Println("Error deleting sensor data:", err)
+		return err
+	}
+
+	_, err = db.Exec("DELETE FROM sensors WHERE id = ?", id)
+	if err != nil {
+		fmt.Println("Error deleting sensor:", err)
+		return err
+	}
+	return nil
 }

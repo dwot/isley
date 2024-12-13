@@ -21,7 +21,6 @@ func Watch() {
 		aciEnabled := 0
 		ecEnabled := 0
 		aciToken := ""
-		ecServer := ""
 
 		// Init the db
 		db, err := sql.Open("sqlite", model.DbPath())
@@ -64,9 +63,24 @@ func Watch() {
 			if name == "aci.token" {
 				aciToken = value
 			}
-			if name == "ec.server" {
-				ecServer = value
+		}
+
+		//Iterate over sensors table, looking for distinct device with type ecowitt
+		rows, err = db.Query("SELECT DISTINCT device FROM sensors WHERE source = 'ecowitt'")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		//build a list of devices to scan
+		var ecDevices []string
+		for rows.Next() {
+			var device string
+			err = rows.Scan(&device)
+			if err != nil {
+				fmt.Println(err)
+				return
 			}
+			ecDevices = append(ecDevices, device)
 		}
 
 		// Close the db
@@ -78,8 +92,10 @@ func Watch() {
 		if aciEnabled == 1 && aciToken != "" {
 			updateACISensorData(aciToken)
 		}
-		if ecEnabled == 1 && ecServer != "" {
-			updateEcoWittSensorData(ecServer)
+		if ecEnabled == 1 && len(ecDevices) > 0 {
+			for _, ecServer := range ecDevices {
+				updateEcoWittSensorData(ecServer)
+			}
 		}
 		time.Sleep(60 * time.Second)
 
