@@ -1171,3 +1171,59 @@ func DeadPlantsHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, plants)
 }
+
+func InStockStrainsHandler(c *gin.Context) {
+	strains, err := getStrainsBySeedCount(true)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch in-stock strains"})
+		return
+	}
+	c.JSON(http.StatusOK, strains)
+}
+func OutOfStockStrainsHandler(c *gin.Context) {
+	strains, err := getStrainsBySeedCount(false)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch out-of-stock strains"})
+		return
+	}
+	c.JSON(http.StatusOK, strains)
+}
+func getStrainsBySeedCount(inStock bool) ([]StrainResponse, error) {
+	query := `
+        SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count
+        FROM strain s
+        JOIN breeder b ON s.breeder_id = b.id
+        WHERE s.seed_count > 0
+    `
+	if !inStock {
+		query = `
+            SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count
+            FROM strain s
+            JOIN breeder b ON s.breeder_id = b.id
+            WHERE s.seed_count = 0
+        `
+	}
+
+	db, err := sql.Open("sqlite", model.DbPath())
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var strains []StrainResponse
+	for rows.Next() {
+		var strain StrainResponse
+		if err := rows.Scan(&strain.ID, &strain.Name, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount); err != nil {
+			return nil, err
+		}
+		strains = append(strains, strain)
+	}
+
+	return strains, nil
+}

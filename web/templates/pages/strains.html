@@ -8,52 +8,52 @@
     .clickable-row {
         cursor: pointer;
     }
+    .sortable {
+        cursor: pointer;
+    }
+
+    .sortable.asc::after {
+        content: " ▲";
+    }
+
+    .sortable.desc::after {
+        content: " ▼";
+    }
 </style>
 {{ template "layouts/header2.html" .}}
 
 
 <header class="masthead text-center">
     <div class="overlay"></div>
-    <div class="container">
-        <!-- Table Row -->
-        <div class="container">
-            <!-- Table Row -->
-            <div class="mb-3 text-end">
-                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addStrainModal">
-                    <i class="fa-solid fa-plus"></i> Add Strain
-                </button>
+    <div class="container py-5">
+        <h1 class="display-5 text-primary mb-4">Strains</h1>
+
+        <!-- View Selector and Actions -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <!-- View Selector -->
+            <div>
+                <button class="btn btn-outline-primary view-button" data-view="in-stock">In Stock</button>
+                <button class="btn btn-outline-secondary view-button" data-view="out-of-stock">Out of Stock</button>
             </div>
 
-            <div class="row">
-                <div class="col-12">
-                    <table class="table table-striped table-bordered table-hover">
-                        <thead>
-                        <tr>
-                            <th scope="col">Strain</th>
-                            <th scope="col">Breeder</th>
-                            <th scope="col">I/S</th>
-                            <th scope="col">Auto</th>
-                            <th scope="col">Seed Count</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        <!-- Iterate over strainList and display each strain's information in a table row -->
-                        {{ range .strains }}
-                        <tr class="clickable-row" data-id="{{ .ID }}" data-strain='{{ json . }}'>
-                            <th scope="row">{{ .Name }}</th>
-                            <td>{{ .Breeder }}</td>
-                            <td>{{ .Indica }} / {{ .Sativa }}</td>
-                            <td>{{ .Autoflower }}</td>
-                            <td>{{ .SeedCount }}</td>
-                        </tr>
-                        {{ end }}
-                        </tbody>
-                    </table>
+            <!-- Search Bar and Add Strain Button -->
+            <div class="d-flex align-items-center">
+                <div class="input-group w-75">
+                    <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
+                    <input type="text" class="form-control" id="searchStrains" placeholder="Search strains...">
                 </div>
+                <button class="btn btn-success ms-3" data-bs-toggle="modal" data-bs-target="#addStrainModal">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
             </div>
         </div>
 
+        <!-- Strains Table -->
+        <div id="strainsContainer">
+            <!-- Table dynamically populated by JavaScript -->
+        </div>
     </div>
+
 </header>
 <!-- Add Strain Modal -->
 <div class="modal fade" id="addStrainModal" tabindex="-1" aria-labelledby="addStrainModalLabel" aria-hidden="true">
@@ -297,39 +297,6 @@
             editSativaLabel.textContent = `Sativa: ${sativa}%`;
         });
 
-        // Populate modal fields when editing
-        document.querySelectorAll(".clickable-row").forEach(row => {
-            row.addEventListener("click", () => {
-                const strainData = JSON.parse(row.getAttribute("data-strain"));
-
-                // Populate form fields
-                document.getElementById("editStrainId").value = strainData.id;
-                document.getElementById("editStrainName").value = strainData.name;
-
-                // Pre-select breeder in dropdown
-                editBreederSelect.value = strainData.breeder_id || "new";
-
-                // Show/hide new breeder input based on selection
-                if (strainData.breeder_id) {
-                    editNewBreederInput.classList.add("d-none");
-                    document.getElementById("editNewBreederName").value = "";
-                } else {
-                    editNewBreederInput.classList.remove("d-none");
-                    document.getElementById("editNewBreederName").value = strainData.new_breeder || "";
-                }
-
-                document.getElementById("editIndicaSativaSlider").value = strainData.indica;
-                editIndicaLabel.textContent = `Indica: ${strainData.indica}%`;
-                editSativaLabel.textContent = `Sativa: ${100 - strainData.indica}%`;
-                document.getElementById("editAutoflower").value = strainData.autoflower;
-                document.getElementById("editSeedCount").value = strainData.seed_count;
-                document.getElementById("editStrainDescription").value = strainData.description;
-
-                // Show the modal
-                editStrainModal.show();
-            });
-        });
-
         // Handle form submission
         editStrainForm.addEventListener("submit", (e) => {
             e.preventDefault();
@@ -399,6 +366,150 @@
 
 </script>
 
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const strainsContainer = document.getElementById("strainsContainer");
+        const searchInput = document.getElementById("searchStrains");
+        const viewButtons = document.querySelectorAll(".view-button");
+
+        let currentView = "in-stock";
+        let strains = []; // Will hold all strains fetched from the backend
+
+        // Function to load strains from the backend
+        async function fetchStrains(view) {
+            const response = await fetch(`/strains/${view}`);
+            const data = await response.json();
+            //console.log("Fetched strains:", data); // Debug output
+            strains = data;
+            renderStrainsTable(strains);
+        }
+
+        let currentSort = { key: null, isAscending: true }; // Track current sort state
+
+        function renderStrainsTable(data) {
+            const editStrainModal = new bootstrap.Modal(document.getElementById("editStrainModal"));
+            const filteredData = filterStrains(data, searchInput.value);
+
+            strainsContainer.innerHTML = `
+        <table class="table table-striped table-bordered table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th scope="col" data-key="name" data-type="text" class="sortable ${currentSort.key === "name" ? (currentSort.isAscending ? "asc" : "desc") : ""}">Strain <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="breeder" data-type="text" class="sortable ${currentSort.key === "breeder" ? (currentSort.isAscending ? "asc" : "desc") : ""}">Breeder <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="indica" data-type="numeric" class="sortable ${currentSort.key === "indica" ? (currentSort.isAscending ? "asc" : "desc") : ""}">I/S <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="autoflower" data-type="text" class="sortable ${currentSort.key === "autoflower" ? (currentSort.isAscending ? "asc" : "desc") : ""}">Auto <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="seed_count" data-type="numeric" class="sortable ${currentSort.key === "seed_count" ? (currentSort.isAscending ? "asc" : "desc") : ""}">Seed Count <i class="fa-solid fa-sort"></i></th>
+                </tr>
+            </thead>
+            <tbody>
+                ${filteredData.map(strain => `
+                    <tr class="clickable-row"
+                        data-id="${strain.id}"
+                        data-strain='${JSON.stringify(strain)}'>
+                        <th scope="row">${strain.name || "N/A"}</th>
+                        <td>${strain.breeder || "N/A"}</td>
+                        <td>${strain.indica || 0} / ${strain.sativa || 0}</td>
+                        <td>${strain.autoflower === "true" ? "Yes" : "No"}</td>
+                        <td>${strain.seed_count || 0}</td>
+                    </tr>
+                `).join("")}
+            </tbody>
+        </table>
+    `;
+
+            // Add click listeners for sorting
+            document.querySelectorAll(".sortable").forEach(header => {
+                header.addEventListener("click", () => {
+                    const key = header.dataset.key;
+                    const type = header.dataset.type;
+
+                    // Determine the current sort order and toggle it
+                    const isAscending = currentSort.key === key ? !currentSort.isAscending : true;
+                    currentSort = { key, isAscending };
+
+                    // Sort the data
+                    const sortedData = [...strains].sort((a, b) => {
+                        if (type === "numeric") {
+                            return isAscending ? a[key] - b[key] : b[key] - a[key];
+                        } else if (type === "text") {
+                            return isAscending
+                                ? a[key].localeCompare(b[key], undefined, { sensitivity: "base" })
+                                : b[key].localeCompare(a[key], undefined, { sensitivity: "base" });
+                        }
+                        return 0;
+                    });
+
+                    // Re-render the table with sorted data
+                    renderStrainsTable(sortedData);
+                });
+            });
+
+            // Populate modal fields when editing
+            document.querySelectorAll(".clickable-row").forEach(row => {
+                row.addEventListener("click", () => {
+                    const strainData = JSON.parse(row.getAttribute("data-strain"));
+
+                    // Populate form fields
+                    document.getElementById("editStrainId").value = strainData.id;
+                    document.getElementById("editStrainName").value = strainData.name;
+                    editBreederSelect.value = strainData.breeder_id || "new";
+
+                    if (strainData.breeder_id) {
+                        editNewBreederInput.classList.add("d-none");
+                        document.getElementById("editNewBreederName").value = "";
+                    } else {
+                        editNewBreederInput.classList.remove("d-none");
+                        document.getElementById("editNewBreederName").value = strainData.new_breeder || "";
+                    }
+
+                    document.getElementById("editIndicaSativaSlider").value = strainData.indica;
+                    editIndicaLabel.textContent = `Indica: ${strainData.indica}%`;
+                    editSativaLabel.textContent = `Sativa: ${100 - strainData.indica}%`;
+                    document.getElementById("editAutoflower").value = strainData.autoflower;
+                    document.getElementById("editSeedCount").value = strainData.seed_count;
+                    document.getElementById("editStrainDescription").value = strainData.description;
+
+                    // Show the modal
+                    editStrainModal.show();
+                });
+            });
+        }
+
+
+
+        // Function to filter strains based on search
+        function filterStrains(data, query) {
+            if (!query) return data;
+            const lowerCaseQuery = query.toLowerCase();
+            return data.filter(strain =>
+                strain.name.toLowerCase().includes(lowerCaseQuery) || // Match strain name
+                strain.breeder.toLowerCase().includes(lowerCaseQuery) // Match breeder name
+            );
+        }
+
+        // Event listener for search input
+        searchInput.addEventListener("input", () => {
+            renderStrainsTable(strains); // Re-render table based on updated search query
+        });
+
+        // Event listener for view buttons
+        viewButtons.forEach(button => {
+            button.addEventListener("click", () => {
+                currentView = button.dataset.view;
+
+                // Update button states
+                viewButtons.forEach(btn => btn.classList.remove("active"));
+                button.classList.add("active");
+
+                // Fetch and render strains
+                fetchStrains(currentView);
+            });
+        });
+
+        // Initial load
+        fetchStrains(currentView);
+    });
+</script>
 
 
 <!--Embed the footer.html template at this location-->

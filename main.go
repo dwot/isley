@@ -202,6 +202,8 @@ func main() {
 	r.GET("/strains/:id", handlers.GetStrainHandler)
 	r.PUT("/strains/:id", handlers.UpdateStrainHandler)
 	r.DELETE("/strains/:id", handlers.DeleteStrainHandler)
+	r.GET("/strains/in-stock", handlers.InStockStrainsHandler)
+	r.GET("/strains/out-of-stock", handlers.OutOfStockStrainsHandler)
 
 	r.POST("/settings", handlers.SaveSettings)
 	r.POST("/aci/login", handlers.ACILoginHandler)
