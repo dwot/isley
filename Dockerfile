@@ -18,6 +18,7 @@ COPY --from=builder /go/bin/isley /app/isley
 COPY web/templates ./web/templates
 COPY web/static ./web/static
 COPY migrations ./migrations
+COPY fonts ./fonts
 # make the data dir and initialize the isley.db file
 RUN mkdir data && touch data/isley.db
 

@@ -34,7 +34,7 @@ func DecorateImageHandler(c *gin.Context) {
 	if logoPath == "" {
 		logoPath = "./web/static/img/placeholder.png"
 	}
-	fontPath := "./utils/Anton-Regular.ttf" // Replace with your font path
+	fontPath := "./fonts/Anton-Regular.ttf" // Replace with your font path
 
 	// Create overlay request
 	overlayReq := utils.TextOverlayRequest{
