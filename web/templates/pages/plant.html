@@ -347,12 +347,6 @@
                     <button id="decorateImage" class="btn btn-primary">
                         <i class="fa fa-magic"></i> Magic Wand
                     </button>
-                    <button id="shareButton" class="btn btn-primary">
-                        Share <i class="fa fa-share-alt"></i>
-                    </button>
-                    <div id="shareOptions" class="d-none mt-3">
-                        <!-- Placeholder for dynamic share buttons -->
-                    </div>
                 </div>
             </div>
         </div>
@@ -1356,39 +1350,6 @@
         });
     });
 
-    document.addEventListener("DOMContentLoaded", () => {
-        const shareButton = document.getElementById("shareButton");
-        const shareOptions = document.getElementById("shareOptions");
-        const modalImage = document.getElementById("modalImage");
-
-        shareButton.addEventListener("click", () => {
-            // Toggle visibility of share options
-            shareOptions.classList.toggle("d-none");
-
-            if (!shareOptions.classList.contains("d-none")) {
-                // Dynamically populate social share options
-                const imageUrl = modalImage.src;
-
-                shareOptions.innerHTML = `
-                <a href="https://twitter.com/intent/tweet?url=${encodeURIComponent(imageUrl)}" target="_blank" class="btn btn-outline-primary me-2">
-                    Twitter
-                </a>
-                <a href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(imageUrl)}" target="_blank" class="btn btn-outline-primary me-2">
-                    Facebook
-                </a>
-                <a href="https://www.instagram.com/" target="_blank" class="btn btn-outline-primary me-2">
-                    Instagram
-                </a>
-                <a href="https://bsky.app/" target="_blank" class="btn btn-outline-primary me-2">
-                    BlueSky
-                </a>
-                <a href="https://www.reddit.com/submit?url=${encodeURIComponent(imageUrl)}" target="_blank" class="btn btn-outline-primary">
-                    Reddit
-                </a>
-            `;
-            }
-        });
-    });
 </script>
 
 <!--Embed the footer.html template at this location-->
