@@ -2,10 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"html/template"
 	"isley/handlers"
 	"isley/model"
+	"isley/routes"
+	"isley/utils"
 	"isley/watcher"
 	"log"
 	"net/http"
@@ -21,6 +25,7 @@ func main() {
 
 	// Set up Gin router
 	r := gin.Default()
+
 	// Add the `json` function to the template functions map
 	r.SetFuncMap(template.FuncMap{
 		"json": func(v interface{}) string {
@@ -34,13 +39,10 @@ func main() {
 		"formatDate": func(t time.Time) string {
 			return t.Format("01/02/2006")
 		},
-		//Add formatDate for format "2006-01-02"
 		"formatDateISO": func(t time.Time) string {
 			return t.Format("2006-01-02")
 		},
 		"formatStringDate": func(t string) string {
-			//input is "2024-12-11T04:58:52Z"
-			//output is "12/11/2024"
 			tm, err := time.Parse(time.RFC3339, t)
 			if err != nil {
 				log.Printf("error parsing date: %v", err)
@@ -72,158 +74,148 @@ func main() {
 	// Set title base to Isley v0.0.1a
 	version := "Isley 0.0.1a"
 
-	// Serve static files from the "./static" directory
+	// Serve static files
 	r.Static("/static", "./web/static")
-	r.Static("/css", "./web/static/css")
-	r.Static("/img", "./web/static/img")
-	r.Static("/scss", "./web/static/scss")
-	r.Static("/vendor", "./web/static/vendor")
-	r.Static("/js", "./web/static/js")
 	r.Static("/uploads", "./uploads")
 	r.StaticFile("/favicon.ico", "./web/static/img/favicon.ico")
 
 	// Serve HTML templates
 	r.LoadHTMLGlob("./web/templates/**/*")
 
-	// Pages
-	r.GET("/", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "views/index.html", gin.H{
-			"title":        "Dashboard",
-			"version":      version,
-			"plantList":    handlers.GetPlantList(),
-			"sensorLatest": handlers.GetSensorLatest(),
+	// Initialize session store
+	store := cookie.NewStore([]byte("secret"))
+	r.Use(sessions.Sessions("isley_session", store))
+
+	// Initialize default admin credentials if not present
+	if _, err := handlers.GetSetting("auth_username"); err != nil {
+		handlers.UpdateSetting("auth_username", "admin")
+		hashedPassword, _ := utils.HashPassword("isley")
+		handlers.UpdateSetting("auth_password", hashedPassword)
+		handlers.UpdateSetting("force_password_change", "true")
+	}
+
+	// Public routes
+	r.GET("/login", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "views/login.html", gin.H{})
+	})
+
+	r.POST("/login", func(c *gin.Context) {
+		username := c.PostForm("username")
+		password := c.PostForm("password")
+
+		storedUsername, _ := handlers.GetSetting("auth_username")
+		storedPasswordHash, _ := handlers.GetSetting("auth_password")
+		forcePasswordChange, _ := handlers.GetSetting("force_password_change")
+
+		if username != storedUsername || !utils.CheckPasswordHash(password, storedPasswordHash) {
+			c.HTML(http.StatusUnauthorized, "views/login.html", gin.H{
+				"Error": "Invalid username or password",
+			})
+			return
+		}
+
+		// Successful login
+		session := sessions.Default(c)
+		session.Set("logged_in", true)
+		session.Set("force_password_change", forcePasswordChange == "true")
+		session.Save()
+
+		if forcePasswordChange == "true" {
+			c.Redirect(http.StatusFound, "/change-password")
+			return
+		}
+
+		c.Redirect(http.StatusFound, "/")
+	})
+
+	r.GET("/logout", func(c *gin.Context) {
+		session := sessions.Default(c)
+		session.Clear()
+		session.Save()
+		c.Redirect(http.StatusFound, "/login")
+	})
+
+	protected := r.Group("/")
+	protected.Use(AuthMiddleware())
+	{
+		protected.Use(ForcePasswordChangeMiddleware())
+
+		protected.GET("/", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "views/index.html", gin.H{
+				"title":        "Dashboard",
+				"version":      version,
+				"plantList":    handlers.GetPlantList(),
+				"sensorLatest": handlers.GetSensorLatest(),
+			})
 		})
-	})
 
-	r.GET("/plants", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "views/plants.html", gin.H{
-			"title":     "Plants",
-			"version":   version,
-			"plantList": handlers.GetPlantList(),
-			"zones":     handlers.GetZones(),
-			"strains":   handlers.GetStrains(),
-			"statuses":  handlers.GetStatuses(),
-			"breeders":  handlers.GetBreederList(),
+		protected.GET("/change-password", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "views/change-password.html", gin.H{})
 		})
-	})
 
-	r.GET("/strains", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "views/strains.html", gin.H{
-			"title":    "Strains",
-			"version":  version,
-			"strains":  handlers.GetStrains(),
-			"breeders": handlers.GetBreederList(),
+		protected.POST("/change-password", func(c *gin.Context) {
+			newPassword := c.PostForm("new_password")
+			confirmPassword := c.PostForm("confirm_password")
+
+			if newPassword != confirmPassword {
+				c.HTML(http.StatusBadRequest, "views/change-password.html", gin.H{
+					"Error": "Passwords do not match",
+				})
+				return
+			}
+
+			hashedPassword, _ := utils.HashPassword(newPassword)
+
+			handlers.UpdateSetting("auth_password", hashedPassword)
+			handlers.UpdateSetting("force_password_change", "false")
+
+			session := sessions.Default(c)
+			session.Set("force_password_change", false)
+			session.Save()
+
+			c.Redirect(http.StatusFound, "/")
 		})
-	})
 
-	r.GET("/graph/:id", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "views/graph.html", gin.H{
-			"title":      "Sensor Graphs",
-			"version":    version,
-			"SensorID":   c.Param("id"),
-			"SensorName": handlers.GetSensorName(c.Param("id")),
-		})
-	})
+		routes.AddProtectedRotues(protected, version)
+	}
 
-	r.GET("/plant/:id", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "views/plant.html", gin.H{
-			"title":        "Plant Details",
-			"version":      version,
-			"plant":        handlers.GetPlant(c.Param("id")),
-			"zones":        handlers.GetZones(),
-			"strains":      handlers.GetStrains(),
-			"statuses":     handlers.GetStatuses(),
-			"breeders":     handlers.GetBreederList(),
-			"measurements": handlers.GetMeasurements(),
-			"activities":   handlers.GetActivities(),
-			"sensors":      handlers.GetSensors(),
-		})
-	})
-
-	r.GET("/settings", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "views/settings.html", gin.H{
-			"title":      "Settings",
-			"version":    version,
-			"settings":   handlers.GetSettings(),
-			"zones":      handlers.GetZones(),
-			"metrics":    handlers.GetMeasurements(),
-			"activities": handlers.GetActivities(),
-		})
-	})
-
-	r.GET("/sensors", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "views/sensors.html", gin.H{
-			"title":    "Sensors",
-			"version":  version,
-			"settings": handlers.GetSettings(),
-			"sensors":  handlers.GetSensors(),
-			"zones":    handlers.GetZones(),
-		})
-	})
-
-	r.GET("/graphs", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "views/graphs.html", gin.H{
-			"title":   "Graphs",
-			"version": version,
-			"sensors": handlers.GetGroupedSensors(),
-		})
-	})
-
-	// API endpoints
-	r.POST("/plants", handlers.AddPlant)
-	r.GET("/plants/living", handlers.LivingPlantsHandler)
-	r.GET("/plants/harvested", handlers.HarvestedPlantsHandler)
-	r.GET("/plants/dead", handlers.DeadPlantsHandler)
-
-	r.POST("/plant", func(c *gin.Context) { handlers.UpdatePlant(c) })
-	r.DELETE("/plant/delete/:id", handlers.DeletePlant)
-	r.POST("/plant/link-sensors", handlers.LinkSensorsToPlant)
-	r.POST("/plantStatus/edit", handlers.EditStatus)
-	r.DELETE("/plantStatus/delete/:id", handlers.DeleteStatus)
-	r.POST("/plantMeasurement", func(c *gin.Context) { handlers.CreatePlantMeasurement(c) })
-	r.POST("/plantMeasurement/edit", handlers.EditMeasurement)
-	r.DELETE("/plantMeasurement/delete/:id", handlers.DeleteMeasurement)
-	r.POST("/plantActivity", func(c *gin.Context) { handlers.CreatePlantActivity(c) })
-	r.POST("/plantActivity/edit", handlers.EditActivity)
-	r.DELETE("/plantActivity/delete/:id", handlers.DeleteActivity)
-	r.POST("/plant/:plantID/images/upload", handlers.UploadPlantImages)
-	r.DELETE("/plant/images/:imageID/delete", handlers.DeletePlantImage)
-
-	r.POST("/sensors/scanACI", handlers.ScanACInfinitySensors)
-	r.POST("/sensors/scanEC", handlers.ScanEcoWittSensors)
-	r.POST("/sensors/edit", handlers.EditSensor)
-	r.DELETE("/sensors/delete/:id", handlers.DeleteSensor)
-	// Add this to your main router setup
-	r.GET("/sensorData", handlers.ChartHandler)
-
-	r.GET("/sensors/grouped", func(c *gin.Context) {
-		groupedSensors := handlers.GetGroupedSensorsWithLatestReading()
-		c.JSON(http.StatusOK, groupedSensors)
-	})
-
-	r.POST("/strains", handlers.AddStrainHandler)
-	r.GET("/strains/:id", handlers.GetStrainHandler)
-	r.PUT("/strains/:id", handlers.UpdateStrainHandler)
-	r.DELETE("/strains/:id", handlers.DeleteStrainHandler)
-	r.GET("/strains/in-stock", handlers.InStockStrainsHandler)
-	r.GET("/strains/out-of-stock", handlers.OutOfStockStrainsHandler)
-
-	r.POST("/settings", handlers.SaveSettings)
-	r.POST("/aci/login", handlers.ACILoginHandler)
-
-	r.POST("/zones", handlers.AddZoneHandler)
-	r.PUT("/zones/:id", handlers.UpdateZoneHandler)
-	r.DELETE("/zones/:id", handlers.DeleteZoneHandler)
-	r.POST("/metrics", handlers.AddMetricHandler)
-	r.PUT("/metrics/:id", handlers.UpdateMetricHandler)
-	r.DELETE("/metrics/:id", handlers.DeleteMetricHandler)
-	r.POST("/activities", handlers.AddActivityHandler)
-	r.PUT("/activities/:id", handlers.UpdateActivityHandler)
-	r.DELETE("/activities/:id", handlers.DeleteActivityHandler)
-
-	// Start server
-	err := r.Run(":8080")
-	if err != nil {
+	// Start the server
+	if err := r.Run(":8080"); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
+	}
+}
+
+// Middleware to enforce authentication
+func AuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		session := sessions.Default(c)
+		loggedIn := session.Get("logged_in")
+
+		if loggedIn == nil || !loggedIn.(bool) {
+			c.Redirect(http.StatusFound, "/login")
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// Middleware to enforce password change
+func ForcePasswordChangeMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		session := sessions.Default(c)
+		forcePasswordChange := session.Get("force_password_change")
+
+		// Allow access to /change-password (both GET and POST) if force password change is required
+		if forcePasswordChange != nil && forcePasswordChange.(bool) {
+			if c.FullPath() != "/change-password" {
+				c.Redirect(http.StatusFound, "/change-password")
+				c.Abort()
+				return
+			}
+		}
+
+		c.Next()
 	}
 }

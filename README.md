@@ -84,7 +84,7 @@ If you prefer to run Isley manually using `docker run`, follow these steps:
    ```
 
 5. **Access Isley:**
-   Open your web browser and navigate to `http://localhost:8080`.
+   Open your web browser and navigate to `http://localhost:8080`.  The default username is `admin` and the default password is `isley`.
 
 ---
 

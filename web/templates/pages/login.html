@@ -1,0 +1,41 @@
+{{ define "views/login.html" }}
+<!--Embed the header.html template at this location-->
+{{ template "layouts/header.html" .}}
+<style>
+    .container {
+        max-width: 400px;
+        margin-top: 50px;
+    }
+    .card {
+        padding: 20px;
+    }
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+    <h1 class="text-center text-primary">Login</h1>
+    <div class="card shadow-sm">
+        <form action="/login" method="POST">
+            <div class="mb-3">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" id="username" name="username" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" id="password" name="password" class="form-control" required>
+            </div>
+            {{ if .Error }}
+            <div class="alert alert-danger">{{ .Error }}</div>
+            {{ end }}
+            <button type="submit" class="btn btn-primary w-100">Login</button>
+        </form>
+    </div>
+</div>
+
+<!--Embed the footer.html template at this location-->
+{{ template "layouts/footer.html" .}}
+
+{{ end }}

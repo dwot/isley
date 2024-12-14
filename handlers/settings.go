@@ -4,8 +4,13 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"io"
 	model "isley/model"
+	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"time"
 )
 
 type Settings struct {
@@ -45,34 +50,64 @@ func SaveSettings(c *gin.Context) {
 	// Save settings logic (e.g., to a database or config file)
 	//fmt.Printf("Received settings: %+v\n", settings)
 	if settings.ACI.Enabled {
-		updateSetting("aci.enabled", "1")
+		err := UpdateSetting("aci.enabled", "1")
+		if err != nil {
+			fmt.Println("Failed to save settings", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+			return
+		}
 	} else {
-		updateSetting("aci.enabled", "0")
+		err := UpdateSetting("aci.enabled", "0")
+		if err != nil {
+			fmt.Println("Failed to save settings", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+			return
+		}
 	}
-	updateSetting("aci.token", settings.ACI.Token)
+	err := UpdateSetting("aci.token", settings.ACI.Token)
+	if err != nil {
+		fmt.Println("Failed to save settings", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+		return
+	}
 	if settings.EC.Enabled {
-		updateSetting("ec.enabled", "1")
+		err = UpdateSetting("ec.enabled", "1")
+		if err != nil {
+			fmt.Println("Failed to save settings", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+			return
+		}
 	} else {
-		updateSetting("ec.enabled", "0")
+		err = UpdateSetting("ec.enabled", "0")
+		if err != nil {
+			fmt.Println("Failed to save settings", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+			return
+		}
 	}
-	updateSetting("ec.server", settings.EC.Server)
+	err = UpdateSetting("ec.server", settings.EC.Server)
+	if err != nil {
+		fmt.Println("Failed to save settings", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Settings saved successfully"})
 }
 
-func updateSetting(name string, value string) {
+func UpdateSetting(name string, value string) error {
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
 		fmt.Println("Failed to open database", err)
-		return
+		return err
 	}
 	existId := 0
 	// Query settings table and write result to console
 	rows, err := db.Query("SELECT * FROM settings where name = $1", name)
 	if err != nil {
 		fmt.Println("Failed to read settings", err)
-		return
+		return err
 	}
 	// Iterate over rows
 	for rows.Next() {
@@ -107,9 +142,10 @@ func updateSetting(name string, value string) {
 	err = db.Close()
 	if err != nil {
 		fmt.Println("Failed to close database", err)
-		return
+		return err
 	}
 
+	return nil
 }
 
 func GetSettings() SettingsData {
@@ -459,4 +495,84 @@ func DeleteActivityHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Activity deleted"})
+}
+
+func GetSetting(name string) (string, error) {
+	db, err := sql.Open("sqlite", model.DbPath())
+	if err != nil {
+		return "", err
+	}
+	defer db.Close()
+
+	var value string
+	err = db.QueryRow("SELECT value FROM settings WHERE name = $1", name).Scan(&value)
+	if err != nil {
+		return "", err
+	}
+
+	return value, nil
+}
+func UploadLogo(c *gin.Context) {
+	// Parse the multipart form data
+	err := c.Request.ParseMultipartForm(10 << 20) // Limit to 10 MB
+	if err != nil {
+		log.Println("Error parsing form data:", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse form data"})
+		return
+	}
+
+	// Retrieve the file from the "logo" field
+	fileHeader, err := c.FormFile("logo")
+	if err != nil {
+		log.Println("Error retrieving file:", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to retrieve file"})
+		return
+	}
+
+	// Open the uploaded file
+	file, err := fileHeader.Open()
+	if err != nil {
+		log.Println("Error opening file:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open file"})
+		return
+	}
+	defer file.Close()
+
+	// Generate a unique file path
+	timestamp := time.Now().UnixNano()
+	fileName := fmt.Sprintf("logo_image_%d%s", timestamp, filepath.Ext(fileHeader.Filename))
+	savePath := filepath.Join("uploads", "logos", fileName)
+
+	// Create the uploads/logos directory if it doesn't exist
+	err = os.MkdirAll(filepath.Dir(savePath), os.ModePerm)
+	if err != nil {
+		log.Println("Error creating directory:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create directory"})
+		return
+	}
+
+	// Save the file to the filesystem
+	out, err := os.Create(savePath)
+	if err != nil {
+		log.Println("Error creating file:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
+		return
+	}
+	defer out.Close()
+	_, err = io.Copy(out, file)
+	if err != nil {
+		log.Println("Error saving file:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
+		return
+	}
+
+	// Update the database with the new logo path
+	err = UpdateSetting("logo_image", fileName)
+	if err != nil {
+		log.Println("Error updating logo setting:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update logo setting"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Logo uploaded successfully", "path": savePath})
 }

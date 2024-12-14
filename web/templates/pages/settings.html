@@ -29,6 +29,14 @@ color: #0d6efd; /* Primary color */
                 Tables
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="logo-tab" data-bs-toggle="tab" data-bs-target="#logo-content" type="button" role="tab" aria-controls="logo-content" aria-selected="false">
+                Set Logo Image
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link" href="/change-password">Change Password</a>
+        </li>
     </ul>
 
     <!-- Tabs Content -->
@@ -140,6 +148,41 @@ color: #0d6efd; /* Primary color */
                     {{ end }}
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- Set Logo Tab -->
+        <div class="tab-pane fade" id="logo-content" role="tabpanel" aria-labelledby="logo-tab">
+            <div class="mt-4">
+                <h3 class="text-secondary">Set Logo Image</h3>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadImagesModal">
+                    <i class="fa-solid fa-upload"></i> Upload Logo Image
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Images Modal -->
+<div class="modal fade" id="uploadImagesModal" tabindex="-1" aria-labelledby="uploadImagesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uploadImagesModalLabel">Upload Logo Image</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Drag-and-Drop Area -->
+                <div id="dropArea" class="border border-primary rounded p-4 text-center mb-3">
+                    <p>Drag and drop an image here or click to browse</p>
+                    <input type="file" id="logoInput" accept="image/*" style="display: none;">
+                </div>
+                <div id="logoPreviewContainer" class="text-center">
+                    <!-- Preview of the uploaded logo -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="saveLogoButton">Save Logo</button>
             </div>
         </div>
     </div>
@@ -673,6 +716,57 @@ color: #0d6efd; /* Primary color */
                     .then(response => response.json())
                     .then(() => location.reload())
                     .catch(err => alert("Failed to delete metric"));
+            }
+        });
+    });
+</script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const dropArea = document.getElementById("dropArea");
+        const logoInput = document.getElementById("logoInput");
+        const logoPreviewContainer = document.getElementById("logoPreviewContainer");
+        const saveLogoButton = document.getElementById("saveLogoButton");
+
+        dropArea.addEventListener("click", () => {
+            logoInput.click();
+        });
+
+        logoInput.addEventListener("change", (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    logoPreviewContainer.innerHTML = `<img src="${event.target.result}" class="img-fluid" alt="Preview">`;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        saveLogoButton.addEventListener("click", () => {
+            const file = logoInput.files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append("logo", file);
+
+                fetch("/settings/upload-logo", {
+                    method: "POST",
+                    body: formData,
+                })
+                    .then((response) => {
+                        if (response.ok) {
+                            alert("Logo uploaded successfully!");
+                            location.reload();
+                        } else {
+                            alert("Error uploading logo.");
+                        }
+                    })
+                    .catch((error) => {
+                        console.error("Error:", error);
+                        alert("Error uploading logo.");
+                    });
+            } else {
+                alert("Please select a logo image to upload.");
             }
         });
     });
