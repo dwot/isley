@@ -85,92 +85,149 @@ func GetSensorLatest() LatestSensorData {
 	return sensorData
 }
 
-func ChartHandler(c *gin.Context, sensor string, timeMinutes string) {
-	//Get sensor data for the last 24 hours for sensor 1
-	sensorData := querySensorHistory(sensor, timeMinutes)
+func ChartHandler(c *gin.Context) {
+	// Extract query parameters
+	sensor := c.Query("sensor")
+	timeMinutes := c.Query("minutes")
+	startDate := c.Query("start")
+	endDate := c.Query("end")
+
+	// Validate input
+	if sensor == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "sensor parameter is required"})
+		return
+	}
+
+	var sensorData []types.SensorData
+	var err error
+
+	// Determine query type
+	if startDate != "" && endDate != "" {
+		sensorData, err = querySensorHistoryByDateRange(sensor, startDate, endDate)
+	} else if timeMinutes != "" {
+		sensorData, err = querySensorHistoryByTime(sensor, timeMinutes)
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Either minutes or start and end dates must be provided"})
+		return
+	}
+
+	// Handle query errors
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Return data
 	c.JSON(http.StatusOK, sensorData)
 }
 
-func querySensorHistory(sensor string, timeMinutes string) []types.SensorData {
+// Query sensor data by time range
+func querySensorHistoryByTime(sensor string, timeMinutes string) ([]types.SensorData, error) {
 	var sensorData []types.SensorData
-	// Init the db
+
+	// Open the database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
-		return sensorData
+		return sensorData, err
 	}
+	defer db.Close()
 
-	//convert sensor and timeMinutes to int
+	// Convert sensor and timeMinutes to integers
 	sensorInt, err := strconv.Atoi(sensor)
 	if err != nil {
-		fmt.Println(err)
-		return sensorData
+		return sensorData, err
 	}
 	timeMinutesInt, err := strconv.Atoi(timeMinutes)
 	if err != nil {
-		fmt.Println(err)
-		return sensorData
+		return sensorData, err
 	}
 
-	//query sensor_data table for sensor_id = 1 and create_dt in last 24 hours
+	// Query sensor_data table for the given time range
 	timeThreshold := time.Now().Add(-time.Duration(timeMinutesInt) * time.Minute).Format("2006-01-02 15:04:05")
-	rows, err := db.Query("SELECT * FROM sensor_data WHERE sensor_id = $1 AND create_dt > $2 ORDER BY create_dt", sensorInt, timeThreshold)
+	query := "SELECT id, sensor_id, value, create_dt FROM sensor_data WHERE sensor_id = $1 AND create_dt > $2 ORDER BY create_dt"
+	rows, err := db.Query(query, sensorInt, timeThreshold)
 	if err != nil {
-		fmt.Println(err)
-		return sensorData
+		return sensorData, err
 	}
+	defer rows.Close()
 
-	// Iterate over rows
+	// Parse query results
 	for rows.Next() {
-		//write row
-		var id int
-		var sensor_id int
-		var value float64
-		var create_dt time.Time
-		err = rows.Scan(&id, &sensor_id, &value, &create_dt)
-		if err != nil {
-			fmt.Println(err)
-			return sensorData
+		var record types.SensorData
+		if err := rows.Scan(&record.ID, &record.SensorID, &record.Value, &record.CreateDT); err != nil {
+			return sensorData, err
 		}
-		sensorData = append(sensorData, types.SensorData{ID: uint(id), SensorID: sensor_id, Value: value, CreateDT: create_dt})
+		sensorData = append(sensorData, record)
 	}
 
-	//Filter down the sensorData density.
-	//If timeMinutes > 3 hours of data, show all data
-	//If timeMinutes > 6+ hours of data, show every 5th data point
-	//If timeMinutes > 48+ hours of data, show every 10th data point
-	//If timeMinutes > 1+ week of data, show every 20th data point
-	// end rules
+	// Filter data density
+	return filterSensorData(sensorData, timeMinutesInt), nil
+}
+
+// Query sensor data by custom date range
+func querySensorHistoryByDateRange(sensor string, startDate string, endDate string) ([]types.SensorData, error) {
+	var sensorData []types.SensorData
+
+	// Open the database
+	db, err := sql.Open("sqlite", model.DbPath())
+	if err != nil {
+		return sensorData, err
+	}
+	defer db.Close()
+
+	// Convert sensor ID to integer
+	sensorInt, err := strconv.Atoi(sensor)
+	if err != nil {
+		return sensorData, err
+	}
+
+	// Query sensor_data table for the given date range
+	query := "SELECT id, sensor_id, value, create_dt FROM sensor_data WHERE sensor_id = $1 AND create_dt BETWEEN $2 AND $3 ORDER BY create_dt"
+	rows, err := db.Query(query, sensorInt, startDate, endDate)
+	if err != nil {
+		return sensorData, err
+	}
+	defer rows.Close()
+
+	// Parse query results
+	for rows.Next() {
+		var record types.SensorData
+		if err := rows.Scan(&record.ID, &record.SensorID, &record.Value, &record.CreateDT); err != nil {
+			return sensorData, err
+		}
+		sensorData = append(sensorData, record)
+	}
+
+	return sensorData, nil
+}
+
+// Filter sensor data density based on the time range
+func filterSensorData(sensorData []types.SensorData, timeMinutes int) []types.SensorData {
 	filteredSensorData := []types.SensorData{}
+
 	if len(sensorData) > 0 {
-		if timeMinutesInt > 60*24*7 {
+		switch {
+		case timeMinutes > 60*24*7:
 			for i, v := range sensorData {
 				if i%20 == 0 {
 					filteredSensorData = append(filteredSensorData, v)
 				}
 			}
-		} else if timeMinutesInt > 60*24 {
+		case timeMinutes > 60*24:
 			for i, v := range sensorData {
 				if i%10 == 0 {
 					filteredSensorData = append(filteredSensorData, v)
 				}
 			}
-		} else if timeMinutesInt > 60*6 {
+		case timeMinutes > 60*6:
 			for i, v := range sensorData {
 				if i%5 == 0 {
 					filteredSensorData = append(filteredSensorData, v)
 				}
 			}
-		} else {
+		default:
 			filteredSensorData = sensorData
 		}
-	}
-
-	// Close the db
-	err = db.Close()
-	if err != nil {
-		fmt.Println(err)
-		return filteredSensorData
 	}
 
 	return filteredSensorData

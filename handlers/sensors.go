@@ -580,3 +580,21 @@ func DeleteSensorByID(id string) interface{} {
 	}
 	return nil
 }
+
+func GetSensorName(id string) string {
+	db, err := sql.Open("sqlite", model.DbPath())
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+	defer db.Close()
+
+	var name string
+	err = db.QueryRow("SELECT name FROM sensors WHERE id = ?", id).Scan(&name)
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+
+	return name
+}

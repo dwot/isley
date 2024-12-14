@@ -118,9 +118,10 @@ func main() {
 
 	r.GET("/graph/:id", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "views/graph.html", gin.H{
-			"title":    "Sensor Graphs",
-			"version":  version,
-			"SensorID": c.Param("id"),
+			"title":      "Sensor Graphs",
+			"version":    version,
+			"SensorID":   c.Param("id"),
+			"SensorName": handlers.GetSensorName(c.Param("id")),
 		})
 	})
 
@@ -192,7 +193,9 @@ func main() {
 	r.POST("/sensors/scanEC", handlers.ScanEcoWittSensors)
 	r.POST("/sensors/edit", handlers.EditSensor)
 	r.DELETE("/sensors/delete/:id", handlers.DeleteSensor)
-	r.GET("/sensorData/:id/:duration", func(c *gin.Context) { handlers.ChartHandler(c, c.Param("id"), c.Param("duration")) })
+	// Add this to your main router setup
+	r.GET("/sensorData", handlers.ChartHandler)
+
 	r.GET("/sensors/grouped", func(c *gin.Context) {
 		groupedSensors := handlers.GetGroupedSensorsWithLatestReading()
 		c.JSON(http.StatusOK, groupedSensors)

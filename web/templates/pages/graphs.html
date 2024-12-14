@@ -1,48 +1,53 @@
-{{ define "views/graphs.html"}}
+{{ define "views/graphs.html" }}
 <!--index.html-->
 
 <!--Embed the header.html template at this location-->
-{{ template "layouts/header.html" .}}
+{{ template "layouts/header.html" . }}
 <meta http-equiv="refresh" content="300">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+<script src="https://cdn.jsdelivr.net/npm/luxon"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
 
 <style>
-    /* Ensure consistent chart sizing */
     .chart-container {
         position: relative;
         height: 300px;
     }
-
-    /* Center the time frame selector with improved spacing */
-    .time-frame-selector {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        margin-bottom: 20px;
+    .dropdown-menu {
+        display: none;
     }
-
-    .time-frame-selector select {
-        max-width: 200px;
+    .dropdown.open .dropdown-menu {
+        display: block;
     }
 </style>
-{{ template "layouts/header2.html" .}}
-
+{{ template "layouts/header2.html" . }}
 
 <div class="container">
-    <!-- Time Frame Selector -->
-    <div class="time-frame-selector">
-        <label for="timeFrame" class="form-label me-2">Time Frame:</label>
-        <select class="form-select" id="timeFrame">
-            <option value="60">1 Hour</option>
-            <option value="180">3 Hours</option>
-            <option value="360">6 Hours</option>
-            <option value="720">12 Hours</option>
-            <option value="1440" selected>24 Hours</option>
-            <option value="4320">3 Days</option>
-            <option value="10080">7 Days</option>
-            <option value="20160">14 Days</option>
-        </select>
+    <!-- Controls -->
+    <div class="controls mb-4">
+        <div class="dropdown">
+            <button class="dropdown-button" id="timePickerButton">
+                Select Time Range
+                <i class="fa fa-caret-down"></i>
+            </button>
+            <div class="dropdown-menu">
+                <ul class="list-unstyled mb-3">
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="60">1 Hour</button></li>
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="360">6 Hours</button></li>
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="1440">24 Hours</button></li>
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="2880">48 Hours</button></li>
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="10080">1 Week</button></li>
+                </ul>
+                <div class="date-picker-container">
+                    <label for="startDate">Start Date:</label>
+                    <input type="date" id="startDate" class="form-control">
+                    <label for="endDate">End Date:</label>
+                    <input type="date" id="endDate" class="form-control">
+                    <button id="applyDateRange" class="btn btn-primary btn-block mt-2">Apply</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Graphs Container -->
@@ -67,18 +72,35 @@
 <script>
     document.addEventListener("DOMContentLoaded", () => {
         const graphsContainer = document.getElementById("graphsContainer");
-        const timeFrameSelector = document.getElementById("timeFrame");
+        const timePickerButton = document.getElementById("timePickerButton");
+        const dropdownMenu = document.querySelector(".dropdown-menu");
+        const timeRangeButtons = document.querySelectorAll(".time-range-btn");
+        const startDateInput = document.getElementById("startDate");
+        const endDateInput = document.getElementById("endDate");
+        const applyDateRangeButton = document.getElementById("applyDateRange");
         const expandedChartModal = new bootstrap.Modal(document.getElementById("expandedChartModal"));
         const expandedChartCanvas = document.getElementById("expandedChartCanvas");
         let expandedChartInstance = null;
+        let currentTimeFrame = 1440;
 
-        // Function to group sensors by type
-        function groupSensorsByType(sensors) {
+        // Dropdown toggle
+        timePickerButton.addEventListener("click", () => {
+            dropdownMenu.parentElement.classList.toggle("open");
+        });
+
+        document.addEventListener("click", (e) => {
+            if (!dropdownMenu.contains(e.target) && !timePickerButton.contains(e.target)) {
+                dropdownMenu.parentElement.classList.remove("open");
+            }
+        });
+
+        // Group sensors by type, ensuring soil sensors are grouped
+        const groupSensorsByType = (sensors) => {
             const grouped = {};
             sensors.forEach(sensor => {
                 const key = sensor.zone + ":" + sensor.device + ":" + sensor.type;
                 if (sensor.type.startsWith("Soil.")) {
-                    // Group soil moisture sensors
+                    // Group soil sensors
                     const soilKey = sensor.zone + ":" + sensor.device + ":Soil";
                     grouped[soilKey] = grouped[soilKey] || [];
                     grouped[soilKey].push(sensor);
@@ -88,23 +110,21 @@
                 }
             });
             return grouped;
-        }
+        };
 
-        // Function to load graphs
-        function loadGraphs(timeFrame) {
+        const loadGraphs = (queryParams) => {
             fetch("/sensors/grouped")
                 .then(response => response.json())
                 .then(data => {
                     graphsContainer.innerHTML = ""; // Clear existing graphs
 
-                    showZoneHeader = true;
-                    //If only one zone is present, set zone header show boolean to false
-                    if (Object.keys(data).length == 1) {
-                        showZoneHeader = false;
-                    }
-
-
                     Object.keys(data).forEach(zone => {
+                        // Zone Header
+                        showZoneHeader = true;
+                        //If only one zone is present, set zone header show boolean to false
+                        if (Object.keys(data).length == 1) {
+                            showZoneHeader = false;
+                        }
                         const zoneHeader = document.createElement("h3");
                         zoneHeader.classList.add("text-secondary", "mt-4", "mb-3");
                         zoneHeader.textContent = zone;
@@ -121,7 +141,6 @@
                                 const graphDiv = document.createElement("div");
                                 graphDiv.classList.add("col-lg-6", "chart-container");
 
-                                // Card structure for graphs
                                 graphDiv.innerHTML = `
                                     <div class="card shadow-sm clickable-chart" data-sensors='${JSON.stringify(grouped)}'>
                                         <div class="card-body">
@@ -132,9 +151,7 @@
                                 `;
                                 graphsContainer.appendChild(graphDiv);
 
-                                // Fetch and render grouped chart data
-                                const chartId = `chart-${groupKey}`;
-                                fetchSensorData(grouped, timeFrame, chartId);
+                                fetchSensorData(grouped, queryParams, `chart-${groupKey}`);
                             });
                         });
                     });
@@ -142,12 +159,11 @@
                     attachChartExpansionListeners();
                 })
                 .catch(err => console.error("Error fetching grouped sensors:", err));
-        }
+        };
 
-        // Fetch and render chart data
-        function fetchSensorData(sensors, timeFrame, chartId) {
+        const fetchSensorData = (sensors, queryParams, chartId) => {
             const requests = sensors.map(sensor =>
-                fetch(`/sensorData/${sensor.id}/${timeFrame}`).then(response => response.json())
+                fetch(`/sensorData?sensor=${sensor.id}&${queryParams}`).then(response => response.json())
             );
 
             Promise.all(requests)
@@ -175,10 +191,6 @@
                             scales: {
                                 x: {
                                     type: "time",
-                                    time: {
-                                        unit: "hour",
-                                        tooltipFormat: "MMM D, h:mm a",
-                                    },
                                     title: {
                                         display: true,
                                         text: "Time",
@@ -195,21 +207,20 @@
                     });
                 })
                 .catch(err => console.error("Error fetching sensor data:", err));
-        }
+        };
 
-        // Attach chart expansion listeners
-        function attachChartExpansionListeners() {
+        // Expanded chart logic with zooming
+        const attachChartExpansionListeners = () => {
             document.querySelectorAll(".clickable-chart").forEach(card => {
                 card.addEventListener("click", () => {
                     const sensors = JSON.parse(card.dataset.sensors);
 
-                    // Destroy existing expanded chart instance if exists
                     if (expandedChartInstance) {
                         expandedChartInstance.destroy();
                     }
 
                     const requests = sensors.map(sensor =>
-                        fetch(`/sensorData/${sensor.id}/${timeFrameSelector.value}`).then(response => response.json())
+                        fetch(`/sensorData?sensor=${sensor.id}&minutes=${currentTimeFrame}`).then(response => response.json())
                     );
 
                     Promise.all(requests)
@@ -237,10 +248,6 @@
                                     scales: {
                                         x: {
                                             type: "time",
-                                            time: {
-                                                unit: "hour",
-                                                tooltipFormat: "MMM D, h:mm a",
-                                            },
                                             title: {
                                                 display: true,
                                                 text: "Time",
@@ -253,6 +260,23 @@
                                             },
                                         },
                                     },
+                                    plugins: {
+                                        zoom: {
+                                            pan: {
+                                                enabled: true,
+                                                mode: "x",
+                                            },
+                                            zoom: {
+                                                wheel: {
+                                                    enabled: true,
+                                                },
+                                                pinch: {
+                                                    enabled: true,
+                                                },
+                                                mode: "x",
+                                            },
+                                        },
+                                    },
                                 },
                             });
 
@@ -261,10 +285,9 @@
                         .catch(err => console.error("Error fetching expanded sensor data:", err));
                 });
             });
-        }
+        };
 
-        // Generate random colors for chart lines
-        function getRandomColor(index) {
+        const getRandomColor = (index) => {
             const colors = [
                 "rgba(75, 192, 192, 1)",
                 "rgba(255, 99, 132, 1)",
@@ -274,19 +297,31 @@
                 "rgba(255, 159, 64, 1)",
             ];
             return colors[index % colors.length];
-        }
+        };
 
-        // Initial Load with Default Time Frame
-        loadGraphs(timeFrameSelector.value);
-
-        // Reload Graphs on Time Frame Change
-        timeFrameSelector.addEventListener("change", () => {
-            loadGraphs(timeFrameSelector.value);
+        timeRangeButtons.forEach(button => {
+            button.addEventListener("click", () => {
+                currentTimeFrame = button.dataset.value;
+                loadGraphs(`minutes=${currentTimeFrame}`);
+                dropdownMenu.parentElement.classList.remove("open");
+            });
         });
+
+        applyDateRangeButton.addEventListener("click", () => {
+            const startDate = startDateInput.value;
+            const endDate = endDateInput.value;
+
+            if (startDate && endDate) {
+                loadGraphs(`start=${startDate}&end=${endDate}`);
+                dropdownMenu.parentElement.classList.remove("open");
+            }
+        });
+
+        loadGraphs(`minutes=${currentTimeFrame}`);
     });
 </script>
 
 <!--Embed the footer.html template at this location-->
-{{ template "layouts/footer.html" .}}
+{{ template "layouts/footer.html" . }}
 
 {{ end }}

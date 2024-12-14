@@ -1,37 +1,49 @@
-{{ define "views/graph.html"}}
+{{ define "views/graph.html" }}
 <!--index.html-->
 
 <!--Embed the header.html template at this location-->
-{{ template "layouts/header.html" .}}
+{{ template "layouts/header.html" . }}
 <meta http-equiv="refresh" content="300">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-<style>
-    /* Ensure the graph container has a taller height */
-    .graph-container {
-        height: 500px; /* Adjust this value as needed */
-    }
-</style>
-{{ template "layouts/header2.html" .}}
+<script src="https://cdn.jsdelivr.net/npm/luxon"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+
+{{ template "layouts/header2.html" . }}
 
 <div class="container">
-    <h1 class="display-5 text-primary mb-4">Sensor Graph</h1>
+    <!-- Sensor Name -->
+    <h2 class="text-light mb-3">Sensor: <span id="sensorName">{{ .SensorName }}</span></h2>
 
-    <!-- Time Range Selector -->
-    <div class="mb-4 d-flex align-items-center">
-        <label for="timeRange" class="form-label me-3">Time Range:</label>
-        <select id="timeRange" class="form-select w-auto me-3">
-            <option value="60">1 Hour</option>
-            <option value="360">6 Hours</option>
-            <option value="1440" selected>24 Hours</option>
-            <option value="2880">48 Hours</option>
-            <option value="4320">72 Hours</option>
-            <option value="10080">1 Week</option>
-            <option value="20160">2 Weeks</option>
-        </select>
-        <input type="hidden" id="sensorID" value="{{ .SensorID }}">
-        <button id="updateChart" class="btn btn-primary">Update</button>
+    <!-- Controls -->
+    <div class="controls mb-4">
+        <div class="dropdown">
+            <button class="dropdown-button" id="timePickerButton">
+                Select Time Range
+                <i class="fa fa-caret-down"></i>
+            </button>
+            <div class="dropdown-menu">
+                <ul class="list-unstyled mb-3">
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="60">1 Hour</button></li>
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="360">6 Hours</button></li>
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="1440">24 Hours</button></li>
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="2880">48 Hours</button></li>
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="10080">1 Week</button></li>
+                </ul>
+                <div class="date-picker-container">
+                    <label for="startDate">Start Date:</label>
+                    <input type="date" id="startDate" class="form-control">
+                    <label for="endDate">End Date:</label>
+                    <input type="date" id="endDate" class="form-control">
+                    <button id="applyDateRange" class="btn btn-primary btn-block mt-2">Apply</button>
+                </div>
+            </div>
+        </div>
+        <button id="resetZoom" class="btn btn-secondary">Reset Zoom</button>
     </div>
+
+    <!-- Hidden Sensor ID -->
+    <input type="hidden" id="sensorID" value="{{ .SensorID }}">
 
     <!-- Graph Display -->
     <div class="card">
@@ -44,14 +56,29 @@
 <script>
     document.addEventListener("DOMContentLoaded", () => {
         const ctx = document.getElementById('chart').getContext('2d');
-        const timeRangeSelect = document.getElementById('timeRange');
-        const updateChartButton = document.getElementById('updateChart');
+        const sensorId = document.getElementById('sensorID').value;
+        const sensorNameElement = document.getElementById('sensorName');
+        const timePickerButton = document.getElementById('timePickerButton');
+        const dropdownMenu = document.querySelector('.dropdown-menu');
+        const timeRangeButtons = document.querySelectorAll('.time-range-btn');
+        const startDateInput = document.getElementById('startDate');
+        const endDateInput = document.getElementById('endDate');
+        const applyDateRangeButton = document.getElementById('applyDateRange');
+        const resetZoomButton = document.getElementById('resetZoom');
         let chart;
 
-        // Function to fetch data and render the chart
-        const fetchAndRenderData = (minutes) => {
-            const sensorId = document.getElementById('sensorID').value;
-            fetch(`/sensorData/${sensorId}/${minutes}`)
+        timePickerButton.addEventListener('click', () => {
+            dropdownMenu.parentElement.classList.toggle('open');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!dropdownMenu.contains(e.target) && !timePickerButton.contains(e.target)) {
+                dropdownMenu.parentElement.classList.remove('open');
+            }
+        });
+
+        const fetchAndRenderData = (queryParams) => {
+            fetch(`/sensorData?sensor=${sensorId}&${queryParams}`)
                 .then(response => response.json())
                 .then(data => {
                     const formattedData = data.map(item => ({
@@ -60,14 +87,14 @@
                     }));
 
                     if (chart) {
-                        chart.destroy(); // Destroy the existing chart before creating a new one
+                        chart.destroy();
                     }
 
                     chart = new Chart(ctx, {
                         type: 'line',
                         data: {
                             datasets: [{
-                                label: 'Measurement',
+                                label: `Sensor: ${sensorNameElement.textContent}`,
                                 data: formattedData,
                                 borderColor: 'rgba(75, 192, 192, 1)',
                                 backgroundColor: 'rgba(75, 192, 192, 0.2)',
@@ -77,12 +104,12 @@
                         },
                         options: {
                             responsive: true,
-                            maintainAspectRatio: false, // Allow the chart to fill the container's height
+                            maintainAspectRatio: false,
                             scales: {
                                 x: {
                                     type: 'time',
                                     time: {
-                                        tooltipFormat: 'MMM D, h:mm a',
+                                        tooltipFormat: 'MMM d, h:mm a',
                                         unit: 'hour',
                                     },
                                     title: {
@@ -96,6 +123,23 @@
                                         text: 'Sensor Value'
                                     }
                                 }
+                            },
+                            plugins: {
+                                zoom: {
+                                    pan: {
+                                        enabled: true,
+                                        mode: 'x',
+                                    },
+                                    zoom: {
+                                        pinch: {
+                                            enabled: true
+                                        },
+                                        wheel: {
+                                            enabled: true
+                                        },
+                                        mode: 'x',
+                                    }
+                                }
                             }
                         }
                     });
@@ -103,18 +147,35 @@
                 .catch(error => console.error('Error fetching data:', error));
         };
 
-        // Initial rendering with default time range
-        fetchAndRenderData(1440);
-
-        // Update chart on button click
-        updateChartButton.addEventListener('click', () => {
-            const minutes = parseInt(timeRangeSelect.value, 10);
-            fetchAndRenderData(minutes);
+        timeRangeButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                const minutes = e.target.dataset.value;
+                fetchAndRenderData(`minutes=${minutes}`);
+                dropdownMenu.parentElement.classList.remove('open');
+            });
         });
+
+        applyDateRangeButton.addEventListener('click', () => {
+            const startDate = startDateInput.value;
+            const endDate = endDateInput.value;
+
+            if (startDate && endDate) {
+                fetchAndRenderData(`start=${startDate}&end=${endDate}`);
+                dropdownMenu.parentElement.classList.remove('open');
+            }
+        });
+
+        resetZoomButton.addEventListener('click', () => {
+            if (chart) {
+                chart.resetZoom();
+            }
+        });
+
+        fetchAndRenderData('minutes=1440');
     });
 </script>
 
 <!--Embed the footer.html template at this location-->
-{{ template "layouts/footer.html" .}}
+{{ template "layouts/footer.html" . }}
 
 {{ end }}

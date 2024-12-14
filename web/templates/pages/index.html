@@ -22,6 +22,8 @@
             </div>
         </div>
 
+        <hr class="my-4" />
+
         <!-- Table Row -->
         <div class="row">
             <div class="col-12">
@@ -83,10 +85,18 @@
 
                 Object.keys(data).forEach(zone => {
                     // Zone Header
+                    showZoneHeader = true;
+                    //If only one zone is present, set zone header show boolean to false
+                    if (Object.keys(data).length == 1) {
+                        showZoneHeader = false;
+                    }
+
                     const zoneRow = document.createElement("div");
                     zoneRow.classList.add("row", "mb-4");
                     zoneRow.innerHTML = `<div class="col-12"><h3 class="text-secondary">${zone}</h3></div>`;
-                    sensorsOverview.appendChild(zoneRow);
+                    if (showZoneHeader) {
+                        sensorsOverview.appendChild(zoneRow);
+                    }
 
                     Object.keys(data[zone]).forEach(device => {
                         // Device Header
