@@ -84,13 +84,15 @@
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h5 class="card-title text-primary">Plant Details</h5>
                             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#changeStatusModal">
-                                <i class="fa-solid fa-pen-to-square"></i> Plant
+                                <i class="fa-solid fa-pen-to-square"></i>
                             </button>
 
                             <button class="btn btn-danger" id="deletePlantButton">
-                                <i class="fa-solid fa-trash"></i> Plant
+                                <i class="fa-solid fa-trash"></i>
                             </button>
                         </div>
+                        <input type="hidden" id="strainName" value="{{ .plant.StrainName }}">
+                        <input type="hidden" id="currentDay" value="{{ .plant.CurrentDay }}">
                         <ul class="list-unstyled">
                             <li><strong>Status:</strong> {{ .plant.Status }}</li>
                             <li><strong>Strain:</strong> {{ .plant.StrainName }} (by {{ .plant.BreederName }})</li>
