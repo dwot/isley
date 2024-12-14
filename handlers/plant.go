@@ -39,6 +39,10 @@ type PlantDataResponse struct {
 	ZoneName      string             `json:"zone_name"`
 	CurrentDay    int                `json:"current_day"`
 	CurrentWeek   int                `json:"current_week"`
+	CurrentHeight string             `json:"current_height"`
+	HeightDate    time.Time          `json:"height_date"`
+	LastWaterDate time.Time          `json:"last_water_date"`
+	LastFeedDate  time.Time          `json:"last_feed_date"`
 	Measurements  []Measurement      `json:"measurements"`
 	Activities    []Activity         `json:"activities"`
 	StatusHistory []Status           `json:"status_history"`
@@ -679,7 +683,40 @@ func GetPlant(id string) PlantDataResponse {
 			images = append(images, types.PlantImage{ID: id, PlantID: plant.ID, ImagePath: image_path, ImageDescription: image_description, ImageOrder: image_order, ImageDate: image_date, CreatedAt: time.Now(), UpdatedAt: time.Now()})
 		}
 
-		plant = PlantDataResponse{id, name, description, status, statusID, strain_name, strain_id, breeder_name, zone_name, iCurrentDay, iCurrentWeek, measurements, activities, statusHistory, sensorList, latestImage, images, isClone, start_dt}
+		iCurrentHeight := 0
+		//initialize the height date to a time in the past Jan 1, 1970
+		heightDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
+		lastWaterDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
+		lastFeedDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
+
+		//iterate measurements to find the last height
+		for _, measurement := range measurements {
+			if measurement.Name == "Height" {
+				if measurement.Date.After(heightDate) {
+					heightDate = measurement.Date
+					iCurrentHeight = int(measurement.Value)
+				}
+			}
+		}
+
+		//iterate activities to find the last water and feed dates
+		for _, activity := range activities {
+			if activity.ActivityId == 1 {
+				if activity.Date.After(lastWaterDate) {
+					lastWaterDate = activity.Date
+				}
+			}
+			if activity.ActivityId == 2 {
+				if activity.Date.After(lastFeedDate) {
+					lastFeedDate = activity.Date
+				}
+			}
+		}
+
+		//Convert int and dates to strings
+		strCurrentHeight := strconv.Itoa(iCurrentHeight)
+
+		plant = PlantDataResponse{id, name, description, status, statusID, strain_name, strain_id, breeder_name, zone_name, iCurrentDay, iCurrentWeek, strCurrentHeight, heightDate, lastWaterDate, lastFeedDate, measurements, activities, statusHistory, sensorList, latestImage, images, isClone, start_dt}
 	}
 
 	// Close the db
