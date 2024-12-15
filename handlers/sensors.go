@@ -213,6 +213,13 @@ func ScanACInfinitySensors(c *gin.Context) {
 					checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
 				}
 			}
+
+			for _, port := range deviceData.DeviceInfo.Ports {
+				sensorType := fmt.Sprintf("ACIP.%d", port.Port)
+				name := port.PortName
+				unit := "%"
+				checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
+			}
 		}
 	}
 
