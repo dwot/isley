@@ -67,6 +67,15 @@ color: #0d6efd; /* Primary color */
                     </div>
                 </div>
 
+                <!-- Sensor Polling Interval -->
+                <div class="mb-4">
+                    <h5 class="text-secondary">Sensor Polling Interval</h5>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="pollingInterval" value="{{ .settings.PollingInterval }}" required min="15">
+                        <span class="input-group-text">seconds</span>
+                    </div>
+                </div>
+
                 <!-- Save Button -->
                 <div class="text-end">
                     <button type="submit" class="btn btn-primary">Save Settings</button>
@@ -507,6 +516,7 @@ color: #0d6efd; /* Primary color */
                 ec: {
                     enabled: document.getElementById("ecEnabled").checked,
                 },
+                polling_interval: document.getElementById("pollingInterval").value,
             };
 
             // Send POST request to save settings

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 )
 
@@ -22,6 +23,7 @@ type Settings struct {
 		Enabled bool   `json:"enabled"`
 		Server  string `json:"server"`
 	} `json:"ec"`
+	PollingInterval string `json:"polling_interval"`
 }
 
 type ACInfinitySettings struct {
@@ -35,8 +37,9 @@ type EcoWittSettings struct {
 }
 
 type SettingsData struct {
-	ACI ACInfinitySettings `json:"aci"`
-	EC  EcoWittSettings    `json:"ec"`
+	ACI             ACInfinitySettings `json:"aci"`
+	EC              EcoWittSettings    `json:"ec"`
+	PollingInterval int                `json:"polling_interval"`
 }
 
 func SaveSettings(c *gin.Context) {
@@ -91,6 +94,7 @@ func SaveSettings(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
 		return
 	}
+	err = UpdateSetting("polling_interval", settings.PollingInterval)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Settings saved successfully"})
 }
@@ -183,6 +187,8 @@ func GetSettings() SettingsData {
 			settingsData.EC.Enabled = value == "1"
 		case "ec.server":
 			settingsData.EC.Server = value
+		case "polling_interval":
+			settingsData.PollingInterval, _ = strconv.Atoi(value)
 		}
 	}
 
@@ -230,6 +236,12 @@ func AddMetricHandler(c *gin.Context) {
 		return
 	}
 
+	// metric name of "Height" is reserved
+	if metric.Name == "Height" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "This metric name is reserved and can't be added."})
+		return
+	}
+
 	// Add metric to database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
@@ -257,6 +269,12 @@ func AddActivityHandler(c *gin.Context) {
 	if err := c.ShouldBindJSON(&activity); err != nil {
 		fmt.Println("Failed to add activity", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
+		return
+	}
+
+	//Reserved names can't be added "Water", "Feed", "Note"
+	if activity.Name == "Water" || activity.Name == "Feed" || activity.Name == "Note" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "This activity name is reserved and can't be added."})
 		return
 	}
 
@@ -329,6 +347,27 @@ func UpdateMetricHandler(c *gin.Context) {
 	}
 	defer db.Close()
 
+	// Check if metric exists and lock = TRUE
+	var lock bool
+	err = db.QueryRow("SELECT lock FROM metric WHERE id = $1", id).Scan(&lock)
+	if err != nil {
+		fmt.Println("Failed to update metric", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update metric"})
+		return
+	}
+	if lock {
+		//Update the unit only
+		_, err = db.Exec("UPDATE metric SET unit = $1 WHERE id = $2", metric.Unit, id)
+		if err != nil {
+			fmt.Println("Failed to update metric", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update metric"})
+			return
+		}
+
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Editing this metric is not allowed, only unit changed."})
+		return
+	}
+
 	// Update metric in database
 	_, err = db.Exec("UPDATE metric SET name = $1, unit = $2 WHERE id = $3", metric.Name, metric.Unit, id)
 	if err != nil {
@@ -358,6 +397,19 @@ func UpdateActivityHandler(c *gin.Context) {
 		return
 	}
 	defer db.Close()
+
+	// Check if activity exists and lock = TRUE
+	var lock bool
+	err = db.QueryRow("SELECT lock FROM activity WHERE id = $1", id).Scan(&lock)
+	if err != nil {
+		fmt.Println("Failed to update activity", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update activity"})
+		return
+	}
+	if lock {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Editing this activity is not allowed."})
+		return
+	}
 
 	// Update activity in database
 	_, err = db.Exec("UPDATE activity SET name = $1 WHERE id = $2", activity.Name, id)
@@ -448,6 +500,19 @@ func DeleteMetricHandler(c *gin.Context) {
 	}
 	defer db.Close()
 
+	// Check if metric exists and lock = TRUE
+	var lock bool
+	err = db.QueryRow("SELECT lock FROM metric WHERE id = $1", id).Scan(&lock)
+	if err != nil {
+		fmt.Println("Failed to delete metric", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete metric"})
+		return
+	}
+	if lock {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Deleting this metric is not allowed."})
+		return
+	}
+
 	// Delete any measurements associated with this metric
 	_, err = db.Exec("DELETE FROM plant_measurements WHERE metric_id = $1", id)
 	if err != nil {
@@ -477,6 +542,19 @@ func DeleteActivityHandler(c *gin.Context) {
 		return
 	}
 	defer db.Close()
+
+	// Check if activity exists and lock = TRUE
+	var lock bool
+	err = db.QueryRow("SELECT lock FROM activity WHERE id = $1", id).Scan(&lock)
+	if err != nil {
+		fmt.Println("Failed to delete activity", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete activity"})
+		return
+	}
+	if lock {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Deleting this activity is not allowed."})
+		return
+	}
 
 	// Delete any plant_activities associated with this activity
 	_, err = db.Exec("DELETE FROM plant_activity WHERE activity_id = $1", id)

@@ -21,6 +21,7 @@ func Watch() {
 		aciEnabled := 0
 		ecEnabled := 0
 		aciToken := ""
+		pollingInterval := 60
 
 		// Init the db
 		db, err := sql.Open("sqlite", model.DbPath())
@@ -63,6 +64,12 @@ func Watch() {
 			if name == "aci.token" {
 				aciToken = value
 			}
+			if name == "polling_interval" {
+				iValue, err := strconv.Atoi(value)
+				if err == nil {
+					pollingInterval = iValue
+				}
+			}
 		}
 
 		//Iterate over sensors table, looking for distinct device with type ecowitt
@@ -97,7 +104,7 @@ func Watch() {
 				updateEcoWittSensorData(ecServer)
 			}
 		}
-		time.Sleep(60 * time.Second)
+		time.Sleep(time.Duration(pollingInterval) * time.Second)
 
 	}
 

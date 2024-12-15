@@ -1,0 +1,1 @@
+DELETE FROM SETTINGS WHERE name = 'polling_interval';

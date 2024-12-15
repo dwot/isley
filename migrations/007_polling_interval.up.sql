@@ -1,0 +1,10 @@
+INSERT INTO settings (name, value) VALUES ('polling_interval', '60');
+DELETE FROM plant_activity WHERE activity_id in (SELECT id FROM activity WHERE name in ('Clone', 'Light Change', 'Environment Change', 'Transplant', 'Trim', 'Train'));
+DELETE FROM activity WHERE name in ('Clone', 'Light Change', 'Environment Change', 'Transplant', 'Trim', 'Train');
+UPDATE activity SET name = 'Note' where name = 'note';
+DELETE FROM plant_measurements WHERE metric_id in (SELECT id FROM metric WHERE name in ('Temperature', 'Humidity', 'Light Intensity'));
+DELETE FROM metric WHERE name in ('Temperature', 'Humidity', 'Light Intensity');
+ALTER TABLE metric ADD COLUMN lock BOOLEAN DEFAULT FALSE;
+ALTER TABLE activity ADD COLUMN lock BOOLEAN DEFAULT FALSE;
+UPDATE activity SET lock = TRUE WHERE name in ('Note', 'Water', 'Feed');
+UPDATE metric SET lock = TRUE WHERE name in ('Height');

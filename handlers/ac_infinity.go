@@ -23,6 +23,10 @@ func ACILoginHandler(c *gin.Context) {
 	}
 
 	// Prepare the payload for the AC Infinity API
+	//# AC Infinity API does not accept passwords greater than 25 characters.
+	if len(req.Password) > 25 {
+		req.Password = req.Password[:25]
+	}
 	formData := "appEmail=" + req.Email + "&appPasswordl=" + req.Password
 	apiURL := "http://www.acinfinityserver.com/api/user/appUserLogin"
 
@@ -73,5 +77,7 @@ func ACILoginHandler(c *gin.Context) {
 		return
 	}
 
+	//Update the user's token in the database
+	UpdateSetting("aci.token", aciResponse.Data.AppID)
 	c.JSON(http.StatusOK, gin.H{"success": true, "token": aciResponse.Data.AppID})
 }
