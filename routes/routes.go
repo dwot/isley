@@ -8,24 +8,42 @@ import (
 
 func AddProtectedRotues(r *gin.RouterGroup, version string) {
 
+	plants, _ := handlers.GetLivingPlants()
+	activities := handlers.GetActivities()
+
+	r.GET("/", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "views/index.html", gin.H{
+			"title":        "Dashboard",
+			"version":      version,
+			"plantList":    handlers.GetPlantList(),
+			"sensorLatest": handlers.GetSensorLatest(),
+			"plants":       plants,
+			"activities":   activities,
+		})
+	})
+
 	r.GET("/plants", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "views/plants.html", gin.H{
-			"title":     "Plants",
-			"version":   version,
-			"plantList": handlers.GetPlantList(),
-			"zones":     handlers.GetZones(),
-			"strains":   handlers.GetStrains(),
-			"statuses":  handlers.GetStatuses(),
-			"breeders":  handlers.GetBreederList(),
+			"title":      "Plants",
+			"version":    version,
+			"plantList":  handlers.GetPlantList(),
+			"zones":      handlers.GetZones(),
+			"strains":    handlers.GetStrains(),
+			"statuses":   handlers.GetStatuses(),
+			"breeders":   handlers.GetBreederList(),
+			"plants":     plants,
+			"activities": activities,
 		})
 	})
 
 	r.GET("/strains", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "views/strains.html", gin.H{
-			"title":    "Strains",
-			"version":  version,
-			"strains":  handlers.GetStrains(),
-			"breeders": handlers.GetBreederList(),
+			"title":      "Strains",
+			"version":    version,
+			"strains":    handlers.GetStrains(),
+			"breeders":   handlers.GetBreederList(),
+			"plants":     plants,
+			"activities": activities,
 		})
 	})
 
@@ -35,6 +53,8 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"version":    version,
 			"SensorID":   c.Param("id"),
 			"SensorName": handlers.GetSensorName(c.Param("id")),
+			"plants":     plants,
+			"activities": activities,
 		})
 	})
 
@@ -48,8 +68,9 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"statuses":     handlers.GetStatuses(),
 			"breeders":     handlers.GetBreederList(),
 			"measurements": handlers.GetMeasurements(),
-			"activities":   handlers.GetActivities(),
 			"sensors":      handlers.GetSensors(),
+			"plants":       plants,
+			"activities":   activities,
 		})
 	})
 
@@ -60,25 +81,30 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"settings":   handlers.GetSettings(),
 			"zones":      handlers.GetZones(),
 			"metrics":    handlers.GetMeasurements(),
-			"activities": handlers.GetActivities(),
+			"plants":     plants,
+			"activities": activities,
 		})
 	})
 
 	r.GET("/sensors", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "views/sensors.html", gin.H{
-			"title":    "Sensors",
-			"version":  version,
-			"settings": handlers.GetSettings(),
-			"sensors":  handlers.GetSensors(),
-			"zones":    handlers.GetZones(),
+			"title":      "Sensors",
+			"version":    version,
+			"settings":   handlers.GetSettings(),
+			"sensors":    handlers.GetSensors(),
+			"zones":      handlers.GetZones(),
+			"plants":     plants,
+			"activities": activities,
 		})
 	})
 
 	r.GET("/graphs", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "views/graphs.html", gin.H{
-			"title":   "Graphs",
-			"version": version,
-			"sensors": handlers.GetGroupedSensors(),
+			"title":      "Graphs",
+			"version":    version,
+			"sensors":    handlers.GetGroupedSensors(),
+			"plants":     plants,
+			"activities": activities,
 		})
 	})
 
@@ -107,9 +133,7 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 	r.POST("/sensors/scanEC", handlers.ScanEcoWittSensors)
 	r.POST("/sensors/edit", handlers.EditSensor)
 	r.DELETE("/sensors/delete/:id", handlers.DeleteSensor)
-	// Add this to your main router setup
 	r.GET("/sensorData", handlers.ChartHandler)
-
 	r.GET("/sensors/grouped", func(c *gin.Context) {
 		groupedSensors := handlers.GetGroupedSensorsWithLatestReading()
 		c.JSON(http.StatusOK, groupedSensors)
@@ -136,4 +160,6 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 	r.DELETE("/activities/:id", handlers.DeleteActivityHandler)
 
 	r.POST("/settings/upload-logo", handlers.UploadLogo)
+	r.POST("/record-multi-activity", handlers.RecordMultiPlantActivity)
+
 }

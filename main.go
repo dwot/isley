@@ -140,15 +140,6 @@ func main() {
 	{
 		protected.Use(ForcePasswordChangeMiddleware())
 
-		protected.GET("/", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "views/index.html", gin.H{
-				"title":        "Dashboard",
-				"version":      version,
-				"plantList":    handlers.GetPlantList(),
-				"sensorLatest": handlers.GetSensorLatest(),
-			})
-		})
-
 		protected.GET("/change-password", func(c *gin.Context) {
 			c.HTML(http.StatusOK, "views/change-password.html", gin.H{})
 		})

@@ -13,9 +13,9 @@
     <!-- Navigation Links -->
     <ul class="nav nav-pills">
         <li class="nav-item">
-            <a href="/" class="nav-link" aria-label="Home">
-                <i class="fa fa-home" title="Home"></i>
-            </a>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMultiPlantActivityModal">
+                <i class="fa fa-plus"></i>
+            </button>
         </li>
         <li class="nav-item">
             <a href="/plants" class="nav-link" aria-label="Plants">
@@ -49,6 +49,118 @@
         </li>
     </ul>
 </header>
+
+<!-- Add Multi-Plant Activity Modal -->
+<div class="modal fade" id="addMultiPlantActivityModal" tabindex="-1" aria-labelledby="addMultiPlantActivityModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addMultiPlantActivityModalLabel">Record Activity for Multiple Plants</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addMultiPlantActivityForm">
+                    <!-- Activity Name Dropdown -->
+                    <div class="mb-3">
+                        <label for="activityName" class="form-label">Activity Name</label>
+                        <select class="form-select" id="activityName" required>
+                            {{ range .activities }}
+                            <option value="{{ .ID }}">{{ .Name }}</option>
+                            {{ end }}
+                        </select>
+                    </div>
+
+                    <!-- Activity Note Input -->
+                    <div class="mb-3">
+                        <label for="activityNote" class="form-label">Activity Note</label>
+                        <textarea class="form-control" id="activityNote" rows="3"></textarea>
+                    </div>
+
+                    <!-- Date Picker -->
+                    <div class="mb-3">
+                        <label for="activityDate" class="form-label">Date</label>
+                        <input type="date" class="form-control" id="activityDate" required>
+                    </div>
+
+                    <!-- Plant Selection -->
+                    <div class="mb-3">
+                        <label for="plantSelection" class="form-label">Select Plants</label>
+                        <select class="form-select" id="plantSelection" multiple required>
+                            {{ range .plants }}
+                            <option value="{{ .ID }}">
+                                {{ .Name }} (Zone: {{ .ZoneName }}, Week: {{ .CurrentWeek }})
+                            </option>
+                            {{ end }}
+                        </select>
+                        <small class="text-muted">Hold Ctrl (Cmd on Mac) to select multiple plants.</small>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary">Record Activity</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const form = document.getElementById("addMultiPlantActivityForm");
+        const addMultiPlantActivityModal = document.getElementById("addMultiPlantActivityModal");
+        const activityDateInput = document.getElementById("activityDate");
+
+        // Set default date to today
+        const setDefaultDate = () => {
+            const today = new Date().toISOString().split("T")[0];
+            activityDateInput.value = today;
+        };
+
+        // Set default date when the modal is shown
+        addMultiPlantActivityModal.addEventListener("show.bs.modal", setDefaultDate);
+
+        form.addEventListener("submit", (e) => {
+            e.preventDefault();
+
+            // Gather selected plant IDs
+            const selectedPlants = Array.from(document.getElementById("plantSelection").selectedOptions).map(opt => parseInt(opt.value));
+
+            // Gather other form data
+            const payload = {
+                plant_ids: selectedPlants,
+                activity_id: parseInt(document.getElementById("activityName").value),
+                note: document.getElementById("activityNote").value,
+                date: document.getElementById("activityDate").value
+            };
+
+            // Send POST request to backend
+            fetch("/record-multi-activity", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+            })
+                .then(response => {
+                    if (!response.ok) throw new Error("Failed to record activity");
+                    return response.json();
+                })
+                .then(() => {
+                    alert("Activity recorded successfully!");
+                    const modal = bootstrap.Modal.getInstance(document.getElementById("addMultiPlantActivityModal"));
+                    modal.hide();
+                    location.reload(); // Reload page to reflect changes
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                    alert("Failed to record activity. Please try again.");
+                });
+        });
+    });
+</script>
+
 
 
 {{ end }}

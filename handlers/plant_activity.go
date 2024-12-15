@@ -86,3 +86,46 @@ func DeleteActivity(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Activity deleted successfully"})
 }
+
+func RecordMultiPlantActivity(c *gin.Context) {
+	var request struct {
+		PlantIDs   []int  `json:"plant_ids"`
+		ActivityID int    `json:"activity_id"`
+		Note       string `json:"note"`
+		Date       string `json:"date"`
+	}
+
+	if err := c.BindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		return
+	}
+
+	// Validate inputs
+	if len(request.PlantIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No plants selected"})
+		return
+	}
+
+	// Save activity for each plant
+	db, err := sql.Open("sqlite", model.DbPath())
+	if err != nil {
+		log.Println("Database error:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		return
+	}
+	defer db.Close()
+
+	for _, plantID := range request.PlantIDs {
+		_, err = db.Exec(`
+            INSERT INTO plant_activity (plant_id, activity_id, note, date)
+            VALUES (?, ?, ?, ?)
+        `, plantID, request.ActivityID, request.Note, request.Date)
+		if err != nil {
+			log.Println("Error saving activity:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save activity"})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
