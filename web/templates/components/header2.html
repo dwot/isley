@@ -7,7 +7,7 @@
     <!-- Logo and Title -->
     <a href="/" class="d-flex align-items-center text-decoration-none link-body-emphasis">
         <i class="fa fa-leaf fa-2xl me-2"></i>
-        <span class="fs-4">{{ .version }} - {{ .title }}</span>
+        <span class="fs-4">Isley</span>
     </a>
 
     <!-- Navigation Links -->
@@ -37,11 +37,13 @@
                 <i class="fa fa-thermometer-half" title="Sensors"></i>
             </a>
         </li>
+        <!--
         <li class="nav-item">
             <a href="/alerts" class="nav-link" aria-label="Alerting">
                 <i class="fa fa-bell" title="Alerting"></i>
             </a>
         </li>
+        -->
         <li class="nav-item">
             <a href="/settings" class="nav-link" aria-label="Settings">
                 <i class="fa fa-cog" title="Settings"></i>
@@ -67,8 +69,8 @@
                 <form id="addMultiPlantActivityForm">
                     <!-- Activity Name Dropdown -->
                     <div class="mb-3">
-                        <label for="activityName" class="form-label">Activity Name</label>
-                        <select class="form-select" id="activityName" required>
+                        <label for="activityMultiName" class="form-label">Activity Name</label>
+                        <select class="form-select" id="activityMultiName" required>
                             {{ range .activities }}
                             <option value="{{ .ID }}">{{ .Name }}</option>
                             {{ end }}
@@ -77,14 +79,14 @@
 
                     <!-- Activity Note Input -->
                     <div class="mb-3">
-                        <label for="activityNote" class="form-label">Activity Note</label>
-                        <textarea class="form-control" id="activityNote" rows="3"></textarea>
+                        <label for="activityMultiNote" class="form-label">Activity Note</label>
+                        <textarea class="form-control" id="activityMultiNote" rows="3"></textarea>
                     </div>
 
                     <!-- Date Picker -->
                     <div class="mb-3">
-                        <label for="activityDate" class="form-label">Date</label>
-                        <input type="date" class="form-control" id="activityDate" required>
+                        <label for="activityMultiDate" class="form-label">Date</label>
+                        <input type="date" class="form-control" id="activityMultiDate" required>
                     </div>
 
                     <!-- Plant Selection -->
@@ -115,16 +117,16 @@
     document.addEventListener("DOMContentLoaded", () => {
         const form = document.getElementById("addMultiPlantActivityForm");
         const addMultiPlantActivityModal = document.getElementById("addMultiPlantActivityModal");
-        const activityDateInput = document.getElementById("activityDate");
+        const activityMultiDateInput = document.getElementById("activityMultiDate");
 
         // Set default date to today
-        const setDefaultDate = () => {
+        const setMultiDefaultDate = () => {
             const today = new Date().toISOString().split("T")[0];
-            activityDateInput.value = today;
+            activityMultiDateInput.value = today;
         };
 
         // Set default date when the modal is shown
-        addMultiPlantActivityModal.addEventListener("show.bs.modal", setDefaultDate);
+        addMultiPlantActivityModal.addEventListener("show.bs.modal", setMultiDefaultDate);
 
         form.addEventListener("submit", (e) => {
             e.preventDefault();
@@ -135,9 +137,9 @@
             // Gather other form data
             const payload = {
                 plant_ids: selectedPlants,
-                activity_id: parseInt(document.getElementById("activityName").value),
-                note: document.getElementById("activityNote").value,
-                date: document.getElementById("activityDate").value
+                activity_id: parseInt(document.getElementById("activityMultiName").value),
+                note: document.getElementById("activityMultiNote").value,
+                date: document.getElementById("activityMultiDate").value
             };
 
             // Send POST request to backend

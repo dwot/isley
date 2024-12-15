@@ -233,6 +233,12 @@ func updateACISensorData(token string) {
 				m[sensorType] = value
 			}
 
+			for _, port := range deviceData.DeviceInfo.Ports {
+				sensorType := fmt.Sprintf("ACIP.%d", port.Port)
+				value := float64(port.Speak) * 10
+				m[sensorType] = value
+			}
+
 			// Write to db
 			for key, value := range m {
 				strValue := fmt.Sprintf("%f", value)
