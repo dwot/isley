@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"io"
+	"isley/config"
 	"isley/model"
 	"isley/model/types"
 	"log"
 	"net/http"
+	"sync"
+	"time"
 )
 
 type SensorResponse struct {
@@ -25,6 +28,12 @@ type SensorResponse struct {
 	CreateDT string `json:"create_dt"`
 	UpdateDT string `json:"update_dt"`
 }
+
+var (
+	sensorCache          map[string]map[string][]map[string]interface{}
+	cacheLastUpdatedTime time.Time
+	cacheMutex           sync.Mutex
+)
 
 func GetSensors() []map[string]interface{} {
 	db, err := sql.Open("sqlite", model.DbPath())
@@ -102,7 +111,6 @@ func ScanACInfinitySensors(c *gin.Context) {
 		input.ZoneID = &zoneID // Set the created zone ID
 	}
 
-	aciToken := ""
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
@@ -111,33 +119,10 @@ func ScanACInfinitySensors(c *gin.Context) {
 	}
 
 	// Query settings table and write result to console
-	rows, err := db.Query("SELECT * FROM settings where name = 'aci.token'")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	// Iterate over rows
-	for rows.Next() {
-		//write row
-		var id int
-		var name string
-		var value string
-		var create_dt string
-		var update_dt string
-		err = rows.Scan(&id, &name, &value, &create_dt, &update_dt)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		if name == "aci.token" {
-			aciToken = value
-		}
-
-	}
 
 	fmt.Println("Scanning AC Infinity sensors...")
 
-	url := "http://www.acinfinityserver.com/api/user/devInfoListAll?userId=" + aciToken
+	url := "http://www.acinfinityserver.com/api/user/devInfoListAll?userId=" + config.ACIToken
 	reqBody := bytes.NewBuffer([]byte(""))
 
 	req, err := http.NewRequest("POST", url, reqBody)
@@ -146,7 +131,7 @@ func ScanACInfinitySensors(c *gin.Context) {
 		return
 	}
 
-	req.Header.Add("token", aciToken)
+	req.Header.Add("token", config.ACIToken)
 	req.Header.Add("Host", "www.acinfinityserver.com")
 	req.Header.Add("User-Agent", "okhttp/3.10.0")
 	req.Header.Add("Content-Encoding", "gzip")
@@ -329,6 +314,13 @@ func ScanEcoWittSensors(c *gin.Context) {
 		return
 	}
 
+	//Update ECOWitt sensors
+	//Set ECDevices
+	strECDevices, err := LoadEcDevices()
+	if err == nil {
+		config.ECDevices = strECDevices
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "EcoWitt sensors scanned and added"})
 }
 
@@ -352,12 +344,7 @@ func checkInsertSensor(db *sql.DB, source string, device string, sensorType stri
 	}
 }
 
-type Zone struct {
-	ID   uint   `json:"id"`
-	Name string `json:"name"`
-}
-
-func GetZones() []Zone {
+func GetZones() []config.ZoneResponse {
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
 		fmt.Println(err)
@@ -365,7 +352,7 @@ func GetZones() []Zone {
 	}
 	defer db.Close()
 
-	var zones []Zone
+	var zones []config.ZoneResponse
 	rows, err := db.Query("SELECT id, name FROM zones")
 	if err != nil {
 		fmt.Println(err)
@@ -374,7 +361,7 @@ func GetZones() []Zone {
 	defer rows.Close()
 
 	for rows.Next() {
-		var zone Zone
+		var zone config.ZoneResponse
 		if err := rows.Scan(&zone.ID, &zone.Name); err != nil {
 			fmt.Println(err)
 			continue
@@ -397,6 +384,8 @@ func CreateNewZone(name string) (int, error) {
 		return 0, err
 	}
 
+	config.Zones = GetZones()
+
 	id, err := result.LastInsertId()
 	if err != nil {
 		return 0, err
@@ -404,11 +393,21 @@ func CreateNewZone(name string) (int, error) {
 	return int(id), nil
 }
 func GetGroupedSensorsWithLatestReading() map[string]map[string][]map[string]interface{} {
+	cacheMutex.Lock()
+	defer cacheMutex.Unlock()
+
+	// Check if the cache is still valid
+	if time.Since(cacheLastUpdatedTime) < time.Duration(config.PollingInterval)*time.Second {
+		return sensorCache
+	}
+
+	// Refresh the cache
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
 		fmt.Println(err)
 		return nil
 	}
+	defer db.Close()
 
 	rows, err := db.Query(`
 	WITH RollingAverages AS (
@@ -419,7 +418,9 @@ func GetGroupedSensorsWithLatestReading() map[string]map[string][]map[string]int
             PARTITION BY sd.sensor_id
             ORDER BY sd.create_dt ASC
             ROWS BETWEEN 31 PRECEDING AND 1 PRECEDING
-            ) AS rolling_avg, sd.value, sd.create_dt
+        ) AS rolling_avg, 
+        sd.value, 
+        sd.create_dt
     FROM sensor_data sd
     ORDER BY create_dt DESC
 ),
@@ -457,14 +458,15 @@ SELECT
     END AS trend
 FROM LatestReadings lr
 ORDER BY lr.zone_name, lr.device, lr.type;
-
 `)
 	if err != nil {
 		fmt.Println(err)
 		return nil
 	}
+	defer rows.Close()
 
-	grouped := make(map[string]map[string][]map[string]interface{})
+	// Create a new cache map
+	newCache := make(map[string]map[string][]map[string]interface{})
 
 	for rows.Next() {
 		var zoneName, device, sensorType, sensorName, unit string
@@ -478,11 +480,11 @@ ORDER BY lr.zone_name, lr.device, lr.type;
 		}
 
 		// Initialize grouping maps if necessary
-		if _, ok := grouped[zoneName]; !ok {
-			grouped[zoneName] = make(map[string][]map[string]interface{})
+		if _, ok := newCache[zoneName]; !ok {
+			newCache[zoneName] = make(map[string][]map[string]interface{})
 		}
 
-		grouped[zoneName][device] = append(grouped[zoneName][device], map[string]interface{}{
+		newCache[zoneName][device] = append(newCache[zoneName][device], map[string]interface{}{
 			"type":  sensorType,
 			"name":  sensorName,
 			"value": value,
@@ -492,14 +494,11 @@ ORDER BY lr.zone_name, lr.device, lr.type;
 		})
 	}
 
-	// Close the db
-	err = db.Close()
-	if err != nil {
-		fmt.Println(err)
-		return grouped
-	}
+	// Update the global cache and timestamp
+	sensorCache = newCache
+	cacheLastUpdatedTime = time.Now()
 
-	return grouped
+	return sensorCache
 }
 
 func GetGroupedSensors() map[string]map[string]map[string][]SensorResponse {

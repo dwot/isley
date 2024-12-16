@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"isley/config"
 	model "isley/model"
 	"isley/model/types"
 	"log"
@@ -82,24 +83,7 @@ type Status struct {
 	Date   time.Time `json:"date"`
 }
 
-type StrainResponse struct {
-	ID          int    `json:"id"`
-	Name        string `json:"name"`
-	Breeder     string `json:"breeder"`
-	BreederID   int    `json:"breeder_id"`
-	Indica      int    `json:"indica"`
-	Sativa      int    `json:"sativa"`
-	Autoflower  string `json:"autoflower"`
-	Description string `json:"description"`
-	SeedCount   int    `json:"seed_count"`
-}
-
-type BreederResponse struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-}
-
-func GetBreederList() []BreederResponse {
+func GetBreeders() []config.BreederResponse {
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
@@ -113,9 +97,9 @@ func GetBreederList() []BreederResponse {
 		return nil
 	}
 
-	var breeders []BreederResponse
+	var breeders []config.BreederResponse
 	for rows.Next() {
-		var breeder BreederResponse
+		var breeder config.BreederResponse
 		err = rows.Scan(&breeder.ID, &breeder.Name)
 		if err != nil {
 			fmt.Println(err)
@@ -204,7 +188,7 @@ func AddPlant(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Plant added successfully"})
 }
 
-func GetStrains() []StrainResponse {
+func GetStrains() []config.StrainResponse {
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
@@ -218,9 +202,9 @@ func GetStrains() []StrainResponse {
 		return nil
 	}
 
-	var strains []StrainResponse
+	var strains []config.StrainResponse
 	for rows.Next() {
-		var strain StrainResponse
+		var strain config.StrainResponse
 		err = rows.Scan(&strain.ID, &strain.Name, &strain.BreederID, &strain.Breeder, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.Description, &strain.SeedCount)
 		if err != nil {
 			fmt.Println(err)
@@ -235,23 +219,7 @@ func GetStrains() []StrainResponse {
 	return strains
 }
 
-type StatusResponse struct {
-	ID     int    `json:"id"`
-	Status string `json:"status"`
-}
-
-type ActivityResponse struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-}
-
-type MeasurementResponse struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-	Unit string `json:"unit"`
-}
-
-func GetActivities() []ActivityResponse {
+func GetActivities() []config.ActivityResponse {
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
@@ -265,9 +233,9 @@ func GetActivities() []ActivityResponse {
 		return nil
 	}
 
-	var activities []ActivityResponse
+	var activities []config.ActivityResponse
 	for rows.Next() {
-		var activity ActivityResponse
+		var activity config.ActivityResponse
 		err = rows.Scan(&activity.ID, &activity.Name)
 		if err != nil {
 			fmt.Println(err)
@@ -281,7 +249,7 @@ func GetActivities() []ActivityResponse {
 	return activities
 }
 
-func GetMeasurements() []MeasurementResponse {
+func GetMetrics() []config.MetricResponse {
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
@@ -295,9 +263,9 @@ func GetMeasurements() []MeasurementResponse {
 		return nil
 	}
 
-	var measurements []MeasurementResponse
+	var measurements []config.MetricResponse
 	for rows.Next() {
-		var measurement MeasurementResponse
+		var measurement config.MetricResponse
 		err = rows.Scan(&measurement.ID, &measurement.Name, &measurement.Unit)
 		if err != nil {
 			fmt.Println(err)
@@ -311,7 +279,7 @@ func GetMeasurements() []MeasurementResponse {
 	return measurements
 }
 
-func GetStatuses() []StatusResponse {
+func GetStatuses() []config.StatusResponse {
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
@@ -325,9 +293,9 @@ func GetStatuses() []StatusResponse {
 		return nil
 	}
 
-	var statuses []StatusResponse
+	var statuses []config.StatusResponse
 	for rows.Next() {
-		var status StatusResponse
+		var status config.StatusResponse
 		err = rows.Scan(&status.ID, &status.Status)
 		if err != nil {
 			fmt.Println(err)
@@ -365,6 +333,8 @@ func CreateNewStrain(newStrain *struct {
 			return 0, fmt.Errorf("failed to insert new breeder: %w", err)
 		}
 
+		config.Breeders = GetBreeders()
+
 		// Get the ID of the newly inserted breeder
 		lastInsertId, err := result.LastInsertId()
 		if err != nil {
@@ -384,6 +354,8 @@ func CreateNewStrain(newStrain *struct {
 	if err != nil {
 		return 0, fmt.Errorf("failed to insert new strain: %w", err)
 	}
+
+	config.Strains = GetStrains()
 
 	// Get the ID of the newly inserted strain
 	id, err := result.LastInsertId()
@@ -824,6 +796,8 @@ func AddStrainHandler(c *gin.Context) {
 			return
 		}
 
+		config.Breeders = GetBreeders()
+
 		// Get the new breeder's ID
 		newBreederID, err := result.LastInsertId()
 		if err != nil {
@@ -848,6 +822,8 @@ func AddStrainHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add strain"})
 		return
 	}
+
+	config.Strains = GetStrains()
 
 	// Respond with success
 	c.JSON(http.StatusCreated, gin.H{"message": "Strain added successfully"})
@@ -959,6 +935,8 @@ func UpdateStrainHandler(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add new breeder"})
 			return
 		}
+
+		config.Breeders = GetBreeders()
 
 		// Get the new breeder's ID
 		newBreederID, err := result.LastInsertId()
@@ -1234,7 +1212,7 @@ func OutOfStockStrainsHandler(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, strains)
 }
-func getStrainsBySeedCount(inStock bool) ([]StrainResponse, error) {
+func getStrainsBySeedCount(inStock bool) ([]config.StrainResponse, error) {
 	query := `
         SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count
         FROM strain s
@@ -1262,9 +1240,9 @@ func getStrainsBySeedCount(inStock bool) ([]StrainResponse, error) {
 	}
 	defer rows.Close()
 
-	var strains []StrainResponse
+	var strains []config.StrainResponse
 	for rows.Next() {
-		var strain StrainResponse
+		var strain config.StrainResponse
 		if err := rows.Scan(&strain.ID, &strain.Name, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount); err != nil {
 			return nil, err
 		}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"io"
+	"isley/config"
 	model "isley/model"
 	"log"
 	"net/http"
@@ -32,8 +33,7 @@ type ACInfinitySettings struct {
 }
 
 type EcoWittSettings struct {
-	Enabled bool   `json:"enabled"`
-	Server  string `json:"server"`
+	Enabled bool `json:"enabled"`
 }
 
 type SettingsData struct {
@@ -58,6 +58,8 @@ func SaveSettings(c *gin.Context) {
 			fmt.Println("Failed to save settings", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
 			return
+		} else {
+			config.ACIEnabled = 1
 		}
 	} else {
 		err := UpdateSetting("aci.enabled", "0")
@@ -65,6 +67,8 @@ func SaveSettings(c *gin.Context) {
 			fmt.Println("Failed to save settings", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
 			return
+		} else {
+			config.ACIEnabled = 0
 		}
 	}
 	err := UpdateSetting("aci.token", settings.ACI.Token)
@@ -72,6 +76,8 @@ func SaveSettings(c *gin.Context) {
 		fmt.Println("Failed to save settings", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
 		return
+	} else {
+		config.ACIToken = settings.ACI.Token
 	}
 	if settings.EC.Enabled {
 		err = UpdateSetting("ec.enabled", "1")
@@ -79,6 +85,8 @@ func SaveSettings(c *gin.Context) {
 			fmt.Println("Failed to save settings", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
 			return
+		} else {
+			config.ECEnabled = 1
 		}
 	} else {
 		err = UpdateSetting("ec.enabled", "0")
@@ -86,15 +94,18 @@ func SaveSettings(c *gin.Context) {
 			fmt.Println("Failed to save settings", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
 			return
+		} else {
+			config.ECEnabled = 0
 		}
 	}
-	err = UpdateSetting("ec.server", settings.EC.Server)
+	err = UpdateSetting("polling_interval", settings.PollingInterval)
 	if err != nil {
 		fmt.Println("Failed to save settings", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
 		return
+	} else {
+		config.PollingInterval, _ = strconv.Atoi(settings.PollingInterval)
 	}
-	err = UpdateSetting("polling_interval", settings.PollingInterval)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Settings saved successfully"})
 }
@@ -185,8 +196,6 @@ func GetSettings() SettingsData {
 			settingsData.ACI.Token = value
 		case "ec.enabled":
 			settingsData.EC.Enabled = value == "1"
-		case "ec.server":
-			settingsData.EC.Server = value
 		case "polling_interval":
 			settingsData.PollingInterval, _ = strconv.Atoi(value)
 		}
@@ -220,6 +229,8 @@ func AddZoneHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add zone"})
 		return
 	}
+	//Add the new zone to the config
+	config.Zones = append(config.Zones, config.ZoneResponse{ID: uint(id), Name: zone.Name})
 
 	c.JSON(http.StatusCreated, gin.H{"id": id})
 }
@@ -258,6 +269,7 @@ func AddMetricHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add metric"})
 		return
 	}
+	config.Metrics = append(config.Metrics, config.MetricResponse{ID: id, Name: metric.Name, Unit: metric.Unit})
 
 	c.JSON(http.StatusCreated, gin.H{"id": id})
 }
@@ -294,6 +306,7 @@ func AddActivityHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add activity"})
 		return
 	}
+	config.Activities = append(config.Activities, config.ActivityResponse{ID: id, Name: activity.Name})
 
 	c.JSON(http.StatusCreated, gin.H{"id": id})
 }
@@ -323,6 +336,8 @@ func UpdateZoneHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update zone"})
 		return
 	}
+	//Reload Config
+	config.Zones = GetZones()
 
 	c.JSON(http.StatusOK, gin.H{"message": "Zone updated"})
 }
@@ -376,6 +391,9 @@ func UpdateMetricHandler(c *gin.Context) {
 		return
 	}
 
+	//Reload Config
+	config.Metrics = GetMetrics()
+
 	c.JSON(http.StatusOK, gin.H{"message": "Metric updated"})
 }
 
@@ -418,6 +436,9 @@ func UpdateActivityHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update activity"})
 		return
 	}
+
+	//Reload Config
+	config.Activities = GetActivities()
 
 	c.JSON(http.StatusOK, gin.H{"message": "Activity updated"})
 }
@@ -486,6 +507,9 @@ func DeleteZoneHandler(c *gin.Context) {
 		return
 	}
 
+	//Reload Config
+	config.Zones = GetZones()
+
 	c.JSON(http.StatusOK, gin.H{"message": "Zone deleted"})
 }
 
@@ -529,6 +553,9 @@ func DeleteMetricHandler(c *gin.Context) {
 		return
 	}
 
+	//Reload Config
+	config.Metrics = GetMetrics()
+
 	c.JSON(http.StatusOK, gin.H{"message": "Metric deleted"})
 }
 
@@ -571,6 +598,9 @@ func DeleteActivityHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete activity"})
 		return
 	}
+
+	//Reload Config
+	config.Activities = GetActivities()
 
 	c.JSON(http.StatusOK, gin.H{"message": "Activity deleted"})
 }
@@ -653,4 +683,41 @@ func UploadLogo(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Logo uploaded successfully", "path": savePath})
+}
+
+func LoadEcDevices() ([]string, error) {
+	var ecDevices []string
+	// Init the db
+	db, err := sql.Open("sqlite", model.DbPath())
+	if err != nil {
+		fmt.Println(err)
+		return ecDevices, err
+	}
+
+	//Iterate over sensors table, looking for distinct device with type ecowitt
+	rows, err := db.Query("SELECT DISTINCT device FROM sensors WHERE source = 'ecowitt'")
+	if err != nil {
+		fmt.Println(err)
+		return ecDevices, err
+	}
+	//build a list of devices to scan
+
+	for rows.Next() {
+		var device string
+		err = rows.Scan(&device)
+		if err != nil {
+			fmt.Println(err)
+			return ecDevices, err
+		}
+		ecDevices = append(ecDevices, device)
+	}
+
+	// Close the db
+	err = db.Close()
+	if err != nil {
+		fmt.Println(err)
+		return ecDevices, err
+	}
+
+	return ecDevices, nil
 }

@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"isley/config"
 	"isley/model"
 	"isley/model/types"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 )
 
@@ -18,93 +18,16 @@ func Watch() {
 	fmt.Println("Started Sensor Watcher")
 
 	for {
-		aciEnabled := 0
-		ecEnabled := 0
-		aciToken := ""
-		pollingInterval := 60
 
-		// Init the db
-		db, err := sql.Open("sqlite", model.DbPath())
-		if err != nil {
-			fmt.Println(err)
-			return
+		if config.ACIEnabled == 1 && config.ACIToken != "" {
+			updateACISensorData(config.ACIToken)
 		}
-
-		// Query settings table and write result to console
-		rows, err := db.Query("SELECT * FROM settings")
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		// Iterate over rows
-		for rows.Next() {
-			//write row
-			var id int
-			var name string
-			var value string
-			var create_dt string
-			var update_dt string
-			err = rows.Scan(&id, &name, &value, &create_dt, &update_dt)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			if name == "aci.enabled" {
-				iValue, err := strconv.Atoi(value)
-				if err == nil {
-					aciEnabled = iValue
-				}
-			}
-			if name == "ec.enabled" {
-				iValue, err := strconv.Atoi(value)
-				if err == nil {
-					ecEnabled = iValue
-				}
-			}
-			if name == "aci.token" {
-				aciToken = value
-			}
-			if name == "polling_interval" {
-				iValue, err := strconv.Atoi(value)
-				if err == nil {
-					pollingInterval = iValue
-				}
-			}
-		}
-
-		//Iterate over sensors table, looking for distinct device with type ecowitt
-		rows, err = db.Query("SELECT DISTINCT device FROM sensors WHERE source = 'ecowitt'")
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		//build a list of devices to scan
-		var ecDevices []string
-		for rows.Next() {
-			var device string
-			err = rows.Scan(&device)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			ecDevices = append(ecDevices, device)
-		}
-
-		// Close the db
-		err = db.Close()
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		if aciEnabled == 1 && aciToken != "" {
-			updateACISensorData(aciToken)
-		}
-		if ecEnabled == 1 && len(ecDevices) > 0 {
-			for _, ecServer := range ecDevices {
+		if config.ECEnabled == 1 && len(config.ECDevices) > 0 {
+			for _, ecServer := range config.ECDevices {
 				updateEcoWittSensorData(ecServer)
 			}
 		}
-		time.Sleep(time.Duration(pollingInterval) * time.Second)
+		time.Sleep(time.Duration(config.PollingInterval) * time.Second)
 
 	}
 

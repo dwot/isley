@@ -2,6 +2,7 @@ package routes
 
 import (
 	"github.com/gin-gonic/gin"
+	"isley/config"
 	"isley/handlers"
 	"net/http"
 )
@@ -9,15 +10,13 @@ import (
 func AddProtectedRotues(r *gin.RouterGroup, version string) {
 
 	plants, _ := handlers.GetLivingPlants()
-	activities := handlers.GetActivities()
 
 	r.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "views/index.html", gin.H{
-			"title":        "Dashboard",
-			"version":      version,
-			"sensorLatest": handlers.GetSensorLatest(),
-			"plants":       plants,
-			"activities":   activities,
+			"title":      "Dashboard",
+			"version":    version,
+			"plants":     plants,
+			"activities": config.Activities,
 		})
 	})
 
@@ -26,12 +25,12 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"title":      "Plants",
 			"version":    version,
 			"plantList":  handlers.GetPlantList(),
-			"zones":      handlers.GetZones(),
-			"strains":    handlers.GetStrains(),
-			"statuses":   handlers.GetStatuses(),
-			"breeders":   handlers.GetBreederList(),
+			"zones":      config.Zones,
+			"strains":    config.Strains,
+			"statuses":   config.Statuses,
+			"breeders":   config.Breeders,
 			"plants":     plants,
-			"activities": activities,
+			"activities": config.Activities,
 		})
 	})
 
@@ -39,10 +38,10 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 		c.HTML(http.StatusOK, "views/strains.html", gin.H{
 			"title":      "Strains",
 			"version":    version,
-			"strains":    handlers.GetStrains(),
-			"breeders":   handlers.GetBreederList(),
+			"strains":    config.Strains,
+			"breeders":   config.Breeders,
 			"plants":     plants,
-			"activities": activities,
+			"activities": config.Activities,
 		})
 	})
 
@@ -53,7 +52,7 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"SensorID":   c.Param("id"),
 			"SensorName": handlers.GetSensorName(c.Param("id")),
 			"plants":     plants,
-			"activities": activities,
+			"activities": config.Activities,
 		})
 	})
 
@@ -62,14 +61,14 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"title":        "Plant Details",
 			"version":      version,
 			"plant":        handlers.GetPlant(c.Param("id")),
-			"zones":        handlers.GetZones(),
-			"strains":      handlers.GetStrains(),
-			"statuses":     handlers.GetStatuses(),
-			"breeders":     handlers.GetBreederList(),
-			"measurements": handlers.GetMeasurements(),
+			"zones":        config.Zones,
+			"strains":      config.Strains,
+			"statuses":     config.Statuses,
+			"breeders":     config.Breeders,
+			"measurements": config.Metrics,
 			"sensors":      handlers.GetSensors(),
 			"plants":       plants,
-			"activities":   activities,
+			"activities":   config.Activities,
 		})
 	})
 
@@ -78,10 +77,10 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"title":      "Settings",
 			"version":    version,
 			"settings":   handlers.GetSettings(),
-			"zones":      handlers.GetZones(),
-			"metrics":    handlers.GetMeasurements(),
+			"zones":      config.Zones,
+			"metrics":    config.Metrics,
 			"plants":     plants,
-			"activities": activities,
+			"activities": config.Activities,
 		})
 	})
 
@@ -91,9 +90,9 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"version":    version,
 			"settings":   handlers.GetSettings(),
 			"sensors":    handlers.GetSensors(),
-			"zones":      handlers.GetZones(),
+			"zones":      config.Zones,
 			"plants":     plants,
-			"activities": activities,
+			"activities": config.Activities,
 		})
 	})
 
@@ -103,7 +102,7 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"version":    version,
 			"sensors":    handlers.GetGroupedSensors(),
 			"plants":     plants,
-			"activities": activities,
+			"activities": config.Activities,
 		})
 	})
 
