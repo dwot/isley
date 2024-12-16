@@ -1104,16 +1104,19 @@ func UpdatePlant(c *gin.Context) {
 
 // Plant represents the structure of a plant record.
 type PlantTableResponse struct {
-	ID          int    `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Clone       bool   `json:"clone"`
-	StrainName  string `json:"strain_name"`
-	BreederName string `json:"breeder_name"`
-	ZoneName    string `json:"zone_name"`
-	StartDT     string `json:"start_dt"`
-	CurrentWeek int    `json:"current_week"`
-	CurrentDay  int    `json:"current_day"`
+	ID                    int    `json:"id"`
+	Name                  string `json:"name"`
+	Description           string `json:"description"`
+	Clone                 bool   `json:"clone"`
+	StrainName            string `json:"strain_name"`
+	BreederName           string `json:"breeder_name"`
+	ZoneName              string `json:"zone_name"`
+	StartDT               string `json:"start_dt"`
+	CurrentWeek           int    `json:"current_week"`
+	CurrentDay            int    `json:"current_day"`
+	DaysSinceLastWatering int    `json:"days_since_last_watering"`
+	DaysSinceLastFeeding  int    `json:"days_since_last_feeding"`
+	FloweringDays         *int   `json:"flowering_days,omitempty"` // nil if not flowering
 }
 
 func getPlantsByStatus(statuses []int) ([]PlantTableResponse, error) {
@@ -1133,7 +1136,10 @@ func getPlantsByStatus(statuses []int) ([]PlantTableResponse, error) {
 		SELECT p.id, p.name, p.description, p.clone, s.name AS strain_name, b.name AS breeder_name, z.name AS zone_name, 
 		       p.start_dt, 
 		       ((strftime('%j', 'now') - strftime('%j', p.start_dt)) / 7) +1 AS current_week,
-		       (strftime('%j', 'now') - strftime('%j', p.start_dt)) +1 AS current_day
+		       (strftime('%j', 'now') - strftime('%j', p.start_dt)) +1 AS current_day,
+		       (SELECT (strftime('%j', 'now') - strftime('%j', MAX(date))) +1 FROM plant_activity pa JOIN activity a ON pa.activity_id = a.id WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Water')) AS days_since_last_watering,
+		       (SELECT (strftime('%j', 'now') - strftime('%j', MAX(date))) +1 FROM plant_activity pa JOIN activity a ON pa.activity_id = a.id WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Feed')) AS days_since_last_feeding,
+		       (SELECT (strftime('%j', 'now') - strftime('%j', MAX(date))) +1 FROM plant_status_log WHERE plant_id = p.id AND status_id = (SELECT id FROM plant_status WHERE status = 'Flower')) AS flowering_days
 		FROM plant p
 		JOIN strain s ON p.strain_id = s.id
 		JOIN breeder b ON s.breeder_id = b.id
@@ -1163,7 +1169,7 @@ func getPlantsByStatus(statuses []int) ([]PlantTableResponse, error) {
 	plants := []PlantTableResponse{}
 	for rows.Next() {
 		var plant PlantTableResponse
-		if err := rows.Scan(&plant.ID, &plant.Name, &plant.Description, &plant.Clone, &plant.StrainName, &plant.BreederName, &plant.ZoneName, &plant.StartDT, &plant.CurrentWeek, &plant.CurrentDay); err != nil {
+		if err := rows.Scan(&plant.ID, &plant.Name, &plant.Description, &plant.Clone, &plant.StrainName, &plant.BreederName, &plant.ZoneName, &plant.StartDT, &plant.CurrentWeek, &plant.CurrentDay, &plant.DaysSinceLastWatering, &plant.DaysSinceLastFeeding, &plant.FloweringDays); err != nil {
 			return nil, err
 		}
 		plants = append(plants, plant)

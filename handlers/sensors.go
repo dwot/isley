@@ -411,23 +411,54 @@ func GetGroupedSensorsWithLatestReading() map[string]map[string][]map[string]int
 	}
 
 	rows, err := db.Query(`
-        SELECT 
-            s.id,
-            z.name AS zone_name, 
-            s.device, 
-            s.type, 
-            s.name, 
-            sd.value, 
-            s.unit
-        FROM sensors s
-        JOIN zones z ON s.zone_id = z.id
-        LEFT JOIN sensor_data sd ON s.id = sd.sensor_id
-        WHERE sd.id IN (
-            SELECT MAX(id) FROM sensor_data GROUP BY sensor_id
-        )
-        AND s.show = 1
-        ORDER BY z.name, s.device, s.type
-    `)
+	WITH RollingAverages AS (
+        SELECT
+        sd.sensor_id,
+        sd.id AS reading_id,
+        AVG(sd.value) OVER (
+            PARTITION BY sd.sensor_id
+            ORDER BY sd.create_dt ASC
+            ROWS BETWEEN 31 PRECEDING AND 1 PRECEDING
+            ) AS rolling_avg, sd.value, sd.create_dt
+    FROM sensor_data sd
+    ORDER BY create_dt DESC
+),
+LatestReadings AS (
+    SELECT 
+        s.id AS sensor_id,
+        z.name AS zone_name,
+        s.device,
+        s.type,
+        s.name,
+        sd.value AS current_value,
+        s.unit,
+        ra.rolling_avg
+    FROM sensors s
+    JOIN zones z ON s.zone_id = z.id
+    JOIN sensor_data sd ON s.id = sd.sensor_id
+    LEFT JOIN RollingAverages ra ON ra.reading_id = sd.id
+    WHERE sd.id = (
+        SELECT MAX(id) FROM sensor_data WHERE sensor_id = s.id
+    )
+    AND s.show = 1
+)
+SELECT 
+    lr.sensor_id,
+    lr.zone_name,
+    lr.device,
+    lr.type,
+    lr.name,
+    lr.current_value AS value,
+    lr.unit,
+    CASE
+        WHEN lr.current_value > lr.rolling_avg THEN 'up'
+        WHEN lr.current_value < lr.rolling_avg THEN 'down'
+        ELSE 'flat'
+    END AS trend
+FROM LatestReadings lr
+ORDER BY lr.zone_name, lr.device, lr.type;
+
+`)
 	if err != nil {
 		fmt.Println(err)
 		return nil
@@ -439,8 +470,9 @@ func GetGroupedSensorsWithLatestReading() map[string]map[string][]map[string]int
 		var zoneName, device, sensorType, sensorName, unit string
 		var value float64
 		var id int
+		var trend string
 
-		if err := rows.Scan(&id, &zoneName, &device, &sensorType, &sensorName, &value, &unit); err != nil {
+		if err := rows.Scan(&id, &zoneName, &device, &sensorType, &sensorName, &value, &unit, &trend); err != nil {
 			fmt.Println(err)
 			continue
 		}
@@ -456,6 +488,7 @@ func GetGroupedSensorsWithLatestReading() map[string]map[string][]map[string]int
 			"value": value,
 			"id":    id,
 			"unit":  unit,
+			"trend": trend, // "up","down","flat"
 		})
 	}
 

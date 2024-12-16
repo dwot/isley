@@ -15,7 +15,6 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 		c.HTML(http.StatusOK, "views/index.html", gin.H{
 			"title":        "Dashboard",
 			"version":      version,
-			"plantList":    handlers.GetPlantList(),
 			"sensorLatest": handlers.GetSensorLatest(),
 			"plants":       plants,
 			"activities":   activities,
