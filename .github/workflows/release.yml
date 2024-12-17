@@ -10,6 +10,9 @@ jobs:
   build:
     name: Build and Release Artifacts
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for creating releases
+
 
     steps:
       - name: Checkout Code
