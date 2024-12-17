@@ -96,6 +96,9 @@ func main() {
 	staticFS := http.FS(embeddedFiles)
 	r.StaticFS("/static", staticFS)
 
+	r.Static("/uploads", "./uploads")
+	r.StaticFile("/favicon.ico", "./web/static/img/favicon.ico")
+
 	// Initialize session store
 	store := cookie.NewStore([]byte("secret"))
 	r.Use(sessions.Sessions("isley_session", store))
