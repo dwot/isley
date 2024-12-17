@@ -1,7 +1,9 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
+	"fmt"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
@@ -14,11 +16,20 @@ import (
 	"isley/watcher"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
+//go:embed migrations/*.sql web/templates/* web/static/* fonts/*
+var embeddedFiles embed.FS
+
 func main() {
+	// Set version
+	version := fmt.Sprintf("Isley %s", getVersion())
+	fmt.Println("Starting application version:", version)
+
 	model.MigrateDB()
 
 	// Start the sensor watcher
@@ -27,8 +38,8 @@ func main() {
 	// Set up Gin router
 	r := gin.Default()
 
-	// Add the `json` function to the template functions map
-	r.SetFuncMap(template.FuncMap{
+	// Define your FuncMap
+	funcMap := template.FuncMap{
 		"json": func(v interface{}) string {
 			a, err := json.Marshal(v)
 			if err != nil {
@@ -70,77 +81,24 @@ func main() {
 			}
 			return t
 		},
-	})
+	}
 
-	// Set title base to Isley v0.0.1a
-	version := "Isley 0.0.1a"
+	// Attach FuncMap and ParseFS
+	templ := template.Must(template.New("").Funcs(funcMap).ParseFS(embeddedFiles, "web/templates/**/*"))
 
-	//Set PollingInterval
-	strPollingInterval, err := handlers.GetSetting("polling_interval")
-	if err == nil {
-		iPollingInterval, err := strconv.Atoi(strPollingInterval)
-		if err == nil {
-			config.PollingInterval = iPollingInterval
-		}
-	}
-	//Set ACIEnabled
-	strACIEnabled, err := handlers.GetSetting("aci.enabled")
-	if err == nil {
-		iACIEnabled, err := strconv.Atoi(strACIEnabled)
-		if err == nil {
-			config.ACIEnabled = iACIEnabled
-		}
-	}
-	//Set ECEnabled
-	strECEnabled, err := handlers.GetSetting("ec.enabled")
-	if err == nil {
-		iECEnabled, err := strconv.Atoi(strECEnabled)
-		if err == nil {
-			config.ECEnabled = iECEnabled
-		}
-	}
-	//Set ACIToken
-	strACIToken, err := handlers.GetSetting("aci.token")
-	if err == nil {
-		config.ACIToken = strACIToken
-	}
-	//Set ECDevices
-	strECDevices, err := handlers.LoadEcDevices()
-	if err == nil {
-		config.ECDevices = strECDevices
-	}
-	//Set Activities
-	config.Activities = handlers.GetActivities()
-	//Set Metrics
-	config.Metrics = handlers.GetMetrics()
-	//Set Statuses
-	config.Statuses = handlers.GetStatuses()
-	//Set Zones
-	config.Zones = handlers.GetZones()
-	//Set Strains
-	config.Strains = handlers.GetStrains()
-	//Set Breeders
-	config.Breeders = handlers.GetBreeders()
+	// Set HTML templates in Gin
+	r.SetHTMLTemplate(templ)
 
-	// Serve static files
-	r.Static("/static", "./web/static")
-	r.Static("/uploads", "./uploads")
-	r.StaticFile("/favicon.ico", "./web/static/img/favicon.ico")
+	// Load settings (PollingInterval, ACIEnabled, etc.)
+	loadSettings()
 
-	// Serve HTML templates
-	r.LoadHTMLGlob("./web/templates/**/*")
+	// Serve embedded static files
+	staticFS := http.FS(embeddedFiles)
+	r.StaticFS("/static", staticFS)
 
 	// Initialize session store
 	store := cookie.NewStore([]byte("secret"))
 	r.Use(sessions.Sessions("isley_session", store))
-
-	// Initialize default admin credentials if not present
-	if _, err := handlers.GetSetting("auth_username"); err != nil {
-		handlers.UpdateSetting("auth_username", "admin")
-		hashedPassword, _ := utils.HashPassword("isley")
-		handlers.UpdateSetting("auth_password", hashedPassword)
-		handlers.UpdateSetting("force_password_change", "true")
-	}
 
 	// Public routes
 	r.GET("/login", func(c *gin.Context) {
@@ -148,39 +106,11 @@ func main() {
 	})
 
 	r.POST("/login", func(c *gin.Context) {
-		username := c.PostForm("username")
-		password := c.PostForm("password")
-
-		storedUsername, _ := handlers.GetSetting("auth_username")
-		storedPasswordHash, _ := handlers.GetSetting("auth_password")
-		forcePasswordChange, _ := handlers.GetSetting("force_password_change")
-
-		if username != storedUsername || !utils.CheckPasswordHash(password, storedPasswordHash) {
-			c.HTML(http.StatusUnauthorized, "views/login.html", gin.H{
-				"Error": "Invalid username or password",
-			})
-			return
-		}
-
-		// Successful login
-		session := sessions.Default(c)
-		session.Set("logged_in", true)
-		session.Set("force_password_change", forcePasswordChange == "true")
-		session.Save()
-
-		if forcePasswordChange == "true" {
-			c.Redirect(http.StatusFound, "/change-password")
-			return
-		}
-
-		c.Redirect(http.StatusFound, "/")
+		handleLogin(c)
 	})
 
 	r.GET("/logout", func(c *gin.Context) {
-		session := sessions.Default(c)
-		session.Clear()
-		session.Save()
-		c.Redirect(http.StatusFound, "/login")
+		handleLogout(c)
 	})
 
 	protected := r.Group("/")
@@ -193,26 +123,7 @@ func main() {
 		})
 
 		protected.POST("/change-password", func(c *gin.Context) {
-			newPassword := c.PostForm("new_password")
-			confirmPassword := c.PostForm("confirm_password")
-
-			if newPassword != confirmPassword {
-				c.HTML(http.StatusBadRequest, "views/change-password.html", gin.H{
-					"Error": "Passwords do not match",
-				})
-				return
-			}
-
-			hashedPassword, _ := utils.HashPassword(newPassword)
-
-			handlers.UpdateSetting("auth_password", hashedPassword)
-			handlers.UpdateSetting("force_password_change", "false")
-
-			session := sessions.Default(c)
-			session.Set("force_password_change", false)
-			session.Save()
-
-			c.Redirect(http.StatusFound, "/")
+			handleChangePassword(c)
 		})
 
 		routes.AddProtectedRotues(protected, version)
@@ -222,6 +133,105 @@ func main() {
 	if err := r.Run(":8080"); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
+}
+
+// Helper functions
+func loadSettings() {
+	strPollingInterval, err := handlers.GetSetting("polling_interval")
+	if err == nil {
+		if iPollingInterval, err := strconv.Atoi(strPollingInterval); err == nil {
+			config.PollingInterval = iPollingInterval
+		}
+	}
+
+	strACIEnabled, err := handlers.GetSetting("aci.enabled")
+	if err == nil {
+		if iACIEnabled, err := strconv.Atoi(strACIEnabled); err == nil {
+			config.ACIEnabled = iACIEnabled
+		}
+	}
+
+	strECEnabled, err := handlers.GetSetting("ec.enabled")
+	if err == nil {
+		if iECEnabled, err := strconv.Atoi(strECEnabled); err == nil {
+			config.ECEnabled = iECEnabled
+		}
+	}
+
+	strACIToken, err := handlers.GetSetting("aci.token")
+	if err == nil {
+		config.ACIToken = strACIToken
+	}
+
+	strECDevices, err := handlers.LoadEcDevices()
+	if err == nil {
+		config.ECDevices = strECDevices
+	}
+
+	config.Activities = handlers.GetActivities()
+	config.Metrics = handlers.GetMetrics()
+	config.Statuses = handlers.GetStatuses()
+	config.Zones = handlers.GetZones()
+	config.Strains = handlers.GetStrains()
+	config.Breeders = handlers.GetBreeders()
+}
+
+func handleLogin(c *gin.Context) {
+	username := c.PostForm("username")
+	password := c.PostForm("password")
+
+	storedUsername, _ := handlers.GetSetting("auth_username")
+	storedPasswordHash, _ := handlers.GetSetting("auth_password")
+	forcePasswordChange, _ := handlers.GetSetting("force_password_change")
+
+	if username != storedUsername || !utils.CheckPasswordHash(password, storedPasswordHash) {
+		c.HTML(http.StatusUnauthorized, "views/login.html", gin.H{
+			"Error": "Invalid username or password",
+		})
+		return
+	}
+
+	session := sessions.Default(c)
+	session.Set("logged_in", true)
+	session.Set("force_password_change", forcePasswordChange == "true")
+	session.Save()
+
+	if forcePasswordChange == "true" {
+		c.Redirect(http.StatusFound, "/change-password")
+		return
+	}
+
+	c.Redirect(http.StatusFound, "/")
+}
+
+func handleLogout(c *gin.Context) {
+	session := sessions.Default(c)
+	session.Clear()
+	session.Save()
+	c.Redirect(http.StatusFound, "/login")
+}
+
+func handleChangePassword(c *gin.Context) {
+	newPassword := c.PostForm("new_password")
+	confirmPassword := c.PostForm("confirm_password")
+
+	if newPassword != confirmPassword {
+		c.HTML(http.StatusBadRequest, "views/change-password.html", gin.H{
+			"Error": "Passwords do not match",
+		})
+		return
+	}
+
+	hashedPassword, _ := utils.HashPassword(newPassword)
+
+	handlers.UpdateSetting("auth_password", hashedPassword)
+	handlers.UpdateSetting("force_password_change", "false")
+
+	session := sessions.Default(c)
+	session.Set("force_password_change", false)
+	session.Save()
+
+	c.Redirect(http.StatusFound, "/")
 }
 
 // Middleware to enforce authentication
@@ -257,4 +267,12 @@ func ForcePasswordChangeMiddleware() gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func getVersion() string {
+	data, err := os.ReadFile("VERSION")
+	if err != nil {
+		return "dev" // fallback to "dev" for local builds
+	}
+	return strings.TrimSpace(string(data))
 }
