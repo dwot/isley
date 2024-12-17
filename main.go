@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-//go:embed migrations/*.sql web/templates/* web/static/* fonts/*
+//go:embed model/migrations/*.sql web/templates/* web/static/* fonts/*
 var embeddedFiles embed.FS
 
 func main() {
