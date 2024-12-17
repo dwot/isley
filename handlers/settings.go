@@ -17,8 +17,7 @@ import (
 
 type Settings struct {
 	ACI struct {
-		Enabled bool   `json:"enabled"`
-		Token   string `json:"token"`
+		Enabled bool `json:"enabled"`
 	} `json:"aci"`
 	EC struct {
 		Enabled bool   `json:"enabled"`
@@ -28,8 +27,8 @@ type Settings struct {
 }
 
 type ACInfinitySettings struct {
-	Enabled bool   `json:"enabled"`
-	Token   string `json:"token"`
+	Enabled  bool `json:"enabled"`
+	TokenSet bool `json:"token_set"`
 }
 
 type EcoWittSettings struct {
@@ -71,16 +70,9 @@ func SaveSettings(c *gin.Context) {
 			config.ACIEnabled = 0
 		}
 	}
-	err := UpdateSetting("aci.token", settings.ACI.Token)
-	if err != nil {
-		fmt.Println("Failed to save settings", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
-		return
-	} else {
-		config.ACIToken = settings.ACI.Token
-	}
+
 	if settings.EC.Enabled {
-		err = UpdateSetting("ec.enabled", "1")
+		err := UpdateSetting("ec.enabled", "1")
 		if err != nil {
 			fmt.Println("Failed to save settings", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
@@ -89,7 +81,7 @@ func SaveSettings(c *gin.Context) {
 			config.ECEnabled = 1
 		}
 	} else {
-		err = UpdateSetting("ec.enabled", "0")
+		err := UpdateSetting("ec.enabled", "0")
 		if err != nil {
 			fmt.Println("Failed to save settings", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
@@ -98,7 +90,7 @@ func SaveSettings(c *gin.Context) {
 			config.ECEnabled = 0
 		}
 	}
-	err = UpdateSetting("polling_interval", settings.PollingInterval)
+	err := UpdateSetting("polling_interval", settings.PollingInterval)
 	if err != nil {
 		fmt.Println("Failed to save settings", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
@@ -192,10 +184,12 @@ func GetSettings() SettingsData {
 		switch name {
 		case "aci.enabled":
 			settingsData.ACI.Enabled = value == "1"
-		case "aci.token":
-			settingsData.ACI.Token = value
 		case "ec.enabled":
 			settingsData.EC.Enabled = value == "1"
+		case "aci.token":
+			if value != "" {
+				settingsData.ACI.TokenSet = true
+			}
 		case "polling_interval":
 			settingsData.PollingInterval, _ = strconv.Atoi(value)
 		}

@@ -1188,39 +1188,69 @@
                     alert("Only image files are allowed!");
                     return;
                 }
+
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    addImagePreview(e.target.result, file);
+                    const fileData = e.target.result;
+
+                    // Read EXIF metadata
+                    EXIF.getData(file, function () {
+                        let imageDate = new Date().toISOString().split("T")[0]; // Default to current date
+
+                        // Try to get the DateTimeOriginal tag from EXIF
+                        const exifDate = EXIF.getTag(this, "DateTimeOriginal");
+                        if (exifDate) {
+                            const parsedDate = parseExifDate(exifDate);
+                            if (parsedDate) imageDate = parsedDate;
+                        }
+
+                        addImagePreview(fileData, file, imageDate);
+                    });
                 };
+
                 reader.readAsDataURL(file);
                 imagesToUpload.push(file);
             });
         }
 
-        // Add image preview
-        function addImagePreview(src, file) {
+// Parse EXIF DateTimeOriginal format "YYYY:MM:DD HH:MM:SS" into "YYYY-MM-DD"
+        function parseExifDate(exifDate) {
+            try {
+                const parts = exifDate.split(" ")[0].split(":"); // Split on space, then ":"
+                if (parts.length === 3) {
+                    return `${parts[0]}-${parts[1]}-${parts[2]}`;
+                }
+            } catch (error) {
+                console.error("Error parsing EXIF date:", error);
+            }
+            return null;
+        }
+
+// Add image preview with default or EXIF date
+        function addImagePreview(src, file, imageDate) {
             const col = document.createElement("div");
             col.className = "col-12 col-md-6 col-lg-4";
 
             const card = `
-                <div class="card">
-                    <img src="${src}" class="card-img-top" alt="Preview">
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label class="form-label">Description</label>
-                            <input type="text" class="form-control description" placeholder="Enter description">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Date</label>
-                            <input type="date" class="form-control image-date" value="${new Date().toISOString().split("T")[0]}">
-                        </div>
-                    </div>
+        <div class="card">
+            <img src="${src}" class="card-img-top" alt="Preview">
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <input type="text" class="form-control description" placeholder="Enter description">
                 </div>
-            `;
+                <div class="mb-3">
+                    <label class="form-label">Date</label>
+                    <input type="date" class="form-control image-date" value="${imageDate}">
+                </div>
+            </div>
+        </div>
+    `;
 
             col.innerHTML = card;
             imagePreviewContainer.appendChild(col);
         }
+
 
         // Handle upload
         uploadImagesButton.addEventListener("click", () => {
@@ -1347,7 +1377,7 @@
     });
 
 </script>
-
+<script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.min.js"></script>
 <!--Embed the footer.html template at this location-->
 {{ template "layouts/footer.html" .}}
 

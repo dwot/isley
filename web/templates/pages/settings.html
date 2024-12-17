@@ -45,43 +45,81 @@ color: #0d6efd; /* Primary color */
         <div class="tab-pane fade show active" id="settings-content" role="tabpanel" aria-labelledby="settings-tab">
             <form id="settingsForm" class="mt-4">
                 <!-- AC Infinity Section -->
-                <div class="mb-4">
-                    <h5 class="text-secondary">AC Infinity</h5>
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="aciEnabled" {{ if .settings.ACI.Enabled }}checked{{ end }}>
-                        <label class="form-check-label" for="aciEnabled">Enable AC Infinity Sensor Monitoring</label>
+                <div class="card mb-4 shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="card-title mb-0">AC Infinity</h5>
                     </div>
-                    <div class="d-flex align-items-center mt-3">
-                        <label for="aciToken" class="form-label me-3">API Token</label>
-                        <input type="password" class="form-control me-3" id="aciToken" value="{{ .settings.ACI.Token }}" placeholder="Enter AC Infinity API Token">
-                        <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#aciLoginModal">Get Token from Login</button>
+                    <div class="card-body">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="aciEnabled" {{ if .settings.ACI.Enabled }}checked{{ end }}>
+                            <label class="form-check-label" for="aciEnabled">Enable AC Infinity Sensor Monitoring</label>
+                        </div>
+                        <div class="d-flex align-items-center mt-3">
+                    <span class="badge bg-{{ if .settings.ACI.TokenSet }}success{{ else }}danger{{ end }} me-2">
+                        {{ if .settings.ACI.TokenSet }}Token Set{{ else }}Token Not Set{{ end }}
+                    </span>
+                            <button type="button" class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#aciLoginModal">
+                                Retrieve Token
+                            </button>
+                        </div>
+                        <small class="text-muted d-block mt-2">
+                            AC Infinity integration requires a valid token. Use the button above to log in and retrieve it.
+                        </small>
                     </div>
                 </div>
 
                 <!-- EcoWitt Section -->
-                <div class="mb-4">
-                    <h5 class="text-secondary">EcoWitt</h5>
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="ecEnabled" {{ if .settings.EC.Enabled }}checked{{ end }}>
-                        <label class="form-check-label" for="ecEnabled">Enable EcoWitt Sensor Monitoring</label>
+                <div class="card mb-4 shadow-sm">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="card-title mb-0">EcoWitt</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="ecEnabled" {{ if .settings.EC.Enabled }}checked{{ end }}>
+                            <label class="form-check-label" for="ecEnabled">Enable EcoWitt Sensor Monitoring</label>
+                        </div>
+                        <small class="text-muted d-block mt-2">
+                            Enable this option to monitor EcoWitt sensors connected to your setup.
+                        </small>
                     </div>
                 </div>
 
                 <!-- Sensor Polling Interval -->
-                <div class="mb-4">
-                    <h5 class="text-secondary">Sensor Polling Interval</h5>
-                    <div class="input-group">
-                        <input type="number" class="form-control" id="pollingInterval" value="{{ .settings.PollingInterval }}" required min="15">
-                        <span class="input-group-text">seconds</span>
+                <div class="card mb-4 shadow-sm">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="card-title mb-0">Sensor Polling Interval</h5>
+                    </div>
+                    <div class="card-body">
+                        <label for="pollingInterval" class="form-label">Polling Interval:
+                            <span id="pollingValue" class="fw-bold">{{ .settings.PollingInterval }} seconds</span>
+                        </label>
+                        <input type="range" class="form-range" id="pollingInterval"
+                               min="15" max="300" step="5" value="{{ .settings.PollingInterval }}">
+                        <small class="text-muted d-block mt-2">
+                            Use the slider to adjust the polling interval (15 - 300 seconds). Minimum is 15 seconds.
+                        </small>
                     </div>
                 </div>
 
+                <script>
+                    document.addEventListener("DOMContentLoaded", () => {
+                        const pollingSlider = document.getElementById("pollingInterval");
+                        const pollingValue = document.getElementById("pollingValue");
+
+                        // Update display when slider is adjusted
+                        pollingSlider.addEventListener("input", () => {
+                            pollingValue.textContent = `${pollingSlider.value} seconds`;
+                        });
+                    });
+                </script>
+
                 <!-- Save Button -->
                 <div class="text-end">
-                    <button type="submit" class="btn btn-primary">Save Settings</button>
+                    <button type="submit" class="btn btn-primary px-4">Save Settings</button>
                 </div>
             </form>
         </div>
+
 
         <!-- Tables Tab -->
         <div class="tab-pane fade" id="tables-content" role="tabpanel" aria-labelledby="tables-tab">
