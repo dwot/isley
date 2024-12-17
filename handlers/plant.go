@@ -165,7 +165,7 @@ func AddPlant(c *gin.Context) {
 	}
 
 	//Insert into the plants table returning id
-	result, err := db.Exec("INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors) VALUES (?, ?, ?, '', false, ?, '[]')", input.Name, *input.ZoneID, *input.StrainID, input.Date)
+	result, err := db.Exec("INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors) VALUES (?, ?, ?, '', 'false', ?, '[]')", input.Name, *input.ZoneID, *input.StrainID, input.Date)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -1115,9 +1115,9 @@ func getPlantsByStatus(statuses []int) ([]PlantTableResponse, error) {
 		       p.start_dt, 
 		       ((strftime('%j', 'now') - strftime('%j', p.start_dt)) / 7) +1 AS current_week,
 		       (strftime('%j', 'now') - strftime('%j', p.start_dt)) +1 AS current_day,
-		       (SELECT (strftime('%j', 'now') - strftime('%j', MAX(date))) +1 FROM plant_activity pa JOIN activity a ON pa.activity_id = a.id WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Water')) AS days_since_last_watering,
-		       (SELECT (strftime('%j', 'now') - strftime('%j', MAX(date))) +1 FROM plant_activity pa JOIN activity a ON pa.activity_id = a.id WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Feed')) AS days_since_last_feeding,
-		       (SELECT (strftime('%j', 'now') - strftime('%j', MAX(date))) +1 FROM plant_status_log WHERE plant_id = p.id AND status_id = (SELECT id FROM plant_status WHERE status = 'Flower')) AS flowering_days
+		       COALESCE((SELECT (strftime('%j', 'now') - strftime('%j', MAX(date))) +1 FROM plant_activity pa JOIN activity a ON pa.activity_id = a.id WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Water')),0) AS days_since_last_watering,
+		       COALESCE((SELECT (strftime('%j', 'now') - strftime('%j', MAX(date))) +1 FROM plant_activity pa JOIN activity a ON pa.activity_id = a.id WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Feed')),0) AS days_since_last_feeding,
+		       COALESCE((SELECT (strftime('%j', 'now') - strftime('%j', MAX(date))) +1 FROM plant_status_log WHERE plant_id = p.id AND status_id = (SELECT id FROM plant_status WHERE status = 'Flower')),0) AS flowering_days
 		FROM plant p
 		JOIN strain s ON p.strain_id = s.id
 		JOIN breeder b ON s.breeder_id = b.id
