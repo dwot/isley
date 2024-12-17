@@ -8,14 +8,11 @@ import (
 )
 
 func AddProtectedRotues(r *gin.RouterGroup, version string) {
-
-	plants, _ := handlers.GetLivingPlants()
-
 	r.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "views/index.html", gin.H{
 			"title":      "Dashboard",
 			"version":    version,
-			"plants":     plants,
+			"plants":     handlers.GetLivingPlants(),
 			"activities": config.Activities,
 		})
 	})
@@ -24,12 +21,11 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 		c.HTML(http.StatusOK, "views/plants.html", gin.H{
 			"title":      "Plants",
 			"version":    version,
-			"plantList":  handlers.GetPlantList(),
 			"zones":      config.Zones,
 			"strains":    config.Strains,
 			"statuses":   config.Statuses,
 			"breeders":   config.Breeders,
-			"plants":     plants,
+			"plants":     handlers.GetLivingPlants(),
 			"activities": config.Activities,
 		})
 	})
@@ -40,7 +36,7 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"version":    version,
 			"strains":    config.Strains,
 			"breeders":   config.Breeders,
-			"plants":     plants,
+			"plants":     handlers.GetLivingPlants(),
 			"activities": config.Activities,
 		})
 	})
@@ -51,7 +47,7 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"version":    version,
 			"SensorID":   c.Param("id"),
 			"SensorName": handlers.GetSensorName(c.Param("id")),
-			"plants":     plants,
+			"plants":     handlers.GetLivingPlants(),
 			"activities": config.Activities,
 		})
 	})
@@ -67,7 +63,7 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"breeders":     config.Breeders,
 			"measurements": config.Metrics,
 			"sensors":      handlers.GetSensors(),
-			"plants":       plants,
+			"plants":       handlers.GetLivingPlants(),
 			"activities":   config.Activities,
 		})
 	})
@@ -79,7 +75,7 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"settings":   handlers.GetSettings(),
 			"zones":      config.Zones,
 			"metrics":    config.Metrics,
-			"plants":     plants,
+			"plants":     handlers.GetLivingPlants(),
 			"activities": config.Activities,
 		})
 	})
@@ -91,7 +87,7 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"settings":   handlers.GetSettings(),
 			"sensors":    handlers.GetSensors(),
 			"zones":      config.Zones,
-			"plants":     plants,
+			"plants":     handlers.GetLivingPlants(),
 			"activities": config.Activities,
 		})
 	})
@@ -101,7 +97,7 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"title":      "Graphs",
 			"version":    version,
 			"sensors":    handlers.GetGroupedSensors(),
-			"plants":     plants,
+			"plants":     handlers.GetLivingPlants(),
 			"activities": config.Activities,
 		})
 	})

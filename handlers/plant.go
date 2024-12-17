@@ -427,58 +427,6 @@ func DeletePlantById(id string) interface{} {
 	return nil
 }
 
-func GetPlantList() []PlantListResponse {
-	var plants []PlantListResponse
-	// Init the db
-	db, err := sql.Open("sqlite", model.DbPath())
-	if err != nil {
-		return plants
-	}
-	rows, err := db.Query("SELECT p.id, p.name, p.description, p.start_dt, s.name as strain_name, b.name as breeder_name, z.name as zone_name, (select ps.status from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as current_status, p.harvest_weight  FROM plant p LEFT OUTER JOIN strain s on p.strain_id = s.id left outer join breeder b on b.id = s.breeder_id LEFT OUTER JOIN zones z on p.zone_id = z.id WHERE current_status not in ('Success','Dead') ORDER BY start_dt")
-	if err != nil {
-		fmt.Println(err)
-		return plants
-	}
-
-	// Iterate over rows
-	for rows.Next() {
-		var id uint
-		var name string
-		var description string
-		var start_dt time.Time
-		var strain_name string
-		var breeder_name string
-		var zone_name string
-		var status string
-		var harvest_weight float64
-		err = rows.Scan(&id, &name, &description, &start_dt, &strain_name, &breeder_name, &zone_name, &status, &harvest_weight)
-		if err != nil {
-			fmt.Println(err)
-			return plants
-		}
-		// Calculate current day and week
-		currentTime := time.Now().In(time.Local)
-		//Calculate the # of hours difference between the current timezone and UTC
-		_, tzDiff := currentTime.Zone()
-		_, utcOffset := start_dt.Zone()
-		tzDiff = utcOffset - tzDiff
-		start_dt = start_dt.Add(time.Duration(tzDiff) * time.Second)
-		diff := currentTime.Sub(start_dt)
-		iCurrentDay := int(diff.Hours()/24) + 1
-		iCurrentWeek := int((diff.Hours() / 24 / 7) + 1)
-		plants = append(plants, PlantListResponse{id, name, description, start_dt, iCurrentDay, iCurrentWeek, status, strain_name, breeder_name, zone_name, harvest_weight})
-	}
-
-	// Close the db
-	err = db.Close()
-	if err != nil {
-		fmt.Println(err)
-		return plants
-	}
-
-	return plants
-}
-
 type SensorData struct {
 	ID       uint      `json:"id"`
 	Value    float64   `json:"value"`
@@ -1191,25 +1139,21 @@ func getPlantsByStatus(statuses []int) ([]PlantTableResponse, error) {
 	return plants, nil
 }
 
-func GetLivingPlants() ([]PlantTableResponse, error) {
-	statuses := []int{2, 3, 4, 5, 6} // Seedling, Veg, Flower, Drying, Curing
-	return getPlantsByStatus(statuses)
+func GetLivingPlants() []PlantTableResponse {
+	statuses := []int{2, 3, 4} // Seedling, Veg, Flower
+	result, _ := getPlantsByStatus(statuses)
+	return result
 }
 
 // LivingPlantsHandler handles the /plants/living endpoint.
 func LivingPlantsHandler(c *gin.Context) {
-	plants, err := GetLivingPlants()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve plants"})
-		return
-	}
-
+	plants := GetLivingPlants()
 	c.JSON(http.StatusOK, plants)
 }
 
 // HarvestedPlantsHandler handles the /plants/harvested endpoint.
 func HarvestedPlantsHandler(c *gin.Context) {
-	statuses := []int{7} // Success
+	statuses := []int{7, 5, 6} // Success
 	plants, err := getPlantsByStatus(statuses)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve plants"})
