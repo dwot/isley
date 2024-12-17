@@ -1,0 +1,1 @@
+ALTER TABLE plant ADD COLUMN harvest_weight DECIMAL(10,2) DEFAULT 0;
