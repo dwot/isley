@@ -78,46 +78,54 @@
             </div>
 
             <!-- Plant Details Section -->
+            <!-- Plant Details Section -->
             <div class="col-md-6">
                 <div class="card mb-3">
                     <div class="card-body text-start">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h5 class="card-title text-primary">Plant Details</h5>
-
-<div>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#changeStatusModal">
-        <i class="fa-solid fa-pen-to-square"></i>
-    </button>
-    <button class="btn btn-danger" id="deletePlantButton">
-        <i class="fa-solid fa-trash"></i>
-    </button>
-</div>
-
+                            <div>
+                                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#changeStatusModal">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+                                <button class="btn btn-danger" id="deletePlantButton">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
                         </div>
                         <input type="hidden" id="strainName" value="{{ .plant.StrainName }}">
                         <input type="hidden" id="currentDay" value="{{ .plant.CurrentDay }}">
+
                         <ul class="list-unstyled">
                             <li><strong>Status:</strong> {{ .plant.Status }}</li>
                             <li><strong>Strain:</strong> {{ .plant.StrainName }} (by {{ .plant.BreederName }})</li>
                             <li><strong>Zone:</strong> {{ .plant.ZoneName }}</li>
+                            <li><strong>Start Date:</strong> {{ formatDate .plant.StartDT }}</li>
+
+                            <!-- Conditional: If Plant is Harvested or Dead -->
+                            {{ if or (eq .plant.Status "Success") (eq .plant.Status "Drying") (eq .plant.Status "Curing") (eq .plant.Status "Dead") }}
+                            <li><strong>Harvest Date:</strong> {{ formatDate .plant.HarvestDate }}</li>
+                            <li><strong>Harvest Weight:</strong> {{ .plant.HarvestWeight }} grams</li>
+                            {{ else }}
                             <li><strong>Day:</strong> {{ .plant.CurrentDay }}</li>
                             <li><strong>Week:</strong> {{ .plant.CurrentWeek }}</li>
-                            <li><strong>Start Date:</strong> {{ formatDate .plant.StartDT }}</li>
-                            {{if ne (formatDate .plant.HeightDate) "01/01/1970" }}
+                            {{ end }}
+
+                            <!-- Optional: Height -->
+                            {{ if ne (formatDate .plant.HeightDate) "01/01/1970" }}
                             <li><strong>Height:</strong> {{ .plant.CurrentHeight }}" - {{ formatDate .plant.HeightDate }}</li>
+                            {{ end }}
 
-                            </li>
-                            {{end}}
-
-                            {{if or (ne (formatDate .plant.LastWaterDate) "01/01/1970") (ne (formatDate .plant.LastFeedDate) "01/01/1970") }}
+                            <!-- Optional: Last Watered or Fed -->
+                            {{ if or (ne (formatDate .plant.LastWaterDate) "01/01/1970") (ne (formatDate .plant.LastFeedDate) "01/01/1970") }}
                             <li><strong>Last Watered or Fed:</strong>
-                                {{if gt (formatDate .plant.LastWaterDate) (formatDate .plant.LastFeedDate)}}
+                                {{ if gt (formatDate .plant.LastWaterDate) (formatDate .plant.LastFeedDate) }}
                                 {{ formatDate .plant.LastWaterDate }} (Watered)
-                                {{else}}
+                                {{ else }}
                                 {{ formatDate .plant.LastFeedDate }} (Fed)
-                                {{end}}
+                                {{ end }}
                             </li>
-                            {{end}}
+                            {{ end }}
                         </ul>
                     </div>
                 </div>
@@ -139,6 +147,7 @@
                     </div>
                 </div>
             </div>
+
         </div>
     </div>
 
@@ -151,7 +160,7 @@
             </button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" id="status-tab" data-bs-toggle="tab" data-bs-target="#status" type="button" role="tab" aria-controls="status" aria-selected="false">
+            <button class="nav-link" id="statusHistoryTab-tab" data-bs-toggle="tab" data-bs-target="#statusHistoryTab" type="button" role="tab" aria-controls="statusHistoryTab" aria-selected="false">
                 Status History
             </button>
         </li>
@@ -200,7 +209,7 @@
         </div>
 
         <!-- Status History Tab -->
-        <div class="tab-pane fade" id="status" role="tabpanel" aria-labelledby="status-tab">
+        <div class="tab-pane fade" id="statusHistoryTab" role="tabpanel" aria-labelledby="status-tab">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h3 class="text-secondary">Status History</h3>
             </div>
@@ -509,6 +518,12 @@
                     <!-- Plant ID (Hidden Input) -->
                     <input type="hidden" id="plantId" value="{{ .plant.ID }}">
 
+                    <!-- Harvest Weight -->
+                    <div class="mb-3">
+                        <label for="harvestWeight" class="form-label">Harvest Weight (g)</label>
+                        <input type="number" class="form-control" id="harvestWeight" value="{{ .plant.HarvestWeight }}">
+                    </div>
+
                     <!-- Submit Button -->
                     <button type="submit" class="btn btn-primary">Change Status</button>
                 </form>
@@ -814,6 +829,7 @@
         const newZoneName = document.getElementById("newZoneName");
         const newStrainName = document.getElementById("newStrainName");
         const newBreederName = document.getElementById("newBreederName");
+        const harvestWeight = document.getElementById("harvestWeight");
 
         // Set default date to today
         const setDefaultDate = () => {
@@ -901,6 +917,7 @@
                 } : null,
                 clone: document.getElementById("cloneCheckbox").checked,
                 start_date: startDate,
+                harvest_weight: parseFloat(harvestWeight.value),
             };
 
             //alert(JSON.stringify(payload));
@@ -1188,39 +1205,69 @@
                     alert("Only image files are allowed!");
                     return;
                 }
+
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    addImagePreview(e.target.result, file);
+                    const fileData = e.target.result;
+
+                    // Read EXIF metadata
+                    EXIF.getData(file, function () {
+                        let imageDate = new Date().toISOString().split("T")[0]; // Default to current date
+
+                        // Try to get the DateTimeOriginal tag from EXIF
+                        const exifDate = EXIF.getTag(this, "DateTimeOriginal");
+                        if (exifDate) {
+                            const parsedDate = parseExifDate(exifDate);
+                            if (parsedDate) imageDate = parsedDate;
+                        }
+
+                        addImagePreview(fileData, file, imageDate);
+                    });
                 };
+
                 reader.readAsDataURL(file);
                 imagesToUpload.push(file);
             });
         }
 
-        // Add image preview
-        function addImagePreview(src, file) {
+// Parse EXIF DateTimeOriginal format "YYYY:MM:DD HH:MM:SS" into "YYYY-MM-DD"
+        function parseExifDate(exifDate) {
+            try {
+                const parts = exifDate.split(" ")[0].split(":"); // Split on space, then ":"
+                if (parts.length === 3) {
+                    return `${parts[0]}-${parts[1]}-${parts[2]}`;
+                }
+            } catch (error) {
+                console.error("Error parsing EXIF date:", error);
+            }
+            return null;
+        }
+
+// Add image preview with default or EXIF date
+        function addImagePreview(src, file, imageDate) {
             const col = document.createElement("div");
             col.className = "col-12 col-md-6 col-lg-4";
 
             const card = `
-                <div class="card">
-                    <img src="${src}" class="card-img-top" alt="Preview">
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label class="form-label">Description</label>
-                            <input type="text" class="form-control description" placeholder="Enter description">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Date</label>
-                            <input type="date" class="form-control image-date" value="${new Date().toISOString().split("T")[0]}">
-                        </div>
-                    </div>
+        <div class="card">
+            <img src="${src}" class="card-img-top" alt="Preview">
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <input type="text" class="form-control description" placeholder="Enter description">
                 </div>
-            `;
+                <div class="mb-3">
+                    <label class="form-label">Date</label>
+                    <input type="date" class="form-control image-date" value="${imageDate}">
+                </div>
+            </div>
+        </div>
+    `;
 
             col.innerHTML = card;
             imagePreviewContainer.appendChild(col);
         }
+
 
         // Handle upload
         uploadImagesButton.addEventListener("click", () => {
@@ -1347,7 +1394,7 @@
     });
 
 </script>
-
+<script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.min.js"></script>
 <!--Embed the footer.html template at this location-->
 {{ template "layouts/footer.html" .}}
 

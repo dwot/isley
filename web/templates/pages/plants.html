@@ -70,19 +70,18 @@
 
         </div>
 
-
-        <!-- Table -->
         <div class="row">
             <div class="col-12">
                 <table class="table table-striped table-bordered table-hover">
-                    <thead class="table-dark">
+                    <thead class="table-dark" id="plantsTableHeader">
                     <tr>
                         <th scope="col" data-sort="name" data-type="text" class="sortable">Plant <i class="fa-solid fa-sort"></i></th>
-                        <th scope="col" data-sort="strain" data-type="text" class="sortable">Strain <i class="fa-solid fa-sort"></i></th>
-                        <th scope="col" data-sort="breeder" data-type="text" class="sortable">Breeder <i class="fa-solid fa-sort"></i></th>
+                        <th scope="col" data-sort="strain_name" data-type="text" class="sortable">Strain <i class="fa-solid fa-sort"></i></th>
+                        <th scope="col" data-sort="breeder_name" data-type="text" class="sortable">Breeder <i class="fa-solid fa-sort"></i></th>
+                        <th scope="col" data-sort="status" data-type="text" class="sortable">Status <i class="fa-solid fa-sort"></i></th>
                         <th scope="col" data-sort="start_date" data-type="date" class="sortable">Start Date <i class="fa-solid fa-sort"></i></th>
-                        <th scope="col" data-sort="week" data-type="numeric" class="sortable">Current Week <i class="fa-solid fa-sort"></i></th>
-                        <th scope="col" data-sort="day" data-type="numeric" class="sortable">Current Day <i class="fa-solid fa-sort"></i></th>
+                        <th scope="col" id="dynamicHeader1" class="sortable">Current Week <i class="fa-solid fa-sort"></i></th>
+                        <th scope="col" id="dynamicHeader2" class="sortable">Current Day <i class="fa-solid fa-sort"></i></th>
                     </tr>
                     </thead>
                     <tbody id="plantsTableBody">
@@ -185,50 +184,42 @@
     </div>
 </div>
 
-
-
 <script>
-    document.addEventListener("DOMContentLoaded", () => {
-        const viewButtons = document.querySelectorAll(".view-button");
-
-        viewButtons.forEach(button => {
-            button.addEventListener("click", () => {
-                // Remove 'active' class from all buttons
-                viewButtons.forEach(btn => btn.classList.remove("active"));
-
-                // Add 'active' class to the clicked button
-                button.classList.add("active");
-
-                // Trigger view change logic here
-                const selectedView = button.dataset.view;
-                console.log(`View selected: ${selectedView}`);
-                // Fetch and display the corresponding plants based on selectedView
-            });
-        });
-    });
-
-
     document.addEventListener("DOMContentLoaded", () => {
         const plantsTableBody = document.getElementById("plantsTableBody");
         const searchPlants = document.getElementById("searchPlants");
         const viewButtons = document.querySelectorAll(".view-button");
-        let currentView = "living"; // Default view
-        let plantsData = []; // Store all plant data
+        const headerDynamic1 = document.getElementById("dynamicHeader1");
+        const headerDynamic2 = document.getElementById("dynamicHeader2");
+        let currentView = "living";
+        let plantsData = [];
         let sortColumn = null;
-        let sortDirection = "asc"; // Default sort direction
+        let sortDirection = "asc";
 
-        // Fetch plants and update the table
         const fetchPlants = (view) => {
             fetch(`/plants/${view}`)
                 .then(response => response.json())
                 .then(data => {
                     plantsData = data;
+                    updateHeaders(view);
                     updateTable();
                 })
                 .catch(err => console.error("Error fetching plants:", err));
         };
 
-        // Update the table with filtered and sorted data
+        const updateHeaders = (view) => {
+            if (view === "harvested") {
+                headerDynamic1.textContent = "Harvest Weight (g)";
+                headerDynamic2.textContent = "Harvest Date";
+            } else if (view === "dead") {
+                headerDynamic1.textContent = "Dead Date";
+                headerDynamic2.textContent = ""; // Hide second header
+            } else {
+                headerDynamic1.textContent = "Current Week";
+                headerDynamic2.textContent = "Current Day";
+            }
+        };
+
         const updateTable = () => {
             const searchTerm = searchPlants.value.toLowerCase();
             let filteredPlants = plantsData.filter(plant =>
@@ -242,70 +233,64 @@
                 filteredPlants.sort((a, b) => {
                     const valA = a[sortColumn];
                     const valB = b[sortColumn];
-
                     if (valA < valB) return sortDirection === "asc" ? -1 : 1;
                     if (valA > valB) return sortDirection === "asc" ? 1 : -1;
                     return 0;
                 });
             }
 
-            // Populate table
-            plantsTableBody.innerHTML = filteredPlants.map(plant => `
+            // Generate table rows
+            plantsTableBody.innerHTML = filteredPlants.map(plant => {
+                let column1 = "";
+                let column2 = "";
+
+                if (currentView === "harvested") {
+                    column1 = plant.harvest_weight ? `${plant.harvest_weight} g` : "-";
+                    column2 = plant.status_date ? new Date(plant.status_date).toLocaleDateString() : "-";
+                } else if (currentView === "dead") {
+                    column1 = plant.status_date ? new Date(plant.status_date).toLocaleDateString() : "-";
+                    column2 = ""; // No second column for dead plants
+                } else {
+                    column1 = plant.current_week || "-";
+                    column2 = plant.current_day || "-";
+                }
+
+                return `
                 <tr class="clickable-row" data-id="${plant.id}">
                     <th scope="row">${plant.name}</th>
                     <td>${plant.strain_name}</td>
                     <td>${plant.breeder_name}</td>
+                    <td>${plant.status}</td>
                     <td>${plant.start_dt ? new Date(plant.start_dt).toLocaleDateString() : "-"}</td>
-                    <td>${plant.current_week || "-"}</td>
-                    <td>${plant.current_day || "-"}</td>
+                    <td>${column1}</td>
+                    <td>${column2}</td>
                 </tr>
-            `).join("");
+            `;
+            }).join("");
 
-            // Add click events for table rows
+            // Add click events for rows
             document.querySelectorAll(".clickable-row").forEach(row => {
                 row.addEventListener("click", () => {
                     const plantId = row.getAttribute("data-id");
-                    if (plantId) {
-                        window.location.href = `/plant/${plantId}`;
-                    }
+                    if (plantId) window.location.href = `/plant/${plantId}`;
                 });
             });
         };
 
-        // Handle view change
+        // Event listeners
         viewButtons.forEach(button => {
             button.addEventListener("click", () => {
                 currentView = button.dataset.view;
                 fetchPlants(currentView);
 
-                // Update button styles
                 viewButtons.forEach(btn => btn.classList.remove("btn-primary"));
                 button.classList.add("btn-primary");
             });
         });
 
-        // Handle column sorting
-        document.querySelectorAll(".sortable").forEach(header => {
-            header.addEventListener("click", () => {
-                const column = header.getAttribute("data-sort");
-                if (sortColumn === column) {
-                    // Toggle sort direction if already sorted by this column
-                    sortDirection = sortDirection === "asc" ? "desc" : "asc";
-                } else {
-                    // Set new column and reset direction
-                    sortColumn = column;
-                    sortDirection = "asc";
-                }
-                updateTable();
-            });
-        });
+        searchPlants.addEventListener("input", updateTable);
 
-        // Handle search
-        searchPlants.addEventListener("input", () => {
-            updateTable();
-        });
-
-        // Fetch initial data
+        // Initial data fetch
         fetchPlants(currentView);
     });
 </script>
@@ -430,47 +415,7 @@
         });
     });
 
-    document.addEventListener("DOMContentLoaded", () => {
-        const table = document.querySelector("table");
-        const headers = table.querySelectorAll(".sortable");
 
-        headers.forEach((header, columnIndex) => {
-            header.addEventListener("click", () => {
-                const type = header.dataset.type;
-                const tbody = table.querySelector("tbody");
-                const rows = Array.from(tbody.rows);
-                const isAscending = header.classList.contains("asc");
-
-                // Clear previous sort classes
-                headers.forEach(h => h.classList.remove("asc", "desc"));
-
-                // Sort rows based on column and type
-                rows.sort((a, b) => {
-                    const cellA = a.cells[columnIndex].textContent.trim();
-                    const cellB = b.cells[columnIndex].textContent.trim();
-
-                    if (type === "numeric") {
-                        return isAscending ? cellA - cellB : cellB - cellA;
-                    } else if (type === "date") {
-                        return isAscending
-                            ? new Date(cellA) - new Date(cellB)
-                            : new Date(cellB) - new Date(cellA);
-                    } else {
-                        return isAscending
-                            ? cellA.localeCompare(cellB)
-                            : cellB.localeCompare(cellA);
-                    }
-                });
-
-                // Append sorted rows back to the table body
-                rows.forEach(row => tbody.appendChild(row));
-
-                // Toggle sort direction
-                header.classList.toggle("asc", !isAscending);
-                header.classList.toggle("desc", isAscending);
-            });
-        });
-    });
 
 </script>
 

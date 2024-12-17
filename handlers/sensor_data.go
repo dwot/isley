@@ -4,10 +4,12 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"isley/config"
 	"isley/model"
 	"isley/model/types"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -23,6 +25,18 @@ type LatestSensorData struct {
 	Soil4Moisture    float64
 	Soil5Moisture    float64
 	Soil6Moisture    float64
+}
+
+// Cache structure
+var (
+	sensorDataCache = make(map[string]cachedEntry)
+	sdCacheMutex    sync.Mutex
+)
+
+// Cached entry structure
+type cachedEntry struct {
+	data      []types.SensorData
+	timestamp time.Time
 }
 
 func GetSensorLatest() LatestSensorData {
@@ -98,6 +112,19 @@ func ChartHandler(c *gin.Context) {
 		return
 	}
 
+	// Generate a cache key based on query parameters
+	cacheKey := generateCacheKey(sensor, timeMinutes, startDate, endDate)
+
+	sdCacheMutex.Lock()
+	cached, found := sensorDataCache[cacheKey]
+	sdCacheMutex.Unlock()
+
+	// If cached data is valid, return it
+	if found && time.Since(cached.timestamp) < time.Duration(config.PollingInterval)*time.Second {
+		c.JSON(http.StatusOK, cached.data)
+		return
+	}
+
 	var sensorData []types.SensorData
 	var err error
 
@@ -116,6 +143,14 @@ func ChartHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Cache the new data
+	sdCacheMutex.Lock()
+	sensorDataCache[cacheKey] = cachedEntry{
+		data:      sensorData,
+		timestamp: time.Now(),
+	}
+	sdCacheMutex.Unlock()
 
 	// Return data
 	c.JSON(http.StatusOK, sensorData)
@@ -231,4 +266,8 @@ func filterSensorData(sensorData []types.SensorData, timeMinutes int) []types.Se
 	}
 
 	return filteredSensorData
+}
+
+func generateCacheKey(sensor, timeMinutes, startDate, endDate string) string {
+	return sensor + "|" + timeMinutes + "|" + startDate + "|" + endDate
 }

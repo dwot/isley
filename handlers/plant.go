@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"isley/config"
 	model "isley/model"
 	"isley/model/types"
 	"log"
@@ -15,16 +16,17 @@ import (
 )
 
 type PlantListResponse struct {
-	ID          uint      `json:"id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	StartDT     time.Time `json:"start_dt"`
-	CurrentDay  int       `json:"current_day"`
-	CurrentWeek int       `json:"current_week"`
-	Status      string    `json:"status"`
-	StrainName  string    `json:"strain_name"`
-	BreederName string    `json:"breeder_name"`
-	ZoneName    string    `json:"zone_name"`
+	ID            uint      `json:"id"`
+	Name          string    `json:"name"`
+	Description   string    `json:"description"`
+	StartDT       time.Time `json:"start_dt"`
+	CurrentDay    int       `json:"current_day"`
+	CurrentWeek   int       `json:"current_week"`
+	Status        string    `json:"status"`
+	StrainName    string    `json:"strain_name"`
+	BreederName   string    `json:"breeder_name"`
+	ZoneName      string    `json:"zone_name"`
+	HarvestWeight float64   `json:"harvest_weight"`
 }
 
 type PlantDataResponse struct {
@@ -51,6 +53,8 @@ type PlantDataResponse struct {
 	Images        []types.PlantImage `json:"images"`
 	IsClone       bool               `json:"is_clone"`
 	StartDT       time.Time          `json:"start_dt"`
+	HarvestWeight float64            `json:"harvest_weight"`
+	HarvestDate   time.Time          `json:"harvest_date"`
 }
 
 type Sensor struct {
@@ -82,24 +86,7 @@ type Status struct {
 	Date   time.Time `json:"date"`
 }
 
-type StrainResponse struct {
-	ID          int    `json:"id"`
-	Name        string `json:"name"`
-	Breeder     string `json:"breeder"`
-	BreederID   int    `json:"breeder_id"`
-	Indica      int    `json:"indica"`
-	Sativa      int    `json:"sativa"`
-	Autoflower  string `json:"autoflower"`
-	Description string `json:"description"`
-	SeedCount   int    `json:"seed_count"`
-}
-
-type BreederResponse struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-}
-
-func GetBreederList() []BreederResponse {
+func GetBreeders() []config.BreederResponse {
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
@@ -113,9 +100,9 @@ func GetBreederList() []BreederResponse {
 		return nil
 	}
 
-	var breeders []BreederResponse
+	var breeders []config.BreederResponse
 	for rows.Next() {
-		var breeder BreederResponse
+		var breeder config.BreederResponse
 		err = rows.Scan(&breeder.ID, &breeder.Name)
 		if err != nil {
 			fmt.Println(err)
@@ -181,7 +168,7 @@ func AddPlant(c *gin.Context) {
 	}
 
 	//Insert into the plants table returning id
-	result, err := db.Exec("INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors) VALUES (?, ?, ?, '', false, ?, '[]')", input.Name, *input.ZoneID, *input.StrainID, input.Date)
+	result, err := db.Exec("INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors) VALUES (?, ?, ?, '', 'false', ?, '[]')", input.Name, *input.ZoneID, *input.StrainID, input.Date)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -204,7 +191,7 @@ func AddPlant(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Plant added successfully"})
 }
 
-func GetStrains() []StrainResponse {
+func GetStrains() []config.StrainResponse {
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
@@ -218,9 +205,9 @@ func GetStrains() []StrainResponse {
 		return nil
 	}
 
-	var strains []StrainResponse
+	var strains []config.StrainResponse
 	for rows.Next() {
-		var strain StrainResponse
+		var strain config.StrainResponse
 		err = rows.Scan(&strain.ID, &strain.Name, &strain.BreederID, &strain.Breeder, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.Description, &strain.SeedCount)
 		if err != nil {
 			fmt.Println(err)
@@ -235,23 +222,7 @@ func GetStrains() []StrainResponse {
 	return strains
 }
 
-type StatusResponse struct {
-	ID     int    `json:"id"`
-	Status string `json:"status"`
-}
-
-type ActivityResponse struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-}
-
-type MeasurementResponse struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-	Unit string `json:"unit"`
-}
-
-func GetActivities() []ActivityResponse {
+func GetActivities() []config.ActivityResponse {
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
@@ -265,9 +236,9 @@ func GetActivities() []ActivityResponse {
 		return nil
 	}
 
-	var activities []ActivityResponse
+	var activities []config.ActivityResponse
 	for rows.Next() {
-		var activity ActivityResponse
+		var activity config.ActivityResponse
 		err = rows.Scan(&activity.ID, &activity.Name)
 		if err != nil {
 			fmt.Println(err)
@@ -281,7 +252,7 @@ func GetActivities() []ActivityResponse {
 	return activities
 }
 
-func GetMeasurements() []MeasurementResponse {
+func GetMetrics() []config.MetricResponse {
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
@@ -295,9 +266,9 @@ func GetMeasurements() []MeasurementResponse {
 		return nil
 	}
 
-	var measurements []MeasurementResponse
+	var measurements []config.MetricResponse
 	for rows.Next() {
-		var measurement MeasurementResponse
+		var measurement config.MetricResponse
 		err = rows.Scan(&measurement.ID, &measurement.Name, &measurement.Unit)
 		if err != nil {
 			fmt.Println(err)
@@ -311,7 +282,7 @@ func GetMeasurements() []MeasurementResponse {
 	return measurements
 }
 
-func GetStatuses() []StatusResponse {
+func GetStatuses() []config.StatusResponse {
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
@@ -325,9 +296,9 @@ func GetStatuses() []StatusResponse {
 		return nil
 	}
 
-	var statuses []StatusResponse
+	var statuses []config.StatusResponse
 	for rows.Next() {
-		var status StatusResponse
+		var status config.StatusResponse
 		err = rows.Scan(&status.ID, &status.Status)
 		if err != nil {
 			fmt.Println(err)
@@ -365,6 +336,8 @@ func CreateNewStrain(newStrain *struct {
 			return 0, fmt.Errorf("failed to insert new breeder: %w", err)
 		}
 
+		config.Breeders = GetBreeders()
+
 		// Get the ID of the newly inserted breeder
 		lastInsertId, err := result.LastInsertId()
 		if err != nil {
@@ -384,6 +357,8 @@ func CreateNewStrain(newStrain *struct {
 	if err != nil {
 		return 0, fmt.Errorf("failed to insert new strain: %w", err)
 	}
+
+	config.Strains = GetStrains()
 
 	// Get the ID of the newly inserted strain
 	id, err := result.LastInsertId()
@@ -452,57 +427,6 @@ func DeletePlantById(id string) interface{} {
 	return nil
 }
 
-func GetPlantList() []PlantListResponse {
-	var plants []PlantListResponse
-	// Init the db
-	db, err := sql.Open("sqlite", model.DbPath())
-	if err != nil {
-		return plants
-	}
-	rows, err := db.Query("SELECT p.id, p.name, p.description, p.start_dt, s.name as strain_name, b.name as breeder_name, z.name as zone_name, (select ps.status from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as current_status  FROM plant p LEFT OUTER JOIN strain s on p.strain_id = s.id left outer join breeder b on b.id = s.breeder_id LEFT OUTER JOIN zones z on p.zone_id = z.id WHERE current_status not in ('Success','Dead') ORDER BY start_dt")
-	if err != nil {
-		fmt.Println(err)
-		return plants
-	}
-
-	// Iterate over rows
-	for rows.Next() {
-		var id uint
-		var name string
-		var description string
-		var start_dt time.Time
-		var strain_name string
-		var breeder_name string
-		var zone_name string
-		var status string
-		err = rows.Scan(&id, &name, &description, &start_dt, &strain_name, &breeder_name, &zone_name, &status)
-		if err != nil {
-			fmt.Println(err)
-			return plants
-		}
-		// Calculate current day and week
-		currentTime := time.Now().In(time.Local)
-		//Calculate the # of hours difference between the current timezone and UTC
-		_, tzDiff := currentTime.Zone()
-		_, utcOffset := start_dt.Zone()
-		tzDiff = utcOffset - tzDiff
-		start_dt = start_dt.Add(time.Duration(tzDiff) * time.Second)
-		diff := currentTime.Sub(start_dt)
-		iCurrentDay := int(diff.Hours()/24) + 1
-		iCurrentWeek := int((diff.Hours() / 24 / 7) + 1)
-		plants = append(plants, PlantListResponse{id, name, description, start_dt, iCurrentDay, iCurrentWeek, status, strain_name, breeder_name, zone_name})
-	}
-
-	// Close the db
-	err = db.Close()
-	if err != nil {
-		fmt.Println(err)
-		return plants
-	}
-
-	return plants
-}
-
 type SensorData struct {
 	ID       uint      `json:"id"`
 	Value    float64   `json:"value"`
@@ -516,7 +440,7 @@ func GetPlant(id string) PlantDataResponse {
 	if err != nil {
 		return plant
 	}
-	rows, err := db.Query("SELECT p.id, p.name, p.description, p.clone, p.start_dt, s.name as strain_name, b.name as breeder_name, z.name as zone_name, (select ps.status from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as current_status, (select ps.id from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as status_id, p.sensors, s.id FROM plant p LEFT OUTER JOIN strain s on p.strain_id = s.id left outer join breeder b on b.id = s.breeder_id LEFT OUTER JOIN zones z on p.zone_id = z.id WHERE p.id = $1", id)
+	rows, err := db.Query("SELECT p.id, p.name, p.description, p.clone, p.start_dt, s.name as strain_name, b.name as breeder_name, z.name as zone_name, (select ps.status from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as current_status, (select ps.id from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as status_id, p.sensors, s.id, p.harvest_weight FROM plant p LEFT OUTER JOIN strain s on p.strain_id = s.id left outer join breeder b on b.id = s.breeder_id LEFT OUTER JOIN zones z on p.zone_id = z.id WHERE p.id = $1", id)
 	if err != nil {
 		fmt.Println(err)
 		return plant
@@ -536,7 +460,8 @@ func GetPlant(id string) PlantDataResponse {
 		var statusID int
 		var sensors string
 		var strain_id int
-		err = rows.Scan(&id, &name, &description, &isClone, &start_dt, &strain_name, &breeder_name, &zone_name, &status, &statusID, &sensors, &strain_id)
+		var harvest_weight float64
+		err = rows.Scan(&id, &name, &description, &isClone, &start_dt, &strain_name, &breeder_name, &zone_name, &status, &statusID, &sensors, &strain_id, &harvest_weight)
 		if err != nil {
 			fmt.Println(err)
 			return plant
@@ -688,6 +613,7 @@ func GetPlant(id string) PlantDataResponse {
 		heightDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
 		lastWaterDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
 		lastFeedDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
+		harvestDate := time.Now()
 
 		//iterate measurements to find the last height
 		for _, measurement := range measurements {
@@ -713,10 +639,34 @@ func GetPlant(id string) PlantDataResponse {
 			}
 		}
 
+		//iterate status history to find the last harvest date
+		for _, status := range statusHistory {
+			if status.Status == "Success" {
+				if status.Date.Before(harvestDate) {
+					harvestDate = status.Date
+				}
+			}
+			if status.Status == "Dead" {
+				if status.Date.Before(harvestDate) {
+					harvestDate = status.Date
+				}
+			}
+			if status.Status == "Curing" {
+				if status.Date.Before(harvestDate) {
+					harvestDate = status.Date
+				}
+			}
+			if status.Status == "Drying" {
+				if status.Date.Before(harvestDate) {
+					harvestDate = status.Date
+				}
+			}
+		}
+
 		//Convert int and dates to strings
 		strCurrentHeight := strconv.Itoa(iCurrentHeight)
 
-		plant = PlantDataResponse{id, name, description, status, statusID, strain_name, strain_id, breeder_name, zone_name, iCurrentDay, iCurrentWeek, strCurrentHeight, heightDate, lastWaterDate, lastFeedDate, measurements, activities, statusHistory, sensorList, latestImage, images, isClone, start_dt}
+		plant = PlantDataResponse{id, name, description, status, statusID, strain_name, strain_id, breeder_name, zone_name, iCurrentDay, iCurrentWeek, strCurrentHeight, heightDate, lastWaterDate, lastFeedDate, measurements, activities, statusHistory, sensorList, latestImage, images, isClone, start_dt, harvest_weight, harvestDate}
 	}
 
 	// Close the db
@@ -824,6 +774,8 @@ func AddStrainHandler(c *gin.Context) {
 			return
 		}
 
+		config.Breeders = GetBreeders()
+
 		// Get the new breeder's ID
 		newBreederID, err := result.LastInsertId()
 		if err != nil {
@@ -848,6 +800,8 @@ func AddStrainHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add strain"})
 		return
 	}
+
+	config.Strains = GetStrains()
 
 	// Respond with success
 	c.JSON(http.StatusCreated, gin.H{"message": "Strain added successfully"})
@@ -960,6 +914,8 @@ func UpdateStrainHandler(c *gin.Context) {
 			return
 		}
 
+		config.Breeders = GetBreeders()
+
 		// Get the new breeder's ID
 		newBreederID, err := result.LastInsertId()
 		if err != nil {
@@ -1037,8 +993,9 @@ func UpdatePlant(c *gin.Context) {
 			BreederId  int    `json:"breeder_id"`
 			NewBreeder string `json:"new_breeder"`
 		} `json:"new_strain"`
-		IsClone bool   `json:"clone"`
-		StartDT string `json:"start_date"`
+		IsClone       bool    `json:"clone"`
+		StartDT       string  `json:"start_date"`
+		HarvestWeight float64 `json:"harvest_weight"`
 	}
 
 	// Bind JSON payload
@@ -1076,7 +1033,7 @@ func UpdatePlant(c *gin.Context) {
 	}
 
 	//Update the plant
-	_, err = db.Exec("UPDATE plant SET name = ?, description = ?, zone_id = ?, strain_id = ?, clone = ?, start_dt = ? WHERE id = ?", input.PlantName, input.PlantDescription, input.ZoneID, input.StrainID, input.IsClone, input.StartDT, input.PlantID)
+	_, err = db.Exec("UPDATE plant SET name = ?, description = ?, zone_id = ?, strain_id = ?, clone = ?, start_dt = ?, harvest_weight = ? WHERE id = ?", input.PlantName, input.PlantDescription, input.ZoneID, input.StrainID, input.IsClone, input.StartDT, input.HarvestWeight, input.PlantID)
 	if err != nil {
 		log.Printf("Error writing to db: %v", err)
 		return
@@ -1104,16 +1061,22 @@ func UpdatePlant(c *gin.Context) {
 
 // Plant represents the structure of a plant record.
 type PlantTableResponse struct {
-	ID          int    `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Clone       bool   `json:"clone"`
-	StrainName  string `json:"strain_name"`
-	BreederName string `json:"breeder_name"`
-	ZoneName    string `json:"zone_name"`
-	StartDT     string `json:"start_dt"`
-	CurrentWeek int    `json:"current_week"`
-	CurrentDay  int    `json:"current_day"`
+	ID                    int       `json:"id"`
+	Name                  string    `json:"name"`
+	Description           string    `json:"description"`
+	Clone                 bool      `json:"clone"`
+	StrainName            string    `json:"strain_name"`
+	BreederName           string    `json:"breeder_name"`
+	ZoneName              string    `json:"zone_name"`
+	StartDT               string    `json:"start_dt"`
+	CurrentWeek           int       `json:"current_week"`
+	CurrentDay            int       `json:"current_day"`
+	DaysSinceLastWatering int       `json:"days_since_last_watering"`
+	DaysSinceLastFeeding  int       `json:"days_since_last_feeding"`
+	FloweringDays         *int      `json:"flowering_days,omitempty"` // nil if not flowering
+	HarvestWeight         float64   `json:"harvest_weight"`
+	Status                string    `json:"status"`
+	StatusDate            time.Time `json:"status_date"`
 }
 
 func getPlantsByStatus(statuses []int) ([]PlantTableResponse, error) {
@@ -1131,9 +1094,13 @@ func getPlantsByStatus(statuses []int) ([]PlantTableResponse, error) {
 	// Use the dynamic IN clause in the query
 	query := `
 		SELECT p.id, p.name, p.description, p.clone, s.name AS strain_name, b.name AS breeder_name, z.name AS zone_name, 
-		       p.start_dt, 
+		       p.start_dt,  
 		       ((strftime('%j', 'now') - strftime('%j', p.start_dt)) / 7) +1 AS current_week,
-		       (strftime('%j', 'now') - strftime('%j', p.start_dt)) +1 AS current_day
+		       (strftime('%j', 'now') - strftime('%j', p.start_dt)) +1 AS current_day,
+		       COALESCE((SELECT (strftime('%j', 'now') - strftime('%j', MAX(date))) +1 FROM plant_activity pa JOIN activity a ON pa.activity_id = a.id WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Water')),0) AS days_since_last_watering,
+		       COALESCE((SELECT (strftime('%j', 'now') - strftime('%j', MAX(date))) +1 FROM plant_activity pa JOIN activity a ON pa.activity_id = a.id WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Feed')),0) AS days_since_last_feeding,
+		       COALESCE((SELECT (strftime('%j', 'now') - strftime('%j', MAX(date))) +1 FROM plant_status_log WHERE plant_id = p.id AND status_id = (SELECT id FROM plant_status WHERE status = 'Flower')),0) AS flowering_days,
+		       p.harvest_weight, ps.status, psl.date as status_date
 		FROM plant p
 		JOIN strain s ON p.strain_id = s.id
 		JOIN breeder b ON s.breeder_id = b.id
@@ -1163,7 +1130,7 @@ func getPlantsByStatus(statuses []int) ([]PlantTableResponse, error) {
 	plants := []PlantTableResponse{}
 	for rows.Next() {
 		var plant PlantTableResponse
-		if err := rows.Scan(&plant.ID, &plant.Name, &plant.Description, &plant.Clone, &plant.StrainName, &plant.BreederName, &plant.ZoneName, &plant.StartDT, &plant.CurrentWeek, &plant.CurrentDay); err != nil {
+		if err := rows.Scan(&plant.ID, &plant.Name, &plant.Description, &plant.Clone, &plant.StrainName, &plant.BreederName, &plant.ZoneName, &plant.StartDT, &plant.CurrentWeek, &plant.CurrentDay, &plant.DaysSinceLastWatering, &plant.DaysSinceLastFeeding, &plant.FloweringDays, &plant.HarvestWeight, &plant.Status, &plant.StatusDate); err != nil {
 			return nil, err
 		}
 		plants = append(plants, plant)
@@ -1172,25 +1139,21 @@ func getPlantsByStatus(statuses []int) ([]PlantTableResponse, error) {
 	return plants, nil
 }
 
-func GetLivingPlants() ([]PlantTableResponse, error) {
-	statuses := []int{2, 3, 4, 5, 6} // Seedling, Veg, Flower, Drying, Curing
-	return getPlantsByStatus(statuses)
+func GetLivingPlants() []PlantTableResponse {
+	statuses := []int{2, 3, 4} // Seedling, Veg, Flower
+	result, _ := getPlantsByStatus(statuses)
+	return result
 }
 
 // LivingPlantsHandler handles the /plants/living endpoint.
 func LivingPlantsHandler(c *gin.Context) {
-	plants, err := GetLivingPlants()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve plants"})
-		return
-	}
-
+	plants := GetLivingPlants()
 	c.JSON(http.StatusOK, plants)
 }
 
 // HarvestedPlantsHandler handles the /plants/harvested endpoint.
 func HarvestedPlantsHandler(c *gin.Context) {
-	statuses := []int{7} // Success
+	statuses := []int{7, 5, 6} // Success
 	plants, err := getPlantsByStatus(statuses)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve plants"})
@@ -1228,7 +1191,7 @@ func OutOfStockStrainsHandler(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, strains)
 }
-func getStrainsBySeedCount(inStock bool) ([]StrainResponse, error) {
+func getStrainsBySeedCount(inStock bool) ([]config.StrainResponse, error) {
 	query := `
         SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count
         FROM strain s
@@ -1256,9 +1219,9 @@ func getStrainsBySeedCount(inStock bool) ([]StrainResponse, error) {
 	}
 	defer rows.Close()
 
-	var strains []StrainResponse
+	var strains []config.StrainResponse
 	for rows.Next() {
-		var strain StrainResponse
+		var strain config.StrainResponse
 		if err := rows.Scan(&strain.ID, &strain.Name, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount); err != nil {
 			return nil, err
 		}

@@ -6,6 +6,7 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"html/template"
+	"isley/config"
 	"isley/handlers"
 	"isley/model"
 	"isley/routes"
@@ -73,6 +74,53 @@ func main() {
 
 	// Set title base to Isley v0.0.1a
 	version := "Isley 0.0.1a"
+
+	//Set PollingInterval
+	strPollingInterval, err := handlers.GetSetting("polling_interval")
+	if err == nil {
+		iPollingInterval, err := strconv.Atoi(strPollingInterval)
+		if err == nil {
+			config.PollingInterval = iPollingInterval
+		}
+	}
+	//Set ACIEnabled
+	strACIEnabled, err := handlers.GetSetting("aci.enabled")
+	if err == nil {
+		iACIEnabled, err := strconv.Atoi(strACIEnabled)
+		if err == nil {
+			config.ACIEnabled = iACIEnabled
+		}
+	}
+	//Set ECEnabled
+	strECEnabled, err := handlers.GetSetting("ec.enabled")
+	if err == nil {
+		iECEnabled, err := strconv.Atoi(strECEnabled)
+		if err == nil {
+			config.ECEnabled = iECEnabled
+		}
+	}
+	//Set ACIToken
+	strACIToken, err := handlers.GetSetting("aci.token")
+	if err == nil {
+		config.ACIToken = strACIToken
+	}
+	//Set ECDevices
+	strECDevices, err := handlers.LoadEcDevices()
+	if err == nil {
+		config.ECDevices = strECDevices
+	}
+	//Set Activities
+	config.Activities = handlers.GetActivities()
+	//Set Metrics
+	config.Metrics = handlers.GetMetrics()
+	//Set Statuses
+	config.Statuses = handlers.GetStatuses()
+	//Set Zones
+	config.Zones = handlers.GetZones()
+	//Set Strains
+	config.Strains = handlers.GetStrains()
+	//Set Breeders
+	config.Breeders = handlers.GetBreeders()
 
 	// Serve static files
 	r.Static("/static", "./web/static")

@@ -104,6 +104,11 @@
                     const soilKey = sensor.zone + ":" + sensor.device + ":Soil";
                     grouped[soilKey] = grouped[soilKey] || [];
                     grouped[soilKey].push(sensor);
+                } else if(sensor.type.startsWith("ACIP.")) {
+                    // Group ACIP sensors
+                    const acipKey = sensor.zone + ":" + sensor.device + ":ACIP";
+                    grouped[acipKey] = grouped[acipKey] || [];
+                    grouped[acipKey].push(sensor);
                 } else {
                     grouped[key] = grouped[key] || [];
                     grouped[key].push(sensor);

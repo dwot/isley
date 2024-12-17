@@ -2,23 +2,18 @@ package routes
 
 import (
 	"github.com/gin-gonic/gin"
+	"isley/config"
 	"isley/handlers"
 	"net/http"
 )
 
 func AddProtectedRotues(r *gin.RouterGroup, version string) {
-
-	plants, _ := handlers.GetLivingPlants()
-	activities := handlers.GetActivities()
-
 	r.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "views/index.html", gin.H{
-			"title":        "Dashboard",
-			"version":      version,
-			"plantList":    handlers.GetPlantList(),
-			"sensorLatest": handlers.GetSensorLatest(),
-			"plants":       plants,
-			"activities":   activities,
+			"title":      "Dashboard",
+			"version":    version,
+			"plants":     handlers.GetLivingPlants(),
+			"activities": config.Activities,
 		})
 	})
 
@@ -26,13 +21,12 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 		c.HTML(http.StatusOK, "views/plants.html", gin.H{
 			"title":      "Plants",
 			"version":    version,
-			"plantList":  handlers.GetPlantList(),
-			"zones":      handlers.GetZones(),
-			"strains":    handlers.GetStrains(),
-			"statuses":   handlers.GetStatuses(),
-			"breeders":   handlers.GetBreederList(),
-			"plants":     plants,
-			"activities": activities,
+			"zones":      config.Zones,
+			"strains":    config.Strains,
+			"statuses":   config.Statuses,
+			"breeders":   config.Breeders,
+			"plants":     handlers.GetLivingPlants(),
+			"activities": config.Activities,
 		})
 	})
 
@@ -40,10 +34,10 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 		c.HTML(http.StatusOK, "views/strains.html", gin.H{
 			"title":      "Strains",
 			"version":    version,
-			"strains":    handlers.GetStrains(),
-			"breeders":   handlers.GetBreederList(),
-			"plants":     plants,
-			"activities": activities,
+			"strains":    config.Strains,
+			"breeders":   config.Breeders,
+			"plants":     handlers.GetLivingPlants(),
+			"activities": config.Activities,
 		})
 	})
 
@@ -53,8 +47,8 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"version":    version,
 			"SensorID":   c.Param("id"),
 			"SensorName": handlers.GetSensorName(c.Param("id")),
-			"plants":     plants,
-			"activities": activities,
+			"plants":     handlers.GetLivingPlants(),
+			"activities": config.Activities,
 		})
 	})
 
@@ -63,14 +57,14 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"title":        "Plant Details",
 			"version":      version,
 			"plant":        handlers.GetPlant(c.Param("id")),
-			"zones":        handlers.GetZones(),
-			"strains":      handlers.GetStrains(),
-			"statuses":     handlers.GetStatuses(),
-			"breeders":     handlers.GetBreederList(),
-			"measurements": handlers.GetMeasurements(),
+			"zones":        config.Zones,
+			"strains":      config.Strains,
+			"statuses":     config.Statuses,
+			"breeders":     config.Breeders,
+			"measurements": config.Metrics,
 			"sensors":      handlers.GetSensors(),
-			"plants":       plants,
-			"activities":   activities,
+			"plants":       handlers.GetLivingPlants(),
+			"activities":   config.Activities,
 		})
 	})
 
@@ -79,10 +73,10 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"title":      "Settings",
 			"version":    version,
 			"settings":   handlers.GetSettings(),
-			"zones":      handlers.GetZones(),
-			"metrics":    handlers.GetMeasurements(),
-			"plants":     plants,
-			"activities": activities,
+			"zones":      config.Zones,
+			"metrics":    config.Metrics,
+			"plants":     handlers.GetLivingPlants(),
+			"activities": config.Activities,
 		})
 	})
 
@@ -92,9 +86,9 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"version":    version,
 			"settings":   handlers.GetSettings(),
 			"sensors":    handlers.GetSensors(),
-			"zones":      handlers.GetZones(),
-			"plants":     plants,
-			"activities": activities,
+			"zones":      config.Zones,
+			"plants":     handlers.GetLivingPlants(),
+			"activities": config.Activities,
 		})
 	})
 
@@ -103,8 +97,8 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"title":      "Graphs",
 			"version":    version,
 			"sensors":    handlers.GetGroupedSensors(),
-			"plants":     plants,
-			"activities": activities,
+			"plants":     handlers.GetLivingPlants(),
+			"activities": config.Activities,
 		})
 	})
 
