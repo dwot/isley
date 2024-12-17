@@ -1,105 +1,166 @@
-# Isley
+# 🌱 Isley - Your Self-Hosted Cannabis Grow Journal
 
-Isley is a self-hosted cannabis grow journal.
+Isley is a self-hosted cannabis grow journal designed to help homegrowers 🌿 track and monitor their plants. With a clean interface and integrations with popular grow equipment, Isley makes managing your grow simple and effective.
 
-![Isley Dashboard](https://isley.dwot.io/images/dashboard.png)
+I created Isley because it was the tool I wanted but couldn't find. Existing options were limited to phone apps and websites that either didn’t work how I hoped or didn’t work at all. I wanted a single, self-hosted solution to replace:
+- 🌡️ Vendor apps for sensor data and graphs.
+- 📝 Spreadsheets for seed, harvest, and progress tracking.
+- 🗒️ Notepads and memory for feeding/watering history and notes.
 
-## Features
- - Integrates with AC Infinity controllers, tracking temperature, humidity and VPD
- - Integrates with Ecowitt soil sensors to track soil moisture
+Isley doesn't aim to revolutionize your grow. It centralizes your tools into one convenient interface, helping you **track, trend, and elevate your grow**.
 
-![Isley Sensors](https://isley.dwot.io/images/isley_sensors.png)
+For full details, screenshots, and feature highlights, visit our official site 🌐 at [https://isley.dwot.io](https://isley.dwot.io).
 
-- Sensor Data Graphed and presented in a dashboard
+---
 
-![Isley Graphs](https://isley.dwot.io/images/graphs.png)
+## 🚀 Key Features
 
-- Track your grow from seed to harvest
-- Notes, Photos, measurements, feedings, waterings, trimmings, trainings, and more all trackable
+- **📒 Grow Logs**: Track plant growth, watering, and feeding schedules.
+- **🌡️ Environmental Monitoring**: View real-time data from grow equipment (AC Infinity, Ecowitt).
+- **📸 Image Uploads**: Attach photos to your grow logs for visual tracking.
+- **🌱 Seed Inventory**: Manage your seed collection and strain library.
+- **📊 Harvest Tracking**: Record harvest details and yields.
+- **📈 Graphs and Charts**: Visualize environmental data and plant progress over time.
+- **⚙️ Customizable Settings**: Add custom activities and measurements for your grow.
+- **📱 Mobile-Friendly**: Works on desktop and mobile devices for convenience.
 
-  ![Isley Plant Data](https://isley.dwot.io/images/isley_plant.png)
+---
 
-- Maintain a seed inventory with strain library
-- More features being actively including:
-  - Alerting
-  - Additional Sensor Sources
-  - AC Infinity Device Monitoring
-  - Harvest Tracking
-  - and more 
+## 🛠️ Features on the Roadmap
 
-# Installation
+- **🌍 Internationalization**: Support for multiple languages.
+- **🔔 Alerts and Notifications**: Set custom alerts for environmental conditions.
+- **📦 Export and Backup**: Download your grow data for offline storage.
+- **📷 Webcam Feeds**: Integrate live webcam feeds for visual monitoring.
+- **🗒️ Logging and Debugging**: Improved logging and debugging tools for troubleshooting.
 
-Isley runs on Docker. To get started, you will need to have Docker installed on your system. If you don’t already have Docker, you can find instructions for installing it [here](https://docs.docker.com/get-docker/). For an easier setup, we also recommend installing Docker Compose, with installation instructions available [here](https://docs.docker.com/compose/install/).
+--- 
 
-## Quick Start
+## 🚀 Quick Start
 
-Follow these steps to install and run Isley:
+Isley runs either on **Docker** 🐳 or as a **Windows Executable** 💻. For Docker deployments, it is recommended to use a reverse proxy for production setups to manage external access.
 
-### Option 1: Using `docker-compose` (Recommended)
+If you don’t already have Docker, follow the [Docker installation instructions](https://docs.docker.com/get-docker/). For `docker-compose`, you can install it [here](https://docs.docker.com/compose/install/).
 
-1. **Clone the Repository:**
-   ```bash
-   git clone https://github.com/dwot/isley.git
-   cd isley
+For Windows, running the executable from the command line allows you to see useful output logs. You can also configure it to run as a service.
+
+---
+
+### 🐳 Option 1: Using Docker Hub (Recommended)
+
+Run Isley directly from the prebuilt Docker image hosted on Docker Hub.
+
+1. **Run Isley Using Docker Compose**:
+   Create a `docker-compose.yml` file:
+
+   ```yaml
+   version: '3.8'
+
+   services:
+     isley:
+       image: dwot/isley:latest
+       ports:
+         - "8080:8080"
+       environment:
+         - ISLEY_PORT=8080
+       volumes:
+         - isley-db:/app/data
+         - isley-uploads:/app/uploads
+       restart: unless-stopped
+
+   volumes:
+     isley-db:
+     isley-uploads:
    ```
 
-2. **Run Isley Using Docker Compose:**
+2. **Start the Container**:
    ```bash
    docker-compose up -d
    ```
 
-3. **Access Isley:**
-   Open your web browser and navigate to `http://localhost:8080`.
+3. **Access Isley**:
+    - Open your browser and go to:
+        - `http://localhost:8080` if running locally.
+        - `http://<server-ip>:8080` if running remotely.
+    - **Default Username**: `admin`  
+      **Default Password**: `isley`  
+      You will be prompted to change your password on the first login.
+
+4. **Data Persistence**:
+   Isley stores all data in the following directories:
+    - `/data`: For database storage.
+    - `/uploads`: For storing image uploads.
+
+   These directories are mapped to Docker volumes (or bind mounts). Ensure you **do not delete or recreate** these directories during updates. Add them to your **backup process** to prevent data loss.
 
 ---
 
-### Option 2: Using `docker run`
+### 💻 Option 2: Using Windows Executable
 
-If you prefer to run Isley manually using `docker run`, follow these steps:
+1. **Download the Executable**:
+    - Visit the [Releases Page](https://github.com/dwot/isley/releases) and download the latest `isley.exe` file.
 
-1. **Clone the Repository:**
-   ```bash
-   git clone https://github.com/dwot/isley.git
-   cd isley
-   ```
-
-2. **Build the Docker Image:**
-   ```bash
-   docker build -t isley .
-   ```
-
-3. **Create Persistent Docker Volumes:**
-    - Create a volume for the database:
+2. **Run Isley**:
+    - Open a command prompt and navigate to the folder containing `isley.exe`.
+    - Set a custom port (if needed) using the `ISLEY_PORT` environment variable:
       ```bash
-      docker volume create isley-db
+      set ISLEY_PORT=8080
+      isley.exe
       ```
-    - Create a volume for uploads:
+    - Open your browser and navigate to:
+        - `http://localhost:8080` if running locally.
+        - `http://<server-ip>:8080` if accessing remotely.
+
+    - **Default Username**: `admin`  
+      **Default Password**: `isley`  
+      You will be prompted to change your password on the first login.
+
+3. **Data Storage**:
+   Isley persists all data in the following directories created alongside the executable:
+    - `data/`: For database storage.
+    - `uploads/`: For storing image uploads.
+
+   Add these directories to your **backup process** to avoid data loss.
+
+4. **Run as a Service (Optional)**:
+    - Use tools like **NSSM** (Non-Sucking Service Manager) to set up Isley as a Windows service:
       ```bash
-      docker volume create isley-uploads
+      nssm install Isley "C:\path\to\isley.exe"
+      nssm start Isley
       ```
-
-4. **Run the Docker Container:**
-   ```bash
-   docker run -d -p 8080:8080 -v isley-db:/app/db -v isley-uploads:/app/uploads isley
-   ```
-
-5. **Access Isley:**
-   Open your web browser and navigate to `http://localhost:8080`.  The default username is `admin` and the default password is `isley`.
 
 ---
 
-### Notes
+## ⚙️ Configuration
 
-- By default, Isley runs on port `8080`. If you need to use a different port, update the `docker-compose.yml` file or modify the `-p` option in the `docker run` command accordingly (e.g., `-p 9090:8080` to use port `9090`).
-- Both methods achieve the same result. Using `docker-compose` is simpler and more suitable for most users.
-- Make sure you have enough disk space available for the Docker volumes to store data and uploads.
+All settings are configurable via the **Settings icon** in the app. You can:
 
-If you encounter any issues during installation or setup, please refer to the documentation or open an issue in the repository.
+- 🔧 Enable/disable integrations (e.g., AC Infinity, Ecowitt).
+- 🔑 Set API keys or server IPs for integrations.
+- 🔍 Scan for devices and start data collection.
 
-## Configuration
-At this point the only settings are via the Settings icon from the menu in the app. You can enable/disable the AC Infinity and Ecowitt integrations, and set the API keys or Server IP for those integrations.  Once these integrations are set and enabled, two buttons will appear on the sensors page to scan for the devices and start the data collection.
+To override the default port, set the `ISLEY_PORT` environment variable:
+```bash
+ISLEY_PORT=8080
+```
 
-To start tracking a grow, click the Plants icon from the menu and then click Add Plant.  Fill in the details and click Save.  You can now add notes, photos, measurements, feedings, waterings, trimmings, trainings, and more to your plant.
+---
 
-## Notes
-Isley is still in development and very much in flux.  While we will endeavor to maintain compatibility, there may be breaking changes as we continue to develop the app.  We'll try not to break anything too badly, but be aware that it could happen.  Report any issues and be patient as we work to develop Isley into a full-featured grow journal.
+## 📝 Notes
+
+- Isley is still in **active development** 🚧. While we strive to avoid breaking changes, improvements are ongoing.
+- Found a bug or have suggestions? Report them on the [GitHub repository](https://github.com/dwot/isley/issues).
+
+---
+
+## 🛡️ Recommendations
+
+For production deployments:
+- 🐳 Use **Docker** with a reverse proxy (e.g., Nginx, Traefik) to handle external access and TLS.
+- 💾 **Backup Directories**:
+    - `/data` for database storage.
+    - `/uploads` for image uploads.
+- 🚫 Avoid deleting or recreating these directories during updates.
+- 🔧 Use a Windows service manager to run Isley executable for long-term uptime.
+
+🌐 For more details, screenshots, and the latest updates, visit: [https://isley.dwot.io](https://isley.dwot.io).

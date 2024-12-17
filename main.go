@@ -16,18 +16,25 @@ import (
 	"isley/watcher"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 )
 
-//go:embed model/migrations/*.sql web/templates/* web/static/*  utils/fonts/* VERSION
+//go:embed model/migrations/*.sql web/templates/* web/static/**/*  utils/fonts/* VERSION
 var embeddedFiles embed.FS
 
 func main() {
 	// Set version
 	version := fmt.Sprintf("Isley %s", getVersion())
 	fmt.Println("Starting application version:", version)
+
+	// Define the port
+	port := os.Getenv("ISLEY_PORT")
+	if port == "" {
+		port = "8080" // Default port if environment variable PORT is not set
+	}
 
 	model.MigrateDB()
 
@@ -91,12 +98,17 @@ func main() {
 	// Load settings (PollingInterval, ACIEnabled, etc.)
 	loadSettings()
 
-	// Serve embedded static files
-	staticFS := http.FS(embeddedFiles)
-	r.StaticFS("/static", staticFS)
-
 	r.Static("/uploads", "./uploads")
-	r.StaticFile("/favicon.ico", "./web/static/img/favicon.ico")
+
+	r.GET("/static/*filepath", func(c *gin.Context) {
+		filePath := fmt.Sprintf("web/static%s", c.Param("filepath"))
+		data, err := embeddedFiles.ReadFile(filePath)
+		if err != nil {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		http.ServeContent(c.Writer, c.Request, filePath, time.Now(), strings.NewReader(string(data)))
+	})
 
 	// Initialize session store
 	store := cookie.NewStore([]byte("secret"))
@@ -113,6 +125,17 @@ func main() {
 
 	r.GET("/logout", func(c *gin.Context) {
 		handleLogout(c)
+	})
+	r.GET("/favicon.ico", func(c *gin.Context) {
+		// Open the favicon from the embedded filesystem
+		faviconData, err := embeddedFiles.ReadFile("web/static/img/favicon.ico")
+		if err != nil {
+			c.String(500, "Failed to load favicon")
+			return
+		}
+
+		// Write the favicon data to the response
+		c.Data(200, "image/x-icon", faviconData)
 	})
 
 	protected := r.Group("/")
@@ -132,9 +155,10 @@ func main() {
 	}
 
 	// Start the server
-	if err := r.Run(":8080"); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	if err := r.Run(":" + port); err != nil {
+		log.Fatalf("Failed to start server on port %s: %v", port, err)
 	}
+	log.Printf("Server started on port %s", port)
 }
 
 // Helper functions

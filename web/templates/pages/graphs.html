@@ -157,6 +157,8 @@
                                 graphsContainer.appendChild(graphDiv);
 
                                 fetchSensorData(grouped, queryParams, `chart-${groupKey}`);
+
+
                             });
                         });
                     });
@@ -166,9 +168,33 @@
                 .catch(err => console.error("Error fetching grouped sensors:", err));
         };
 
+        const retryFetch = (url, retries = 3, delay = 500) => {
+            return new Promise((resolve, reject) => {
+                const attemptFetch = (attempt) => {
+                    fetch(url)
+                        .then((response) => {
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! Status: ${response.status}`);
+                            }
+                            resolve(response.json());
+                        })
+                        .catch((err) => {
+                            if (attempt <= retries) {
+                                console.warn(`Retrying ${url} (Attempt ${attempt} of ${retries})...`);
+                                setTimeout(() => attemptFetch(attempt + 1), delay * attempt);
+                            } else {
+                                reject(err);
+                            }
+                        });
+                };
+
+                attemptFetch(1);
+            });
+        };
+
         const fetchSensorData = (sensors, queryParams, chartId) => {
             const requests = sensors.map(sensor =>
-                fetch(`/sensorData?sensor=${sensor.id}&${queryParams}`).then(response => response.json())
+                retryFetch(`/sensorData?sensor=${sensor.id}&${queryParams}`, 3, 500)
             );
 
             Promise.all(requests)

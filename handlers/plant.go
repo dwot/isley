@@ -1140,7 +1140,7 @@ func getPlantsByStatus(statuses []int) ([]PlantTableResponse, error) {
 }
 
 func GetLivingPlants() []PlantTableResponse {
-	statuses := []int{2, 3, 4} // Seedling, Veg, Flower
+	statuses := []int{1, 2, 3} // Seedling, Veg, Flower
 	result, _ := getPlantsByStatus(statuses)
 	return result
 }
@@ -1153,7 +1153,7 @@ func LivingPlantsHandler(c *gin.Context) {
 
 // HarvestedPlantsHandler handles the /plants/harvested endpoint.
 func HarvestedPlantsHandler(c *gin.Context) {
-	statuses := []int{7, 5, 6} // Success
+	statuses := []int{4, 5, 6} // Success
 	plants, err := getPlantsByStatus(statuses)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve plants"})
@@ -1165,7 +1165,7 @@ func HarvestedPlantsHandler(c *gin.Context) {
 
 // DeadPlantsHandler handles the /plants/dead endpoint.
 func DeadPlantsHandler(c *gin.Context) {
-	statuses := []int{8} // Dead
+	statuses := []int{7} // Dead
 	plants, err := getPlantsByStatus(statuses)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve plants"})

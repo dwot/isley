@@ -196,6 +196,16 @@
         let sortColumn = null;
         let sortDirection = "asc";
 
+        const setActiveButton = (clickedButton) => {
+            viewButtons.forEach(button => {
+                if (button === clickedButton) {
+                    button.classList.add("active"); // Add active class to clicked button
+                } else {
+                    button.classList.remove("active"); // Remove active class from others
+                }
+            });
+        };
+
         const fetchPlants = (view) => {
             fetch(`/plants/${view}`)
                 .then(response => response.json())
@@ -277,20 +287,19 @@
             });
         };
 
-        // Event listeners
+        // Handle view button click
         viewButtons.forEach(button => {
             button.addEventListener("click", () => {
-                currentView = button.dataset.view;
-                fetchPlants(currentView);
-
-                viewButtons.forEach(btn => btn.classList.remove("btn-primary"));
-                button.classList.add("btn-primary");
+                currentView = button.dataset.view; // Update current view
+                setActiveButton(button); // Update active button visually
+                fetchPlants(currentView); // Fetch plants based on selected view
             });
         });
 
         searchPlants.addEventListener("input", updateTable);
 
-        // Initial data fetch
+        /// Fetch initial data and set active button
+        setActiveButton(document.querySelector('.view-button.active'));
         fetchPlants(currentView);
     });
 </script>
