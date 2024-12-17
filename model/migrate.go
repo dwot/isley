@@ -2,37 +2,75 @@ package model
 
 import (
 	"database/sql"
+	"embed"
 	"fmt"
 	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/sqlite"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/golang-migrate/migrate/v4/database/sqlite"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"log"
+	"os"
 )
+
+//go:embed migrations/*.sql
+var migrationsFS embed.FS
 
 func DbPath() string {
 	return "data/isley.db?_journal_mode=WAL"
 }
 
 func MigrateDB() {
-	// Init the db
-	//Check to see if WAL mode is enabled
+	// Ensure the data directory exists
+	dataDir := "data"
+	if err := os.MkdirAll(dataDir, os.ModePerm); err != nil {
+		log.Fatalf("Failed to create data directory: %v", err)
+	}
+
+	// Enforce WAL mode before running migrations
 	enforceWalMode()
 
 	fmt.Println("Migrating database")
-	m, err := migrate.New(
-		"file://migrations",
-		"sqlite://"+DbPath())
+
+	// Open the database
+	db, err := sql.Open("sqlite", DbPath())
 	if err != nil {
-		fmt.Print(err)
+		log.Fatalf("Error opening database: %v", err)
 	}
-	err = m.Up()
+	defer db.Close()
+
+	// Initialize the SQLite driver for golang-migrate
+	driver, err := sqlite.WithInstance(db, &sqlite.Config{})
 	if err != nil {
-		fmt.Print(err)
+		log.Fatalf("Failed to create SQLite driver: %v", err)
 	}
 
+	// Use iofs to load migrations from the embedded filesystem
+	sourceDriver, err := iofs.New(migrationsFS, "migrations")
+	if err != nil {
+		log.Fatalf("Failed to load migrations from embedded filesystem: %v", err)
+	}
+
+	// Create the migrate instance
+	m, err := migrate.NewWithInstance("iofs", sourceDriver, "sqlite", driver)
+	if err != nil {
+		log.Fatalf("Failed to initialize migration: %v", err)
+	}
+
+	// Run the migrations
+	err = m.Up()
+	if err != nil && err != migrate.ErrNoChange {
+		log.Fatalf("Error applying migrations: %v", err)
+	}
+
+	fmt.Println("Database migrated successfully")
 }
 
 func enforceWalMode() {
+	// Ensure the data directory exists
+	dataDir := "data"
+	if err := os.MkdirAll(dataDir, os.ModePerm); err != nil {
+		log.Fatalf("Failed to create data directory: %v", err)
+	}
+
 	// Open the database
 	db, err := sql.Open("sqlite", DbPath())
 	if err != nil {
