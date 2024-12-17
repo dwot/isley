@@ -1,0 +1,64 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+jobs:
+  build:
+    name: Build and Release Artifacts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.21
+
+      - name: Set Version
+        id: version
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "version=$(cat VERSION)" >> $GITHUB_ENV
+          else
+            echo "version=dev" >> $GITHUB_ENV
+          fi
+
+      - name: Print Version
+        run: echo "Building version ${{ env.version }}"
+
+      - name: Build Linux Binary
+        run: |
+          GOOS=linux GOARCH=amd64 go build -ldflags="-w -s -X main.version=${{ env.version }}" -o isley-linux
+
+      - name: Build Windows Binary
+        run: |
+          GOOS=windows GOARCH=amd64 go build -ldflags="-w -s -X main.version=${{ env.version }}" -o isley.exe
+
+      - name: Build Docker Image
+        run: |
+          docker build -t isley:${{ env.version }} .
+
+      - name: Push Docker Image (Main Branch Only)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+          docker tag isley:${{ env.version }} dwot/isley:${{ env.version }}
+          docker tag isley:${{ env.version }} dwot/isley:latest
+          docker push dwot/isley:${{ env.version }}
+          docker push dwot/isley:latest
+
+      - name: Release Artifacts (Main Branch Only)
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ env.version }}
+          name: Release v${{ env.version }}
+          files: |
+            isley-linux
+            isley.exe
