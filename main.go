@@ -16,13 +16,12 @@ import (
 	"isley/watcher"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 )
 
-//go:embed model/migrations/*.sql web/templates/* web/static/* utils/fonts/*
+//go:embed model/migrations/*.sql web/templates/* web/static/*  utils/fonts/* VERSION
 var embeddedFiles embed.FS
 
 func main() {
@@ -273,7 +272,8 @@ func ForcePasswordChangeMiddleware() gin.HandlerFunc {
 }
 
 func getVersion() string {
-	data, err := os.ReadFile("VERSION")
+	// Read the VERSION file from the embedded filesystem
+	data, err := embeddedFiles.ReadFile("VERSION")
 	if err != nil {
 		return "dev" // fallback to "dev" for local builds
 	}
