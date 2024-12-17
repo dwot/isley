@@ -1,10 +1,18 @@
 package utils
 
 import (
+	"embed"
 	"fmt"
 	"github.com/fogleman/gg"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/opentype"
 	"image/color"
 )
+
+// Embed the fonts directory
+//
+//go:embed fonts/*
+var embeddedFonts embed.FS
 
 type TextObject struct {
 	Text        string
@@ -82,9 +90,30 @@ func ProcessImageWithTextOverlay(req TextOverlayRequest) error {
 	for _, textObj := range req.TextObjects {
 		// Calculate scaled font size
 		fontSize := (imgHeight / 20) * textObj.FontScale
-		if err := dc.LoadFontFace(textObj.FontPath, fontSize); err != nil {
-			return fmt.Errorf("failed to load font: %w", err)
+		// Load font from the embedded FS
+		fontData, err := embeddedFonts.ReadFile(textObj.FontPath) // Embedded font path
+		if err != nil {
+			return fmt.Errorf("failed to read embedded font: %w", err)
 		}
+
+		// Parse the font using opentype
+		parsedFont, err := opentype.Parse(fontData)
+		if err != nil {
+			return fmt.Errorf("failed to parse font data: %w", err)
+		}
+
+		// Create a font face with the desired size
+		fontFace, err := opentype.NewFace(parsedFont, &opentype.FaceOptions{
+			Size:    fontSize,
+			DPI:     72,
+			Hinting: font.HintingFull,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create font face: %w", err)
+		}
+
+		// Set the font face in the drawing context
+		dc.SetFontFace(fontFace)
 
 		// Measure text dimensions
 		_, textHeight := dc.MeasureString(textObj.Text)

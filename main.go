@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-//go:embed model/migrations/*.sql web/templates/* web/static/* fonts/* VERSION
+//go:embed model/migrations/*.sql web/templates/* web/static/*  utils/fonts/* VERSION
 var embeddedFiles embed.FS
 
 func main() {

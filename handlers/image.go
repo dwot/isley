@@ -32,9 +32,9 @@ func DecorateImageHandler(c *gin.Context) {
 	logoFile, _ := GetSetting("logo_image")
 	logoPath := fmt.Sprintf("./uploads/logos/%s", logoFile)
 	if logoPath == "" {
-		logoPath = "./web/static/img/placeholder.png"
+		logoPath = "web/static/img/placeholder.png"
 	}
-	fontPath := "./fonts/Anton-Regular.ttf" // Replace with your font path
+	fontPath := "fonts/Anton-Regular.ttf" // Replace with your font path
 
 	// Create overlay request
 	overlayReq := utils.TextOverlayRequest{
