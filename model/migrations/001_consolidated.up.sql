@@ -14,19 +14,20 @@ CREATE TRIGGER trg_settings_create_dt
 BEGIN
     UPDATE settings
     SET create_dt = CURRENT_TIMESTAMP,
-    update_dt = CURRENT_TIMESTAMP
+        update_dt = CURRENT_TIMESTAMP
     WHERE id = NEW.id;
 END;
 
 -- Trigger to set update_dt on insert or update
 CREATE TRIGGER trg_settings_update_dt
     AFTER UPDATE ON settings
-                        FOR EACH ROW
+    FOR EACH ROW
 BEGIN
-UPDATE settings
-SET update_dt = CURRENT_TIMESTAMP
-WHERE id = NEW.id;
+    UPDATE settings
+    SET update_dt = CURRENT_TIMESTAMP
+    WHERE id = NEW.id;
 END;
+
 
 -- Create the zones table
 CREATE TABLE zones (
@@ -57,19 +58,21 @@ BEGIN
     WHERE id = NEW.id;
 END;
 
--- Create the sensor table
+
+-- Create the sensor table with optional zone_id
 CREATE TABLE sensors (
                          id INTEGER PRIMARY KEY AUTOINCREMENT,
                          name TEXT NOT NULL,
-                         zone_id INTEGER NOT NULL,
+                         zone_id INTEGER, -- Make zone_id optional (NULL allowed)
                          source TEXT NOT NULL, -- integration type i.e. acinfinity, ecowitt, etc
                          device TEXT NOT NULL, -- device unique id from source
                          type TEXT NOT NULL, -- sensor type i.e. temperature, humidity, etc
                          create_dt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                          update_dt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                         FOREIGN KEY (zone_id) REFERENCES zones(id)
+                         show BOOLEAN NOT NULL DEFAULT TRUE,
+                         unit VARCHAR(255) NOT NULL DEFAULT 'units',
+                         FOREIGN KEY (zone_id) REFERENCES zones(id) ON DELETE SET NULL
 );
-
 -- Trigger to set create_dt on insert
 CREATE TRIGGER trg_sensors_create_dt
     AFTER INSERT ON sensors
@@ -104,11 +107,13 @@ CREATE TABLE sensor_data (
 CREATE TABLE strain (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         name TEXT NOT NULL,
-                        breeder TEXT NOT NULL,
                         sativa INTEGER NOT NULL,
                         indica INTEGER NOT NULL,
                         autoflower INTEGER NOT NULL,
-                        description TEXT NOT NULL
+                        description TEXT NOT NULL,
+                        seed_count INT NOT NULL DEFAULT 0,
+                        breeder_id INTEGER NOT NULL,
+                        FOREIGN KEY (breeder_id) REFERENCES breeder(id)
 );
 
 -- Create the plant_status table
@@ -118,8 +123,7 @@ CREATE TABLE plant_status (
                               active INTEGER NOT NULL
 );
 
--- Load the plant_status table
-INSERT INTO plant_status (status, active) VALUES ('Seed', 0);
+
 INSERT INTO plant_status (status, active) VALUES ('Seedling', 1);
 INSERT INTO plant_status (status, active) VALUES ('Veg', 1);
 INSERT INTO plant_status (status, active) VALUES ('Flower', 1);
@@ -132,15 +136,17 @@ INSERT INTO plant_status (status, active) VALUES ('Dead', 0);
 CREATE TABLE plant (
                        id INTEGER PRIMARY KEY AUTOINCREMENT,
                        name TEXT NOT NULL,
-                       status_id INTEGER NOT NULL,
                        description TEXT NOT NULL,
                        clone INTEGER NOT NULL,
                        strain_id INTEGER NOT NULL,
-                       zone_id INTEGER NOT NULL,
+                       zone_id INTEGER,
                        start_dt DATETIME,
+                       sensors TEXT NOT NULL DEFAULT '[]',
+                       harvest_weight DECIMAL(10,2) DEFAULT 0,
                        FOREIGN KEY (strain_id) REFERENCES strain(id),
-                       FOREIGN KEY (zone_id) REFERENCES zones(id)
+                       FOREIGN KEY (zone_id) REFERENCES zones(id) ON DELETE SET NULL
 );
+
 
 -- Create the plant_status_log table
 CREATE TABLE plant_status_log (
@@ -152,27 +158,18 @@ CREATE TABLE plant_status_log (
                                   FOREIGN KEY (status_id) REFERENCES plant_status(id)
 );
 
--- Create the plant_note table
-CREATE TABLE plant_note (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            plant_id INTEGER NOT NULL,
-                            note TEXT NOT NULL,
-                            date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                            FOREIGN KEY (plant_id) REFERENCES plant(id)
-);
 
 -- Create the metric table
 CREATE TABLE metric (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         name TEXT NOT NULL,
-                        unit TEXT NOT NULL
+                        unit TEXT NOT NULL,
+                        lock BOOLEAN DEFAULT FALSE
 );
 
 -- Load the metric table
-INSERT INTO metric (name, unit) VALUES ('Temperature', 'F');
-INSERT INTO metric (name, unit) VALUES ('Humidity', '%');
-INSERT INTO metric (name, unit) VALUES ('Light Intensity', 'PPFD');
-INSERT INTO metric (name, unit) VALUES ('Height', 'in');
+INSERT INTO metric (name, unit, lock) VALUES ('Height', 'in', TRUE);
+
 
 -- Create the plant_measurements table
 CREATE TABLE plant_measurements (
@@ -188,18 +185,14 @@ CREATE TABLE plant_measurements (
 -- Create the activity table
 CREATE TABLE activity (
                           id INTEGER PRIMARY KEY AUTOINCREMENT,
-                          name TEXT NOT NULL
+                          name TEXT NOT NULL,
+                          lock BOOLEAN DEFAULT FALSE
 );
 
 -- Load the activity table
-INSERT INTO activity (name) VALUES ('Water');
-INSERT INTO activity (name) VALUES ('Feed');
-INSERT INTO activity (name) VALUES ('Trim');
-INSERT INTO activity (name) VALUES ('Transplant');
-INSERT INTO activity (name) VALUES ('Clone');
-INSERT INTO activity (name) VALUES ('Light Change');
-INSERT INTO activity (name) VALUES ('Environment Change');
-INSERT INTO activity (name) VALUES ('Train');
+INSERT INTO activity (name, lock) VALUES ('Water', TRUE);
+INSERT INTO activity (name, lock) VALUES ('Feed', TRUE);
+INSERT INTO activity (name, lock) VALUES ('Note', TRUE);
 
 -- Create the plant_activity table
 CREATE TABLE plant_activity (
@@ -212,3 +205,20 @@ CREATE TABLE plant_activity (
                                 FOREIGN KEY (activity_id) REFERENCES activity(id)
 );
 
+CREATE TABLE plant_images (
+                              id INTEGER PRIMARY KEY AUTOINCREMENT,
+                              plant_id INT NOT NULL,
+                              image_path VARCHAR(255) NOT NULL,
+                              image_description TEXT,
+                              image_order INT NOT NULL DEFAULT 0,
+                              image_date DATE,
+                              created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                              updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE breeder (
+                         id INTEGER PRIMARY KEY AUTOINCREMENT,
+                         name VARCHAR(255) NOT NULL
+);
+
+INSERT INTO settings (name, value) VALUES ('polling_interval', '60');

@@ -1,1 +1,0 @@
-ALTER TABLE plant DROP COLUMN harvest_weight;
