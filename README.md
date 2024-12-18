@@ -1,4 +1,4 @@
-# 🌱 Isley - Your Self-Hosted Cannabis Grow Journal
+# 🌱 Isley - Self-Hosted Cannabis Grow Journal
 
 Isley is a self-hosted cannabis grow journal designed to help homegrowers 🌿 track and monitor their plants. With a clean interface and integrations with popular grow equipment, Isley makes managing your grow simple and effective.
 
@@ -8,6 +8,8 @@ I created Isley because it was the tool I wanted but couldn't find. Existing opt
 - 🗒️ Notepads and memory for feeding/watering history and notes.
 
 Isley doesn't aim to revolutionize your grow. It centralizes your tools into one convenient interface, helping you **track, trend, and elevate your grow**.
+
+![Isley Dashboard](https://isley.dwot.io/images/dashboard.png?raw=true)
 
 For full details, screenshots, and feature highlights, visit our official site 🌐 at [https://isley.dwot.io](https://isley.dwot.io).
 
