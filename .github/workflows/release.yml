@@ -58,7 +58,7 @@ jobs:
 
       - name: Release Artifacts (Main Branch Only)
         if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844
         with:
           tag_name: v${{ env.version }}
           name: Release v${{ env.version }}

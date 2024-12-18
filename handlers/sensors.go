@@ -8,26 +8,15 @@ import (
 	"github.com/gin-gonic/gin"
 	"io"
 	"isley/config"
+	"isley/logger"
 	"isley/model"
 	"isley/model/types"
-	"log"
+	"net"
 	"net/http"
+	"regexp"
 	"sync"
 	"time"
 )
-
-type SensorResponse struct {
-	ID       int    `json:"id"`
-	Name     string `json:"name"`
-	Zone     string `json:"zone"`
-	Source   string `json:"source"`
-	Device   string `json:"device"`
-	Type     string `json:"type"`
-	Show     bool   `json:"show"`
-	Unit     string `json:"unit"`
-	CreateDT string `json:"create_dt"`
-	UpdateDT string `json:"update_dt"`
-}
 
 var (
 	sensorCache          map[string]map[string][]map[string]interface{}
@@ -36,9 +25,10 @@ var (
 )
 
 func GetSensors() []map[string]interface{} {
+	fieldLogger := logger.Log.WithField("func", "GetSensors")
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println("Error opening database:", err)
+		fieldLogger.WithError(err).Error("Error opening database")
 		return nil
 	}
 	defer db.Close()
@@ -52,7 +42,7 @@ func GetSensors() []map[string]interface{} {
         ORDER BY s.source, s.device, s.type, s.name
     `)
 	if err != nil {
-		fmt.Println("Error querying sensors:", err)
+		fieldLogger.WithError(err).Error("Error querying sensors")
 		return nil
 	}
 	defer rows.Close()
@@ -68,7 +58,7 @@ func GetSensors() []map[string]interface{} {
 		// Scan the row data
 		err := rows.Scan(&id, &name, &zone, &source, &device, &sensorType, &show, &createDT, &updateDT, &zoneId, &unit)
 		if err != nil {
-			fmt.Println("Error scanning row:", err)
+			fieldLogger.WithError(err).Error("Error scanning row")
 			continue
 		}
 
@@ -92,12 +82,16 @@ func GetSensors() []map[string]interface{} {
 }
 
 func ScanACInfinitySensors(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "ScanACInfinitySensors")
 	var input struct {
 		ZoneID  *int   `json:"zone_id"`  // Pointer to allow null values
 		NewZone string `json:"new_zone"` // Optional new zone name
 	}
+	fieldLogger = fieldLogger.WithField("input", input)
+	fieldLogger.Info("Scanning AC Infinity sensors")
 	// Bind the JSON payload to the input struct
 	if err := c.ShouldBindJSON(&input); err != nil {
+		fieldLogger.WithError(err).Error("Invalid input")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
 		return
 	}
@@ -105,6 +99,7 @@ func ScanACInfinitySensors(c *gin.Context) {
 		// Insert new zone into the database
 		zoneID, err := CreateNewZone(input.NewZone)
 		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to create new zone")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create new zone"})
 			return
 		}
@@ -114,20 +109,17 @@ func ScanACInfinitySensors(c *gin.Context) {
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Error opening database")
 		return
 	}
 
 	// Query settings table and write result to console
-
-	fmt.Println("Scanning AC Infinity sensors...")
-
 	url := "http://www.acinfinityserver.com/api/user/devInfoListAll?userId=" + config.ACIToken
 	reqBody := bytes.NewBuffer([]byte(""))
 
 	req, err := http.NewRequest("POST", url, reqBody)
 	if err != nil {
-		log.Printf("Error creating request: %v", err)
+		fieldLogger.WithError(err).Error("Error creating request")
 		return
 	}
 
@@ -139,21 +131,21 @@ func ScanACInfinitySensors(c *gin.Context) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("Error sending request: %v", err)
+		fieldLogger.WithError(err).Error("Error sending request")
 		return
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("Error reading response body: %v", err)
+		fieldLogger.WithError(err).Error("Error reading response body")
 		return
 	}
 
 	var jsonResponse types.ACIResponse
 	err = json.Unmarshal(respBody, &jsonResponse)
 	if err != nil {
-		log.Printf("Error unmarshalling JSON: %v", err)
+		fieldLogger.WithError(err).Error("Error unmarshalling JSON response")
 		return
 	}
 
@@ -196,6 +188,10 @@ func ScanACInfinitySensors(c *gin.Context) {
 					name := "ACI (" + device + ") outside humidity"
 					unit := "%"
 					checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
+				case 7: //Outside VPD
+					name := "ACI (" + device + ") outside VPD"
+					unit := "kPa"
+					checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
 				}
 			}
 
@@ -211,13 +207,14 @@ func ScanACInfinitySensors(c *gin.Context) {
 	// Close the db
 	err = db.Close()
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Error closing database")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "AC Infinity sensors scanned and added"})
 }
 
 func ScanEcoWittSensors(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "ScanEcoWittSensors")
 	var input struct {
 		ZoneID        *int   `json:"zone_id"`  // Pointer to allow null values
 		NewZone       string `json:"new_zone"` // Optional new zone name
@@ -225,6 +222,7 @@ func ScanEcoWittSensors(c *gin.Context) {
 	}
 	// Bind the JSON payload to the input struct
 	if err := c.ShouldBindJSON(&input); err != nil {
+		fieldLogger.WithError(err).Error("Invalid input")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
 		return
 	}
@@ -232,6 +230,7 @@ func ScanEcoWittSensors(c *gin.Context) {
 		// Insert new zone into the database
 		zoneID, err := CreateNewZone(input.NewZone)
 		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to create new zone")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create new zone"})
 			return
 		}
@@ -240,31 +239,43 @@ func ScanEcoWittSensors(c *gin.Context) {
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Error opening database")
 		return
 	}
 
-	fmt.Println("Scanning EcoWitt sensors on server: ", input.ServerAddress)
-
 	url := "http://" + input.ServerAddress + "/get_livedata_info"
+
+	// Validate the input server address
+	if !ValidateServerAddress(input.ServerAddress) {
+		fieldLogger.Error("Invalid server address")
+		return
+	}
+
 	reqBody := bytes.NewBuffer([]byte(""))
 	req, err := http.NewRequest("GET", url, reqBody)
 	if err != nil {
-		log.Printf("Error creating request: %v", err)
+		fieldLogger.WithError(err).Error("Error creating request")
 		return
 	}
 
-	client := &http.Client{}
+	// Create a restricted HTTP client
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("Error sending request: %v", err)
+		fieldLogger.WithError(err).Error("Error sending request")
 		return
 	}
 
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("Error reading response body: %v", err)
+		fieldLogger.WithError(err).Error("Error reading response body")
 		return
 	}
 
@@ -272,33 +283,24 @@ func ScanEcoWittSensors(c *gin.Context) {
 	var apiResponse types.ECWAPIResponse
 	err = json.Unmarshal(respBody, &apiResponse)
 	if err != nil {
-		log.Fatalf("Error parsing JSON: %v", err)
+		fieldLogger.WithError(err).Error("Error unmarshalling JSON response")
+		return
 	}
 
 	//Add EcoWitt sensors to db
-	for _, wh := range apiResponse.WH25 {
-		fmt.Printf("Temperature: %s %s, Humidity: %s, Absolute Pressure: %s, Relative Pressure: %s\n",
-			wh.InTemp, wh.Unit, wh.InHumi, wh.Abs, wh.Rel)
+	sensorType := "WH25.InTemp"
+	device := input.ServerAddress
+	source := "ecowitt"
+	name := "EC (" + input.ServerAddress + ") InTemp"
+	unit := "°F"
+	checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
 
-		sensorType := "WH25.InTemp"
-		device := input.ServerAddress
-		source := "ecowitt"
-		name := "EC (" + input.ServerAddress + ") InTemp"
-		unit := "°F"
-		checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
+	sensorType = "WH25.InHumi"
+	name = "EC (" + input.ServerAddress + ") InHumi"
+	unit = "%"
+	checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
 
-		sensorType = "WH25.InHumi"
-		name = "EC (" + input.ServerAddress + ") InHumi"
-		unit = "%"
-		checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
-
-	}
-
-	//fmt.Println("\nCH Soil Data:")
 	for _, ch := range apiResponse.CHSoil {
-		fmt.Printf("Channel: %s, Name: %s, Battery: %s, Humidity: %s\n",
-			ch.Channel, ch.Name, ch.Battery, ch.Humidity)
-
 		sensorType := "Soil." + ch.Channel
 		device := input.ServerAddress
 		source := "ecowitt"
@@ -310,7 +312,7 @@ func ScanEcoWittSensors(c *gin.Context) {
 	//Close the db
 	err = db.Close()
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Error closing database")
 		return
 	}
 
@@ -319,51 +321,55 @@ func ScanEcoWittSensors(c *gin.Context) {
 	strECDevices, err := LoadEcDevices()
 	if err == nil {
 		config.ECDevices = strECDevices
+	} else {
+		fieldLogger.WithError(err).Error("Error loading EC devices")
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "EcoWitt sensors scanned and added"})
 }
 
 func checkInsertSensor(db *sql.DB, source string, device string, sensorType string, name string, zoneId *int, unit string) {
+	fieldLogger := logger.Log.WithField("func", "checkInsertSensor")
 	sensorid := 0
 	err := db.QueryRow("SELECT id FROM sensors WHERE source = ? and device = ? and type = ?", source, device, sensorType).Scan(&sensorid)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			//fmt.Println("No rows found")
 		} else {
-			fmt.Println("Error querying sensors:", err)
+			fieldLogger.WithError(err).Error("Error querying for sensor")
 			return
 		}
 	}
 	if sensorid == 0 {
 		_, err := db.Exec("INSERT INTO sensors (name, source, device, type, zone_id, unit) VALUES (?, ?, ?, ?, ?, ?)", name, source, device, sensorType, zoneId, unit)
 		if err != nil {
-			log.Printf("Error writing to db: %v", err)
+			fieldLogger.WithError(err).Error("Error inserting sensor")
 			return
 		}
 	}
 }
 
-func GetZones() []config.ZoneResponse {
+func GetZones() []types.Zone {
+	fieldLogger := logger.Log.WithField("func", "GetZones")
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Error opening database")
 		return nil
 	}
 	defer db.Close()
 
-	var zones []config.ZoneResponse
+	var zones []types.Zone
 	rows, err := db.Query("SELECT id, name FROM zones")
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Error querying zones")
 		return nil
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		var zone config.ZoneResponse
+		var zone types.Zone
 		if err := rows.Scan(&zone.ID, &zone.Name); err != nil {
-			fmt.Println(err)
+			fieldLogger.WithError(err).Error("Error scanning row")
 			continue
 		}
 		zones = append(zones, zone)
@@ -373,14 +379,17 @@ func GetZones() []config.ZoneResponse {
 }
 
 func CreateNewZone(name string) (int, error) {
+	fieldLogger := logger.Log.WithField("func", "CreateNewZone")
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
+		fieldLogger.WithError(err).Error("Error opening database")
 		return 0, err
 	}
 	defer db.Close()
 
 	result, err := db.Exec("INSERT INTO zones (name) VALUES (?)", name)
 	if err != nil {
+		fieldLogger.WithError(err).Error("Error inserting new zone")
 		return 0, err
 	}
 
@@ -388,11 +397,13 @@ func CreateNewZone(name string) (int, error) {
 
 	id, err := result.LastInsertId()
 	if err != nil {
+		fieldLogger.WithError(err).Error("Error getting last insert ID")
 		return 0, err
 	}
 	return int(id), nil
 }
 func GetGroupedSensorsWithLatestReading() map[string]map[string][]map[string]interface{} {
+	fieldLogger := logger.Log.WithField("func", "GetGroupedSensorsWithLatestReading")
 	cacheMutex.Lock()
 	defer cacheMutex.Unlock()
 
@@ -404,7 +415,7 @@ func GetGroupedSensorsWithLatestReading() map[string]map[string][]map[string]int
 	// Refresh the cache
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Error opening database")
 		return nil
 	}
 	defer db.Close()
@@ -417,7 +428,7 @@ func GetGroupedSensorsWithLatestReading() map[string]map[string][]map[string]int
         AVG(sd.value) OVER (
             PARTITION BY sd.sensor_id
             ORDER BY sd.create_dt ASC
-            ROWS BETWEEN 31 PRECEDING AND 1 PRECEDING
+            ROWS BETWEEN 16 PRECEDING AND 1 PRECEDING
         ) AS rolling_avg, 
         sd.value, 
         sd.create_dt
@@ -460,7 +471,7 @@ FROM LatestReadings lr
 ORDER BY lr.zone_name, lr.device, lr.type;
 `)
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Error querying sensors")
 		return nil
 	}
 	defer rows.Close()
@@ -475,7 +486,7 @@ ORDER BY lr.zone_name, lr.device, lr.type;
 		var trend string
 
 		if err := rows.Scan(&id, &zoneName, &device, &sensorType, &sensorName, &value, &unit, &trend); err != nil {
-			fmt.Println(err)
+			fieldLogger.WithError(err).Error("Error scanning row")
 			continue
 		}
 
@@ -501,10 +512,11 @@ ORDER BY lr.zone_name, lr.device, lr.type;
 	return sensorCache
 }
 
-func GetGroupedSensors() map[string]map[string]map[string][]SensorResponse {
+func GetGroupedSensors() map[string]map[string]map[string][]types.Sensor {
+	fieldLogger := logger.Log.WithField("func", "GetGroupedSensors")
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Error opening database")
 		return nil
 	}
 	defer db.Close()
@@ -523,28 +535,28 @@ func GetGroupedSensors() map[string]map[string]map[string][]SensorResponse {
         ORDER BY z.name, s.device, s.type, s.name
     `)
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Error querying sensors")
 		return nil
 	}
 	defer rows.Close()
 
-	grouped := make(map[string]map[string]map[string][]SensorResponse)
+	grouped := make(map[string]map[string]map[string][]types.Sensor)
 
 	for rows.Next() {
-		var sensor SensorResponse
+		var sensor types.Sensor
 		var zoneName, deviceType string
 
 		if err := rows.Scan(&sensor.Name, &zoneName, &sensor.Device, &deviceType, &sensor.Source, &sensor.Unit); err != nil {
-			fmt.Println(err)
+			fieldLogger.WithError(err).Error("Error scanning row")
 			continue
 		}
 
 		// Initialize grouping maps if necessary
 		if _, ok := grouped[zoneName]; !ok {
-			grouped[zoneName] = make(map[string]map[string][]SensorResponse)
+			grouped[zoneName] = make(map[string]map[string][]types.Sensor)
 		}
 		if _, ok := grouped[zoneName][sensor.Device]; !ok {
-			grouped[zoneName][sensor.Device] = make(map[string][]SensorResponse)
+			grouped[zoneName][sensor.Device] = make(map[string][]types.Sensor)
 		}
 
 		// Add sensor to the appropriate group
@@ -555,6 +567,7 @@ func GetGroupedSensors() map[string]map[string]map[string][]SensorResponse {
 }
 
 func EditSensor(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "EditSensor")
 	var input struct {
 		ID      int    `json:"id"`
 		Name    string `json:"name"`
@@ -564,13 +577,14 @@ func EditSensor(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
+		fieldLogger.WithError(err).Error("Invalid input")
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Error opening database")
 		return
 	}
 	defer db.Close()
@@ -578,6 +592,7 @@ func EditSensor(c *gin.Context) {
 	_, err = db.Exec("UPDATE sensors SET name = ?, show = ?, zone_id = ?, unit = ? WHERE id = ?",
 		input.Name, input.Visible, input.ZoneID, input.Unit, input.ID)
 	if err != nil {
+		fieldLogger.WithError(err).Error("Error updating sensor")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update sensor"})
 		return
 	}
@@ -586,10 +601,12 @@ func EditSensor(c *gin.Context) {
 }
 
 func DeleteSensor(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "DeleteSensor")
 	sensorID := c.Param("id")
 
 	err := DeleteSensorByID(sensorID)
 	if err != nil {
+		fieldLogger.WithError(err).Error("Error deleting sensor")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete sensor"})
 		return
 	}
@@ -597,10 +614,11 @@ func DeleteSensor(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Sensor deleted successfully"})
 }
 
-func DeleteSensorByID(id string) interface{} {
+func DeleteSensorByID(id string) error {
+	fieldLogger := logger.Log.WithField("func", "DeleteSensorByID")
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Error opening database")
 		return err
 	}
 	defer db.Close()
@@ -608,22 +626,23 @@ func DeleteSensorByID(id string) interface{} {
 	// Delete sensor_data for this sensor
 	_, err = db.Exec("DELETE FROM sensor_data WHERE sensor_id = ?", id)
 	if err != nil {
-		fmt.Println("Error deleting sensor data:", err)
+		fieldLogger.WithError(err).Error("Error deleting sensor data")
 		return err
 	}
 
 	_, err = db.Exec("DELETE FROM sensors WHERE id = ?", id)
 	if err != nil {
-		fmt.Println("Error deleting sensor:", err)
+		fieldLogger.WithError(err).Error("Error deleting sensor")
 		return err
 	}
 	return nil
 }
 
 func GetSensorName(id string) string {
+	fieldLogger := logger.Log.WithField("func", "GetSensorName")
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Error opening database")
 		return ""
 	}
 	defer db.Close()
@@ -631,9 +650,26 @@ func GetSensorName(id string) string {
 	var name string
 	err = db.QueryRow("SELECT name FROM sensors WHERE id = ?", id).Scan(&name)
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Error querying sensor name")
 		return ""
 	}
 
 	return name
+}
+
+// ValidateServerAddress ensures the input is a valid private IP or hostname
+func ValidateServerAddress(address string) bool {
+	// Check if it's a valid IP
+	ip := net.ParseIP(address)
+	if ip != nil {
+		// Ensure the IP is private
+		if ip.IsLoopback() || ip.IsPrivate() {
+			return true
+		}
+		return false
+	}
+
+	// Check if it's a valid hostname (local hostnames only)
+	validHostname := regexp.MustCompile(`^([a-zA-Z0-9_-]+\.)*[a-zA-Z0-9_-]+$`).MatchString
+	return validHostname(address)
 }

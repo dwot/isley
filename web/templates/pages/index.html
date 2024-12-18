@@ -30,11 +30,13 @@
                     <tr>
                         <th>Plant</th>
                         <th>Strain</th>
-                        <th>Days Since Last Watering</th>
-                        <th>Days Since Last Feeding</th>
-                        <th>Days in Flowering</th>
-                        <th>Current Week</th>
-                        <th>Current Day</th>
+                        <th>Status</th>
+                        <th>Start</th>
+                        <th>Last 💧</th>
+                        <th>Last 🍬</th>
+                        <th>Days 🪻</th>
+                        <th>Week</th>
+                        <th>Day</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -42,6 +44,8 @@
                     <tr class="clickable-row" data-id="{{ .ID }}">
                         <td>{{ .Name }}</td>
                         <td>{{ .StrainName }}</td>
+                        <td>{{ .Status }}</td>
+                        <td>{{ formatStringDate .StartDT }}</td>
                         <td>{{ .DaysSinceLastWatering }}</td>
                         <td>{{ .DaysSinceLastFeeding }}</td>
                         <td>{{ if .FloweringDays }}{{ .FloweringDays }}{{ else }}N/A{{ end }}</td>

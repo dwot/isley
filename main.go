@@ -7,14 +7,15 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 	"html/template"
 	"isley/config"
 	"isley/handlers"
+	"isley/logger"
 	"isley/model"
 	"isley/routes"
 	"isley/utils"
 	"isley/watcher"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -26,9 +27,12 @@ import (
 var embeddedFiles embed.FS
 
 func main() {
+	// Initialize logger
+	logger.InitLogger()
+
 	// Set version
 	version := fmt.Sprintf("Isley %s", getVersion())
-	fmt.Println("Starting application version:", version)
+	logger.Log.Info("Starting application version:", version)
 
 	// Define the port
 	port := os.Getenv("ISLEY_PORT")
@@ -39,17 +43,17 @@ func main() {
 	model.MigrateDB()
 
 	// Start the sensor watcher
+	watcher.PruneSensorData()
 	go watcher.Watch()
 
 	// Set up Gin router
 	r := gin.Default()
 
-	// Define your FuncMap
 	funcMap := template.FuncMap{
 		"json": func(v interface{}) string {
 			a, err := json.Marshal(v)
 			if err != nil {
-				log.Printf("error marshalling JSON: %v", err)
+				logger.Log.WithError(err).Error("Error marshalling JSON")
 				return ""
 			}
 			return string(a)
@@ -63,7 +67,10 @@ func main() {
 		"formatStringDate": func(t string) string {
 			tm, err := time.Parse(time.RFC3339, t)
 			if err != nil {
-				log.Printf("error parsing date: %v", err)
+				logger.Log.WithFields(logrus.Fields{
+					"input": t,
+					"error": err,
+				}).Error("Error parsing date")
 				return t
 			}
 			return tm.Format("01/02/2006")
@@ -71,13 +78,21 @@ func main() {
 		"toInt": func(value interface{}) int {
 			switch v := value.(type) {
 			case string:
-				intVal, _ := strconv.Atoi(v)
+				intVal, err := strconv.Atoi(v)
+				if err != nil {
+					logger.Log.WithFields(logrus.Fields{
+						"input": v,
+						"error": err,
+					}).Error("Error converting string to int")
+					return 0
+				}
 				return intVal
 			case float64:
 				return int(v)
 			case int:
 				return v
 			default:
+				logger.Log.WithField("input", value).Warn("Unhandled type in toInt conversion")
 				return 0
 			}
 		},
@@ -155,10 +170,8 @@ func main() {
 	}
 
 	// Start the server
-	if err := r.Run(":" + port); err != nil {
-		log.Fatalf("Failed to start server on port %s: %v", port, err)
-	}
-	log.Printf("Server started on port %s", port)
+	logger.Log.Fatal(r.Run(":" + port))
+	logger.Log.Info("Server started on port %s", port)
 }
 
 // Helper functions

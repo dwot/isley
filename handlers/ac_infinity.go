@@ -3,37 +3,37 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
-	"log"
+	"github.com/sirupsen/logrus"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"isley/logger"
 )
 
-type ACILoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
 func ACILoginHandler(c *gin.Context) {
-	var req ACILoginRequest
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Println("Error parsing request:", err)
+		logger.Log.WithError(err).Error("Failed to bind JSON request")
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Invalid request payload"})
 		return
 	}
 
-	// Prepare the payload for the AC Infinity API
-	//# AC Infinity API does not accept passwords greater than 25 characters.
+	// Enforce password length limit for AC Infinity API
 	if len(req.Password) > 25 {
 		req.Password = req.Password[:25]
 	}
+
 	formData := "appEmail=" + req.Email + "&appPasswordl=" + req.Password
 	apiURL := "http://www.acinfinityserver.com/api/user/appUserLogin"
 
 	// Create a new HTTP request
 	httpRequest, err := http.NewRequest("POST", apiURL, bytes.NewBufferString(formData))
 	if err != nil {
-		log.Println("Error creating HTTP request:", err)
+		logger.Log.WithError(err).Error("Failed to create HTTP request")
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to create request"})
 		return
 	}
@@ -46,14 +46,17 @@ func ACILoginHandler(c *gin.Context) {
 	client := &http.Client{}
 	resp, err := client.Do(httpRequest)
 	if err != nil {
-		log.Println("Error calling AC Infinity API:", err)
+		logger.Log.WithError(err).Error("Failed to connect to AC Infinity API")
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to connect to AC Infinity API"})
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Println("Non-200 response from AC Infinity API:", resp.Status)
+		logger.Log.WithFields(logrus.Fields{
+			"status_code": resp.StatusCode,
+			"status":      resp.Status,
+		}).Error("Non-200 response from AC Infinity API")
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to fetch token"})
 		return
 	}
@@ -66,18 +69,21 @@ func ACILoginHandler(c *gin.Context) {
 		} `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&aciResponse); err != nil {
-		log.Println("Error decoding AC Infinity response:", err)
+		logger.Log.WithError(err).Error("Failed to decode AC Infinity response")
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to process AC Infinity response"})
 		return
 	}
 
 	if aciResponse.Code != 200 {
-		log.Println("AC Infinity API error:", aciResponse.Msg)
+		logger.Log.WithFields(logrus.Fields{
+			"code":    aciResponse.Code,
+			"message": aciResponse.Msg,
+		}).Error("AC Infinity API returned an error")
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": aciResponse.Msg})
 		return
 	}
 
-	//Update the user's token in the database
+	// Update the user's token in the database
 	UpdateSetting("aci.token", aciResponse.Data.AppID)
 	c.JSON(http.StatusOK, gin.H{"success": true, "token": aciResponse.Data.AppID})
 }

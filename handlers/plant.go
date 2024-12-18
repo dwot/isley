@@ -6,106 +6,36 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"isley/config"
+	"isley/logger"
 	model "isley/model"
 	"isley/model/types"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 )
 
-type PlantListResponse struct {
-	ID            uint      `json:"id"`
-	Name          string    `json:"name"`
-	Description   string    `json:"description"`
-	StartDT       time.Time `json:"start_dt"`
-	CurrentDay    int       `json:"current_day"`
-	CurrentWeek   int       `json:"current_week"`
-	Status        string    `json:"status"`
-	StrainName    string    `json:"strain_name"`
-	BreederName   string    `json:"breeder_name"`
-	ZoneName      string    `json:"zone_name"`
-	HarvestWeight float64   `json:"harvest_weight"`
-}
-
-type PlantDataResponse struct {
-	ID            uint               `json:"id"`
-	Name          string             `json:"name"`
-	Description   string             `json:"description"`
-	Status        string             `json:"status"`
-	StatusID      int                `json:"status_id"`
-	StrainName    string             `json:"strain_name"`
-	StrainID      int                `json:"strain_id"`
-	BreederName   string             `json:"breeder_name"`
-	ZoneName      string             `json:"zone_name"`
-	CurrentDay    int                `json:"current_day"`
-	CurrentWeek   int                `json:"current_week"`
-	CurrentHeight string             `json:"current_height"`
-	HeightDate    time.Time          `json:"height_date"`
-	LastWaterDate time.Time          `json:"last_water_date"`
-	LastFeedDate  time.Time          `json:"last_feed_date"`
-	Measurements  []Measurement      `json:"measurements"`
-	Activities    []Activity         `json:"activities"`
-	StatusHistory []Status           `json:"status_history"`
-	Sensors       []Sensor           `json:"sensors"`
-	LatestImage   types.PlantImage   `json:"latest_image"`
-	Images        []types.PlantImage `json:"images"`
-	IsClone       bool               `json:"is_clone"`
-	StartDT       time.Time          `json:"start_dt"`
-	HarvestWeight float64            `json:"harvest_weight"`
-	HarvestDate   time.Time          `json:"harvest_date"`
-}
-
-type Sensor struct {
-	ID    uint      `json:"id"`
-	Name  string    `json:"name"`
-	Unit  string    `json:"unit"`
-	Value float64   `json:"value"`
-	Date  time.Time `json:"date"`
-}
-
-type Measurement struct {
-	ID    uint      `json:"id"`
-	Name  string    `json:"name"`
-	Value float64   `json:"value"`
-	Date  time.Time `json:"date"`
-}
-
-type Activity struct {
-	ID         uint      `json:"id"`
-	Name       string    `json:"name"`
-	Note       string    `json:"note"`
-	Date       time.Time `json:"date"`
-	ActivityId int       `json:"activity_id"`
-}
-
-type Status struct {
-	ID     uint      `json:"id"`
-	Status string    `json:"status"`
-	Date   time.Time `json:"date"`
-}
-
-func GetBreeders() []config.BreederResponse {
+func GetBreeders() []types.Breeder {
+	fieldLogger := logger.Log.WithField("func", "GetBreeders")
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to open database")
 		return nil
 	}
 
 	rows, err := db.Query("SELECT id, name FROM breeder")
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to query breeders")
 		return nil
 	}
 
-	var breeders []config.BreederResponse
+	var breeders []types.Breeder
 	for rows.Next() {
-		var breeder config.BreederResponse
+		var breeder types.Breeder
 		err = rows.Scan(&breeder.ID, &breeder.Name)
 		if err != nil {
-			fmt.Println(err)
+			fieldLogger.WithError(err).Error("Failed to scan breeder")
 			return nil
 		}
 		breeders = append(breeders, breeder)
@@ -118,6 +48,7 @@ func GetBreeders() []config.BreederResponse {
 }
 
 func AddPlant(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "AddPlant")
 	var input struct {
 		Name      string `json:"name"`
 		ZoneID    *int   `json:"zone_id"`
@@ -134,6 +65,7 @@ func AddPlant(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
+		fieldLogger.WithError(err).Error("Failed to bind JSON")
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -142,6 +74,7 @@ func AddPlant(c *gin.Context) {
 		// Insert new zone into the database
 		zoneID, err := CreateNewZone(input.NewZone)
 		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to create new zone")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create new zone"})
 			return
 		}
@@ -153,6 +86,7 @@ func AddPlant(c *gin.Context) {
 		// Insert new strain into the database
 		strainID, err := CreateNewStrain(input.NewStrain)
 		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to create new strain")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create new strain"})
 			return
 		}
@@ -163,25 +97,25 @@ func AddPlant(c *gin.Context) {
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to open database")
 		return
 	}
 
 	//Insert into the plants table returning id
 	result, err := db.Exec("INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors) VALUES (?, ?, ?, '', 'false', ?, '[]')", input.Name, *input.ZoneID, *input.StrainID, input.Date)
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to insert plant")
 		return
 	}
 	//Update plant_status_log with the new plant id and status id
 	plantID, err := result.LastInsertId()
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to get last insert ID")
 		return
 	}
 	_, err = db.Exec("INSERT INTO plant_status_log (plant_id, status_id, date) VALUES (?, ?, ?)", plantID, input.StatusID, input.Date)
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to insert plant status log")
 		return
 	}
 
@@ -191,26 +125,27 @@ func AddPlant(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Plant added successfully"})
 }
 
-func GetStrains() []config.StrainResponse {
+func GetStrains() []types.Strain {
+	fieldLogger := logger.Log.WithField("func", "GetStrains")
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to open database")
 		return nil
 	}
 
 	rows, err := db.Query("SELECT s.id, s.name, b.id as breeder_id, b.name as breeder, s.indica, s.sativa, s.autoflower, s.description, s.seed_count FROM strain s left outer join breeder b on s.breeder_id = b.id")
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to query strains")
 		return nil
 	}
 
-	var strains []config.StrainResponse
+	var strains []types.Strain
 	for rows.Next() {
-		var strain config.StrainResponse
+		var strain types.Strain
 		err = rows.Scan(&strain.ID, &strain.Name, &strain.BreederID, &strain.Breeder, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.Description, &strain.SeedCount)
 		if err != nil {
-			fmt.Println(err)
+			fieldLogger.WithError(err).Error("Failed to scan strain")
 			return nil
 		}
 		strains = append(strains, strain)
@@ -222,26 +157,27 @@ func GetStrains() []config.StrainResponse {
 	return strains
 }
 
-func GetActivities() []config.ActivityResponse {
+func GetActivities() []types.Activity {
+	fieldLogger := logger.Log.WithField("func", "GetActivities")
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to open database")
 		return nil
 	}
 
 	rows, err := db.Query("SELECT id, name FROM activity")
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to query activities")
 		return nil
 	}
 
-	var activities []config.ActivityResponse
+	var activities []types.Activity
 	for rows.Next() {
-		var activity config.ActivityResponse
+		var activity types.Activity
 		err = rows.Scan(&activity.ID, &activity.Name)
 		if err != nil {
-			fmt.Println(err)
+			fieldLogger.WithError(err).Error("Failed to scan activity")
 			return nil
 		}
 		activities = append(activities, activity)
@@ -252,26 +188,27 @@ func GetActivities() []config.ActivityResponse {
 	return activities
 }
 
-func GetMetrics() []config.MetricResponse {
+func GetMetrics() []types.Metric {
+	fieldLogger := logger.Log.WithField("func", "GetMetrics")
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to open database")
 		return nil
 	}
 
 	rows, err := db.Query("SELECT id, name, unit FROM metric")
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to query metrics")
 		return nil
 	}
 
-	var measurements []config.MetricResponse
+	var measurements []types.Metric
 	for rows.Next() {
-		var measurement config.MetricResponse
+		var measurement types.Metric
 		err = rows.Scan(&measurement.ID, &measurement.Name, &measurement.Unit)
 		if err != nil {
-			fmt.Println(err)
+			fieldLogger.WithError(err).Error("Failed to scan metric")
 			return nil
 		}
 		measurements = append(measurements, measurement)
@@ -282,26 +219,27 @@ func GetMetrics() []config.MetricResponse {
 	return measurements
 }
 
-func GetStatuses() []config.StatusResponse {
+func GetStatuses() []types.Status {
+	fieldLogger := logger.Log.WithField("func", "GetStatuses")
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to open database")
 		return nil
 	}
 
 	rows, err := db.Query("SELECT id, status FROM plant_status")
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to query statuses")
 		return nil
 	}
 
-	var statuses []config.StatusResponse
+	var statuses []types.Status
 	for rows.Next() {
-		var status config.StatusResponse
+		var status types.Status
 		err = rows.Scan(&status.ID, &status.Status)
 		if err != nil {
-			fmt.Println(err)
+			fieldLogger.WithError(err).Error("Failed to scan status")
 			return nil
 		}
 		statuses = append(statuses, status)
@@ -319,9 +257,11 @@ func CreateNewStrain(newStrain *struct {
 	BreederId  int    `json:"breeder_id"`
 	NewBreeder string `json:"new_breeder"`
 }) (int, error) {
+	fieldLogger := logger.Log.WithField("func", "CreateNewStrain")
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to open database")
 		return 0, err
 	}
 	defer db.Close()
@@ -333,6 +273,7 @@ func CreateNewStrain(newStrain *struct {
 		// Insert the new breeder into the `breeder` table
 		result, err := db.Exec("INSERT INTO breeder (name) VALUES (?)", newStrain.NewBreeder)
 		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to insert new breeder")
 			return 0, fmt.Errorf("failed to insert new breeder: %w", err)
 		}
 
@@ -341,6 +282,7 @@ func CreateNewStrain(newStrain *struct {
 		// Get the ID of the newly inserted breeder
 		lastInsertId, err := result.LastInsertId()
 		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to retrieve new breeder ID")
 			return 0, fmt.Errorf("failed to retrieve new breeder ID: %w", err)
 		}
 		breederId = int(lastInsertId)
@@ -355,6 +297,7 @@ func CreateNewStrain(newStrain *struct {
 		 VALUES (?, ?, 50, 50, 'true', '', 0)`,
 		newStrain.Name, breederId)
 	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to insert new strain")
 		return 0, fmt.Errorf("failed to insert new strain: %w", err)
 	}
 
@@ -363,6 +306,7 @@ func CreateNewStrain(newStrain *struct {
 	// Get the ID of the newly inserted strain
 	id, err := result.LastInsertId()
 	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to retrieve new strain ID")
 		return 0, fmt.Errorf("failed to retrieve new strain ID: %w", err)
 	}
 
@@ -370,10 +314,12 @@ func CreateNewStrain(newStrain *struct {
 }
 
 func DeletePlant(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "DeletePlant")
 	id := c.Param("id")
 
 	err := DeletePlantById(id)
 	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to delete plant")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete plant"})
 		return
 	}
@@ -381,11 +327,12 @@ func DeletePlant(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Plant deleted successfully"})
 }
 
-func DeletePlantById(id string) interface{} {
+func DeletePlantById(id string) error {
+	fieldLogger := logger.Log.WithField("func", "DeletePlantById")
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to open database")
 		return err
 	}
 	defer db.Close()
@@ -393,56 +340,52 @@ func DeletePlantById(id string) interface{} {
 	// Delete the plant's images
 	_, err = db.Exec("DELETE FROM plant_images WHERE plant_id = ?", id)
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to delete plant images")
 		return err
 	}
 
 	// Delete the plant's measurements
 	_, err = db.Exec("DELETE FROM plant_measurements WHERE plant_id = ?", id)
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to delete plant measurements")
 		return err
 	}
 
 	// Delete the plant's activities
 	_, err = db.Exec("DELETE FROM plant_activity WHERE plant_id = ?", id)
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to delete plant activities")
 		return err
 	}
 
 	// Delete the plant's status log
 	_, err = db.Exec("DELETE FROM plant_status_log WHERE plant_id = ?", id)
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to delete plant status log")
 		return err
 	}
 
 	// Delete the plant
 	_, err = db.Exec("DELETE FROM plant WHERE id = ?", id)
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to delete plant")
 		return err
 	}
 	return nil
 }
 
-type SensorData struct {
-	ID       uint      `json:"id"`
-	Value    float64   `json:"value"`
-	CreateDT time.Time `json:"create_dt"`
-}
-
-func GetPlant(id string) PlantDataResponse {
-	var plant PlantDataResponse
+func GetPlant(id string) types.Plant {
+	fieldLogger := logger.Log.WithField("func", "GetPlant")
+	var plant types.Plant
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to open database")
 		return plant
 	}
 	rows, err := db.Query("SELECT p.id, p.name, p.description, p.clone, p.start_dt, s.name as strain_name, b.name as breeder_name, z.name as zone_name, (select ps.status from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as current_status, (select ps.id from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as status_id, p.sensors, s.id, p.harvest_weight FROM plant p LEFT OUTER JOIN strain s on p.strain_id = s.id left outer join breeder b on b.id = s.breeder_id LEFT OUTER JOIN zones z on p.zone_id = z.id WHERE p.id = $1", id)
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to query plant")
 		return plant
 	}
 
@@ -463,7 +406,7 @@ func GetPlant(id string) PlantDataResponse {
 		var harvest_weight float64
 		err = rows.Scan(&id, &name, &description, &isClone, &start_dt, &strain_name, &breeder_name, &zone_name, &status, &statusID, &sensors, &strain_id, &harvest_weight)
 		if err != nil {
-			fmt.Println(err)
+			fieldLogger.WithError(err).Error("Failed to scan plant")
 			return plant
 		}
 		// Calculate current day and week
@@ -478,13 +421,13 @@ func GetPlant(id string) PlantDataResponse {
 		iCurrentWeek := int((diff.Hours() / 24 / 7) + 1)
 
 		//convert sensors string into list and Iterate over sensors and load sensor and latest sensor_data
-		var sensorList []Sensor
+		var sensorList []types.SensorDataResponse
 
 		// Retrieve the serialized sensors column from the plant table
 		var sensorsJSON string
 		err := db.QueryRow("SELECT sensors FROM plant WHERE id = $1", id).Scan(&sensorsJSON)
 		if err != nil {
-			fmt.Println("Error querying sensors column:", err)
+			fieldLogger.WithError(err).Error("Failed to query sensors JSON")
 			return plant
 		}
 
@@ -492,26 +435,26 @@ func GetPlant(id string) PlantDataResponse {
 		var sensorIDs []int
 		err = json.Unmarshal([]byte(sensorsJSON), &sensorIDs)
 		if err != nil {
-			fmt.Println("Error unmarshalling sensors JSON:", err)
+			fieldLogger.WithError(err).Error("Failed to deserialize sensor IDs")
 			return plant
 		}
 
 		// Loop through each sensor ID and fetch details
 		for _, sensorID := range sensorIDs {
-			var sensor Sensor
+			var sensor types.SensorDataResponse
 
 			// Query sensor details from the sensors table
 			err := db.QueryRow("SELECT id, name, unit FROM sensors WHERE id = ?", sensorID).Scan(&sensor.ID, &sensor.Name, &sensor.Unit)
 			if err != nil {
-				fmt.Println("Error querying sensor details:", err)
+				fieldLogger.WithError(err).Error("Failed to query sensor details")
 				continue
 			}
 
 			// Query the latest sensor data from the sensor_data table
-			var sensorData SensorData
+			var sensorData types.SensorData
 			err = db.QueryRow("SELECT id, value, create_dt FROM sensor_data WHERE sensor_id = ? ORDER BY create_dt DESC LIMIT 1", sensorID).Scan(&sensorData.ID, &sensorData.Value, &sensorData.CreateDT)
 			if err != nil {
-				fmt.Println("Error querying latest sensor data:", err)
+				fieldLogger.WithError(err).Error("Failed to query sensor data")
 				continue
 			}
 
@@ -526,9 +469,9 @@ func GetPlant(id string) PlantDataResponse {
 		//Load measurements
 		rows2, err := db.Query("SELECT m.id, me.name, m.value, m.date FROM plant_measurements m left outer join metric me on me.id = m.metric_id WHERE m.plant_id = $1 ORDER BY date desc", id)
 		if err != nil {
-			fmt.Println(err)
+			fieldLogger.WithError(err).Error("Failed to query measurements")
 		}
-		var measurements []Measurement
+		var measurements []types.Measurement
 		for rows2.Next() {
 			var id uint
 			var name string
@@ -538,15 +481,15 @@ func GetPlant(id string) PlantDataResponse {
 			if err != nil {
 				fmt.Println(err)
 			}
-			measurements = append(measurements, Measurement{id, name, value, date})
+			measurements = append(measurements, types.Measurement{id, name, value, date})
 		}
 
 		//Load activities
 		rows3, err := db.Query("SELECT pa.id, a.id as activity_id, a.name, pa.note, pa.date FROM plant_activity pa left outer join activity a on a.id = pa.activity_id WHERE pa.plant_id = $1 ORDER BY date desc", id)
 		if err != nil {
-			fmt.Println(err)
+			fieldLogger.WithError(err).Error("Failed to query activities")
 		}
-		var activities []Activity
+		var activities []types.PlantActivity
 		for rows3.Next() {
 			var id uint
 			var name string
@@ -557,31 +500,31 @@ func GetPlant(id string) PlantDataResponse {
 			if err != nil {
 				fmt.Println(err)
 			}
-			activities = append(activities, Activity{id, name, note, date, activityId})
+			activities = append(activities, types.PlantActivity{id, name, note, date, activityId})
 		}
 
 		//Load status history
 		rows5, err := db.Query("SELECT psl.id, ps.status, psl.date FROM plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id WHERE psl.plant_id = $1 ORDER BY date desc", id)
 		if err != nil {
-			fmt.Println(err)
+			fieldLogger.WithError(err).Error("Failed to query status history")
 		}
-		var statusHistory []Status
+		var statusHistory []types.Status
 		for rows5.Next() {
 			var id uint
 			var status string
 			var date time.Time
 			err = rows5.Scan(&id, &status, &date)
 			if err != nil {
-				fmt.Println(err)
+				fieldLogger.WithError(err).Error("Failed to scan status history")
 			}
-			statusHistory = append(statusHistory, Status{id, status, date})
+			statusHistory = append(statusHistory, types.Status{id, status, date})
 		}
 
 		//Load latest image
 		var latestImage types.PlantImage
 		err = db.QueryRow("SELECT id, image_path, image_description, image_order, image_date FROM plant_images WHERE plant_id = ? ORDER BY image_date DESC LIMIT 1", id).Scan(&latestImage.ID, &latestImage.ImagePath, &latestImage.ImageDescription, &latestImage.ImageOrder, &latestImage.ImageDate)
 		if err != nil {
-			fmt.Println(err)
+			fieldLogger.WithError(err).Error("Failed to query latest image")
 			latestImage = types.PlantImage{ID: 0, PlantID: plant.ID, ImagePath: "/static/img/winston.hat.jpg", ImageDescription: "Placeholder", ImageOrder: 100, ImageDate: time.Now(), CreatedAt: time.Now(), UpdatedAt: time.Now()}
 		} else {
 			latestImage.ImagePath = "/" + strings.Replace(latestImage.ImagePath, "\\", "/", -1)
@@ -590,7 +533,7 @@ func GetPlant(id string) PlantDataResponse {
 		//Load images
 		rows6, err := db.Query("SELECT id, image_path, image_description, image_order, image_date FROM plant_images WHERE plant_id = $1 ORDER BY image_date desc", id)
 		if err != nil {
-			fmt.Println(err)
+			fieldLogger.WithError(err).Error("Failed to query images")
 		}
 		var images []types.PlantImage
 		for rows6.Next() {
@@ -601,7 +544,7 @@ func GetPlant(id string) PlantDataResponse {
 			var image_date time.Time
 			err = rows6.Scan(&id, &image_path, &image_description, &image_order, &image_date)
 			if err != nil {
-				fmt.Println(err)
+				fieldLogger.WithError(err).Error("Failed to scan images")
 			}
 			//Convert any \ in image_path to /
 			image_path = "/" + strings.Replace(image_path, "\\", "/", -1)
@@ -666,13 +609,13 @@ func GetPlant(id string) PlantDataResponse {
 		//Convert int and dates to strings
 		strCurrentHeight := strconv.Itoa(iCurrentHeight)
 
-		plant = PlantDataResponse{id, name, description, status, statusID, strain_name, strain_id, breeder_name, zone_name, iCurrentDay, iCurrentWeek, strCurrentHeight, heightDate, lastWaterDate, lastFeedDate, measurements, activities, statusHistory, sensorList, latestImage, images, isClone, start_dt, harvest_weight, harvestDate}
+		plant = types.Plant{id, name, description, status, statusID, strain_name, strain_id, breeder_name, zone_name, iCurrentDay, iCurrentWeek, strCurrentHeight, heightDate, lastWaterDate, lastFeedDate, measurements, activities, statusHistory, sensorList, latestImage, images, isClone, start_dt, harvest_weight, harvestDate}
 	}
 
 	// Close the db
 	err = db.Close()
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to close database")
 		return plant
 	}
 
@@ -680,13 +623,14 @@ func GetPlant(id string) PlantDataResponse {
 }
 
 func LinkSensorsToPlant(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "LinkSensorsToPlant")
 	var input struct {
 		PlantID   string `json:"plant_id"`
 		SensorIDs []int  `json:"sensor_ids"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		fmt.Println("Error binding JSON:", err)
+		fieldLogger.WithError(err).Error("Failed to bind JSON")
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -694,7 +638,7 @@ func LinkSensorsToPlant(c *gin.Context) {
 	// Serialize SensorIDs to JSON
 	sensorIDsJSON, err := json.Marshal(input.SensorIDs)
 	if err != nil {
-		fmt.Println("Error serializing sensor IDs:", err)
+		fieldLogger.WithError(err).Error("Failed to serialize sensor IDs")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process sensor IDs"})
 		return
 	}
@@ -702,7 +646,7 @@ func LinkSensorsToPlant(c *gin.Context) {
 	// Initialize the database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println("Database connection error:", err)
+		fieldLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to the database"})
 		return
 	}
@@ -711,7 +655,7 @@ func LinkSensorsToPlant(c *gin.Context) {
 	// Update the plant with the serialized sensor IDs
 	_, err = db.Exec("UPDATE plant SET sensors = ? WHERE id = ?", sensorIDsJSON, input.PlantID)
 	if err != nil {
-		fmt.Println("Error updating plant sensors:", err)
+		fieldLogger.WithError(err).Error("Failed to update sensors")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update sensors for the plant"})
 		return
 	}
@@ -719,28 +663,29 @@ func LinkSensorsToPlant(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Sensors linked to plant successfully"})
 }
 
-type AddStrainRequest struct {
-	Name        string `json:"name"`
-	BreederID   *int   `json:"breeder_id"` // Nullable for new breeders
-	NewBreeder  string `json:"new_breeder"`
-	Indica      int    `json:"indica"`
-	Sativa      int    `json:"sativa"`
-	Autoflower  string `json:"autoflower"`
-	SeedCount   int    `json:"seed_count"`
-	Description string `json:"description"`
-}
-
 func AddStrainHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "AddStrainHandler")
 	// Parse the incoming JSON request
-	var req AddStrainRequest
+	var req struct {
+		Name        string `json:"name"`
+		BreederID   *int   `json:"breeder_id"` // Nullable for new breeders
+		NewBreeder  string `json:"new_breeder"`
+		Indica      int    `json:"indica"`
+		Sativa      int    `json:"sativa"`
+		Autoflower  string `json:"autoflower"`
+		SeedCount   int    `json:"seed_count"`
+		Description string `json:"description"`
+	}
+
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Println("Error binding JSON:", err)
+		fieldLogger.WithError(err).Error("Failed to bind JSON")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
 		return
 	}
 
 	// Validate Indica and Sativa sum
 	if req.Indica+req.Sativa != 100 {
+		fieldLogger.Error("Indica and Sativa must sum to 100")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Indica and Sativa must sum to 100"})
 		return
 	}
@@ -748,7 +693,7 @@ func AddStrainHandler(c *gin.Context) {
 	// Open the database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		log.Println("Error opening database:", err)
+		fieldLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
@@ -758,6 +703,7 @@ func AddStrainHandler(c *gin.Context) {
 	var breederID int
 	if req.BreederID == nil {
 		if req.NewBreeder == "" {
+			fieldLogger.Error("New breeder name is required")
 			c.JSON(http.StatusBadRequest, gin.H{"error": "New breeder name is required"})
 			return
 		}
@@ -769,7 +715,7 @@ func AddStrainHandler(c *gin.Context) {
 		`
 		result, err := db.Exec(insertBreederStmt, req.NewBreeder)
 		if err != nil {
-			log.Println("Error inserting breeder:", err)
+			fieldLogger.WithError(err).Error("Failed to insert new breeder")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add new breeder"})
 			return
 		}
@@ -779,7 +725,7 @@ func AddStrainHandler(c *gin.Context) {
 		// Get the new breeder's ID
 		newBreederID, err := result.LastInsertId()
 		if err != nil {
-			log.Println("Error retrieving new breeder ID:", err)
+			fieldLogger.WithError(err).Error("Failed to retrieve new breeder ID")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve new breeder ID"})
 			return
 		}
@@ -796,7 +742,7 @@ func AddStrainHandler(c *gin.Context) {
 	`
 	_, err = db.Exec(stmt, req.Name, breederID, req.Indica, req.Sativa, req.Autoflower, req.SeedCount, req.Description)
 	if err != nil {
-		log.Println("Error inserting strain:", err)
+		fieldLogger.WithError(err).Error("Failed to insert strain")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add strain"})
 		return
 	}
@@ -808,9 +754,10 @@ func AddStrainHandler(c *gin.Context) {
 }
 
 func GetStrainHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "GetStrainHandler")
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		log.Println("Invalid strain ID:", err)
+		fieldLogger.WithError(err).Error("Invalid strain ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid strain ID"})
 		return
 	}
@@ -818,22 +765,13 @@ func GetStrainHandler(c *gin.Context) {
 	// Open the database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		log.Println("Error opening database:", err)
+		fieldLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to database"})
 		return
 	}
 	defer db.Close()
 
-	var strain struct {
-		ID          int    `json:"id"`
-		Name        string `json:"name"`
-		Breeder     string `json:"breeder"`
-		Indica      int    `json:"indica"`
-		Sativa      int    `json:"sativa"`
-		Autoflower  string `json:"autoflower"`
-		Description string `json:"description"`
-		SeedCount   int    `json:"seed_count"`
-	}
+	var strain types.Strain
 
 	err = db.QueryRow(`
         SELECT s.id, s.name, b.name as breeder, s.indica, s.sativa, s.autoflower, s.description, s.seed_count
@@ -845,7 +783,7 @@ func GetStrainHandler(c *gin.Context) {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Strain not found"})
 		} else {
-			log.Println("Error fetching strain:", err)
+			fieldLogger.WithError(err).Error("Failed to fetch strain")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch strain"})
 		}
 		return
@@ -855,14 +793,15 @@ func GetStrainHandler(c *gin.Context) {
 }
 
 func UpdateStrainHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "UpdateStrainHandler")
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		log.Println("Invalid strain ID:", err)
+		fieldLogger.WithError(err).Error("Invalid strain ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid strain ID"})
 		return
 	}
 
-	var strain struct {
+	var req struct {
 		Name        string `json:"name"`
 		BreederID   *int   `json:"breeder_id"` // Nullable for new breeders
 		NewBreeder  string `json:"new_breeder"`
@@ -873,14 +812,15 @@ func UpdateStrainHandler(c *gin.Context) {
 		SeedCount   int    `json:"seed_count"`
 	}
 
-	if err := c.ShouldBindJSON(&strain); err != nil {
-		log.Println("Invalid request body:", err)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fieldLogger.WithError(err).Error("Failed to bind JSON")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
 	// Validate Indica and Sativa sum
-	if strain.Indica+strain.Sativa != 100 {
+	if req.Indica+req.Sativa != 100 {
+		fieldLogger.Error("Indica and Sativa must sum to 100")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Indica and Sativa must sum to 100"})
 		return
 	}
@@ -888,7 +828,7 @@ func UpdateStrainHandler(c *gin.Context) {
 	// Open the database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		log.Println("Error opening database:", err)
+		fieldLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to database"})
 		return
 	}
@@ -896,8 +836,9 @@ func UpdateStrainHandler(c *gin.Context) {
 
 	// Determine the breeder ID
 	var breederID int
-	if strain.BreederID == nil {
-		if strain.NewBreeder == "" {
+	if req.BreederID == nil {
+		if req.NewBreeder == "" {
+			fieldLogger.Error("New breeder name is required")
 			c.JSON(http.StatusBadRequest, gin.H{"error": "New breeder name is required"})
 			return
 		}
@@ -907,9 +848,9 @@ func UpdateStrainHandler(c *gin.Context) {
 			INSERT INTO breeder (name)
 			VALUES (?)
 		`
-		result, err := db.Exec(insertBreederStmt, strain.NewBreeder)
+		result, err := db.Exec(insertBreederStmt, req.NewBreeder)
 		if err != nil {
-			log.Println("Error inserting new breeder:", err)
+			fieldLogger.WithError(err).Error("Failed to insert new breeder")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add new breeder"})
 			return
 		}
@@ -919,13 +860,13 @@ func UpdateStrainHandler(c *gin.Context) {
 		// Get the new breeder's ID
 		newBreederID, err := result.LastInsertId()
 		if err != nil {
-			log.Println("Error retrieving new breeder ID:", err)
+			fieldLogger.WithError(err).Error("Failed to retrieve new breeder ID")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve new breeder ID"})
 			return
 		}
 		breederID = int(newBreederID)
 	} else {
-		breederID = *strain.BreederID
+		breederID = *req.BreederID
 	}
 
 	// Update the strain in the database
@@ -934,10 +875,10 @@ func UpdateStrainHandler(c *gin.Context) {
         SET name = ?, breeder_id = ?, indica = ?, sativa = ?, autoflower = ?, description = ?, seed_count = ?
         WHERE id = ?
     `
-	_, err = db.Exec(updateStmt, strain.Name, breederID, strain.Indica, strain.Sativa,
-		strain.Autoflower, strain.Description, strain.SeedCount, id)
+	_, err = db.Exec(updateStmt, req.Name, breederID, req.Indica, req.Sativa,
+		req.Autoflower, req.Description, req.SeedCount, id)
 	if err != nil {
-		log.Println("Error updating strain:", err)
+		fieldLogger.WithError(err).Error("Failed to update strain")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update strain"})
 		return
 	}
@@ -946,9 +887,10 @@ func UpdateStrainHandler(c *gin.Context) {
 }
 
 func DeleteStrainHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "DeleteStrainHandler")
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		log.Println("Invalid strain ID:", err)
+		fieldLogger.WithError(err).Error("Invalid strain ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid strain ID"})
 		return
 	}
@@ -956,7 +898,7 @@ func DeleteStrainHandler(c *gin.Context) {
 	// Open the database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		log.Println("Error opening database:", err)
+		fieldLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to database"})
 		return
 	}
@@ -964,13 +906,14 @@ func DeleteStrainHandler(c *gin.Context) {
 
 	result, err := db.Exec(`DELETE FROM strain WHERE id = ?`, id)
 	if err != nil {
-		log.Println("Error deleting strain:", err)
+		fieldLogger.WithError(err).Error("Failed to delete strain")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete strain"})
 		return
 	}
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
+		fieldLogger.Error("Strain not found")
 		c.JSON(http.StatusNotFound, gin.H{"error": "Strain not found"})
 		return
 	}
@@ -979,6 +922,7 @@ func DeleteStrainHandler(c *gin.Context) {
 }
 
 func UpdatePlant(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "UpdatePlant")
 	var input struct {
 		PlantID          int    `json:"plant_id"`
 		PlantName        string `json:"plant_name"`
@@ -1000,6 +944,7 @@ func UpdatePlant(c *gin.Context) {
 
 	// Bind JSON payload
 	if err := c.ShouldBindJSON(&input); err != nil {
+		fieldLogger.WithError(err).Error("Failed to bind JSON")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
 		return
 	}
@@ -1007,6 +952,7 @@ func UpdatePlant(c *gin.Context) {
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -1015,6 +961,7 @@ func UpdatePlant(c *gin.Context) {
 		// Insert new zone into the database
 		zoneID, err := CreateNewZone(input.NewZone)
 		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to create new zone")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create new zone"})
 			return
 		}
@@ -1026,6 +973,7 @@ func UpdatePlant(c *gin.Context) {
 		// Insert new strain into the database
 		strainID, err := CreateNewStrain(input.NewStrain)
 		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to create new strain")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create new strain"})
 			return
 		}
@@ -1035,7 +983,7 @@ func UpdatePlant(c *gin.Context) {
 	//Update the plant
 	_, err = db.Exec("UPDATE plant SET name = ?, description = ?, zone_id = ?, strain_id = ?, clone = ?, start_dt = ?, harvest_weight = ? WHERE id = ?", input.PlantName, input.PlantDescription, input.ZoneID, input.StrainID, input.IsClone, input.StartDT, input.HarvestWeight, input.PlantID)
 	if err != nil {
-		log.Printf("Error writing to db: %v", err)
+		fieldLogger.WithError(err).Error("Failed to update plant")
 		return
 	}
 
@@ -1044,42 +992,23 @@ func UpdatePlant(c *gin.Context) {
 	var currentStatus int
 	err = db.QueryRow("SELECT status_id FROM plant_status_log WHERE plant_id = ? ORDER BY date DESC LIMIT 1", input.PlantID).Scan(&currentStatus)
 	if err != nil {
-		log.Printf("Error querying db: %v", err)
+		fieldLogger.WithError(err).Error("Failed to get current status")
 		return
 	}
 	if currentStatus != input.StatusID {
 		_, err = db.Exec("INSERT INTO plant_status_log (plant_id, status_id, date) VALUES (?, ?, ?)", input.PlantID, input.StatusID, input.Date)
 		if err != nil {
-			log.Printf("Error writing to db: %v", err)
+			fieldLogger.WithError(err).Error("Failed to update plant status")
 			return
 		}
 	} else {
-		log.Printf("Status unchanged, not updating")
+		fieldLogger.Info("Plant status unchanged")
 	}
 	c.JSON(http.StatusCreated, input)
 }
 
-// Plant represents the structure of a plant record.
-type PlantTableResponse struct {
-	ID                    int       `json:"id"`
-	Name                  string    `json:"name"`
-	Description           string    `json:"description"`
-	Clone                 bool      `json:"clone"`
-	StrainName            string    `json:"strain_name"`
-	BreederName           string    `json:"breeder_name"`
-	ZoneName              string    `json:"zone_name"`
-	StartDT               string    `json:"start_dt"`
-	CurrentWeek           int       `json:"current_week"`
-	CurrentDay            int       `json:"current_day"`
-	DaysSinceLastWatering int       `json:"days_since_last_watering"`
-	DaysSinceLastFeeding  int       `json:"days_since_last_feeding"`
-	FloweringDays         *int      `json:"flowering_days,omitempty"` // nil if not flowering
-	HarvestWeight         float64   `json:"harvest_weight"`
-	Status                string    `json:"status"`
-	StatusDate            time.Time `json:"status_date"`
-}
-
-func getPlantsByStatus(statuses []int) ([]PlantTableResponse, error) {
+func getPlantsByStatus(statuses []int) ([]types.PlantListResponse, error) {
+	fieldLogger := logger.Log.WithField("func", "getPlantsByStatus")
 	// Generate placeholders for the number of statuses
 	placeholders := make([]string, len(statuses))
 	args := make([]interface{}, len(statuses))
@@ -1116,6 +1045,7 @@ func getPlantsByStatus(statuses []int) ([]PlantTableResponse, error) {
 	// Open the database connection
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to open database")
 		return nil, err
 	}
 	defer db.Close()
@@ -1123,14 +1053,16 @@ func getPlantsByStatus(statuses []int) ([]PlantTableResponse, error) {
 	// Execute the query
 	rows, err := db.Query(query, args...)
 	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to query plants")
 		return nil, err
 	}
 	defer rows.Close()
 
-	plants := []PlantTableResponse{}
+	plants := []types.PlantListResponse{}
 	for rows.Next() {
-		var plant PlantTableResponse
+		var plant types.PlantListResponse
 		if err := rows.Scan(&plant.ID, &plant.Name, &plant.Description, &plant.Clone, &plant.StrainName, &plant.BreederName, &plant.ZoneName, &plant.StartDT, &plant.CurrentWeek, &plant.CurrentDay, &plant.DaysSinceLastWatering, &plant.DaysSinceLastFeeding, &plant.FloweringDays, &plant.HarvestWeight, &plant.Status, &plant.StatusDate); err != nil {
+			fieldLogger.WithError(err).Error("Failed to scan plant")
 			return nil, err
 		}
 		plants = append(plants, plant)
@@ -1139,7 +1071,7 @@ func getPlantsByStatus(statuses []int) ([]PlantTableResponse, error) {
 	return plants, nil
 }
 
-func GetLivingPlants() []PlantTableResponse {
+func GetLivingPlants() []types.PlantListResponse {
 	statuses := []int{1, 2, 3} // Seedling, Veg, Flower
 	result, _ := getPlantsByStatus(statuses)
 	return result
@@ -1191,7 +1123,8 @@ func OutOfStockStrainsHandler(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, strains)
 }
-func getStrainsBySeedCount(inStock bool) ([]config.StrainResponse, error) {
+func getStrainsBySeedCount(inStock bool) ([]types.Strain, error) {
+	fieldLogger := logger.Log.WithField("func", "getStrainsBySeedCount")
 	query := `
         SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count
         FROM strain s
@@ -1209,20 +1142,23 @@ func getStrainsBySeedCount(inStock bool) ([]config.StrainResponse, error) {
 
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to open database")
 		return nil, err
 	}
 	defer db.Close()
 
 	rows, err := db.Query(query)
 	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to query strains")
 		return nil, err
 	}
 	defer rows.Close()
 
-	var strains []config.StrainResponse
+	var strains []types.Strain
 	for rows.Next() {
-		var strain config.StrainResponse
+		var strain types.Strain
 		if err := rows.Scan(&strain.ID, &strain.Name, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount); err != nil {
+			fieldLogger.WithError(err).Error("Failed to scan strain")
 			return nil, err
 		}
 		strains = append(strains, strain)

@@ -4,9 +4,11 @@ import (
 	"embed"
 	"fmt"
 	"github.com/fogleman/gg"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	"image/color"
+	"isley/logger"
 )
 
 // Embed the fonts directory
@@ -37,9 +39,16 @@ type TextOverlayRequest struct {
 }
 
 func ProcessImageWithTextOverlay(req TextOverlayRequest) error {
+	fieldLogger := logger.Log.WithFields(logrus.Fields{
+		"imagePath":  req.ImagePath,
+		"outputPath": req.OutputPath,
+	})
+	fieldLogger.Info("Starting image processing")
+
 	// Load the base image
 	img, err := gg.LoadImage(req.ImagePath)
 	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to load base image")
 		return fmt.Errorf("failed to load image: %w", err)
 	}
 
@@ -56,8 +65,15 @@ func ProcessImageWithTextOverlay(req TextOverlayRequest) error {
 
 	// Process Image Objects
 	for _, imgObj := range req.ImageObjects {
+		fieldLogger.WithFields(logrus.Fields{
+			"imagePath": imgObj.ImagePath,
+			"corner":    imgObj.Corner,
+			"opacity":   imgObj.Opacity,
+		}).Info("Processing image overlay")
+
 		overlayImg, err := gg.LoadImage(imgObj.ImagePath)
 		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to load overlay image")
 			return fmt.Errorf("failed to load overlay image: %w", err)
 		}
 
@@ -76,6 +92,7 @@ func ProcessImageWithTextOverlay(req TextOverlayRequest) error {
 		case "bottom-right":
 			x, y = imgWidth-overlayWidth-padding, imgHeight-overlayHeight-padding
 		default:
+			fieldLogger.WithField("corner", imgObj.Corner).Error("Invalid corner specified")
 			return fmt.Errorf("invalid corner specified: %s", imgObj.Corner)
 		}
 
@@ -88,17 +105,27 @@ func ProcessImageWithTextOverlay(req TextOverlayRequest) error {
 
 	// Process Text Objects
 	for _, textObj := range req.TextObjects {
+		textLogger := logger.Log.WithFields(logrus.Fields{
+			"text":     textObj.Text,
+			"corner":   textObj.Corner,
+			"fontPath": textObj.FontPath,
+		})
+		textLogger.Info("Processing text overlay")
+
 		// Calculate scaled font size
 		fontSize := (imgHeight / 20) * textObj.FontScale
+
 		// Load font from the embedded FS
-		fontData, err := embeddedFonts.ReadFile(textObj.FontPath) // Embedded font path
+		fontData, err := embeddedFonts.ReadFile(textObj.FontPath)
 		if err != nil {
+			textLogger.WithError(err).Error("Failed to read embedded font")
 			return fmt.Errorf("failed to read embedded font: %w", err)
 		}
 
 		// Parse the font using opentype
 		parsedFont, err := opentype.Parse(fontData)
 		if err != nil {
+			textLogger.WithError(err).Error("Failed to parse font data")
 			return fmt.Errorf("failed to parse font data: %w", err)
 		}
 
@@ -109,18 +136,18 @@ func ProcessImageWithTextOverlay(req TextOverlayRequest) error {
 			Hinting: font.HintingFull,
 		})
 		if err != nil {
+			textLogger.WithError(err).Error("Failed to create font face")
 			return fmt.Errorf("failed to create font face: %w", err)
 		}
 
-		// Set the font face in the drawing context
 		dc.SetFontFace(fontFace)
 
 		// Measure text dimensions
 		_, textHeight := dc.MeasureString(textObj.Text)
 
-		// Calculate text position with adjustments to ensure visibility
+		// Calculate text position
 		var x, y float64
-		paddingAdjustment := textHeight / 2 // Dynamically adjust padding based on text height
+		paddingAdjustment := textHeight / 2
 
 		switch textObj.Corner {
 		case "top-left":
@@ -132,10 +159,10 @@ func ProcessImageWithTextOverlay(req TextOverlayRequest) error {
 		case "bottom-right":
 			x, y = imgWidth-padding, imgHeight-padding
 		default:
+			logger.Log.WithField("corner", textObj.Corner).Error("Invalid corner specified")
 			return fmt.Errorf("invalid corner specified: %s", textObj.Corner)
 		}
 
-		// Prevent text from bleeding off the edges
 		if textObj.Corner == "bottom-left" || textObj.Corner == "bottom-right" {
 			y -= textHeight + paddingAdjustment
 		} else if textObj.Corner == "top-left" || textObj.Corner == "top-right" {
@@ -166,8 +193,13 @@ func ProcessImageWithTextOverlay(req TextOverlayRequest) error {
 
 	// Save the output image
 	if err := dc.SavePNG(req.OutputPath); err != nil {
+		fieldLogger.WithError(err).Error("Failed to save output image")
 		return fmt.Errorf("failed to save output image: %w", err)
 	}
+
+	fieldLogger.WithFields(logrus.Fields{
+		"outputPath": req.OutputPath,
+	}).Info("Image processing completed successfully")
 
 	return nil
 }

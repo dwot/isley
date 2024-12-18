@@ -201,7 +201,10 @@ color: #0d6efd; /* Primary color */
         <!-- Set Logo Tab -->
         <div class="tab-pane fade" id="logo-content" role="tabpanel" aria-labelledby="logo-tab">
             <div class="mt-4">
-                <h3 class="text-secondary">Set Logo Image</h3>
+                <small class="text-muted d-block mt-2">
+                    This logo image is used by the magic wand feature on plant images.  It will overlay the logo, strain name and plant age in days on the image.
+                    <p>⚠️This feature is half baked and needs some work.⚠️</p>
+                </small>
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadImagesModal">
                     <i class="fa-solid fa-upload"></i> Upload Logo Image
                 </button>
@@ -523,7 +526,6 @@ color: #0d6efd; /* Primary color */
                 .then((response) => response.json())
                 .then((data) => {
                     if (data.success) {
-                        document.getElementById("aciToken").value = data.token;
                         const modal = bootstrap.Modal.getInstance(document.getElementById("aciLoginModal"));
                         modal.hide();
                         //alert("Token fetched successfully!");

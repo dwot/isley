@@ -6,8 +6,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"io"
 	"isley/config"
+	"isley/logger"
 	model "isley/model"
-	"log"
+	"isley/model/types"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,36 +16,11 @@ import (
 	"time"
 )
 
-type Settings struct {
-	ACI struct {
-		Enabled bool `json:"enabled"`
-	} `json:"aci"`
-	EC struct {
-		Enabled bool   `json:"enabled"`
-		Server  string `json:"server"`
-	} `json:"ec"`
-	PollingInterval string `json:"polling_interval"`
-}
-
-type ACInfinitySettings struct {
-	Enabled  bool `json:"enabled"`
-	TokenSet bool `json:"token_set"`
-}
-
-type EcoWittSettings struct {
-	Enabled bool `json:"enabled"`
-}
-
-type SettingsData struct {
-	ACI             ACInfinitySettings `json:"aci"`
-	EC              EcoWittSettings    `json:"ec"`
-	PollingInterval int                `json:"polling_interval"`
-}
-
 func SaveSettings(c *gin.Context) {
-	var settings Settings
+	fieldLogger := logger.Log.WithField("func", "SaveSettings")
+	var settings types.Settings
 	if err := c.ShouldBindJSON(&settings); err != nil {
-		fmt.Println("Failed to save settings", err)
+		fieldLogger.WithError(err).Error("Failed to save settings")
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -54,7 +30,7 @@ func SaveSettings(c *gin.Context) {
 	if settings.ACI.Enabled {
 		err := UpdateSetting("aci.enabled", "1")
 		if err != nil {
-			fmt.Println("Failed to save settings", err)
+			fieldLogger.WithError(err).Error("Failed to save settings")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
 			return
 		} else {
@@ -63,7 +39,7 @@ func SaveSettings(c *gin.Context) {
 	} else {
 		err := UpdateSetting("aci.enabled", "0")
 		if err != nil {
-			fmt.Println("Failed to save settings", err)
+			fieldLogger.WithError(err).Error("Failed to save settings")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
 			return
 		} else {
@@ -74,7 +50,7 @@ func SaveSettings(c *gin.Context) {
 	if settings.EC.Enabled {
 		err := UpdateSetting("ec.enabled", "1")
 		if err != nil {
-			fmt.Println("Failed to save settings", err)
+			fieldLogger.WithError(err).Error("Failed to save settings")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
 			return
 		} else {
@@ -83,7 +59,7 @@ func SaveSettings(c *gin.Context) {
 	} else {
 		err := UpdateSetting("ec.enabled", "0")
 		if err != nil {
-			fmt.Println("Failed to save settings", err)
+			fieldLogger.WithError(err).Error("Failed to save settings")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
 			return
 		} else {
@@ -92,7 +68,7 @@ func SaveSettings(c *gin.Context) {
 	}
 	err := UpdateSetting("polling_interval", settings.PollingInterval)
 	if err != nil {
-		fmt.Println("Failed to save settings", err)
+		fieldLogger.WithError(err).Error("Failed to save settings")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
 		return
 	} else {
@@ -103,17 +79,18 @@ func SaveSettings(c *gin.Context) {
 }
 
 func UpdateSetting(name string, value string) error {
+	fieldLogger := logger.Log.WithField("func", "UpdateSetting")
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println("Failed to open database", err)
+		fieldLogger.WithError(err).Error("Failed to open database")
 		return err
 	}
 	existId := 0
 	// Query settings table and write result to console
 	rows, err := db.Query("SELECT * FROM settings where name = $1", name)
 	if err != nil {
-		fmt.Println("Failed to read settings", err)
+		fieldLogger.WithError(err).Error("Failed to read settings")
 		return err
 	}
 	// Iterate over rows
@@ -126,7 +103,8 @@ func UpdateSetting(name string, value string) error {
 		var update_dt string
 		err = rows.Scan(&id, &name, &value, &create_dt, &update_dt)
 		if err != nil {
-			fmt.Println("Failed to read settings", err)
+			fieldLogger.WithError(err).Error("Failed to read settings")
+			return err
 		}
 		existId = id
 	}
@@ -135,40 +113,41 @@ func UpdateSetting(name string, value string) error {
 		//Insert new setting
 		_, err = db.Exec("INSERT INTO settings (name, value) VALUES ($1, $2)", name, value)
 		if err != nil {
-			fmt.Println("Failed to insert setting", err)
+			fieldLogger.WithError(err).Error("Failed to insert setting")
 		}
 	} else {
 		//Update existing setting
 		_, err = db.Exec("UPDATE settings SET value = $1 WHERE id = $2", value, existId)
 		if err != nil {
-			fmt.Println("Failed to update setting", err)
+			fieldLogger.WithError(err).Error("Failed to update setting")
 		}
 	}
 
 	// Close the db
 	err = db.Close()
 	if err != nil {
-		fmt.Println("Failed to close database", err)
+		fieldLogger.WithError(err).Error("Failed to close database")
 		return err
 	}
 
 	return nil
 }
 
-func GetSettings() SettingsData {
+func GetSettings() types.SettingsData {
+	fieldLogger := logger.Log.WithField("func", "GetSettings")
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println("Failed to read settings", err)
-		return SettingsData{}
+		fieldLogger.WithError(err).Error("Failed to open database")
+		return types.SettingsData{}
 	}
 	defer db.Close()
 
-	settingsData := SettingsData{}
+	settingsData := types.SettingsData{}
 
 	rows, err := db.Query("SELECT * FROM settings")
 	if err != nil {
-		fmt.Println("Failed to read settings", err)
-		return SettingsData{}
+		fieldLogger.WithError(err).Error("Failed to read settings")
+		return types.SettingsData{}
 	}
 	defer rows.Close()
 
@@ -177,7 +156,7 @@ func GetSettings() SettingsData {
 		var name, value, createDt, updateDt string
 		err = rows.Scan(&id, &name, &value, &createDt, &updateDt)
 		if err != nil {
-			fmt.Println("Failed to read settings", err)
+			fieldLogger.WithError(err).Error("Failed to read settings")
 			continue
 		}
 
@@ -198,11 +177,12 @@ func GetSettings() SettingsData {
 	return settingsData
 }
 func AddZoneHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "AddZoneHandler")
 	var zone struct {
 		Name string `json:"zone_name"`
 	}
 	if err := c.ShouldBindJSON(&zone); err != nil {
-		fmt.Println("Failed to add zone", err)
+		fieldLogger.WithError(err).Error("Failed to add zone")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
 		return
 	}
@@ -210,7 +190,7 @@ func AddZoneHandler(c *gin.Context) {
 	// Add zone to database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println("Failed to add zone", err)
+		fieldLogger.WithError(err).Error("Failed to add zone")
 		return
 	}
 	defer db.Close()
@@ -219,30 +199,32 @@ func AddZoneHandler(c *gin.Context) {
 	var id int
 	err = db.QueryRow("INSERT INTO zones (name) VALUES ($1) RETURNING id", zone.Name).Scan(&id)
 	if err != nil {
-		fmt.Println("Failed to add zone", err)
+		fieldLogger.WithError(err).Error("Failed to add zone")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add zone"})
 		return
 	}
 	//Add the new zone to the config
-	config.Zones = append(config.Zones, config.ZoneResponse{ID: uint(id), Name: zone.Name})
+	config.Zones = append(config.Zones, types.Zone{ID: uint(id), Name: zone.Name})
 
 	c.JSON(http.StatusCreated, gin.H{"id": id})
 }
 
 func AddMetricHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "AddMetricHandler")
 	var metric struct {
 		Name string `json:"metric_name"`
 		Unit string `json:"metric_unit"`
 	}
 
 	if err := c.ShouldBindJSON(&metric); err != nil {
-		fmt.Println("Failed to add metric", err)
+		fieldLogger.WithError(err).Error("Failed to add metric")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
 		return
 	}
 
 	// metric name of "Height" is reserved
 	if metric.Name == "Height" {
+		fieldLogger.Error("Failed to add metric")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "This metric name is reserved and can't be added."})
 		return
 	}
@@ -250,7 +232,7 @@ func AddMetricHandler(c *gin.Context) {
 	// Add metric to database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println("Failed to add metric", err)
+		fieldLogger.WithError(err).Error("Failed to add metric")
 		return
 	}
 	defer db.Close()
@@ -259,27 +241,29 @@ func AddMetricHandler(c *gin.Context) {
 	var id int
 	err = db.QueryRow("INSERT INTO metric (name, unit) VALUES ($1, $2) RETURNING id", metric.Name, metric.Unit).Scan(&id)
 	if err != nil {
-		fmt.Println("Failed to add metric", err)
+		fieldLogger.WithError(err).Error("Failed to add metric")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add metric"})
 		return
 	}
-	config.Metrics = append(config.Metrics, config.MetricResponse{ID: id, Name: metric.Name, Unit: metric.Unit})
+	config.Metrics = append(config.Metrics, types.Metric{ID: id, Name: metric.Name, Unit: metric.Unit})
 
 	c.JSON(http.StatusCreated, gin.H{"id": id})
 }
 
 func AddActivityHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "AddActivityHandler")
 	var activity struct {
 		Name string `json:"activity_name"`
 	}
 	if err := c.ShouldBindJSON(&activity); err != nil {
-		fmt.Println("Failed to add activity", err)
+		fieldLogger.WithError(err).Error("Failed to add activity")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
 		return
 	}
 
 	//Reserved names can't be added "Water", "Feed", "Note"
 	if activity.Name == "Water" || activity.Name == "Feed" || activity.Name == "Note" {
+		fieldLogger.Error("Failed to add activity")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "This activity name is reserved and can't be added."})
 		return
 	}
@@ -287,7 +271,7 @@ func AddActivityHandler(c *gin.Context) {
 	// Add activity to database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println("Failed to add activity", err)
+		fieldLogger.WithError(err).Error("Failed to add activity")
 		return
 	}
 	defer db.Close()
@@ -296,21 +280,22 @@ func AddActivityHandler(c *gin.Context) {
 	var id int
 	err = db.QueryRow("INSERT INTO activity (name) VALUES ($1) RETURNING id", activity.Name).Scan(&id)
 	if err != nil {
-		fmt.Println("Failed to add activity", err)
+		fieldLogger.WithError(err).Error("Failed to add activity")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add activity"})
 		return
 	}
-	config.Activities = append(config.Activities, config.ActivityResponse{ID: id, Name: activity.Name})
+	config.Activities = append(config.Activities, types.Activity{ID: id, Name: activity.Name})
 
 	c.JSON(http.StatusCreated, gin.H{"id": id})
 }
 func UpdateZoneHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "UpdateZoneHandler")
 	id := c.Param("id")
 	var zone struct {
 		Name string `json:"zone_name"`
 	}
 	if err := c.ShouldBindJSON(&zone); err != nil {
-		fmt.Println("Failed to update zone", err)
+		fieldLogger.WithError(err).Error("Failed to update zone")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
 		return
 	}
@@ -318,7 +303,7 @@ func UpdateZoneHandler(c *gin.Context) {
 	// Update zone in database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println("Failed to update zone", err)
+		fieldLogger.WithError(err).Error("Failed to update zone")
 		return
 	}
 	defer db.Close()
@@ -326,7 +311,7 @@ func UpdateZoneHandler(c *gin.Context) {
 	// Update zone in database
 	_, err = db.Exec("UPDATE zones SET name = $1 WHERE id = $2", zone.Name, id)
 	if err != nil {
-		fmt.Println("Failed to update zone", err)
+		fieldLogger.WithError(err).Error("Failed to update zone")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update zone"})
 		return
 	}
@@ -337,13 +322,14 @@ func UpdateZoneHandler(c *gin.Context) {
 }
 
 func UpdateMetricHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "UpdateMetricHandler")
 	id := c.Param("id")
 	var metric struct {
 		Name string `json:"metric_name"`
 		Unit string `json:"metric_unit"`
 	}
 	if err := c.ShouldBindJSON(&metric); err != nil {
-		fmt.Println("Failed to update metric", err)
+		fieldLogger.WithError(err).Error("Failed to update metric")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
 		return
 	}
@@ -351,7 +337,7 @@ func UpdateMetricHandler(c *gin.Context) {
 	// Update metric in database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println("Failed to update metric", err)
+		fieldLogger.WithError(err).Error("Failed to update metric")
 		return
 	}
 	defer db.Close()
@@ -360,7 +346,7 @@ func UpdateMetricHandler(c *gin.Context) {
 	var lock bool
 	err = db.QueryRow("SELECT lock FROM metric WHERE id = $1", id).Scan(&lock)
 	if err != nil {
-		fmt.Println("Failed to update metric", err)
+		fieldLogger.WithError(err).Error("Failed to update metric")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update metric"})
 		return
 	}
@@ -368,7 +354,7 @@ func UpdateMetricHandler(c *gin.Context) {
 		//Update the unit only
 		_, err = db.Exec("UPDATE metric SET unit = $1 WHERE id = $2", metric.Unit, id)
 		if err != nil {
-			fmt.Println("Failed to update metric", err)
+			fieldLogger.WithError(err).Error("Failed to update metric")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update metric"})
 			return
 		}
@@ -380,7 +366,7 @@ func UpdateMetricHandler(c *gin.Context) {
 	// Update metric in database
 	_, err = db.Exec("UPDATE metric SET name = $1, unit = $2 WHERE id = $3", metric.Name, metric.Unit, id)
 	if err != nil {
-		fmt.Println("Failed to update metric", err)
+		fieldLogger.WithError(err).Error("Failed to update metric")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update metric"})
 		return
 	}
@@ -392,12 +378,13 @@ func UpdateMetricHandler(c *gin.Context) {
 }
 
 func UpdateActivityHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "UpdateActivityHandler")
 	id := c.Param("id")
 	var activity struct {
 		Name string `json:"activity_name"`
 	}
 	if err := c.ShouldBindJSON(&activity); err != nil {
-		fmt.Println("Failed to update activity", err)
+		fieldLogger.WithError(err).Error("Failed to update activity")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
 		return
 	}
@@ -405,7 +392,7 @@ func UpdateActivityHandler(c *gin.Context) {
 	// Update activity in database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println("Failed to update activity", err)
+		fieldLogger.WithError(err).Error("Failed to update activity")
 		return
 	}
 	defer db.Close()
@@ -414,11 +401,12 @@ func UpdateActivityHandler(c *gin.Context) {
 	var lock bool
 	err = db.QueryRow("SELECT lock FROM activity WHERE id = $1", id).Scan(&lock)
 	if err != nil {
-		fmt.Println("Failed to update activity", err)
+		fieldLogger.WithError(err).Error("Failed to update activity")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update activity"})
 		return
 	}
 	if lock {
+		fieldLogger.Error("Failed to update activity")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Editing this activity is not allowed."})
 		return
 	}
@@ -426,7 +414,7 @@ func UpdateActivityHandler(c *gin.Context) {
 	// Update activity in database
 	_, err = db.Exec("UPDATE activity SET name = $1 WHERE id = $2", activity.Name, id)
 	if err != nil {
-		fmt.Println("Failed to update activity", err)
+		fieldLogger.WithError(err).Error("Failed to update activity")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update activity"})
 		return
 	}
@@ -437,12 +425,13 @@ func UpdateActivityHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Activity updated"})
 }
 func DeleteZoneHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "DeleteZoneHandler")
 	id := c.Param("id")
 
 	// Delete zone from database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println("Failed to delete zone", err)
+		fieldLogger.WithError(err).Error("Failed to delete zone")
 		return
 	}
 	defer db.Close()
@@ -450,7 +439,7 @@ func DeleteZoneHandler(c *gin.Context) {
 	//Build a list of plants associated with this zoen to delete first
 	rows, err := db.Query("SELECT id FROM plant WHERE zone_id = $1", id)
 	if err != nil {
-		fmt.Println("Failed to delete plants", err)
+		fieldLogger.WithError(err).Error("Failed to delete plants")
 		return
 	}
 	defer rows.Close()
@@ -460,7 +449,7 @@ func DeleteZoneHandler(c *gin.Context) {
 		var plantId int
 		err = rows.Scan(&plantId)
 		if err != nil {
-			fmt.Println("Failed to delete plant", err)
+			fieldLogger.WithError(err).Error("Failed to delete plant")
 			continue
 		}
 		plantList = append(plantList, plantId)
@@ -473,7 +462,7 @@ func DeleteZoneHandler(c *gin.Context) {
 	//Build a list of sensors associated with this zoen to delete first
 	rows, err = db.Query("SELECT id FROM sensors WHERE zone_id = $1", id)
 	if err != nil {
-		fmt.Println("Failed to delete sensors", err)
+		fieldLogger.WithError(err).Error("Failed to delete sensors")
 		return
 	}
 	defer rows.Close()
@@ -483,7 +472,7 @@ func DeleteZoneHandler(c *gin.Context) {
 		var sensorId int
 		err = rows.Scan(&sensorId)
 		if err != nil {
-			fmt.Println("Failed to delete sensor", err)
+			fieldLogger.WithError(err).Error("Failed to delete sensor")
 			continue
 		}
 		sensorList = append(sensorList, sensorId)
@@ -496,7 +485,7 @@ func DeleteZoneHandler(c *gin.Context) {
 	// Delete zone from database
 	_, err = db.Exec("DELETE FROM zones WHERE id = $1", id)
 	if err != nil {
-		fmt.Println("Failed to delete zone", err)
+		fieldLogger.WithError(err).Error("Failed to delete zone")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete zone"})
 		return
 	}
@@ -508,12 +497,13 @@ func DeleteZoneHandler(c *gin.Context) {
 }
 
 func DeleteMetricHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "DeleteMetricHandler")
 	id := c.Param("id")
 
 	// Delete metric from database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to delete metric")
 		return
 	}
 	defer db.Close()
@@ -522,11 +512,12 @@ func DeleteMetricHandler(c *gin.Context) {
 	var lock bool
 	err = db.QueryRow("SELECT lock FROM metric WHERE id = $1", id).Scan(&lock)
 	if err != nil {
-		fmt.Println("Failed to delete metric", err)
+		fieldLogger.WithError(err).Error("Failed to delete metric")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete metric"})
 		return
 	}
 	if lock {
+		fieldLogger.Error("Failed to delete metric")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Deleting this metric is not allowed."})
 		return
 	}
@@ -534,7 +525,7 @@ func DeleteMetricHandler(c *gin.Context) {
 	// Delete any measurements associated with this metric
 	_, err = db.Exec("DELETE FROM plant_measurements WHERE metric_id = $1", id)
 	if err != nil {
-		fmt.Println("Failed to delete measurements", err)
+		fieldLogger.WithError(err).Error("Failed to delete measurements")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete measurements"})
 		return
 	}
@@ -542,7 +533,7 @@ func DeleteMetricHandler(c *gin.Context) {
 	// Delete metric from database
 	_, err = db.Exec("DELETE FROM metric WHERE id = $1", id)
 	if err != nil {
-		fmt.Println("Failed to delete metric", err)
+		fieldLogger.WithError(err).Error("Failed to delete metric")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete metric"})
 		return
 	}
@@ -554,12 +545,13 @@ func DeleteMetricHandler(c *gin.Context) {
 }
 
 func DeleteActivityHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "DeleteActivityHandler")
 	id := c.Param("id")
 
 	// Delete activity from database
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to delete activity")
 		return
 	}
 	defer db.Close()
@@ -568,11 +560,12 @@ func DeleteActivityHandler(c *gin.Context) {
 	var lock bool
 	err = db.QueryRow("SELECT lock FROM activity WHERE id = $1", id).Scan(&lock)
 	if err != nil {
-		fmt.Println("Failed to delete activity", err)
+		fieldLogger.WithError(err).Error("Failed to delete activity")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete activity"})
 		return
 	}
 	if lock {
+		fieldLogger.Error("Failed to delete activity")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Deleting this activity is not allowed."})
 		return
 	}
@@ -580,7 +573,7 @@ func DeleteActivityHandler(c *gin.Context) {
 	// Delete any plant_activities associated with this activity
 	_, err = db.Exec("DELETE FROM plant_activity WHERE activity_id = $1", id)
 	if err != nil {
-		fmt.Println("Failed to delete plant_activities", err)
+		fieldLogger.WithError(err).Error("Failed to delete plant_activities")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete plant_activities"})
 		return
 	}
@@ -588,7 +581,7 @@ func DeleteActivityHandler(c *gin.Context) {
 	// Delete activity from database
 	_, err = db.Exec("DELETE FROM activity WHERE id = $1", id)
 	if err != nil {
-		fmt.Println("Failed to delete activity", err)
+		fieldLogger.WithError(err).Error("Failed to delete activity")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete activity"})
 		return
 	}
@@ -600,8 +593,10 @@ func DeleteActivityHandler(c *gin.Context) {
 }
 
 func GetSetting(name string) (string, error) {
+	fieldLogger := logger.Log.WithField("func", "GetSetting")
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to open database")
 		return "", err
 	}
 	defer db.Close()
@@ -609,16 +604,18 @@ func GetSetting(name string) (string, error) {
 	var value string
 	err = db.QueryRow("SELECT value FROM settings WHERE name = $1", name).Scan(&value)
 	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to read setting")
 		return "", err
 	}
 
 	return value, nil
 }
 func UploadLogo(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "UploadLogo")
 	// Parse the multipart form data
 	err := c.Request.ParseMultipartForm(10 << 20) // Limit to 10 MB
 	if err != nil {
-		log.Println("Error parsing form data:", err)
+		fieldLogger.WithError(err).Error("Failed to parse form data")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse form data"})
 		return
 	}
@@ -626,7 +623,7 @@ func UploadLogo(c *gin.Context) {
 	// Retrieve the file from the "logo" field
 	fileHeader, err := c.FormFile("logo")
 	if err != nil {
-		log.Println("Error retrieving file:", err)
+		fieldLogger.WithError(err).Error("Failed to retrieve file")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to retrieve file"})
 		return
 	}
@@ -634,7 +631,7 @@ func UploadLogo(c *gin.Context) {
 	// Open the uploaded file
 	file, err := fileHeader.Open()
 	if err != nil {
-		log.Println("Error opening file:", err)
+		fieldLogger.WithError(err).Error("Failed to open file")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open file"})
 		return
 	}
@@ -648,7 +645,7 @@ func UploadLogo(c *gin.Context) {
 	// Create the uploads/logos directory if it doesn't exist
 	err = os.MkdirAll(filepath.Dir(savePath), os.ModePerm)
 	if err != nil {
-		log.Println("Error creating directory:", err)
+		fieldLogger.WithError(err).Error("Failed to create directory")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create directory"})
 		return
 	}
@@ -656,14 +653,14 @@ func UploadLogo(c *gin.Context) {
 	// Save the file to the filesystem
 	out, err := os.Create(savePath)
 	if err != nil {
-		log.Println("Error creating file:", err)
+		fieldLogger.WithError(err).Error("Failed to save file")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
 		return
 	}
 	defer out.Close()
 	_, err = io.Copy(out, file)
 	if err != nil {
-		log.Println("Error saving file:", err)
+		fieldLogger.WithError(err).Error("Failed to save file")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
 		return
 	}
@@ -671,7 +668,7 @@ func UploadLogo(c *gin.Context) {
 	// Update the database with the new logo path
 	err = UpdateSetting("logo_image", fileName)
 	if err != nil {
-		log.Println("Error updating logo setting:", err)
+		fieldLogger.WithError(err).Error("Failed to update logo setting")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update logo setting"})
 		return
 	}
@@ -680,18 +677,19 @@ func UploadLogo(c *gin.Context) {
 }
 
 func LoadEcDevices() ([]string, error) {
+	fieldLogger := logger.Log.WithField("func", "LoadEcDevices")
 	var ecDevices []string
 	// Init the db
 	db, err := sql.Open("sqlite", model.DbPath())
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to open database")
 		return ecDevices, err
 	}
 
 	//Iterate over sensors table, looking for distinct device with type ecowitt
 	rows, err := db.Query("SELECT DISTINCT device FROM sensors WHERE source = 'ecowitt'")
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to read sensors")
 		return ecDevices, err
 	}
 	//build a list of devices to scan
@@ -700,7 +698,7 @@ func LoadEcDevices() ([]string, error) {
 		var device string
 		err = rows.Scan(&device)
 		if err != nil {
-			fmt.Println(err)
+			fieldLogger.WithError(err).Error("Failed to read sensors")
 			return ecDevices, err
 		}
 		ecDevices = append(ecDevices, device)
@@ -709,7 +707,7 @@ func LoadEcDevices() ([]string, error) {
 	// Close the db
 	err = db.Close()
 	if err != nil {
-		fmt.Println(err)
+		fieldLogger.WithError(err).Error("Failed to close database")
 		return ecDevices, err
 	}
 
