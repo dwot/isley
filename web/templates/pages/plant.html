@@ -78,7 +78,6 @@
             </div>
 
             <!-- Plant Details Section -->
-            <!-- Plant Details Section -->
             <div class="col-md-6">
                 <div class="card mb-3">
                     <div class="card-body text-start">
@@ -94,7 +93,9 @@
                             </div>
                         </div>
                         <input type="hidden" id="strainName" value="{{ .plant.StrainName }}">
+                        <input type="hidden" id="breederName" value="{{ .plant.BreederName }}">
                         <input type="hidden" id="currentDay" value="{{ .plant.CurrentDay }}">
+                        <input type="hidden" id="currentWeek" value="{{ .plant.CurrentWeek }}">
 
                         <ul class="list-unstyled">
                             <li><strong>Status:</strong> {{ .plant.Status }}</li>
@@ -336,7 +337,7 @@
     </div>
 </div>
 
-<!-- Image Modal -->
+<!-- Updated Image Modal -->
 <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -344,13 +345,84 @@
                 <h5 class="modal-title" id="imageModalLabel">Image Details</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body text-center">
-                <img id="modalImage" src="" class="img-fluid" alt="Full-size image">
-                <p class="mt-3 text-muted" id="modalDescription"></p>
-                <small class="text-muted" id="modalDate"></small>
-                <div class="mt-4">
+            <div class="modal-body">
+                <div class="text-center">
+                    <img id="modalImage" src="" class="img-fluid" alt="Full-size image">
+                </div>
+                <div class="d-none">
+                    <img id="originalImageSrc" id="originalImageSrc">
+                </div>
+                <div class="mt-3">
+                    <div class="row">
+                        <!-- Font Selection -->
+                        <div class="col-md-6">
+                            <label for="fontDropdown">Select Font</label>
+                            <select id="fontDropdown" class="form-select">
+                                <!-- Dynamically populated -->
+                            </select>
+                            <p id="fontPreview" class="mt-2">Preview: The quick brown fox</p>
+                        </div>
+                        <!-- Logo Selection -->
+                        <div class="col-md-6">
+                            <label for="logoDropdown">Select Logo</label>
+                            <select id="logoDropdown" class="form-select">
+                                <option value="">None</option>
+                                <!-- Dynamically populated -->
+                            </select>
+                            <img id="logoPreview" src="" class="img-thumbnail mt-2" style="max-width: 100px; display: none;" />
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <!-- Text Customization -->
+                        <div class="col-md-6">
+                            <label for="text1">Top Text</label>
+                            <select id="text1Dropdown" class="form-select">
+                                <option selected value="{{ .plant.StrainName }}">Strain Name</option>
+                                <option value="{{ .plant.BreederName }}">Breeder Name</option>
+                                <option value="{{ .plant.Name }}">Plant Name</option>
+                                <option value="Day {{ .plant.CurrentDay }}">Current Day</option>
+                                <option value="Week {{ .plant.CurrentWeek }}">Current Week</option>
+                                <option value="Custom">Custom</option>
+                            </select>
+                            <input type="text" id="text1" class="form-control mt-2" placeholder="Custom text" disabled>
+                            <label for="text1Corner" class="mt-2">Placement</label>
+                            <select id="text1Corner" class="form-select">
+                                <option selected value="top-left">Top Left</option>
+                                <option value="top-right">Top Right</option>
+                                <option value="bottom-left">Bottom Left</option>
+                                <option value="bottom-right">Bottom Right</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="text2">Bottom Text</label>
+                            <select id="text2Dropdown" class="form-select">
+                                <option value="{{ .plant.StrainName }}">Strain Name</option>
+                                <option value="{{ .plant.BreederName }}">Breeder Name</option>
+                                <option value="{{ .plant.Name }}">Plant Name</option>
+                                <option selected value="Day {{ .plant.CurrentDay }}">Current Day</option>
+                                <option value="Week {{ .plant.CurrentWeek }}">Current Week</option>
+                                <option value="Custom">Custom</option>
+                            </select>
+                            <input type="text" id="text2" class="form-control mt-2" placeholder="Custom text" disabled>
+                            <label for="text2Corner" class="mt-2">Placement</label>
+                            <select id="text2Corner" class="form-select">
+                                <option value="top-left">Top Left</option>
+                                <option value="top-right">Top Right</option>
+                                <option value="bottom-left">Bottom Left</option>
+                                <option selected value="bottom-right">Bottom Right</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <label for="textColor">Text Color</label>
+                            <input type="color" id="textColor" class="form-control form-control-color" value="#FFFFFF">
+                        </div>
+                    </div>
+                </div>
+                <div class="text-center mt-4">
                     <button id="decorateImage" class="btn btn-primary">
-                        <i class="fa fa-magic"></i> Magic Wand
+                        <i class="fa fa-magic"></i> Decorate Image
                     </button>
                 </div>
             </div>
@@ -1142,12 +1214,14 @@
     document.addEventListener("DOMContentLoaded", () => {
         const imageModal = document.getElementById("imageModal");
         const modalImage = document.getElementById("modalImage");
+        const originalImageSrc = document.getElementById("originalImageSrc");
         const modalDescription = document.getElementById("modalDescription");
         const modalDate = document.getElementById("modalDate");
 
         document.querySelectorAll(".thumbnail-img").forEach((img) => {
             img.addEventListener("click", () => {
                 modalImage.src = img.dataset.image;
+                originalImageSrc.src = img.dataset.image;
                 modalDescription.textContent = img.dataset.description;
                 modalDate.textContent = img.dataset.date;
             });
@@ -1338,57 +1412,139 @@
 
 <script>
     document.addEventListener("DOMContentLoaded", () => {
+        const fontDropdown = document.getElementById("fontDropdown");
+        const fontPreview = document.getElementById("fontPreview");
+        const logoDropdown = document.getElementById("logoDropdown");
+        const logoPreview = document.getElementById("logoPreview");
         const decorateImageButton = document.getElementById("decorateImage");
         const modalImage = document.getElementById("modalImage");
+        const originalImageSrc = document.getElementById("originalImageSrc");
+
+        // Load fonts
+        fetch("/listFonts")
+            .then((response) => response.json())
+            .then((data) => {
+                if (data.success) {
+                    data.fonts.forEach((font) => {
+                        const fontName = font.split("/").pop().replace(".ttf", "");
+                        const option = document.createElement("option");
+                        option.value = font;
+                        option.textContent = fontName;
+                        fontDropdown.appendChild(option);
+                    });
+
+                    const selectedFont = fontDropdown.value;
+                    if (selectedFont) {
+                        const fontName = selectedFont.split("/").pop().replace(".ttf", "");
+                        const fontUrl = `/${selectedFont}`;
+
+                        // Add @font-face rule dynamically
+                        const style = document.createElement("style");
+                        style.innerHTML = `
+                @font-face {
+                    font-family: '${fontName}';
+                    src: url('${fontUrl}');
+                }
+            `;
+                        document.head.appendChild(style);
+
+                        // Apply the new font to the preview
+                        fontPreview.style.fontFamily = fontName;
+                    }
+
+                }
+            });
+
+        // Load logos
+        fetch("/listLogos")
+            .then((response) => response.json())
+            .then((data) => {
+                if (data.success) {
+                    data.logos.forEach((logo) => {
+                        const option = document.createElement("option");
+                        option.value = logo;
+                        option.textContent = logo.split("/").pop();
+                        logoDropdown.appendChild(option);
+                    });
+                }
+            });
+
+        // Font preview
+        fontDropdown.addEventListener("change", () => {
+            const selectedFont = fontDropdown.value;
+            if (selectedFont) {
+                const fontName = selectedFont.split("/").pop().replace(".ttf", "");
+                const fontUrl = `/${selectedFont}`;
+
+                // Add @font-face rule dynamically
+                const style = document.createElement("style");
+                style.innerHTML = `
+                @font-face {
+                    font-family: '${fontName}';
+                    src: url('${fontUrl}');
+                }
+            `;
+                document.head.appendChild(style);
+
+                // Apply the new font to the preview
+                fontPreview.style.fontFamily = fontName;
+            }
+        });
+
+        // Logo preview
+        logoDropdown.addEventListener("change", () => {
+            if (logoDropdown.value) {
+                logoPreview.src = `/${logoDropdown.value}`;
+                logoPreview.style.display = "block";
+            } else {
+                logoPreview.style.display = "none";
+            }
+        });
 
         decorateImageButton.addEventListener("click", () => {
-            const fullImagePath = modalImage.src; // Full URL (e.g., http://localhost:8080/uploads/plants/plant_1_image_0.jpg)
+            const fullImagePath = originalImageSrc.src;
+            const imagePath = new URL(fullImagePath).pathname.replace(/^\//, "");
+            const text1 = text1Dropdown.value === "Custom" ? text1Input.value : document.getElementById("text1Dropdown").value;
+            const text2 = text2Dropdown.value === "Custom" ? text2Input.value : document.getElementById("text2Dropdown").value;
+            const logo = logoDropdown.value;
+            const font = fontDropdown.value;
+            const textColor = document.getElementById("textColor").value;
+            const text1Corner = document.getElementById("text1Corner").value;
+            const text2Corner = document.getElementById("text2Corner").value;
 
-            // Extract the relative path
-            const imagePath = new URL(fullImagePath).pathname.replace(/^\//, ""); // Removes the leading slash
-            const strainName = document.getElementById("strainName").value; // Assume strainName exists
-            const plantAge = document.getElementById("currentDay").value; // Assume currentDay exists
-
-            // Add a spinner overlay inside the modal
+            // Add a spinner overlay
             const modal = document.getElementById("imageModal");
             const spinnerOverlay = document.createElement("div");
             spinnerOverlay.id = "spinnerOverlay";
-            spinnerOverlay.innerHTML = `
-                <div class="spinner-overlay">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                </div>
-            `;
+            spinnerOverlay.innerHTML = `<div class="spinner-border text-primary" role="status"></div>`;
             modal.appendChild(spinnerOverlay);
 
-
-            // Send a POST request to the backend for decoration
+            // Send POST request
             fetch("/decorateImage", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     imagePath,
-                    strainName,
-                    plantAge,
+                    text1,
+                    text2,
+                    text1Corner,
+                    text2Corner,
+                    logo,
+                    font,
+                    textColor,
                 }),
             })
                 .then((response) => response.json())
                 .then((data) => {
                     if (data.success) {
-                        // Replace modal image with the decorated version
-                        modalImage.src = "../" + data.outputPath;
+                        modalImage.src = "../" + data.outputPath + "?" + new Date().getTime();
                     } else {
                         alert("Failed to decorate image: " + data.error);
                     }
                 })
-                .catch((error) => {
-                    console.error("Error decorating image:", error);
-                })
+                .catch((error) => console.error("Error decorating image:", error))
                 .finally(() => {
-                    // Remove the spinner overlay
-                    const spinner = document.getElementById("spinnerOverlay");
-                    if (spinner) spinner.remove();
+                    document.getElementById("spinnerOverlay").remove();
                 });
         });
     });

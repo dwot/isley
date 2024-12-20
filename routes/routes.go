@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"isley/config"
 	"isley/handlers"
+	"isley/utils"
 	"net/http"
 )
 
@@ -67,6 +68,8 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"activities":   config.Activities,
 		})
 	})
+	r.GET("/listFonts", utils.ListFontsHandler)
+	r.GET("/listLogos", utils.ListLogosHandler)
 
 	r.GET("/settings", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "views/settings.html", gin.H{
@@ -121,7 +124,7 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 	r.DELETE("/plantActivity/delete/:id", handlers.DeleteActivity)
 	r.POST("/plant/:plantID/images/upload", handlers.UploadPlantImages)
 	r.DELETE("/plant/images/:imageID/delete", handlers.DeletePlantImage)
-	r.POST("/decorateImage", handlers.DecorateImageHandler)
+	r.POST("/decorateImage", utils.DecorateImageHandler)
 
 	r.POST("/sensors/scanACI", handlers.ScanACInfinitySensors)
 	r.POST("/sensors/scanEC", handlers.ScanEcoWittSensors)

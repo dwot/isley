@@ -80,7 +80,7 @@ func ChartHandler(c *gin.Context) {
 	sdCacheMutex.Lock()
 	sensorDataCache[cacheKey] = cachedEntry{
 		data:      sensorData,
-		timestamp: time.Now(),
+		timestamp: time.Now().In(time.Local),
 	}
 	sdCacheMutex.Unlock()
 
@@ -114,7 +114,7 @@ func querySensorHistoryByTime(sensor string, timeMinutes string) ([]types.Sensor
 		return sensorData, err
 	}
 
-	timeThreshold := time.Now().Add(-time.Duration(timeMinutesInt) * time.Minute).Format("2006-01-02 15:04:05")
+	timeThreshold := time.Now().In(time.Local).Add(-time.Duration(timeMinutesInt) * time.Minute).Format("2006-01-02 15:04:05")
 	query := "SELECT id, sensor_id, value, create_dt FROM sensor_data WHERE sensor_id = $1 AND create_dt > $2 ORDER BY create_dt"
 	rows, err := db.Query(query, sensorInt, timeThreshold)
 	if err != nil {

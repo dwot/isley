@@ -184,7 +184,7 @@ func PruneSensorData() error {
 	}
 	defer db.Close()
 
-	_, err = db.Exec("DELETE FROM sensor_data WHERE create_dt < datetime('now', '-90 day')")
+	_, err = db.Exec("DELETE FROM sensor_data WHERE create_dt < datetime(datetime('now', 'localtime'), '-90 day')")
 	if err != nil {
 		logger.Log.WithError(err).Error("Error pruning sensor data")
 		return err

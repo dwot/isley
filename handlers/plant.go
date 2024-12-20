@@ -525,7 +525,7 @@ func GetPlant(id string) types.Plant {
 		err = db.QueryRow("SELECT id, image_path, image_description, image_order, image_date FROM plant_images WHERE plant_id = ? ORDER BY image_date DESC LIMIT 1", id).Scan(&latestImage.ID, &latestImage.ImagePath, &latestImage.ImageDescription, &latestImage.ImageOrder, &latestImage.ImageDate)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to query latest image")
-			latestImage = types.PlantImage{ID: 0, PlantID: plant.ID, ImagePath: "/static/img/winston.hat.jpg", ImageDescription: "Placeholder", ImageOrder: 100, ImageDate: time.Now(), CreatedAt: time.Now(), UpdatedAt: time.Now()}
+			latestImage = types.PlantImage{ID: 0, PlantID: plant.ID, ImagePath: "/static/img/winston.hat.jpg", ImageDescription: "Placeholder", ImageOrder: 100, ImageDate: time.Now().In(time.Local), CreatedAt: time.Now().In(time.Local), UpdatedAt: time.Now().In(time.Local)}
 		} else {
 			latestImage.ImagePath = "/" + strings.Replace(latestImage.ImagePath, "\\", "/", -1)
 		}
@@ -548,15 +548,15 @@ func GetPlant(id string) types.Plant {
 			}
 			//Convert any \ in image_path to /
 			image_path = "/" + strings.Replace(image_path, "\\", "/", -1)
-			images = append(images, types.PlantImage{ID: id, PlantID: plant.ID, ImagePath: image_path, ImageDescription: image_description, ImageOrder: image_order, ImageDate: image_date, CreatedAt: time.Now(), UpdatedAt: time.Now()})
+			images = append(images, types.PlantImage{ID: id, PlantID: plant.ID, ImagePath: image_path, ImageDescription: image_description, ImageOrder: image_order, ImageDate: image_date, CreatedAt: time.Now().In(time.Local), UpdatedAt: time.Now().In(time.Local)})
 		}
 
 		iCurrentHeight := 0
 		//initialize the height date to a time in the past Jan 1, 1970
-		heightDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
-		lastWaterDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
-		lastFeedDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
-		harvestDate := time.Now()
+		heightDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.Local)
+		lastWaterDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.Local)
+		lastFeedDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.Local)
+		harvestDate := time.Now().In(time.Local)
 
 		//iterate measurements to find the last height
 		for _, measurement := range measurements {
@@ -1024,11 +1024,11 @@ func getPlantsByStatus(statuses []int) ([]types.PlantListResponse, error) {
 	query := `
 		SELECT p.id, p.name, p.description, p.clone, s.name AS strain_name, b.name AS breeder_name, z.name AS zone_name, 
 		       p.start_dt,  
-		       ((strftime('%j', 'now') - strftime('%j', p.start_dt)) / 7) +1 AS current_week,
-		       (strftime('%j', 'now') - strftime('%j', p.start_dt)) +1 AS current_day,
-		       COALESCE((SELECT (strftime('%j', 'now') - strftime('%j', MAX(date))) +1 FROM plant_activity pa JOIN activity a ON pa.activity_id = a.id WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Water')),0) AS days_since_last_watering,
-		       COALESCE((SELECT (strftime('%j', 'now') - strftime('%j', MAX(date))) +1 FROM plant_activity pa JOIN activity a ON pa.activity_id = a.id WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Feed')),0) AS days_since_last_feeding,
-		       COALESCE((SELECT (strftime('%j', 'now') - strftime('%j', MAX(date))) +1 FROM plant_status_log WHERE plant_id = p.id AND status_id = (SELECT id FROM plant_status WHERE status = 'Flower')),0) AS flowering_days,
+		       ((strftime('%j', datetime('now', 'localtime')) - strftime('%j', p.start_dt)) / 7) +1 AS current_week,
+       (strftime('%j', datetime('now', 'localtime')) - strftime('%j', p.start_dt)) +1 AS current_day,
+       COALESCE((SELECT (strftime('%j', datetime('now', 'localtime')) - strftime('%j', MAX(date))) FROM plant_activity pa JOIN activity a ON pa.activity_id = a.id WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Water')),0) AS days_since_last_watering,
+       COALESCE((SELECT (strftime('%j', datetime('now', 'localtime')) - strftime('%j', MAX(date))) FROM plant_activity pa JOIN activity a ON pa.activity_id = a.id WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Feed')),0) AS days_since_last_feeding,
+       COALESCE((SELECT (strftime('%j', datetime('now', 'localtime')) - strftime('%j', MAX(date))) FROM plant_status_log WHERE plant_id = p.id AND status_id = (SELECT id FROM plant_status WHERE status = 'Flower')),0) AS flowering_days,
 		       p.harvest_weight, ps.status, psl.date as status_date
 		FROM plant p
 		JOIN strain s ON p.strain_id = s.id

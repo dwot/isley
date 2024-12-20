@@ -4,12 +4,19 @@ import (
 	"embed"
 	"fmt"
 	"github.com/fogleman/gg"
+	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	"image/color"
+	"io/fs"
 	"isley/logger"
 	"math"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 )
 
 // Embed the fonts directory
@@ -184,4 +191,167 @@ func ProcessImageWithTextOverlay(req TextOverlayRequest) error {
 
 	fieldLogger.Info("Image processing completed successfully")
 	return nil
+}
+
+func DecorateImageHandler(c *gin.Context) {
+	var req struct {
+		ImagePath   string `json:"imagePath"`
+		Text1       string `json:"text1"`
+		Text2       string `json:"text2"`
+		Text1Corner string `json:"text1Corner"`
+		Text2Corner string `json:"text2Corner"`
+		Logo        string `json:"logo"`
+		Font        string `json:"font"`
+		TextColor   string `json:"textColor"`
+	}
+
+	if err := c.BindJSON(&req); err != nil {
+		logger.Log.WithError(err).Error("Failed to bind JSON request")
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Invalid input"})
+		return
+	}
+
+	logger.Log.WithFields(logrus.Fields{
+		"imagePath":   req.ImagePath,
+		"text1":       req.Text1,
+		"text2":       req.Text2,
+		"text1Corner": req.Text1Corner,
+		"text2Corner": req.Text2Corner,
+		"logo":        req.Logo,
+		"font":        req.Font,
+		"textColor":   req.TextColor,
+	})
+
+	// Prepare paths
+	if req.ImagePath == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Image path is required"})
+		return
+	}
+
+	fileExtension := filepath.Ext(req.ImagePath)
+	fileNameWithoutExt := req.ImagePath[:len(req.ImagePath)-len(fileExtension)]
+	outputPath := fmt.Sprintf("%s.processed%s", fileNameWithoutExt, fileExtension)
+
+	logger.Log.WithFields(logrus.Fields{
+		"outputPath": outputPath,
+	})
+
+	// Parse text color
+	parsedTextColor, err := parseHexColor(req.TextColor)
+	if err != nil {
+		logger.Log.WithError(err).Error("Invalid text color")
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Invalid text color"})
+		return
+	}
+
+	// Create overlay request
+	textObjects := []TextObject{
+		{
+			Text:        req.Text1,
+			Corner:      req.Text1Corner,
+			FontPath:    req.Font,
+			FontColor:   parsedTextColor,
+			ShadowColor: color.Black,
+			FontScale:   2.2,
+		},
+		{
+			Text:        req.Text2,
+			Corner:      req.Text2Corner,
+			FontPath:    req.Font,
+			FontColor:   parsedTextColor,
+			ShadowColor: color.Black,
+			FontScale:   2.2,
+		},
+	}
+
+	imageObjects := []ImageObject{}
+	if req.Logo != "" {
+		imageObjects = append(imageObjects, ImageObject{
+			ImagePath: req.Logo,
+			Corner:    "bottom-left",
+			Opacity:   0.8,
+		})
+	}
+
+	overlayReq := TextOverlayRequest{
+		ImagePath:    req.ImagePath,
+		OutputPath:   outputPath,
+		TextObjects:  textObjects,
+		ImageObjects: imageObjects,
+	}
+
+	logger.Log.Info("Starting image processing")
+
+	// Process the image
+	if err := ProcessImageWithTextOverlay(overlayReq); err != nil {
+		logger.Log.WithError(err).Error("Failed to process image with text overlay")
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	logger.Log.Info("Image processed successfully")
+
+	// Respond with the path to the new image
+	c.JSON(http.StatusOK, gin.H{"success": true, "outputPath": outputPath})
+}
+
+func parseHexColor(s string) (color.Color, error) {
+	s = strings.TrimPrefix(s, "#")
+	if len(s) != 6 {
+		return nil, fmt.Errorf("invalid color format")
+	}
+
+	r, err := strconv.ParseUint(s[0:2], 16, 8)
+	if err != nil {
+		return nil, err
+	}
+	g, err := strconv.ParseUint(s[2:4], 16, 8)
+	if err != nil {
+		return nil, err
+	}
+	b, err := strconv.ParseUint(s[4:6], 16, 8)
+	if err != nil {
+		return nil, err
+	}
+
+	return color.RGBA{R: uint8(r), G: uint8(g), B: uint8(b), A: 255}, nil
+}
+
+func ListFontsHandler(c *gin.Context) {
+	fonts := []string{}
+	err := fs.WalkDir(embeddedFonts, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && filepath.Ext(path) == ".ttf" {
+			fonts = append(fonts, path)
+		}
+		return nil
+	})
+	if err != nil {
+		logger.Log.WithError(err).Error("Failed to list fonts")
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Unable to list fonts"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "fonts": fonts})
+}
+
+func ListLogosHandler(c *gin.Context) {
+	logos := []string{}
+	//Load all file names in the local filesystem on path ./uploads/logos/ to the slice  NOT EMBEDDED
+	err := filepath.Walk("./uploads/logos/", func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			logos = append(logos, path)
+		}
+		return nil
+	})
+
+	if err != nil {
+		logger.Log.WithError(err).Error("Failed to list logos")
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Unable to list logos"})
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "logos": logos})
 }

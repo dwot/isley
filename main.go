@@ -122,7 +122,17 @@ func main() {
 			c.Status(http.StatusNotFound)
 			return
 		}
-		http.ServeContent(c.Writer, c.Request, filePath, time.Now(), strings.NewReader(string(data)))
+		http.ServeContent(c.Writer, c.Request, filePath, time.Now().In(time.Local), strings.NewReader(string(data)))
+	})
+
+	r.GET("/fonts/*filepath", func(c *gin.Context) {
+		filePath := fmt.Sprintf("utils/fonts%s", c.Param("filepath"))
+		data, err := embeddedFiles.ReadFile(filePath)
+		if err != nil {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		http.ServeContent(c.Writer, c.Request, filePath, time.Now().In(time.Local), strings.NewReader(string(data)))
 	})
 
 	// Initialize session store

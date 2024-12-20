@@ -507,7 +507,7 @@ ORDER BY lr.zone_name, lr.device, lr.type;
 
 	// Update the global cache and timestamp
 	sensorCache = newCache
-	cacheLastUpdatedTime = time.Now()
+	cacheLastUpdatedTime = time.Now().In(time.Local)
 
 	return sensorCache
 }
