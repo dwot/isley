@@ -62,12 +62,22 @@ jobs:
           release_date=$(date -u +"%Y-%m-%d")
           echo "Release Date: $release_date" > release_notes.md
           
-          # Add commit messages since the last tag
+          # Determine the commit range
+          if git describe --tags --abbrev=0 > /dev/null 2>&1; then
+            # If tags exist, get commits since the last tag
+            commit_range="$(git describe --tags --abbrev=0 @^)..@"
+          else
+            # If no tags exist, get all commits
+            commit_range="HEAD"
+          fi
+          
+          # Add commit messages
           echo -e "\n### Commits:\n" >> release_notes.md
-          git log --pretty=format:"- %s (%h)" $(git describe --tags --abbrev=0 @^)..@ >> release_notes.md
+          git log --pretty=format:"- %s (%h)" $commit_range >> release_notes.md
           
           # Output the notes for use in the next step
           echo "release_notes=$(cat release_notes.md)" >> $GITHUB_ENV
+      
 
       - name: Release Artifacts (Main Branch Only)
         if: github.ref == 'refs/heads/main'
