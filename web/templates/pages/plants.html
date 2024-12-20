@@ -256,9 +256,10 @@
 
                 if (currentView === "harvested") {
                     column1 = plant.harvest_weight ? `${plant.harvest_weight} g` : "-";
-                    column2 = plant.status_date ? new Date(plant.status_date).toLocaleDateString() : "-";
+                    //Append total days to harvest date from plant.status_date and plant.start_dt
+                    column2 = plant.status_date ? new Date(plant.status_date).toLocaleDateString() + " (" + Math.floor((new Date(plant.status_date) - new Date(plant.start_dt)) / (1000 * 60 * 60 * 24)) + " days)" : "-";
                 } else if (currentView === "dead") {
-                    column1 = plant.status_date ? new Date(plant.status_date).toLocaleDateString() : "-";
+                    column1 = plant.status_date ? new Date(plant.status_date).toLocaleDateString()  + " (" + Math.floor((new Date(plant.status_date) - new Date(plant.start_dt)) / (1000 * 60 * 60 * 24)) + " days)" : "-";
                     column2 = ""; // No second column for dead plants
                 } else {
                     column1 = plant.current_week || "-";

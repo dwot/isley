@@ -13,7 +13,6 @@ jobs:
     permissions:
       contents: write  # Required for creating releases
 
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -56,12 +55,30 @@ jobs:
           docker push dwot/isley:${{ env.version }}
           docker push dwot/isley:latest
 
+      - name: Generate Release Notes
+        id: release_notes
+        run: |
+          # Get the current date
+          release_date=$(date -u +"%Y-%m-%d")
+          echo "Release Date: $release_date" > release_notes.md
+          
+          # Add commit messages since the last tag
+          echo -e "\n### Commits:\n" >> release_notes.md
+          git log --pretty=format:"- %s (%h)" $(git describe --tags --abbrev=0 @^)..@ >> release_notes.md
+          
+          # Output the notes for use in the next step
+          echo "release_notes=$(cat release_notes.md)" >> $GITHUB_ENV
+
       - name: Release Artifacts (Main Branch Only)
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844
         with:
           tag_name: v${{ env.version }}
           name: Release v${{ env.version }}
+          body: ${{ env.release_notes }}
           files: |
             isley-linux
             isley.exe
+
+      - name: Cleanup Release Notes
+        run: rm -f release_notes.md

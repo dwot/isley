@@ -9,6 +9,7 @@ import (
 	"golang.org/x/image/font/opentype"
 	"image/color"
 	"isley/logger"
+	"math"
 )
 
 // Embed the fonts directory
@@ -60,25 +61,27 @@ func ProcessImageWithTextOverlay(req TextOverlayRequest) error {
 	dc := gg.NewContext(int(imgWidth), int(imgHeight))
 	dc.DrawImage(img, 0, 0)
 
-	padding := imgHeight / 50
+	padding := imgHeight / 100 // Reduce padding for tighter placement
 	shadowOffset := imgHeight / 200
+
+	// Helper to calculate scaled dimensions for overlays
+	scaleDimension := func(targetWidth, targetHeight, maxWidth, maxHeight float64) (float64, float64) {
+		scale := math.Min(maxWidth/targetWidth, maxHeight/targetHeight)
+		return targetWidth * scale, targetHeight * scale
+	}
 
 	// Process Image Objects
 	for _, imgObj := range req.ImageObjects {
-		fieldLogger.WithFields(logrus.Fields{
-			"imagePath": imgObj.ImagePath,
-			"corner":    imgObj.Corner,
-			"opacity":   imgObj.Opacity,
-		}).Info("Processing image overlay")
-
 		overlayImg, err := gg.LoadImage(imgObj.ImagePath)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to load overlay image")
 			return fmt.Errorf("failed to load overlay image: %w", err)
 		}
 
+		// Scale the overlay image
 		overlayWidth := float64(overlayImg.Bounds().Dx())
 		overlayHeight := float64(overlayImg.Bounds().Dy())
+		scaledWidth, scaledHeight := scaleDimension(overlayWidth, overlayHeight, imgWidth/6, imgHeight/6) // Increased scale factor for logo
 
 		// Calculate overlay position
 		var x, y float64
@@ -86,107 +89,89 @@ func ProcessImageWithTextOverlay(req TextOverlayRequest) error {
 		case "top-left":
 			x, y = padding, padding
 		case "top-right":
-			x, y = imgWidth-overlayWidth-padding, padding
+			x, y = imgWidth-scaledWidth-padding, padding
 		case "bottom-left":
-			x, y = padding, imgHeight-overlayHeight-padding
+			x, y = padding, imgHeight-scaledHeight-padding
 		case "bottom-right":
-			x, y = imgWidth-overlayWidth-padding, imgHeight-overlayHeight-padding
+			x, y = imgWidth-scaledWidth-padding, imgHeight-scaledHeight-padding
 		default:
 			fieldLogger.WithField("corner", imgObj.Corner).Error("Invalid corner specified")
 			return fmt.Errorf("invalid corner specified: %s", imgObj.Corner)
 		}
 
-		// Apply transparency and draw the image
+		// Draw the scaled overlay image
 		dc.Push()
+		dc.ScaleAbout(scaledWidth/overlayWidth, scaledHeight/overlayHeight, x, y)
 		dc.DrawImageAnchored(overlayImg, int(x), int(y), 0, 0)
 		dc.Pop()
-		dc.SetRGBA(1, 1, 1, imgObj.Opacity)
 	}
 
 	// Process Text Objects
 	for _, textObj := range req.TextObjects {
-		textLogger := logger.Log.WithFields(logrus.Fields{
-			"text":     textObj.Text,
-			"corner":   textObj.Corner,
-			"fontPath": textObj.FontPath,
-		})
-		textLogger.Info("Processing text overlay")
+		// Adjust font size dynamically based on aspect ratio
+		aspectRatio := imgWidth / imgHeight
+		adjustmentFactor := 1.0
+		if aspectRatio < 1.0 { // Portrait
+			adjustmentFactor = 0.75
+		}
+		fontSize := (imgHeight / 20 * textObj.FontScale) * adjustmentFactor
 
-		// Calculate scaled font size
-		fontSize := (imgHeight / 20) * textObj.FontScale
-
-		// Load font from the embedded FS
+		// Load font from embedded FS
 		fontData, err := embeddedFonts.ReadFile(textObj.FontPath)
 		if err != nil {
-			textLogger.WithError(err).Error("Failed to read embedded font")
+			fieldLogger.WithError(err).Error("Failed to read embedded font")
 			return fmt.Errorf("failed to read embedded font: %w", err)
 		}
 
-		// Parse the font using opentype
 		parsedFont, err := opentype.Parse(fontData)
 		if err != nil {
-			textLogger.WithError(err).Error("Failed to parse font data")
+			fieldLogger.WithError(err).Error("Failed to parse font data")
 			return fmt.Errorf("failed to parse font data: %w", err)
 		}
 
-		// Create a font face with the desired size
 		fontFace, err := opentype.NewFace(parsedFont, &opentype.FaceOptions{
 			Size:    fontSize,
 			DPI:     72,
 			Hinting: font.HintingFull,
 		})
 		if err != nil {
-			textLogger.WithError(err).Error("Failed to create font face")
+			fieldLogger.WithError(err).Error("Failed to create font face")
 			return fmt.Errorf("failed to create font face: %w", err)
 		}
 
 		dc.SetFontFace(fontFace)
 
-		// Measure text dimensions
 		_, textHeight := dc.MeasureString(textObj.Text)
 
 		// Calculate text position
 		var x, y float64
-		paddingAdjustment := textHeight / 2
-
 		switch textObj.Corner {
 		case "top-left":
-			x, y = padding, padding+textHeight
+			x, y = padding, padding+textHeight/1.6 // Closer to the top
 		case "top-right":
-			x, y = imgWidth-padding, padding+textHeight
+			x, y = imgWidth-padding, padding+textHeight/1.6
 		case "bottom-left":
-			x, y = padding, imgHeight-padding
+			x, y = padding, imgHeight-padding-textHeight*1.1
 		case "bottom-right":
-			x, y = imgWidth-padding, imgHeight-padding
+			x, y = imgWidth-padding, imgHeight-padding-textHeight*1.1
 		default:
-			logger.Log.WithField("corner", textObj.Corner).Error("Invalid corner specified")
+			fieldLogger.WithField("corner", textObj.Corner).Error("Invalid corner specified")
 			return fmt.Errorf("invalid corner specified: %s", textObj.Corner)
 		}
 
+		ax, ay := 0.0, 0.0
+		if textObj.Corner == "top-right" || textObj.Corner == "bottom-right" {
+			ax = 1.0
+		}
 		if textObj.Corner == "bottom-left" || textObj.Corner == "bottom-right" {
-			y -= textHeight + paddingAdjustment
-		} else if textObj.Corner == "top-left" || textObj.Corner == "top-right" {
-			y = padding + textHeight
+			ay = 1.0
 		}
 
-		// Adjust text alignment for corners
-		var ax, ay float64
-		switch textObj.Corner {
-		case "top-right":
-			ax, ay = 1.0, 0.0
-		case "top-left":
-			ax, ay = 0.0, 0.0
-		case "bottom-right":
-			ax, ay = 1.0, 1.0
-		case "bottom-left":
-			ax, ay = 0.0, 1.0
-		}
-
-		// Draw drop shadow
+		// Draw shadow
 		dc.SetColor(textObj.ShadowColor)
 		dc.DrawStringAnchored(textObj.Text, x+shadowOffset, y+shadowOffset, ax, ay)
 
-		// Draw main text
+		// Draw text
 		dc.SetColor(textObj.FontColor)
 		dc.DrawStringAnchored(textObj.Text, x, y, ax, ay)
 	}
@@ -197,9 +182,6 @@ func ProcessImageWithTextOverlay(req TextOverlayRequest) error {
 		return fmt.Errorf("failed to save output image: %w", err)
 	}
 
-	fieldLogger.WithFields(logrus.Fields{
-		"outputPath": req.OutputPath,
-	}).Info("Image processing completed successfully")
-
+	fieldLogger.Info("Image processing completed successfully")
 	return nil
 }
