@@ -95,16 +95,6 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 		})
 	})
 
-	r.GET("/graphs", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "views/graphs.html", gin.H{
-			"title":      "Graphs",
-			"version":    version,
-			"sensors":    handlers.GetGroupedSensors(),
-			"plants":     handlers.GetLivingPlants(),
-			"activities": config.Activities,
-		})
-	})
-
 	// API endpoints
 	r.POST("/plants", handlers.AddPlant)
 	r.GET("/plants/living", handlers.LivingPlantsHandler)

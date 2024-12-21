@@ -115,7 +115,7 @@ func querySensorHistoryByTime(sensor string, timeMinutes string) ([]types.Sensor
 	}
 
 	timeThreshold := time.Now().In(time.Local).Add(-time.Duration(timeMinutesInt) * time.Minute).Format("2006-01-02 15:04:05")
-	query := "SELECT id, sensor_id, value, create_dt FROM sensor_data WHERE sensor_id = $1 AND create_dt > $2 ORDER BY create_dt"
+	query := "SELECT sd.id, sd.sensor_id, sd.value, sd.create_dt, s.name FROM sensor_data sd left outer join sensors s on s.id = sd.sensor_id WHERE sd.sensor_id = $1 AND sd.create_dt > $2 ORDER BY sd.create_dt"
 	rows, err := db.Query(query, sensorInt, timeThreshold)
 	if err != nil {
 		sensorLogger.WithError(err).Error("Failed to execute query")
@@ -125,7 +125,7 @@ func querySensorHistoryByTime(sensor string, timeMinutes string) ([]types.Sensor
 
 	for rows.Next() {
 		var record types.SensorData
-		if err := rows.Scan(&record.ID, &record.SensorID, &record.Value, &record.CreateDT); err != nil {
+		if err := rows.Scan(&record.ID, &record.SensorID, &record.Value, &record.CreateDT, &record.SensorName); err != nil {
 			sensorLogger.WithError(err).Error("Failed to scan row")
 			return sensorData, err
 		}
@@ -163,7 +163,7 @@ func querySensorHistoryByDateRange(sensor string, startDate string, endDate stri
 	}
 
 	// Query sensor_data table for the given date range
-	query := "SELECT id, sensor_id, value, create_dt FROM sensor_data WHERE sensor_id = $1 AND create_dt BETWEEN $2 AND $3 ORDER BY create_dt"
+	query := "SELECT sd.id, sd.sensor_id, sd.value, sd.create_dt, s.name FROM sensor_data sd left outer join sensors s on s.id = sd.sensor_id WHERE sd.sensor_id = $1 AND sd.create_dt BETWEEN $2 AND $3 ORDER BY sd.create_dt"
 	rows, err := db.Query(query, sensorInt, startDate, endDate)
 	if err != nil {
 		sensorLogger.WithError(err).Error(err)
@@ -174,7 +174,7 @@ func querySensorHistoryByDateRange(sensor string, startDate string, endDate stri
 	// Parse query results
 	for rows.Next() {
 		var record types.SensorData
-		if err := rows.Scan(&record.ID, &record.SensorID, &record.Value, &record.CreateDT); err != nil {
+		if err := rows.Scan(&record.ID, &record.SensorID, &record.Value, &record.CreateDT, &record.SensorName); err != nil {
 			sensorLogger.WithError(err).Error(err)
 			return sensorData, err
 		}

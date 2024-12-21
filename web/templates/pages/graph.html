@@ -12,8 +12,8 @@
 {{ template "layouts/header2.html" . }}
 
 <div class="container">
-    <!-- Sensor Name -->
-    <h2 class="text-light mb-3">Sensor: <span id="sensorName">{{ .SensorName }}</span></h2>
+    <!-- Sensor Names -->
+    <h2 class="text-light mb-3">Sensors: <span id="sensorName">{{ .SensorName }}</span></h2>
 
     <!-- Controls -->
     <div class="controls mb-4">
@@ -42,7 +42,7 @@
         <button id="resetZoom" class="btn btn-secondary">Reset Zoom</button>
     </div>
 
-    <!-- Hidden Sensor ID -->
+    <!-- Hidden Sensor IDs -->
     <input type="hidden" id="sensorID" value="{{ .SensorID }}">
 
     <!-- Graph Display -->
@@ -56,8 +56,7 @@
 <script>
     document.addEventListener("DOMContentLoaded", () => {
         const ctx = document.getElementById('chart').getContext('2d');
-        const sensorId = document.getElementById('sensorID').value;
-        const sensorNameElement = document.getElementById('sensorName');
+        const sensorIds = document.getElementById('sensorID').value.split(',');
         const timePickerButton = document.getElementById('timePickerButton');
         const dropdownMenu = document.querySelector('.dropdown-menu');
         const timeRangeButtons = document.querySelectorAll('.time-range-btn');
@@ -66,6 +65,7 @@
         const applyDateRangeButton = document.getElementById('applyDateRange');
         const resetZoomButton = document.getElementById('resetZoom');
         let chart;
+        let sensorNamesCache = {};
 
         timePickerButton.addEventListener('click', () => {
             dropdownMenu.parentElement.classList.toggle('open');
@@ -78,13 +78,32 @@
         });
 
         const fetchAndRenderData = (queryParams) => {
-            fetch(`/sensorData?sensor=${sensorId}&${queryParams}`)
+            Promise.all(sensorIds.map(id => fetch(`/sensorData?sensor=${id}&${queryParams}`)
                 .then(response => response.json())
                 .then(data => {
-                    const formattedData = data.map(item => ({
-                        x: new Date(item.create_dt),
-                        y: item.value
-                    }));
+                    // Cache sensor names from data
+                    if (data.length > 0 && data[0].sensor_name) {
+                        sensorNamesCache[id] = data[0].sensor_name;
+                    }
+                    return { id, data };
+                })
+            ))
+                .then(results => {
+                    const datasets = results.map((result, index) => {
+                        const formattedData = result.data.map(item => ({
+                            x: new Date(item.create_dt),
+                            y: item.value
+                        }));
+
+                        return {
+                            label: `${sensorNamesCache[result.id] || 'Unknown'}`,
+                            data: formattedData,
+                            borderColor: `hsl(${index * 60}, 70%, 50%)`,
+                            backgroundColor: `hsl(${index * 60}, 70%, 80%)`,
+                            borderWidth: 1,
+                            tension: 0.4,
+                        };
+                    });
 
                     if (chart) {
                         chart.destroy();
@@ -92,16 +111,7 @@
 
                     chart = new Chart(ctx, {
                         type: 'line',
-                        data: {
-                            datasets: [{
-                                label: `Sensor: ${sensorNameElement.textContent}`,
-                                data: formattedData,
-                                borderColor: 'rgba(75, 192, 192, 1)',
-                                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                                borderWidth: 1,
-                                tension: 0.4,
-                            }]
-                        },
+                        data: { datasets },
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
@@ -112,31 +122,16 @@
                                         tooltipFormat: 'MMM d, h:mm a',
                                         unit: 'hour',
                                     },
-                                    title: {
-                                        display: true,
-                                        text: 'Time'
-                                    }
+                                    title: { display: true, text: 'Time' }
                                 },
-                                y: {
-                                    title: {
-                                        display: true,
-                                        text: 'Sensor Value'
-                                    }
-                                }
+                                y: { title: { display: true, text: 'Sensor Value' } }
                             },
                             plugins: {
                                 zoom: {
-                                    pan: {
-                                        enabled: true,
-                                        mode: 'x',
-                                    },
+                                    pan: { enabled: true, mode: 'x' },
                                     zoom: {
-                                        pinch: {
-                                            enabled: true
-                                        },
-                                        wheel: {
-                                            enabled: true
-                                        },
+                                        pinch: { enabled: true },
+                                        wheel: { enabled: true },
                                         mode: 'x',
                                     }
                                 }

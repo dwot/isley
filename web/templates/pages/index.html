@@ -130,11 +130,15 @@
 
                     Object.keys(sensorGroups).forEach((group) => {
                         if (sensorGroups[group].length > 0) {
+                            // Generate link for group header
+                            const groupSensorIds = sensorGroups[group].map(sensor => sensor.id).join(",");
+                            const groupHeaderLink = `<a href='/graph/${groupSensorIds}' class='text-light'>${groupTitles[group] || group}</a>`;
+
                             const card = `
                             <div class="col-12 col-md-4">
                                 <div class="card h-100 bg-dark text-light">
                                     <div class="card-header text-uppercase">
-                                        ${groupTitles[group] || group}
+                                        ${groupHeaderLink}
                                     </div>
                                     <div class="card-body">
                                         ${sensorGroups[group]
@@ -187,6 +191,7 @@
             });
     });
 </script>
+
 
 
 

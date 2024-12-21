@@ -300,11 +300,13 @@
                                 data-image="{{ .ImagePath }}"
                                 data-description="{{ .ImageDescription }}"
                                 data-date="{{ formatDate .ImageDate }}"
+                                data-id="{{ .ID }}"
                         >
                         <div class="card-body text-center">
                             <small class="text-muted">{{ formatDate .ImageDate }}</small>
                         </div>
                     </div>
+
                 </div>
                 {{ end }}
             </div>
@@ -352,6 +354,7 @@
                 <div class="d-none">
                     <img id="originalImageSrc" id="originalImageSrc">
                 </div>
+                <input type="hidden" id="imageId" >
                 <div class="mt-3">
                     <div class="row">
                         <!-- Font Selection -->
@@ -425,6 +428,11 @@
                         <i class="fa fa-magic"></i> Decorate Image
                     </button>
                 </div>
+                <!-- Delete Icon -->
+                <button class="btn btn-danger btn-sm position-absolute top-0 end-0 m-1"
+                        onclick="confirmDeleteImage()">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
             </div>
         </div>
     </div>
@@ -1217,13 +1225,15 @@
         const originalImageSrc = document.getElementById("originalImageSrc");
         const modalDescription = document.getElementById("modalDescription");
         const modalDate = document.getElementById("modalDate");
+        const imageIdInput = document.getElementById("imageId");
 
         document.querySelectorAll(".thumbnail-img").forEach((img) => {
             img.addEventListener("click", () => {
                 modalImage.src = img.dataset.image;
                 originalImageSrc.src = img.dataset.image;
-                modalDescription.textContent = img.dataset.description;
-                modalDate.textContent = img.dataset.date;
+                //modalDescription.textContent = img.dataset.description;
+                //modalDate.textContent = img.dataset.date;
+                imageIdInput.value = img.dataset.id;
             });
         });
     });
@@ -1383,34 +1393,6 @@
 </script>
 
 <script>
-    function confirmDeleteImage(imageId, imagePath) {
-        if (confirm("Are you sure you want to delete this image?")) {
-            fetch(`/plant/images/${imageId}/delete`, {
-                method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            })
-                .then((response) => {
-                    if (!response.ok) {
-                        throw new Error("Failed to delete image");
-                    }
-                    return response.json();
-                })
-                .then((data) => {
-                    alert("Image deleted successfully!");
-                    // Reload the page to reflect changes
-                    location.reload();
-                })
-                .catch((error) => {
-                    console.error("Error deleting image:", error);
-                    alert("An error occurred while deleting the image.");
-                });
-        }
-    }
-</script>
-
-<script>
     document.addEventListener("DOMContentLoaded", () => {
         const fontDropdown = document.getElementById("fontDropdown");
         const fontPreview = document.getElementById("fontPreview");
@@ -1504,8 +1486,12 @@
         decorateImageButton.addEventListener("click", () => {
             const fullImagePath = originalImageSrc.src;
             const imagePath = new URL(fullImagePath).pathname.replace(/^\//, "");
-            const text1 = text1Dropdown.value === "Custom" ? text1Input.value : document.getElementById("text1Dropdown").value;
-            const text2 = text2Dropdown.value === "Custom" ? text2Input.value : document.getElementById("text2Dropdown").value;
+            const text1Dropdown = document.getElementById("text1Dropdown");
+            const text2Dropdown = document.getElementById("text2Dropdown");
+            const text1Input = document.getElementById("text1Input");
+            const text2Input = document.getElementById("text2Input");
+            const text1 = text1Dropdown.value === "Custom" ? text1Input.value : text1Dropdown.value;
+            const text2 = text2Dropdown.value === "Custom" ? text2Input.value : text2Dropdown.value;
             const logo = logoDropdown.value;
             const font = fontDropdown.value;
             const textColor = document.getElementById("textColor").value;
@@ -1548,6 +1534,33 @@
                 });
         });
     });
+
+    function confirmDeleteImage() {
+        const imageId = document.getElementById("imageId").value;
+        if (confirm("Are you sure you want to delete this image?")) {
+            fetch(`/plant/images/${imageId}/delete`, {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error("Failed to delete image");
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    alert("Image deleted successfully!");
+                    // Reload the page to reflect changes
+                    location.reload();
+                })
+                .catch((error) => {
+                    console.error("Error deleting image:", error);
+                    alert("An error occurred while deleting the image.");
+                });
+        }
+    }
 
 </script>
 <script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.min.js"></script>
