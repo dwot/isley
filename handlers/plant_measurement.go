@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"isley/logger"
@@ -37,13 +36,12 @@ func CreatePlantMeasurement(c *gin.Context) {
 	})
 
 	// Init the db
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
 	}
-	defer db.Close()
 
 	_, err = db.Exec("INSERT INTO plant_measurements (plant_id, metric_id, value, date) VALUES (?, ?, ?, ?)",
 		input.PlantID, input.MetricID, input.Value, input.Date)
@@ -80,13 +78,12 @@ func EditMeasurement(c *gin.Context) {
 		"value": input.Value,
 	})
 
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
 	}
-	defer db.Close()
 
 	query := `UPDATE plant_measurements SET date = ?, value = ? WHERE id = ?`
 	_, err = db.Exec(query, input.Date, input.Value, input.ID)
@@ -108,13 +105,12 @@ func DeleteMeasurement(c *gin.Context) {
 	id := c.Param("id")
 	fieldLogger = fieldLogger.WithField("id", id)
 
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
 	}
-	defer db.Close()
 
 	query := `DELETE FROM plant_measurements WHERE id = ?`
 	_, err = db.Exec(query, id)

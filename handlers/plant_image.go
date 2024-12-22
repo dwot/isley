@@ -43,13 +43,12 @@ func UploadPlantImages(c *gin.Context) {
 	descriptions := form.Value["descriptions[]"]
 	dates := form.Value["dates[]"]
 
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fileLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
 	}
-	defer db.Close()
 
 	// Process each uploaded file
 	for index, fileHeader := range files {
@@ -136,13 +135,12 @@ func DeletePlantImage(c *gin.Context) {
 	}
 	fileLogger = logger.Log.WithField("imageID", imageID)
 
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fileLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
 	}
-	defer db.Close()
 
 	// Retrieve the image path
 	var imagePath string

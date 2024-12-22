@@ -26,12 +26,11 @@ var (
 
 func GetSensors() []map[string]interface{} {
 	fieldLogger := logger.Log.WithField("func", "GetSensors")
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error opening database")
 		return nil
 	}
-	defer db.Close()
 
 	// Query for sensor data
 	rows, err := db.Query(`
@@ -107,7 +106,7 @@ func ScanACInfinitySensors(c *gin.Context) {
 	}
 
 	// Init the db
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error opening database")
 		return
@@ -204,12 +203,6 @@ func ScanACInfinitySensors(c *gin.Context) {
 		}
 	}
 
-	// Close the db
-	err = db.Close()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error closing database")
-		return
-	}
 	c.JSON(http.StatusOK, gin.H{"message": "AC Infinity sensors scanned and added"})
 }
 
@@ -237,7 +230,7 @@ func ScanEcoWittSensors(c *gin.Context) {
 		input.ZoneID = &zoneID // Set the created zone ID
 	}
 	// Init the db
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error opening database")
 		return
@@ -308,14 +301,6 @@ func ScanEcoWittSensors(c *gin.Context) {
 		unit := "%"
 		checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
 	}
-
-	//Close the db
-	err = db.Close()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error closing database")
-		return
-	}
-
 	//Update ECOWitt sensors
 	//Set ECDevices
 	strECDevices, err := LoadEcDevices()
@@ -351,12 +336,11 @@ func checkInsertSensor(db *sql.DB, source string, device string, sensorType stri
 
 func GetZones() []types.Zone {
 	fieldLogger := logger.Log.WithField("func", "GetZones")
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error opening database")
 		return nil
 	}
-	defer db.Close()
 
 	var zones []types.Zone
 	rows, err := db.Query("SELECT id, name FROM zones")
@@ -380,12 +364,11 @@ func GetZones() []types.Zone {
 
 func CreateNewZone(name string) (int, error) {
 	fieldLogger := logger.Log.WithField("func", "CreateNewZone")
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error opening database")
 		return 0, err
 	}
-	defer db.Close()
 
 	result, err := db.Exec("INSERT INTO zones (name) VALUES (?)", name)
 	if err != nil {
@@ -413,62 +396,36 @@ func GetGroupedSensorsWithLatestReading() map[string]map[string][]map[string]int
 	}
 
 	// Refresh the cache
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error opening database")
 		return nil
 	}
-	defer db.Close()
 
-	rows, err := db.Query(`
-	WITH RollingAverages AS (
-        SELECT
-        sd.sensor_id,
-        sd.id AS reading_id,
-        AVG(sd.value) OVER (
-            PARTITION BY sd.sensor_id
-            ORDER BY sd.create_dt ASC
-            ROWS BETWEEN 16 PRECEDING AND 1 PRECEDING
-        ) AS rolling_avg, 
-        sd.value, 
-        sd.create_dt
-    FROM sensor_data sd
-    ORDER BY create_dt DESC
-),
-LatestReadings AS (
-    SELECT 
-        s.id AS sensor_id,
-        z.name AS zone_name,
-        s.device,
-        s.type,
-        s.name,
-        sd.value AS current_value,
-        s.unit,
-        ra.rolling_avg
-    FROM sensors s
-    JOIN zones z ON s.zone_id = z.id
-    JOIN sensor_data sd ON s.id = sd.sensor_id
-    LEFT JOIN RollingAverages ra ON ra.reading_id = sd.id
-    WHERE sd.id = (
-        SELECT MAX(id) FROM sensor_data WHERE sensor_id = s.id
-    )
-    AND s.show = 1
-)
-SELECT 
-    lr.sensor_id,
-    lr.zone_name,
-    lr.device,
-    lr.type,
-    lr.name,
-    lr.current_value AS value,
-    lr.unit,
+	rows, err := db.Query(`SELECT 
+    s.id AS sensor_id,
+    z.name AS zone_name,
+    s.device,
+    s.type,
+    s.name,
+    sd.value AS current_value,
+    s.unit,
+    --ra.avg_value AS rolling_avg,
     CASE
-        WHEN lr.current_value > lr.rolling_avg THEN 'up'
-        WHEN lr.current_value < lr.rolling_avg THEN 'down'
+        WHEN sd.value > ra.avg_value THEN 'up'
+        WHEN sd.value < ra.avg_value THEN 'down'
         ELSE 'flat'
     END AS trend
-FROM LatestReadings lr
-ORDER BY lr.zone_name, lr.device, lr.type;
+FROM sensors s
+JOIN zones z ON s.zone_id = z.id
+JOIN sensor_data sd ON s.id = sd.sensor_id
+LEFT JOIN rolling_averages ra ON ra.sensor_id = s.id AND ra.create_dt = sd.create_dt
+WHERE sd.id = (
+    SELECT MAX(id) FROM sensor_data WHERE sensor_id = s.id
+)
+AND s.show = 1
+ORDER BY z.name, s.device, s.type;
+
 `)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error querying sensors")
@@ -514,12 +471,11 @@ ORDER BY lr.zone_name, lr.device, lr.type;
 
 func GetGroupedSensors() map[string]map[string]map[string][]types.Sensor {
 	fieldLogger := logger.Log.WithField("func", "GetGroupedSensors")
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error opening database")
 		return nil
 	}
-	defer db.Close()
 
 	rows, err := db.Query(`
         SELECT 
@@ -582,12 +538,11 @@ func EditSensor(c *gin.Context) {
 		return
 	}
 
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error opening database")
 		return
 	}
-	defer db.Close()
 
 	_, err = db.Exec("UPDATE sensors SET name = ?, show = ?, zone_id = ?, unit = ? WHERE id = ?",
 		input.Name, input.Visible, input.ZoneID, input.Unit, input.ID)
@@ -616,12 +571,11 @@ func DeleteSensor(c *gin.Context) {
 
 func DeleteSensorByID(id string) error {
 	fieldLogger := logger.Log.WithField("func", "DeleteSensorByID")
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error opening database")
 		return err
 	}
-	defer db.Close()
 
 	// Delete sensor_data for this sensor
 	_, err = db.Exec("DELETE FROM sensor_data WHERE sensor_id = ?", id)
@@ -640,12 +594,11 @@ func DeleteSensorByID(id string) error {
 
 func GetSensorName(id string) string {
 	fieldLogger := logger.Log.WithField("func", "GetSensorName")
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error opening database")
 		return ""
 	}
-	defer db.Close()
 
 	var name string
 	err = db.QueryRow("SELECT name FROM sensors WHERE id = ?", id).Scan(&name)

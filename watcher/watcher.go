@@ -1,7 +1,6 @@
 package watcher
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/sirupsen/logrus"
@@ -31,13 +30,6 @@ func Watch() {
 }
 
 func updateEcoWittSensorData(server string) {
-	db, err := sql.Open("sqlite", model.DbPath())
-	if err != nil {
-		logger.Log.WithError(err).Error("Failed to open database")
-		return
-	}
-	defer db.Close()
-
 	currentDate := time.Now().In(time.Local)
 	logger.Log.WithField("timestamp", currentDate).Info("Updating EC sensor data")
 
@@ -147,12 +139,11 @@ func updateACISensorData(token string) {
 }
 
 func addSensorData(source string, device string, key string, value string) {
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		logger.Log.WithError(err).Error("Failed to open database")
 		return
 	}
-	defer db.Close()
 
 	var sensorID int
 	err = db.QueryRow("SELECT id FROM sensors WHERE source = ? AND device = ? AND type = ?", source, device, key).Scan(&sensorID)
@@ -177,12 +168,11 @@ func addSensorData(source string, device string, key string, value string) {
 }
 
 func PruneSensorData() error {
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		logger.Log.WithError(err).Error("Failed to open database")
 		return err
 	}
-	defer db.Close()
 
 	_, err = db.Exec("DELETE FROM sensor_data WHERE create_dt < datetime(datetime('now', 'localtime'), '-90 day')")
 	if err != nil {

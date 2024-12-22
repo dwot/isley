@@ -8,10 +8,30 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"isley/logger"
 	"os"
+	"time"
 )
 
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
+
+var db *sql.DB
+
+func InitDB() {
+	var err error
+	db, err = sql.Open("sqlite", DbPath())
+	if err != nil {
+		logger.Log.WithError(err).Fatal("Failed to initialize database")
+	}
+
+	// Set connection pool limits
+	db.SetMaxOpenConns(5)
+	db.SetMaxIdleConns(2)
+	db.SetConnMaxLifetime(5 * time.Minute)
+}
+
+func GetDB() (*sql.DB, error) {
+	return db, nil
+}
 
 func DbPath() string {
 	return "data/isley.db?_journal_mode=WAL"

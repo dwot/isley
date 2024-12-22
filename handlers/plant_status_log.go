@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"isley/logger"
@@ -30,13 +29,12 @@ func EditStatus(c *gin.Context) {
 		"date": input.Date,
 	})
 
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to connect to database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
 	}
-	defer db.Close()
 
 	query := `UPDATE plant_status_log SET date = ? WHERE id = ?`
 	_, err = db.Exec(query, input.Date, input.ID)
@@ -58,13 +56,12 @@ func DeleteStatus(c *gin.Context) {
 	id := c.Param("id")
 	fieldLogger = fieldLogger.WithField("id", id)
 
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to connect to database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
 	}
-	defer db.Close()
 
 	query := `DELETE FROM plant_status_log WHERE id = ?`
 	_, err = db.Exec(query, id)

@@ -30,6 +30,8 @@ func main() {
 	// Initialize logger
 	logger.InitLogger()
 
+	utils.TestGrabWebCamImage()
+
 	// Set version
 	version := fmt.Sprintf("Isley %s", getVersion())
 	logger.Log.Info("Starting application version:", version)
@@ -41,6 +43,7 @@ func main() {
 	}
 
 	model.MigrateDB()
+	model.InitDB()
 
 	// Start the sensor watcher
 	watcher.PruneSensorData()

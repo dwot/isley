@@ -86,12 +86,29 @@
             Soil: "EcoWitt Soil Sensors"
         };
 
+        // Create spinner element
+        const spinner = document.createElement("div");
+        spinner.classList.add("spinner-border", "text-primary");
+        spinner.setAttribute("role", "status");
+        spinner.innerHTML = `<span class="visually-hidden">Loading...</span>`;
+        sensorsOverview.appendChild(spinner);
+
+        // Start timers
+        console.time("Total Load Time");
+        console.time("Fetch Data");
+
         fetch("/sensors/grouped")
             .then((response) => response.json())
             .then((data) => {
-                sensorsOverview.innerHTML = ""; // Clear existing content
+                console.timeEnd("Fetch Data");
+                console.time("DOM Rendering");
+
+                // Clear existing content and remove spinner
+                sensorsOverview.innerHTML = "";
 
                 Object.keys(data).forEach((zone) => {
+                    console.time(`Render Zone: ${zone}`);
+
                     const zoneContainer = document.createElement("div");
                     zoneContainer.classList.add("mb-5");
 
@@ -99,9 +116,9 @@
                     const showZoneHeader = Object.keys(data).length > 1;
                     if (showZoneHeader) {
                         zoneContainer.innerHTML = `
-                            <h4 class="text-secondary">${zone}</h4>
-                            <hr />
-                        `;
+                        <h4 class="text-secondary">${zone}</h4>
+                        <hr />
+                    `;
                     }
 
                     // Initialize groupings
@@ -112,6 +129,7 @@
                     };
 
                     // Process each device under the zone
+                    console.time(`Process Sensors for Zone: ${zone}`);
                     Object.keys(data[zone]).forEach((device) => {
                         data[zone][device].forEach((sensor) => {
                             if (sensor.type.startsWith("Soil")) {
@@ -123,6 +141,7 @@
                             }
                         });
                     });
+                    console.timeEnd(`Process Sensors for Zone: ${zone}`);
 
                     // Generate cards for each group
                     const cardRow = document.createElement("div");
@@ -130,6 +149,8 @@
 
                     Object.keys(sensorGroups).forEach((group) => {
                         if (sensorGroups[group].length > 0) {
+                            console.time(`Render Group: ${group}`);
+
                             // Generate link for group header
                             const groupSensorIds = sensorGroups[group].map(sensor => sensor.id).join(",");
                             const groupHeaderLink = `<a href='/graph/${groupSensorIds}' class='text-light'>${groupTitles[group] || group}</a>`;
@@ -144,24 +165,24 @@
                                         ${sensorGroups[group]
                                 .map(
                                     (sensor) => `
-                                                <div
-                                                    class="d-flex justify-content-between align-items-center sensor-row"
-                                                    data-id="${sensor.id}"
-                                                    style="cursor: pointer;"
-                                                >
-                                                    <span>${sensor.name}</span>
-                                                    <div class="text-end">
-                                                        <strong>${sensor.value} ${sensor.unit}</strong>
-                                                        <i class="fa ${
+                                            <div
+                                                class="d-flex justify-content-between align-items-center sensor-row"
+                                                data-id="${sensor.id}"
+                                                style="cursor: pointer;"
+                                            >
+                                                <span>${sensor.name}</span>
+                                                <div class="text-end">
+                                                    <strong>${sensor.value} ${sensor.unit}</strong>
+                                                    <i class="fa ${
                                         sensor.trend === "up"
                                             ? "fa-arrow-up text-success"
                                             : sensor.trend === "down"
                                                 ? "fa-arrow-down text-danger"
                                                 : "fa-minus text-muted"
                                     }"></i>
-                                                    </div>
                                                 </div>
-                                            `
+                                            </div>
+                                        `
                                 )
                                 .join("")}
                                     </div>
@@ -169,14 +190,18 @@
                             </div>
                         `;
                             cardRow.innerHTML += card;
+
+                            console.timeEnd(`Render Group: ${group}`);
                         }
                     });
 
                     zoneContainer.appendChild(cardRow);
                     sensorsOverview.appendChild(zoneContainer);
+                    console.timeEnd(`Render Zone: ${zone}`);
                 });
 
                 // Add click event to sensor rows
+                console.time("Add Click Events");
                 document.querySelectorAll(".sensor-row").forEach((row) => {
                     row.addEventListener("click", () => {
                         const sensorId = row.getAttribute("data-id");
@@ -185,15 +210,17 @@
                         }
                     });
                 });
+                console.timeEnd("Add Click Events");
+
+                console.timeEnd("DOM Rendering");
+                console.timeEnd("Total Load Time");
             })
             .catch((error) => {
                 console.error("Error fetching grouped sensors:", error);
             });
     });
+
 </script>
-
-
-
 
 <!--Embed the footer.html template at this location-->
 {{ template "layouts/footer.html" .}}

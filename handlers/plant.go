@@ -18,7 +18,7 @@ import (
 func GetBreeders() []types.Breeder {
 	fieldLogger := logger.Log.WithField("func", "GetBreeders")
 	// Init the db
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return nil
@@ -40,9 +40,6 @@ func GetBreeders() []types.Breeder {
 		}
 		breeders = append(breeders, breeder)
 	}
-
-	//Close the db
-	db.Close()
 
 	return breeders
 }
@@ -95,7 +92,7 @@ func AddPlant(c *gin.Context) {
 
 	// Insert the new plant
 	// Init the db
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return
@@ -119,16 +116,13 @@ func AddPlant(c *gin.Context) {
 		return
 	}
 
-	//Close the db
-	db.Close()
-
 	c.JSON(http.StatusOK, gin.H{"message": "Plant added successfully"})
 }
 
 func GetStrains() []types.Strain {
 	fieldLogger := logger.Log.WithField("func", "GetStrains")
 	// Init the db
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return nil
@@ -151,16 +145,13 @@ func GetStrains() []types.Strain {
 		strains = append(strains, strain)
 	}
 
-	//Close the db
-	db.Close()
-
 	return strains
 }
 
 func GetActivities() []types.Activity {
 	fieldLogger := logger.Log.WithField("func", "GetActivities")
 	// Init the db
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return nil
@@ -182,8 +173,6 @@ func GetActivities() []types.Activity {
 		}
 		activities = append(activities, activity)
 	}
-	//Close the db
-	db.Close()
 
 	return activities
 }
@@ -191,7 +180,7 @@ func GetActivities() []types.Activity {
 func GetMetrics() []types.Metric {
 	fieldLogger := logger.Log.WithField("func", "GetMetrics")
 	// Init the db
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return nil
@@ -213,8 +202,6 @@ func GetMetrics() []types.Metric {
 		}
 		measurements = append(measurements, measurement)
 	}
-	//Close the db
-	db.Close()
 
 	return measurements
 }
@@ -222,7 +209,7 @@ func GetMetrics() []types.Metric {
 func GetStatuses() []types.Status {
 	fieldLogger := logger.Log.WithField("func", "GetStatuses")
 	// Init the db
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return nil
@@ -245,9 +232,6 @@ func GetStatuses() []types.Status {
 		statuses = append(statuses, status)
 	}
 
-	//Close the db
-	db.Close()
-
 	return statuses
 
 }
@@ -259,13 +243,11 @@ func CreateNewStrain(newStrain *struct {
 }) (int, error) {
 	fieldLogger := logger.Log.WithField("func", "CreateNewStrain")
 	// Init the db
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return 0, err
 	}
-	defer db.Close()
-
 	var breederId int
 
 	// Check if a new breeder needs to be added
@@ -330,12 +312,11 @@ func DeletePlant(c *gin.Context) {
 func DeletePlantById(id string) error {
 	fieldLogger := logger.Log.WithField("func", "DeletePlantById")
 	// Init the db
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return err
 	}
-	defer db.Close()
 
 	// Delete the plant's images
 	_, err = db.Exec("DELETE FROM plant_images WHERE plant_id = ?", id)
@@ -378,7 +359,7 @@ func GetPlant(id string) types.Plant {
 	fieldLogger := logger.Log.WithField("func", "GetPlant")
 	var plant types.Plant
 	// Init the db
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return plant
@@ -612,13 +593,6 @@ func GetPlant(id string) types.Plant {
 		plant = types.Plant{id, name, description, status, statusID, strain_name, strain_id, breeder_name, zone_name, iCurrentDay, iCurrentWeek, strCurrentHeight, heightDate, lastWaterDate, lastFeedDate, measurements, activities, statusHistory, sensorList, latestImage, images, isClone, start_dt, harvest_weight, harvestDate}
 	}
 
-	// Close the db
-	err = db.Close()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to close database")
-		return plant
-	}
-
 	return plant
 }
 
@@ -644,13 +618,12 @@ func LinkSensorsToPlant(c *gin.Context) {
 	}
 
 	// Initialize the database
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to the database"})
 		return
 	}
-	defer db.Close()
 
 	// Update the plant with the serialized sensor IDs
 	_, err = db.Exec("UPDATE plant SET sensors = ? WHERE id = ?", sensorIDsJSON, input.PlantID)
@@ -691,14 +664,12 @@ func AddStrainHandler(c *gin.Context) {
 	}
 
 	// Open the database
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
-	defer db.Close()
-
 	// Check for new breeder and insert if needed
 	var breederID int
 	if req.BreederID == nil {
@@ -763,14 +734,12 @@ func GetStrainHandler(c *gin.Context) {
 	}
 
 	// Open the database
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to database"})
 		return
 	}
-	defer db.Close()
-
 	var strain types.Strain
 
 	err = db.QueryRow(`
@@ -826,13 +795,12 @@ func UpdateStrainHandler(c *gin.Context) {
 	}
 
 	// Open the database
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to database"})
 		return
 	}
-	defer db.Close()
 
 	// Determine the breeder ID
 	var breederID int
@@ -896,13 +864,12 @@ func DeleteStrainHandler(c *gin.Context) {
 	}
 
 	// Open the database
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to database"})
 		return
 	}
-	defer db.Close()
 
 	result, err := db.Exec(`DELETE FROM strain WHERE id = ?`, id)
 	if err != nil {
@@ -950,7 +917,7 @@ func UpdatePlant(c *gin.Context) {
 	}
 
 	// Init the db
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -1043,12 +1010,11 @@ func getPlantsByStatus(statuses []int) ([]types.PlantListResponse, error) {
 	`
 
 	// Open the database connection
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return nil, err
 	}
-	defer db.Close()
 
 	// Execute the query
 	rows, err := db.Query(query, args...)
@@ -1056,7 +1022,6 @@ func getPlantsByStatus(statuses []int) ([]types.PlantListResponse, error) {
 		fieldLogger.WithError(err).Error("Failed to query plants")
 		return nil, err
 	}
-	defer rows.Close()
 
 	plants := []types.PlantListResponse{}
 	for rows.Next() {
@@ -1140,12 +1105,11 @@ func getStrainsBySeedCount(inStock bool) ([]types.Strain, error) {
         `
 	}
 
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return nil, err
 	}
-	defer db.Close()
 
 	rows, err := db.Query(query)
 	if err != nil {

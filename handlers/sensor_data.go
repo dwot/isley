@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"isley/config"
@@ -96,12 +95,11 @@ func querySensorHistoryByTime(sensor string, timeMinutes string) ([]types.Sensor
 	})
 	var sensorData []types.SensorData
 
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		sensorLogger.WithError(err).Error("Failed to open database")
 		return sensorData, err
 	}
-	defer db.Close()
 
 	sensorInt, err := strconv.Atoi(sensor)
 	if err != nil {
@@ -148,12 +146,11 @@ func querySensorHistoryByDateRange(sensor string, startDate string, endDate stri
 	var sensorData []types.SensorData
 
 	// Open the database
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		sensorLogger.WithError(err).Error(err)
 		return sensorData, err
 	}
-	defer db.Close()
 
 	// Convert sensor ID to integer
 	sensorInt, err := strconv.Atoi(sensor)

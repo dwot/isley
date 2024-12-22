@@ -47,7 +47,6 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"title":      "Sensor Graphs",
 			"version":    version,
 			"SensorID":   c.Param("id"),
-			"SensorName": handlers.GetSensorName(c.Param("id")),
 			"plants":     handlers.GetLivingPlants(),
 			"activities": config.Activities,
 		})

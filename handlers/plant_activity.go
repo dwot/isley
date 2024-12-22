@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"isley/logger"
@@ -34,13 +33,12 @@ func CreatePlantActivity(c *gin.Context) {
 		"date":        input.Date,
 	})
 
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
 	}
-	defer db.Close()
 
 	_, err = db.Exec("INSERT INTO plant_activity (plant_id, activity_id, note, date) VALUES (?, ?, ?, ?)", input.PlantID, input.ActivityID, input.Note, input.Date)
 	if err != nil {
@@ -78,13 +76,12 @@ func EditActivity(c *gin.Context) {
 		"note":        input.Note,
 	})
 
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
 	}
-	defer db.Close()
 
 	query := `UPDATE plant_activity SET date = ?, activity_id = ?, note = ? WHERE id = ?`
 	_, err = db.Exec(query, input.Date, input.ActivityID, input.Note, input.ID)
@@ -106,13 +103,12 @@ func DeleteActivity(c *gin.Context) {
 	id := c.Param("id")
 	fieldLogger.WithField("id", id)
 
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
 	}
-	defer db.Close()
 
 	query := `DELETE FROM plant_activity WHERE id = ?`
 	_, err = db.Exec(query, id)
@@ -157,13 +153,12 @@ func RecordMultiPlantActivity(c *gin.Context) {
 		"plant_ids":   request.PlantIDs,
 	})
 
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
 	}
-	defer db.Close()
 
 	for _, plantID := range request.PlantIDs {
 		_, err = db.Exec(`INSERT INTO plant_activity (plant_id, activity_id, note, date) VALUES (?, ?, ?, ?)`,

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"io"
@@ -81,7 +80,7 @@ func SaveSettings(c *gin.Context) {
 func UpdateSetting(name string, value string) error {
 	fieldLogger := logger.Log.WithField("func", "UpdateSetting")
 	// Init the db
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return err
@@ -123,24 +122,16 @@ func UpdateSetting(name string, value string) error {
 		}
 	}
 
-	// Close the db
-	err = db.Close()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to close database")
-		return err
-	}
-
 	return nil
 }
 
 func GetSettings() types.SettingsData {
 	fieldLogger := logger.Log.WithField("func", "GetSettings")
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return types.SettingsData{}
 	}
-	defer db.Close()
 
 	settingsData := types.SettingsData{}
 
@@ -188,12 +179,11 @@ func AddZoneHandler(c *gin.Context) {
 	}
 
 	// Add zone to database
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to add zone")
 		return
 	}
-	defer db.Close()
 
 	// Insert new zone and return new id
 	var id int
@@ -230,13 +220,11 @@ func AddMetricHandler(c *gin.Context) {
 	}
 
 	// Add metric to database
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to add metric")
 		return
 	}
-	defer db.Close()
-
 	// Insert new metric and return new id
 	var id int
 	err = db.QueryRow("INSERT INTO metric (name, unit) VALUES ($1, $2) RETURNING id", metric.Name, metric.Unit).Scan(&id)
@@ -269,12 +257,11 @@ func AddActivityHandler(c *gin.Context) {
 	}
 
 	// Add activity to database
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to add activity")
 		return
 	}
-	defer db.Close()
 
 	// Insert new activity and return new id
 	var id int
@@ -301,12 +288,11 @@ func UpdateZoneHandler(c *gin.Context) {
 	}
 
 	// Update zone in database
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update zone")
 		return
 	}
-	defer db.Close()
 
 	// Update zone in database
 	_, err = db.Exec("UPDATE zones SET name = $1 WHERE id = $2", zone.Name, id)
@@ -335,12 +321,11 @@ func UpdateMetricHandler(c *gin.Context) {
 	}
 
 	// Update metric in database
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update metric")
 		return
 	}
-	defer db.Close()
 
 	// Check if metric exists and lock = TRUE
 	var lock bool
@@ -390,12 +375,11 @@ func UpdateActivityHandler(c *gin.Context) {
 	}
 
 	// Update activity in database
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update activity")
 		return
 	}
-	defer db.Close()
 
 	// Check if activity exists and lock = TRUE
 	var lock bool
@@ -429,12 +413,11 @@ func DeleteZoneHandler(c *gin.Context) {
 	id := c.Param("id")
 
 	// Delete zone from database
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete zone")
 		return
 	}
-	defer db.Close()
 
 	//Build a list of plants associated with this zoen to delete first
 	rows, err := db.Query("SELECT id FROM plant WHERE zone_id = $1", id)
@@ -501,12 +484,11 @@ func DeleteMetricHandler(c *gin.Context) {
 	id := c.Param("id")
 
 	// Delete metric from database
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete metric")
 		return
 	}
-	defer db.Close()
 
 	// Check if metric exists and lock = TRUE
 	var lock bool
@@ -549,12 +531,11 @@ func DeleteActivityHandler(c *gin.Context) {
 	id := c.Param("id")
 
 	// Delete activity from database
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete activity")
 		return
 	}
-	defer db.Close()
 
 	// Check if activity exists and lock = TRUE
 	var lock bool
@@ -594,12 +575,11 @@ func DeleteActivityHandler(c *gin.Context) {
 
 func GetSetting(name string) (string, error) {
 	fieldLogger := logger.Log.WithField("func", "GetSetting")
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return "", err
 	}
-	defer db.Close()
 
 	var value string
 	err = db.QueryRow("SELECT value FROM settings WHERE name = $1", name).Scan(&value)
@@ -680,7 +660,7 @@ func LoadEcDevices() ([]string, error) {
 	fieldLogger := logger.Log.WithField("func", "LoadEcDevices")
 	var ecDevices []string
 	// Init the db
-	db, err := sql.Open("sqlite", model.DbPath())
+	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return ecDevices, err
@@ -702,13 +682,6 @@ func LoadEcDevices() ([]string, error) {
 			return ecDevices, err
 		}
 		ecDevices = append(ecDevices, device)
-	}
-
-	// Close the db
-	err = db.Close()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to close database")
-		return ecDevices, err
 	}
 
 	return ecDevices, nil
