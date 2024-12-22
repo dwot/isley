@@ -686,3 +686,26 @@ func LoadEcDevices() ([]string, error) {
 
 	return ecDevices, nil
 }
+
+func ExistsSetting(s string) (bool, error) {
+	fieldLogger := logger.Log.WithField("func", "ExistsSetting")
+	db, err := model.GetDB()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to open database")
+		return false, err
+	}
+
+	var value string
+	err = db.QueryRow("SELECT value FROM settings WHERE name = $1", s).Scan(&value)
+	if err != nil {
+		if err.Error() == "sql: no rows in result set" {
+			return false, nil
+		} else {
+			fieldLogger.WithError(err).Error("Failed to read setting")
+			return false, err
+		}
+	}
+
+	return true, nil
+
+}

@@ -44,11 +44,16 @@ func main() {
 	model.InitDB()
 
 	// Initialize default admin credentials if not present
-	if _, err := handlers.GetSetting("auth_username"); err != nil {
-		handlers.UpdateSetting("auth_username", "admin")
-		hashedPassword, _ := utils.HashPassword("isley")
-		handlers.UpdateSetting("auth_password", hashedPassword)
-		handlers.UpdateSetting("force_password_change", "true")
+	present, err := handlers.ExistsSetting("auth_username")
+	if err != nil {
+		logger.Log.WithError(err).Error("Error checking if default admin credentials are present")
+	} else {
+		if !present {
+			handlers.UpdateSetting("auth_username", "admin")
+			hashedPassword, _ := utils.HashPassword("isley")
+			handlers.UpdateSetting("auth_password", hashedPassword)
+			handlers.UpdateSetting("force_password_change", "true")
+		}
 	}
 
 	// Start the sensor watcher
