@@ -30,8 +30,6 @@ func main() {
 	// Initialize logger
 	logger.InitLogger()
 
-	utils.TestGrabWebCamImage()
-
 	// Set version
 	version := fmt.Sprintf("Isley %s", getVersion())
 	logger.Log.Info("Starting application version:", version)
