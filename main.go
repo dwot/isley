@@ -43,6 +43,14 @@ func main() {
 	model.MigrateDB()
 	model.InitDB()
 
+	// Initialize default admin credentials if not present
+	if _, err := handlers.GetSetting("auth_username"); err != nil {
+		handlers.UpdateSetting("auth_username", "admin")
+		hashedPassword, _ := utils.HashPassword("isley")
+		handlers.UpdateSetting("auth_password", hashedPassword)
+		handlers.UpdateSetting("force_password_change", "true")
+	}
+
 	// Start the sensor watcher
 	watcher.PruneSensorData()
 	go watcher.Watch()
