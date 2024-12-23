@@ -74,6 +74,9 @@ func SaveSettings(c *gin.Context) {
 		config.PollingInterval, _ = strconv.Atoi(settings.PollingInterval)
 	}
 
+	//Load Settings
+	LoadSettings()
+
 	c.JSON(http.StatusOK, gin.H{"message": "Settings saved successfully"})
 }
 
@@ -121,6 +124,9 @@ func UpdateSetting(name string, value string) error {
 			fieldLogger.WithError(err).Error("Failed to update setting")
 		}
 	}
+
+	// Reload settings
+	LoadSettings()
 
 	return nil
 }
@@ -708,4 +714,45 @@ func ExistsSetting(s string) (bool, error) {
 
 	return true, nil
 
+}
+
+// Helper functions
+func LoadSettings() {
+	strPollingInterval, err := GetSetting("polling_interval")
+	if err == nil {
+		if iPollingInterval, err := strconv.Atoi(strPollingInterval); err == nil {
+			config.PollingInterval = iPollingInterval
+		}
+	}
+
+	strACIEnabled, err := GetSetting("aci.enabled")
+	if err == nil {
+		if iACIEnabled, err := strconv.Atoi(strACIEnabled); err == nil {
+			config.ACIEnabled = iACIEnabled
+		}
+	}
+
+	strECEnabled, err := GetSetting("ec.enabled")
+	if err == nil {
+		if iECEnabled, err := strconv.Atoi(strECEnabled); err == nil {
+			config.ECEnabled = iECEnabled
+		}
+	}
+
+	strACIToken, err := GetSetting("aci.token")
+	if err == nil {
+		config.ACIToken = strACIToken
+	}
+
+	strECDevices, err := LoadEcDevices()
+	if err == nil {
+		config.ECDevices = strECDevices
+	}
+
+	config.Activities = GetActivities()
+	config.Metrics = GetMetrics()
+	config.Statuses = GetStatuses()
+	config.Zones = GetZones()
+	config.Strains = GetStrains()
+	config.Breeders = GetBreeders()
 }

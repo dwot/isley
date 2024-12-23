@@ -9,7 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"html/template"
-	"isley/config"
 	"isley/handlers"
 	"isley/logger"
 	"isley/model"
@@ -125,7 +124,7 @@ func main() {
 	r.SetHTMLTemplate(templ)
 
 	// Load settings (PollingInterval, ACIEnabled, etc.)
-	loadSettings()
+	handlers.LoadSettings()
 
 	r.Static("/uploads", "./uploads")
 
@@ -196,47 +195,6 @@ func main() {
 	// Start the server
 	logger.Log.Fatal(r.Run(":" + port))
 	logger.Log.Info("Server started on port %s", port)
-}
-
-// Helper functions
-func loadSettings() {
-	strPollingInterval, err := handlers.GetSetting("polling_interval")
-	if err == nil {
-		if iPollingInterval, err := strconv.Atoi(strPollingInterval); err == nil {
-			config.PollingInterval = iPollingInterval
-		}
-	}
-
-	strACIEnabled, err := handlers.GetSetting("aci.enabled")
-	if err == nil {
-		if iACIEnabled, err := strconv.Atoi(strACIEnabled); err == nil {
-			config.ACIEnabled = iACIEnabled
-		}
-	}
-
-	strECEnabled, err := handlers.GetSetting("ec.enabled")
-	if err == nil {
-		if iECEnabled, err := strconv.Atoi(strECEnabled); err == nil {
-			config.ECEnabled = iECEnabled
-		}
-	}
-
-	strACIToken, err := handlers.GetSetting("aci.token")
-	if err == nil {
-		config.ACIToken = strACIToken
-	}
-
-	strECDevices, err := handlers.LoadEcDevices()
-	if err == nil {
-		config.ECDevices = strECDevices
-	}
-
-	config.Activities = handlers.GetActivities()
-	config.Metrics = handlers.GetMetrics()
-	config.Statuses = handlers.GetStatuses()
-	config.Zones = handlers.GetZones()
-	config.Strains = handlers.GetStrains()
-	config.Breeders = handlers.GetBreeders()
 }
 
 func handleLogin(c *gin.Context) {

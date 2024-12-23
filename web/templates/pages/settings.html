@@ -55,7 +55,7 @@ color: #0d6efd; /* Primary color */
                             <label class="form-check-label" for="aciEnabled">Enable AC Infinity Sensor Monitoring</label>
                         </div>
                         <div class="d-flex align-items-center mt-3">
-                    <span class="badge bg-{{ if .settings.ACI.TokenSet }}success{{ else }}danger{{ end }} me-2">
+                    <span id="tokenSetBadge" class="badge bg-{{ if .settings.ACI.TokenSet }}success{{ else }}danger{{ end }} me-2">
                         {{ if .settings.ACI.TokenSet }}Token Set{{ else }}Token Not Set{{ end }}
                     </span>
                             <button type="button" class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#aciLoginModal">
@@ -528,6 +528,9 @@ color: #0d6efd; /* Primary color */
                     if (data.success) {
                         const modal = bootstrap.Modal.getInstance(document.getElementById("aciLoginModal"));
                         modal.hide();
+                        document.getElementById("tokenSetBadge").textContent = "Token Set";
+                        document.getElementById("tokenSetBadge").classList.remove("bg-danger");
+                        document.getElementById("tokenSetBadge").classList.add("bg-success");
                         //alert("Token fetched successfully!");
                     } else {
                         alert("Failed to fetch token: " + data.message);
