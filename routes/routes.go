@@ -99,6 +99,7 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 	r.GET("/plants/living", handlers.LivingPlantsHandler)
 	r.GET("/plants/harvested", handlers.HarvestedPlantsHandler)
 	r.GET("/plants/dead", handlers.DeadPlantsHandler)
+	r.GET("/plants/by-strain/:strainID", handlers.PlantsByStrainHandler)
 
 	r.POST("/plant", func(c *gin.Context) { handlers.UpdatePlant(c) })
 	r.DELETE("/plant/delete/:id", handlers.DeletePlant)

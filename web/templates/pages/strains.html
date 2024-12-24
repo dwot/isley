@@ -68,6 +68,12 @@
                         <input type="text" class="form-control" id="strainName" placeholder="Enter strain name" required>
                     </div>
 
+                    <!-- URL -->
+                    <div class="mb-3">
+                        <label for="url" class="form-label">URL</label>
+                        <input type="text" class="form-control" id="url" placeholder="Enter strain url" >
+                    </div>
+
                     <!-- Breeder Dropdown -->
                     <div class="mb-3">
                         <label for="breederSelect" class="form-label">Breeder</label>
@@ -102,6 +108,13 @@
                             <option value="true">Yes</option>
                             <option value="false" selected>No</option>
                         </select>
+                    </div>
+
+                    <!-- Cycle Time -->
+                    <div class="mb-3">
+                        <label for="cycleTime" class="form-label">Cycle Time</label>
+                        <input type="number" class="form-control" id="cycleTime" min="0" placeholder="days" required value="56">
+                        <p class="text-muted">Cycle time in days.  For Autoflowers, total runtime. For Photos, flower runtime.</p>
                     </div>
 
                     <!-- Seed Count -->
@@ -144,6 +157,12 @@
                         <input type="text" class="form-control" id="editStrainName" required>
                     </div>
 
+                    <!-- URL -->
+                    <div class="mb-3">
+                        <label for="editUrl" class="form-label">URL</label>
+                        <input type="text" class="form-control" id="editUrl" placeholder="Enter strain url" >
+                    </div>
+
                     <!-- Breeder Dropdown -->
                     <div class="mb-3">
                         <label for="editBreederSelect" class="form-label">Breeder</label>
@@ -180,6 +199,13 @@
                         </select>
                     </div>
 
+                    <!-- Cycle Time -->
+                    <div class="mb-3">
+                        <label for="editCycleTime" class="form-label">Cycle Time</label>
+                        <input type="number" class="form-control" id="editCycleTime" min="0" placeholder="days" required value="56">
+                        <p class="text-muted">Cycle time in days.  For Autoflowers, total runtime. For Photos, flower runtime.</p>
+                    </div>
+
                     <!-- Seed Count -->
                     <div class="mb-3">
                         <label for="editSeedCount" class="form-label">Seed Count</label>
@@ -211,6 +237,8 @@
         const indicaSativaSlider = document.getElementById("indicaSativaSlider");
         const indicaLabel = document.getElementById("indicaLabel");
         const sativaLabel = document.getElementById("sativaLabel");
+        const cycleTime = document.getElementById("cycleTime");
+        const url = document.getElementById("url");
 
         // Show/Hide New Breeder Input
         breederSelect.addEventListener("change", () => {
@@ -242,6 +270,8 @@
                 autoflower: document.getElementById("autoflower").value,
                 seed_count: parseInt(document.getElementById("seedCount").value, 10),
                 description: document.getElementById("strainDescription").value,
+                cycle_time: parseInt(cycleTime.value, 10),
+                url: url.value
             };
 
             // Send POST request to add the strain
@@ -276,6 +306,8 @@
         const editIndicaSativaSlider = document.getElementById("editIndicaSativaSlider");
         const editIndicaLabel = document.getElementById("editIndicaLabel");
         const editSativaLabel = document.getElementById("editSativaLabel");
+        const editCycleTime = document.getElementById("editCycleTime");
+        const editUrl = document.getElementById("editUrl");
 
         // Show/Hide New Breeder Input
         editBreederSelect.addEventListener("change", () => {
@@ -308,8 +340,9 @@
                 autoflower: document.getElementById("editAutoflower").value,
                 seed_count: parseInt(document.getElementById("editSeedCount").value, 10),
                 description: document.getElementById("editStrainDescription").value,
+                cycle_time: parseInt(editCycleTime.value, 10),
+                url: editUrl.value
             };
-
             fetch(`/strains/${strainId}`, {
                 method: "PUT",
                 headers: {
@@ -396,18 +429,22 @@
                     <th scope="col" data-key="indica" data-type="numeric" class="sortable ${currentSort.key === "indica" ? (currentSort.isAscending ? "asc" : "desc") : ""}">I/S <i class="fa-solid fa-sort"></i></th>
                     <th scope="col" data-key="autoflower" data-type="text" class="sortable ${currentSort.key === "autoflower" ? (currentSort.isAscending ? "asc" : "desc") : ""}">Auto <i class="fa-solid fa-sort"></i></th>
                     <th scope="col" data-key="seed_count" data-type="numeric" class="sortable ${currentSort.key === "seed_count" ? (currentSort.isAscending ? "asc" : "desc") : ""}">Seed Count <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col">Edit </th>
                 </tr>
             </thead>
             <tbody>
                 ${filteredData.map(strain => `
-                    <tr class="clickable-row"
-                        data-id="${strain.id}"
-                        data-strain='${JSON.stringify(strain)}'>
-                        <th scope="row">${strain.name || "N/A"}</th>
+                    <tr >
+                        <th scope="row">
+                        ${strain.url ? `<a href="${strain.url}" target="_blank">${strain.name || "N/A"}</a>` : strain.name || "N/A"}
+                        </th>
                         <td>${strain.breeder || "N/A"}</td>
                         <td>${strain.indica || 0} / ${strain.sativa || 0}</td>
                         <td>${strain.autoflower === "true" ? "Yes" : "No"}</td>
                         <td>${strain.seed_count || 0}</td>
+                        <td class="clickable-row"
+                        data-id="${strain.id}"
+                        data-strain='${JSON.stringify(strain)}'><i class="fa-solid fa-pen-to-square"></i></td>
                     </tr>
                 `).join("")}
             </tbody>
@@ -465,6 +502,8 @@
                     document.getElementById("editAutoflower").value = strainData.autoflower;
                     document.getElementById("editSeedCount").value = strainData.seed_count;
                     document.getElementById("editStrainDescription").value = strainData.description;
+                    document.getElementById("editCycleTime").value = strainData.cycle_time;
+                    document.getElementById("editUrl").value = strainData.url;
 
                     // Show the modal
                     editStrainModal.show();

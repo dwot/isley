@@ -99,9 +99,31 @@
 
                         <ul class="list-unstyled">
                             <li><strong>Status:</strong> {{ .plant.Status }}</li>
-                            <li><strong>Strain:</strong> {{ .plant.StrainName }} (by {{ .plant.BreederName }})</li>
+                            <li><strong>Strain:</strong>
+                                {{ if ne .plant.StrainUrl "" }}
+                                    <a href="{{ .plant.StrainUrl }}" target="_blank">{{ .plant.StrainName }}</a> (by {{ .plant.BreederName }})
+                                {{ else }}
+                                    {{ .plant.StrainName }} (by {{ .plant.BreederName }})
+                                {{ end }}
+                                </li>
+
+                            <!-- Conditional: If Plant is a Clone -->
+                            {{ if .plant.IsClone }}
+                            {{ if ne .plant.ParentID 0 }}
+                            <li><strong>Clone Of:</strong> <a href="/plant/{{ .plant.ParentID }}">{{ .plant.ParentName }}</a></li>
+                            {{ else }}
+                            <li><strong>Clone Of:</strong> Unknown</li>
+                            {{ end }}
+                            {{ end }}
+
                             <li><strong>Zone:</strong> {{ .plant.ZoneName }}</li>
                             <li><strong>Start Date:</strong> {{ formatDate .plant.StartDT }}</li>
+
+                            <!-- Conditional: If Plant is an Autoflower and not Harvested and not Dead -->
+                            {{ if and (eq .plant.Autoflower true) (ne .plant.Status "Success") (ne .plant.Status "Drying") (ne .plant.Status "Curing") (ne .plant.Status "Dead") }}
+                            <li><strong>Estimated Harvest Date:</strong> {{ formatDate .plant.EstHarvestDate }}</li>
+                            {{ end }}
+
 
                             <!-- Conditional: If Plant is Harvested or Dead -->
                             {{ if or (eq .plant.Status "Success") (eq .plant.Status "Drying") (eq .plant.Status "Curing") (eq .plant.Status "Dead") }}

@@ -1,6 +1,8 @@
 package types
 
-import "time"
+import (
+	"time"
+)
 
 type PlantActivity struct {
 	ID         uint      `json:"id"`
@@ -34,31 +36,37 @@ type Metric struct {
 }
 
 type Plant struct {
-	ID            uint                 `json:"id"`
-	Name          string               `json:"name"`
-	Description   string               `json:"description"`
-	Status        string               `json:"status"`
-	StatusID      int                  `json:"status_id"`
-	StrainName    string               `json:"strain_name"`
-	StrainID      int                  `json:"strain_id"`
-	BreederName   string               `json:"breeder_name"`
-	ZoneName      string               `json:"zone_name"`
-	CurrentDay    int                  `json:"current_day"`
-	CurrentWeek   int                  `json:"current_week"`
-	CurrentHeight string               `json:"current_height"`
-	HeightDate    time.Time            `json:"height_date"`
-	LastWaterDate time.Time            `json:"last_water_date"`
-	LastFeedDate  time.Time            `json:"last_feed_date"`
-	Measurements  []Measurement        `json:"measurements"`
-	Activities    []PlantActivity      `json:"activities"`
-	StatusHistory []Status             `json:"status_history"`
-	Sensors       []SensorDataResponse `json:"sensors"`
-	LatestImage   PlantImage           `json:"latest_image"`
-	Images        []PlantImage         `json:"images"`
-	IsClone       bool                 `json:"is_clone"`
-	StartDT       time.Time            `json:"start_dt"`
-	HarvestWeight float64              `json:"harvest_weight"`
-	HarvestDate   time.Time            `json:"harvest_date"`
+	ID             uint                 `json:"id"`
+	Name           string               `json:"name"`
+	Description    string               `json:"description"`
+	Status         string               `json:"status"`
+	StatusID       int                  `json:"status_id"`
+	StrainName     string               `json:"strain_name"`
+	StrainID       int                  `json:"strain_id"`
+	BreederName    string               `json:"breeder_name"`
+	ZoneName       string               `json:"zone_name"`
+	CurrentDay     int                  `json:"current_day"`
+	CurrentWeek    int                  `json:"current_week"`
+	CurrentHeight  string               `json:"current_height"`
+	HeightDate     time.Time            `json:"height_date"`
+	LastWaterDate  time.Time            `json:"last_water_date"`
+	LastFeedDate   time.Time            `json:"last_feed_date"`
+	Measurements   []Measurement        `json:"measurements"`
+	Activities     []PlantActivity      `json:"activities"`
+	StatusHistory  []Status             `json:"status_history"`
+	Sensors        []SensorDataResponse `json:"sensors"`
+	LatestImage    PlantImage           `json:"latest_image"`
+	Images         []PlantImage         `json:"images"`
+	IsClone        bool                 `json:"is_clone"`
+	StartDT        time.Time            `json:"start_dt"`
+	HarvestWeight  float64              `json:"harvest_weight"`
+	HarvestDate    time.Time            `json:"harvest_date"`
+	CycleTime      int                  `json:"cycle_time"`
+	StrainUrl      string               `json:"strain_url"`
+	EstHarvestDate time.Time            `json:"est_harvest_date"`
+	Autoflower     bool                 `json:"autoflower"`
+	ParentID       uint                 `json:"parent_id"`
+	ParentName     string               `json:"parent_name"`
 }
 
 // PlantImage represents the structure of the plant_images table
@@ -90,6 +98,10 @@ type PlantListResponse struct {
 	HarvestWeight         float64   `json:"harvest_weight"`
 	Status                string    `json:"status"`
 	StatusDate            time.Time `json:"status_date"`
+	CycleTime             int       `json:"cycle_time"`
+	StrainUrl             string    `json:"strain_url"`
+	EstHarvestDate        time.Time `json:"est_harvest_date"`
+	Autoflower            bool      `json:"autoflower"`
 }
 
 type Sensor struct {
@@ -164,6 +176,8 @@ type Strain struct {
 	Autoflower  string `json:"autoflower"`
 	Description string `json:"description"`
 	SeedCount   int    `json:"seed_count"`
+	CycleTime   int    `json:"cycle_time"`
+	Url         string `json:"url"`
 }
 
 type Zone struct {

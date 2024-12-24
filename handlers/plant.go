@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"html"
 	"isley/config"
 	"isley/logger"
 	model "isley/model"
@@ -56,9 +57,12 @@ func AddPlant(c *gin.Context) {
 			BreederId  int    `json:"breeder_id"`
 			NewBreeder string `json:"new_breeder"`
 		} `json:"new_strain"`
-		StatusID int    `json:"status_id"`
-		Date     string `json:"date"`
-		Sensors  string `json:"sensors"`
+		StatusID           int    `json:"status_id"`
+		Date               string `json:"date"`
+		Sensors            string `json:"sensors"`
+		Clone              int    `json:"clone"`
+		ParentID           int    `json:"parent_id"`
+		DecrementSeedCount bool   `json:"decrement_seed_count"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -99,11 +103,21 @@ func AddPlant(c *gin.Context) {
 	}
 
 	//Insert into the plants table returning id
-	result, err := db.Exec("INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors) VALUES (?, ?, ?, '', 'false', ?, '[]')", input.Name, *input.ZoneID, *input.StrainID, input.Date)
+	result, err := db.Exec("INSERT INTO plant (name, zone_id, strain_id, description, clone, parent_plant_id, start_dt, sensors) VALUES (?, ?, ?, '', ?, ?, ?, '[]')", input.Name, *input.ZoneID, *input.StrainID, input.Clone, input.ParentID, input.Date)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert plant")
 		return
 	}
+
+	//If decrement seed count, lower seed count on strain by 1, min 0
+	if input.DecrementSeedCount {
+		_, err = db.Exec("UPDATE strain SET seed_count = MAX(0, seed_count - 1) WHERE id = ?", *input.StrainID)
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to decrement seed count")
+			return
+		}
+	}
+
 	//Update plant_status_log with the new plant id and status id
 	plantID, err := result.LastInsertId()
 	if err != nil {
@@ -364,7 +378,7 @@ func GetPlant(id string) types.Plant {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return plant
 	}
-	rows, err := db.Query("SELECT p.id, p.name, p.description, p.clone, p.start_dt, s.name as strain_name, b.name as breeder_name, z.name as zone_name, (select ps.status from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as current_status, (select ps.id from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as status_id, p.sensors, s.id, p.harvest_weight FROM plant p LEFT OUTER JOIN strain s on p.strain_id = s.id left outer join breeder b on b.id = s.breeder_id LEFT OUTER JOIN zones z on p.zone_id = z.id WHERE p.id = $1", id)
+	rows, err := db.Query("SELECT p.id, p.name, p.description, p.clone, p.start_dt, s.name as strain_name, b.name as breeder_name, z.name as zone_name, (select ps.status from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as current_status, (select ps.id from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as status_id, p.sensors, s.id, p.harvest_weight, coalesce(s.cycle_time, 0), coalesce(s.url, ''), s.autoflower, coalesce(p.parent_plant_id, 0), coalesce(p2.name, '') as parent_name FROM plant p LEFT OUTER JOIN plant p2 on coalesce(p.parent_plant_id, 0) = p2.id LEFT OUTER JOIN strain s on p.strain_id = s.id left outer join breeder b on b.id = s.breeder_id LEFT OUTER JOIN zones z on p.zone_id = z.id WHERE p.id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query plant")
 		return plant
@@ -385,7 +399,12 @@ func GetPlant(id string) types.Plant {
 		var sensors string
 		var strain_id int
 		var harvest_weight float64
-		err = rows.Scan(&id, &name, &description, &isClone, &start_dt, &strain_name, &breeder_name, &zone_name, &status, &statusID, &sensors, &strain_id, &harvest_weight)
+		var cycle_time int
+		var strain_url string
+		var autoflower bool
+		var parent_id uint
+		var parent_name string
+		err = rows.Scan(&id, &name, &description, &isClone, &start_dt, &strain_name, &breeder_name, &zone_name, &status, &statusID, &sensors, &strain_id, &harvest_weight, &cycle_time, &strain_url, &autoflower, &parent_id, &parent_name)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan plant")
 			return plant
@@ -538,6 +557,7 @@ func GetPlant(id string) types.Plant {
 		lastWaterDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.Local)
 		lastFeedDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.Local)
 		harvestDate := time.Now().In(time.Local)
+		estHarvestDate := time.Now().In(time.Local)
 
 		//iterate measurements to find the last height
 		for _, measurement := range measurements {
@@ -587,10 +607,13 @@ func GetPlant(id string) types.Plant {
 			}
 		}
 
+		//calculate estimated harvest date
+		estHarvestDate = start_dt.AddDate(0, 0, cycle_time)
+
 		//Convert int and dates to strings
 		strCurrentHeight := strconv.Itoa(iCurrentHeight)
 
-		plant = types.Plant{id, name, description, status, statusID, strain_name, strain_id, breeder_name, zone_name, iCurrentDay, iCurrentWeek, strCurrentHeight, heightDate, lastWaterDate, lastFeedDate, measurements, activities, statusHistory, sensorList, latestImage, images, isClone, start_dt, harvest_weight, harvestDate}
+		plant = types.Plant{id, name, description, status, statusID, strain_name, strain_id, breeder_name, zone_name, iCurrentDay, iCurrentWeek, strCurrentHeight, heightDate, lastWaterDate, lastFeedDate, measurements, activities, statusHistory, sensorList, latestImage, images, isClone, start_dt, harvest_weight, harvestDate, cycle_time, strain_url, estHarvestDate, autoflower, parent_id, parent_name}
 	}
 
 	return plant
@@ -648,6 +671,8 @@ func AddStrainHandler(c *gin.Context) {
 		Autoflower  string `json:"autoflower"`
 		SeedCount   int    `json:"seed_count"`
 		Description string `json:"description"`
+		CycleTime   int    `json:"cycle_time"`
+		Url         string `json:"url"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -708,10 +733,10 @@ func AddStrainHandler(c *gin.Context) {
 
 	// Insert the new strain into the database
 	stmt := `
-		INSERT INTO strain (name, breeder_id, indica, sativa, autoflower, seed_count, description)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO strain (name, breeder_id, indica, sativa, autoflower, seed_count, description, cycle_time, url)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
-	_, err = db.Exec(stmt, req.Name, breederID, req.Indica, req.Sativa, req.Autoflower, req.SeedCount, req.Description)
+	_, err = db.Exec(stmt, req.Name, breederID, req.Indica, req.Sativa, req.Autoflower, req.SeedCount, req.Description, req.CycleTime, req.Url)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert strain")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add strain"})
@@ -779,6 +804,8 @@ func UpdateStrainHandler(c *gin.Context) {
 		Autoflower  string `json:"autoflower"`
 		Description string `json:"description"`
 		SeedCount   int    `json:"seed_count"`
+		CycleTime   int    `json:"cycle_time"`
+		Url         string `json:"url"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -840,11 +867,11 @@ func UpdateStrainHandler(c *gin.Context) {
 	// Update the strain in the database
 	updateStmt := `
         UPDATE strain
-        SET name = ?, breeder_id = ?, indica = ?, sativa = ?, autoflower = ?, description = ?, seed_count = ?
+        SET name = ?, breeder_id = ?, indica = ?, sativa = ?, autoflower = ?, description = ?, seed_count = ?, cycle_time = ?, url = ?
         WHERE id = ?
     `
 	_, err = db.Exec(updateStmt, req.Name, breederID, req.Indica, req.Sativa,
-		req.Autoflower, req.Description, req.SeedCount, id)
+		req.Autoflower, req.Description, req.SeedCount, req.CycleTime, req.Url, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update strain")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update strain"})
@@ -996,7 +1023,7 @@ func getPlantsByStatus(statuses []int) ([]types.PlantListResponse, error) {
        COALESCE((SELECT (strftime('%j', datetime('now', 'localtime')) - strftime('%j', MAX(date))) FROM plant_activity pa JOIN activity a ON pa.activity_id = a.id WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Water')),0) AS days_since_last_watering,
        COALESCE((SELECT (strftime('%j', datetime('now', 'localtime')) - strftime('%j', MAX(date))) FROM plant_activity pa JOIN activity a ON pa.activity_id = a.id WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Feed')),0) AS days_since_last_feeding,
        COALESCE((SELECT (strftime('%j', datetime('now', 'localtime')) - strftime('%j', MAX(date))) FROM plant_status_log WHERE plant_id = p.id AND status_id = (SELECT id FROM plant_status WHERE status = 'Flower')),0) AS flowering_days,
-		       p.harvest_weight, ps.status, psl.date as status_date
+		       p.harvest_weight, ps.status, psl.date as status_date, coalesce(s.cycle_time, 0), coalesce(s.url, ''), s.autoflower
 		FROM plant p
 		JOIN strain s ON p.strain_id = s.id
 		JOIN breeder b ON s.breeder_id = b.id
@@ -1026,9 +1053,19 @@ func getPlantsByStatus(statuses []int) ([]types.PlantListResponse, error) {
 	plants := []types.PlantListResponse{}
 	for rows.Next() {
 		var plant types.PlantListResponse
-		if err := rows.Scan(&plant.ID, &plant.Name, &plant.Description, &plant.Clone, &plant.StrainName, &plant.BreederName, &plant.ZoneName, &plant.StartDT, &plant.CurrentWeek, &plant.CurrentDay, &plant.DaysSinceLastWatering, &plant.DaysSinceLastFeeding, &plant.FloweringDays, &plant.HarvestWeight, &plant.Status, &plant.StatusDate); err != nil {
+		if err := rows.Scan(&plant.ID, &plant.Name, &plant.Description, &plant.Clone, &plant.StrainName, &plant.BreederName, &plant.ZoneName, &plant.StartDT, &plant.CurrentWeek, &plant.CurrentDay, &plant.DaysSinceLastWatering, &plant.DaysSinceLastFeeding, &plant.FloweringDays, &plant.HarvestWeight, &plant.Status, &plant.StatusDate, &plant.CycleTime, &plant.StrainUrl, &plant.Autoflower); err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan plant")
 			return nil, err
+		}
+		// calculate the estimated harvest date
+		startDate := plant.StartDT
+		//convert start date to a time.Time (has timezone data)
+		startTime, err := time.Parse("2006-01-02T15:04:05Z", startDate)
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to parse start date")
+		} else {
+			estHarvestDate := startTime.AddDate(0, 0, plant.CycleTime)
+			plant.EstHarvestDate = estHarvestDate
 		}
 		plants = append(plants, plant)
 	}
@@ -1091,14 +1128,14 @@ func OutOfStockStrainsHandler(c *gin.Context) {
 func getStrainsBySeedCount(inStock bool) ([]types.Strain, error) {
 	fieldLogger := logger.Log.WithField("func", "getStrainsBySeedCount")
 	query := `
-        SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count
+        SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count, s.description, coalesce(s.cycle_time, 0), coalesce(s.url, '')
         FROM strain s
         JOIN breeder b ON s.breeder_id = b.id
         WHERE s.seed_count > 0
     `
 	if !inStock {
 		query = `
-            SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count
+            SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count, s.description, coalesce(s.cycle_time, 0), coalesce(s.url, '')
             FROM strain s
             JOIN breeder b ON s.breeder_id = b.id
             WHERE s.seed_count = 0
@@ -1121,12 +1158,65 @@ func getStrainsBySeedCount(inStock bool) ([]types.Strain, error) {
 	var strains []types.Strain
 	for rows.Next() {
 		var strain types.Strain
-		if err := rows.Scan(&strain.ID, &strain.Name, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount); err != nil {
+		if err := rows.Scan(&strain.ID, &strain.Name, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount, &strain.Description, &strain.CycleTime, &strain.Url); err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan strain")
 			return nil, err
 		}
+		strain.Description = html.EscapeString(strain.Description)
 		strains = append(strains, strain)
 	}
 
 	return strains, nil
+}
+
+func PlantsByStrainHandler(context *gin.Context) {
+	fieldLogger := logger.Log.WithField("handler", "PlantsByStrainHandler")
+
+	// Parse strain ID from query parameter
+	strainID, err := strconv.Atoi(context.Param("strainID"))
+	if err != nil {
+		fieldLogger.WithError(err).Error("Invalid strain ID")
+		context.JSON(http.StatusBadRequest, gin.H{"error": "Invalid strain ID"})
+		return
+	}
+
+	fieldLogger = fieldLogger.WithField("strainID", strainID)
+	fieldLogger.Info("Fetching plants for strain")
+
+	db, err := model.GetDB()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to open database")
+		return
+	}
+
+	// Query plants with the given strain ID
+	rows, err := db.Query(`SELECT id, name FROM plant WHERE strain_id = ? ORDER BY name ASC`, strainID)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to query database")
+		context.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch plants"})
+		return
+	}
+	defer rows.Close()
+
+	// Parse query results
+	var plants []types.Plant
+	for rows.Next() {
+		var plant types.Plant
+		if err := rows.Scan(&plant.ID, &plant.Name); err != nil {
+			fieldLogger.WithError(err).Error("Failed to scan row")
+			context.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process results"})
+			return
+		}
+		plants = append(plants, plant)
+	}
+
+	if err := rows.Err(); err != nil {
+		fieldLogger.WithError(err).Error("Error iterating rows")
+		context.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process results"})
+		return
+	}
+
+	// Return the list of plants as JSON
+	fieldLogger.WithField("plantCount", len(plants)).Info("Plants fetched successfully")
+	context.JSON(http.StatusOK, plants)
 }

@@ -160,6 +160,13 @@
                         <input type="text" class="form-control" id="sensorName" required>
                     </div>
 
+                    <!-- Sensor Device -->
+                    <div class="mb-3">
+                        <label for="sensorDevice" class="form-label">Device</label>
+                        <input type="text" class="form-control" id="sensorDevice" required>
+                        <p class="form-text">Edit this only if you've changed devices</p>
+                    </div>
+
                     <!-- Show/Hide -->
                     <div class="mb-3">
                         <label for="sensorVisibility" class="form-label">Visibility</label>
@@ -392,6 +399,7 @@
                 // Populate modal fields
                 document.getElementById("sensorId").value = sensorData.id;
                 document.getElementById("sensorName").value = sensorData.name;
+                document.getElementById("sensorDevice").value = sensorData.device;
 
                 // Populate visibility (ensure it's boolean in the backend)
                 document.getElementById("sensorVisibility").value = sensorData.visible ? "true" : "false";
@@ -413,6 +421,7 @@
             const payload = {
                 id: parseInt(document.getElementById("sensorId").value, 10),
                 name: document.getElementById("sensorName").value,
+                device: document.getElementById("sensorDevice").value,
                 visible: document.getElementById("sensorVisibility").value === "true",
                 zone_id: parseInt(document.getElementById("sensorZone").value, 10),
                 unit: document.getElementById("sensorUnit").value,

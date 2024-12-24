@@ -527,6 +527,7 @@ func EditSensor(c *gin.Context) {
 	var input struct {
 		ID      int    `json:"id"`
 		Name    string `json:"name"`
+		Device  string `json:"device"`
 		Visible bool   `json:"visible"`
 		ZoneID  int    `json:"zone_id"`
 		Unit    string `json:"unit"`
@@ -544,8 +545,8 @@ func EditSensor(c *gin.Context) {
 		return
 	}
 
-	_, err = db.Exec("UPDATE sensors SET name = ?, show = ?, zone_id = ?, unit = ? WHERE id = ?",
-		input.Name, input.Visible, input.ZoneID, input.Unit, input.ID)
+	_, err = db.Exec("UPDATE sensors SET name = ?, show = ?, zone_id = ?, unit = ?, device = ? WHERE id = ?",
+		input.Name, input.Visible, input.ZoneID, input.Unit, input.Device, input.ID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error updating sensor")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update sensor"})

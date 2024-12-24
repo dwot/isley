@@ -175,6 +175,27 @@
                         <input type="date" class="form-control" id="startDate" required>
                     </div>
 
+                    <!-- Clone Checkbox -->
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="isClone">
+                        <label class="form-check-label" for="isClone">Is Clone</label>
+                    </div>
+
+
+                    <!-- Parent Plant Dropdown (Hidden by default) -->
+                    <div class="mb-3 d-none" id="parentPlantDropdown">
+                        <label for="parentPlantSelect" class="form-label">Parent Plant</label>
+                        <select class="form-select" id="parentPlantSelect">
+                            <option value="0">None</option>
+                        </select>
+                    </div>
+
+                    <!-- Decrement Seed Count Checkbox -->
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="decrementSeedCount">
+                        <label class="form-check-label" for="decrementSeedCount">Decrement Seed Count</label>
+                    </div>
+
                     <!-- Submit Button -->
                     <button type="submit" class="btn btn-primary">Add Plant</button>
                 </form>
@@ -310,6 +331,8 @@
         const zoneSelect = document.getElementById("zoneSelect");
         const newZoneInput = document.getElementById("newZoneInput");
         const strainSelect = document.getElementById("strainSelect");
+        const parentPlantDropdown = document.getElementById("parentPlantDropdown");
+        const parentPlantSelect = document.getElementById("parentPlantSelect");
         const newStrainInputs = document.getElementById("newStrainInputs");
         const breederSelect = document.getElementById("breederSelect");
         const newBreederInput = document.getElementById("newBreederInput");
@@ -320,6 +343,8 @@
         const newBreederName = document.getElementById("newBreederName");
         const startDt = document.getElementById("startDate");
         const addPlantModal = document.getElementById("addPlantModal");
+        const isClone = document.getElementById("isClone");
+        const decrementSeedCount = document.getElementById("decrementSeedCount");
 
         // Set default date to today
         const setDefaultDate = () => {
@@ -347,11 +372,36 @@
             newBreederInput.classList.add("d-none");
         };
 
-        // Set default behaviors when the modal is shown
-        addPlantModal.addEventListener("show.bs.modal", () => {
-            setDefaultDate();
-            resetZoneSelection();
-            resetStrainSelection();
+        // Reset Parent Plant Selection
+        const resetParentPlantSelection = () => {
+            parentPlantSelect.value = "0";
+            parentPlantDropdown.classList.add("d-none");
+        };
+
+        isClone.addEventListener("change", () => {
+            if (isClone.checked) {
+                parentPlantDropdown.classList.remove("d-none");
+            } else {
+                parentPlantDropdown.classList.add("d-none");
+                parentPlantSelect.innerHTML = '<option value="0">None</option>';
+            }
+        });
+
+        strainSelect.addEventListener("change", () => {
+            if (strainSelect.value === "new") {
+                parentPlantDropdown.classList.add("d-none");
+                parentPlantSelect.innerHTML = '<option value="0">None</option>';
+            } else {
+                fetch(`/plants/by-strain/${strainSelect.value}`)
+                    .then(response => response.json())
+                    .then(plants => {
+                        parentPlantSelect.innerHTML = '<option value="0">None</option>';
+                        plants.forEach(plant => {
+                            parentPlantSelect.innerHTML += `<option value="${plant.id}">${plant.name}</option>`;
+                        });
+                        //parentPlantDropdown.classList.remove("d-none");
+                    });
+            }
         });
 
         // Show/Hide New Zone Input
@@ -381,11 +431,14 @@
             }
         });
 
-        // Handle Add Plant Form Submission
+        addPlantModal.addEventListener("show.bs.modal", () => {
+            setDefaultDate();
+            resetZoneSelection();
+            resetStrainSelection();
+        });
+
         addPlantForm.addEventListener("submit", (e) => {
             e.preventDefault();
-
-            // Gather form data
             const payload = {
                 name: plantName.value,
                 zone_id: zoneSelect.value === "new" ? null : parseInt(zoneSelect.value, 10),
@@ -398,35 +451,25 @@
                 } : null,
                 status_id: parseInt(statusSelect.value, 10),
                 date: startDt.value,
+                clone: isClone.checked ? 1 : 0,
+                parent_id: parseInt(parentPlantSelect.value, 10),
+                decrement_seed_count: decrementSeedCount.checked,
             };
-
-            // Send POST request to add the plant
             fetch("/plants", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             })
-                .then((response) => {
-                    if (!response.ok) {
-                        throw new Error("Failed to add plant");
-                    }
-                    return response.json();
+                .then(response => {
+                    if (!response.ok) throw new Error("Failed to add plant");
+                    location.reload();
                 })
-                .then(() => {
-                    location.reload(); // Reload the page to show the new plant
-                })
-                .catch((error) => {
-                    console.error("Error:", error);
-                    alert("Failed to add plant. Please try again.");
-                });
+                .catch(error => alert("Failed to add plant. Try again."));
         });
     });
-
-
-
 </script>
+
+
 
 
 <!--Embed the footer.html template at this location-->
