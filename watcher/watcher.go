@@ -10,6 +10,7 @@ import (
 	"isley/model"
 	"isley/model/types"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -139,6 +140,19 @@ func updateACISensorData(token string) {
 }
 
 func addSensorData(source string, device string, key string, value string) {
+	//Test to see if value is a number, if not return an error
+	_, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		logger.Log.WithFields(logrus.Fields{
+			"source": source,
+			"device": device,
+			"type":   key,
+			"value":  value,
+			"error":  err,
+		}).Error("Error parsing sensor value")
+		return
+	}
+
 	db, err := model.GetDB()
 	if err != nil {
 		logger.Log.WithError(err).Error("Failed to open database")

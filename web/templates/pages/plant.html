@@ -355,6 +355,9 @@
                     <img id="originalImageSrc" id="originalImageSrc">
                 </div>
                 <input type="hidden" id="imageId" >
+                <input type="hidden" id="modalDate" >
+                <input type="hidden" id="modalStartDate" value="{{ .plant.StartDT | formatDateISO }}" >
+                <input type="hidden" id="modalPlantName" value="{{ .plant.Name }}" >
                 <div class="mt-3">
                     <div class="row">
                         <!-- Font Selection -->
@@ -380,12 +383,7 @@
                         <div class="col-md-6">
                             <label for="text1">Top Text</label>
                             <select id="text1Dropdown" class="form-select">
-                                <option selected value="{{ .plant.StrainName }}">Strain Name</option>
-                                <option value="{{ .plant.BreederName }}">Breeder Name</option>
-                                <option value="{{ .plant.Name }}">Plant Name</option>
-                                <option value="Day {{ .plant.CurrentDay }}">Current Day</option>
-                                <option value="Week {{ .plant.CurrentWeek }}">Current Week</option>
-                                <option value="Custom">Custom</option>
+
                             </select>
                             <input type="text" id="text1" class="form-control mt-2" placeholder="Custom text" disabled>
                             <label for="text1Corner" class="mt-2">Placement</label>
@@ -399,12 +397,7 @@
                         <div class="col-md-6">
                             <label for="text2">Bottom Text</label>
                             <select id="text2Dropdown" class="form-select">
-                                <option value="{{ .plant.StrainName }}">Strain Name</option>
-                                <option value="{{ .plant.BreederName }}">Breeder Name</option>
-                                <option value="{{ .plant.Name }}">Plant Name</option>
-                                <option selected value="Day {{ .plant.CurrentDay }}">Current Day</option>
-                                <option value="Week {{ .plant.CurrentWeek }}">Current Week</option>
-                                <option value="Custom">Custom</option>
+
                             </select>
                             <input type="text" id="text2" class="form-control mt-2" placeholder="Custom text" disabled>
                             <label for="text2Corner" class="mt-2">Placement</label>
@@ -1224,16 +1217,61 @@
         const modalImage = document.getElementById("modalImage");
         const originalImageSrc = document.getElementById("originalImageSrc");
         const modalDescription = document.getElementById("modalDescription");
-        const modalDate = document.getElementById("modalDate");
+        const modalDateInput = document.getElementById("modalDate");
         const imageIdInput = document.getElementById("imageId");
+        const modalStartDate = document.getElementById("modalStartDate");
+        const text1dropdown = document.getElementById("text1Dropdown");
+        const text2dropdown = document.getElementById("text2Dropdown");
 
         document.querySelectorAll(".thumbnail-img").forEach((img) => {
             img.addEventListener("click", () => {
                 modalImage.src = img.dataset.image;
                 originalImageSrc.src = img.dataset.image;
                 //modalDescription.textContent = img.dataset.description;
-                //modalDate.textContent = img.dataset.date;
+                modalDateInput.value = img.dataset.date;
                 imageIdInput.value = img.dataset.id;
+
+                // Calculate Current Days from plant start date and modal date
+                const plantStartDate = new Date(modalStartDate.value);
+                const modalDate = new Date(img.dataset.date);
+                const diffTime = Math.abs(modalDate - plantStartDate);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                const diffWeeks = Math.floor(diffDays / 7);
+                const strainName = document.getElementById("strainName").value;
+                const breederName = document.getElementById("breederName").value;
+                const plantName = document.getElementById("modalPlantName").value;
+                console.log("Start Date: " + plantStartDate + " Modal Date: " + modalDate + " Diff Days: " + diffDays + " Diff Weeks: " + diffWeeks);
+
+                // clear text1dropdown
+                for (let i = text1dropdown.options.length - 1; i >= 0; i--) {
+                    text1dropdown.remove(i);
+                }
+                //clear text2dropdown
+                for (let i = text2dropdown.options.length - 1; i >= 0; i--) {
+                    text2dropdown.remove(i);
+                }
+                /*
+                <option selected value="{{ .plant.StrainName }}">Strain Name</option>
+                <option value="{{ .plant.BreederName }}">Breeder Name</option>
+                <option value="{{ .plant.Name }}">Plant Name</option>
+                <option value="Day {{ .plant.CurrentDay }}">Current Day</option>
+                <option value="Week {{ .plant.CurrentWeek }}">Current Week</option>
+                <option value="Custom">Custom</option>
+                 */
+                text1dropdown.appendChild(new Option(strainName, strainName, true, true));
+                text1dropdown.appendChild(new Option(breederName, breederName));
+                text1dropdown.appendChild(new Option(plantName, plantName));
+                text1dropdown.appendChild(new Option("Day " + diffDays, "Day " + diffDays));
+                text1dropdown.appendChild(new Option("Week " + diffWeeks, "Week " + diffWeeks));
+                text1dropdown.appendChild(new Option("Custom", "Custom"));
+
+                text2dropdown.appendChild(new Option(strainName, strainName));
+                text2dropdown.appendChild(new Option(breederName, breederName));
+                text2dropdown.appendChild(new Option(plantName, plantName));
+                text2dropdown.appendChild(new Option("Day " + diffDays, "Day " + diffDays, true, true));
+                text2dropdown.appendChild(new Option("Week " + diffWeeks, "Week " + diffWeeks));
+                text2dropdown.appendChild(new Option("Custom", "Custom"));
+
             });
         });
     });
@@ -1401,6 +1439,10 @@
         const decorateImageButton = document.getElementById("decorateImage");
         const modalImage = document.getElementById("modalImage");
         const originalImageSrc = document.getElementById("originalImageSrc");
+        const text1Input = document.getElementById("text1");
+        const text2Input = document.getElementById("text2");
+        const text1Dropdown = document.getElementById("text1Dropdown");
+        const text2Dropdown = document.getElementById("text2Dropdown");
 
         // Load fonts
         fetch("/listFonts")
@@ -1483,13 +1525,21 @@
             }
         });
 
+        // Enable custom input fields based on dropdown selection
+        [text1Dropdown, text2Dropdown].forEach((dropdown, index) => {
+            dropdown.addEventListener("change", () => {
+                const input = index === 0 ? text1Input : text2Input;
+                input.disabled = dropdown.value !== "Custom";
+            });
+        });
+
         decorateImageButton.addEventListener("click", () => {
             const fullImagePath = originalImageSrc.src;
             const imagePath = new URL(fullImagePath).pathname.replace(/^\//, "");
             const text1Dropdown = document.getElementById("text1Dropdown");
             const text2Dropdown = document.getElementById("text2Dropdown");
-            const text1Input = document.getElementById("text1Input");
-            const text2Input = document.getElementById("text2Input");
+            const text1Input = document.getElementById("text1");
+            const text2Input = document.getElementById("text2");
             const text1 = text1Dropdown.value === "Custom" ? text1Input.value : text1Dropdown.value;
             const text2 = text2Dropdown.value === "Custom" ? text2Input.value : text2Dropdown.value;
             const logo = logoDropdown.value;
