@@ -13,8 +13,8 @@
     }
     .thumbnail-img {
         cursor: pointer;
-        object-fit: cover;
-        height: 150px;
+        object-fit: contain;
+        height: 220px;
         width: 100%;
         transition: transform 0.2s;
     }
@@ -68,12 +68,8 @@
                             src="{{ .plant.LatestImage.ImagePath }}"
                             class="card-img-top"
                             alt="{{ .plant.LatestImage.ImageDescription }}"
-                            style="max-height: 300px; object-fit: cover;"
+                            style="max-height: 450px; object-fit: contain;"
                     >
-                    <div class="card-body text-center">
-                        <p class="card-text text-muted">{{ .plant.LatestImage.ImageDescription }}</p>
-                        <small class="text-muted">Taken on {{ formatDate .plant.LatestImage.ImageDate }}</small>
-                    </div>
                 </div>
             </div>
 
@@ -197,11 +193,6 @@
                 Activities
             </button>
         </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="gallery-tab" data-bs-toggle="tab" data-bs-target="#gallery" type="button" role="tab" aria-controls="gallery" aria-selected="false">
-                Image Gallery
-            </button>
-        </li>
     </ul>
 
     <!-- Tabs Content -->
@@ -304,34 +295,37 @@
             </table>
         </div>
 
-        <!-- Image Gallery Tab -->
-        <div class="tab-pane fade" id="gallery" role="tabpanel" aria-labelledby="gallery-tab">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h3 class="text-secondary">Image Gallery</h3>
-            </div>
-            <div class="row g-3">
-                {{ range .plant.Images }}
-                <div class="col-6 col-md-4 col-lg-3">
-                    <div class="card">
-                        <img
-                                src="{{ .ImagePath }}"
-                                class="card-img-top thumbnail-img"
-                                alt="{{ .ImageDescription }}"
-                                data-bs-toggle="modal"
-                                data-bs-target="#imageModal"
-                                data-image="{{ .ImagePath }}"
-                                data-description="{{ .ImageDescription }}"
-                                data-date="{{ formatDate .ImageDate }}"
-                                data-id="{{ .ID }}"
-                        >
-                        <div class="card-body text-center">
-                            <small class="text-muted">{{ formatDate .ImageDate }}</small>
-                        </div>
-                    </div>
+    </div>
 
+    <hr class="my-5" />
+
+    <!-- Image Gallery Tab -->
+    <div class="row g-4" id="gallery">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="text-secondary">Image Gallery</h3>
+        </div>
+        <div class="row g-3">
+            {{ range .plant.Images }}
+            <div class="col-6 col-md-4 col-lg-3">
+                <div class="card">
+                    <img
+                            src="{{ .ImagePath }}"
+                            class="card-img-top thumbnail-img"
+                            alt="{{ .ImageDescription }}"
+                            data-bs-toggle="modal"
+                            data-bs-target="#imageModal"
+                            data-image="{{ .ImagePath }}"
+                            data-description="{{ .ImageDescription }}"
+                            data-date="{{ formatDate .ImageDate }}"
+                            data-id="{{ .ID }}"
+                    >
+                    <div class="card-body text-center">
+                        <small class="text-muted">{{ formatDate .ImageDate }}</small>
+                    </div>
                 </div>
-                {{ end }}
+
             </div>
+            {{ end }}
         </div>
     </div>
 </div>
@@ -382,20 +376,16 @@
                 <input type="hidden" id="modalPlantName" value="{{ .plant.Name }}" >
                 <div class="mt-3">
                     <div class="row">
-                        <!-- Font Selection -->
                         <div class="col-md-6">
                             <label for="fontDropdown">Select Font</label>
                             <select id="fontDropdown" class="form-select">
-                                <!-- Dynamically populated -->
                             </select>
                             <p id="fontPreview" class="mt-2">Preview: The quick brown fox</p>
                         </div>
-                        <!-- Logo Selection -->
                         <div class="col-md-6">
                             <label for="logoDropdown">Select Logo</label>
                             <select id="logoDropdown" class="form-select">
                                 <option value="">None</option>
-                                <!-- Dynamically populated -->
                             </select>
                             <img id="logoPreview" src="" class="img-thumbnail mt-2" style="max-width: 100px; display: none;" />
                         </div>
@@ -443,7 +433,10 @@
                         <i class="fa fa-magic"></i> Decorate Image
                     </button>
                 </div>
-                <!-- Delete Icon -->
+                <div class="d-flex justify-content-between mt-3">
+                    <button id="prevImage" class="btn btn-secondary">Previous</button>
+                    <button id="nextImage" class="btn btn-secondary">Next</button>
+                </div>
                 <button class="btn btn-danger btn-sm position-absolute top-0 end-0 m-1"
                         onclick="confirmDeleteImage()">
                     <i class="fa-solid fa-trash"></i>
@@ -1244,59 +1237,88 @@
         const modalStartDate = document.getElementById("modalStartDate");
         const text1dropdown = document.getElementById("text1Dropdown");
         const text2dropdown = document.getElementById("text2Dropdown");
+        const prevButton = document.getElementById("prevImage");
+        const nextButton = document.getElementById("nextImage");
 
-        document.querySelectorAll(".thumbnail-img").forEach((img) => {
+        let currentImageIndex = 0;
+        const images = Array.from(document.querySelectorAll(".thumbnail-img"));
+
+        function loadImage(index) {
+            const img = images[index];
+            modalImage.src = img.dataset.image;
+            originalImageSrc.src = img.dataset.image;
+            modalDateInput.value = img.dataset.date;
+            imageIdInput.value = img.dataset.id;
+
+            const plantStartDate = new Date(modalStartDate.value);
+            const modalDate = new Date(img.dataset.date);
+            const diffTime = Math.abs(modalDate - plantStartDate);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const diffWeeks = Math.floor(diffDays / 7);
+            const strainName = document.getElementById("strainName").value;
+            const breederName = document.getElementById("breederName").value;
+            const plantName = document.getElementById("modalPlantName").value;
+
+            // Populate dropdowns
+            text1dropdown.innerHTML = "";
+            text2dropdown.innerHTML = "";
+            const options = [
+                new Option(strainName, strainName),
+                new Option(breederName, breederName),
+                new Option(plantName, plantName),
+                new Option("Day " + diffDays, "Day " + diffDays),
+                new Option("Week " + diffWeeks, "Week " + diffWeeks),
+                new Option("Custom", "Custom")
+            ];
+            options.forEach(opt => text1dropdown.add(opt.cloneNode(true)));
+            options.forEach(opt => text2dropdown.add(opt.cloneNode(true)));
+
+            text1dropdown.value = strainName;
+            text2dropdown.value = "Day " + diffDays;
+
+            // Update button state
+            prevButton.disabled = index === 0;
+            nextButton.disabled = index === images.length - 1;
+        }
+
+        images.forEach((img, index) => {
             img.addEventListener("click", () => {
-                modalImage.src = img.dataset.image;
-                originalImageSrc.src = img.dataset.image;
-                //modalDescription.textContent = img.dataset.description;
-                modalDateInput.value = img.dataset.date;
-                imageIdInput.value = img.dataset.id;
-
-                // Calculate Current Days from plant start date and modal date
-                const plantStartDate = new Date(modalStartDate.value);
-                const modalDate = new Date(img.dataset.date);
-                const diffTime = Math.abs(modalDate - plantStartDate);
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                const diffWeeks = Math.floor(diffDays / 7);
-                const strainName = document.getElementById("strainName").value;
-                const breederName = document.getElementById("breederName").value;
-                const plantName = document.getElementById("modalPlantName").value;
-                console.log("Start Date: " + plantStartDate + " Modal Date: " + modalDate + " Diff Days: " + diffDays + " Diff Weeks: " + diffWeeks);
-
-                // clear text1dropdown
-                for (let i = text1dropdown.options.length - 1; i >= 0; i--) {
-                    text1dropdown.remove(i);
-                }
-                //clear text2dropdown
-                for (let i = text2dropdown.options.length - 1; i >= 0; i--) {
-                    text2dropdown.remove(i);
-                }
-                /*
-                <option selected value="{{ .plant.StrainName }}">Strain Name</option>
-                <option value="{{ .plant.BreederName }}">Breeder Name</option>
-                <option value="{{ .plant.Name }}">Plant Name</option>
-                <option value="Day {{ .plant.CurrentDay }}">Current Day</option>
-                <option value="Week {{ .plant.CurrentWeek }}">Current Week</option>
-                <option value="Custom">Custom</option>
-                 */
-                text1dropdown.appendChild(new Option(strainName, strainName, true, true));
-                text1dropdown.appendChild(new Option(breederName, breederName));
-                text1dropdown.appendChild(new Option(plantName, plantName));
-                text1dropdown.appendChild(new Option("Day " + diffDays, "Day " + diffDays));
-                text1dropdown.appendChild(new Option("Week " + diffWeeks, "Week " + diffWeeks));
-                text1dropdown.appendChild(new Option("Custom", "Custom"));
-
-                text2dropdown.appendChild(new Option(strainName, strainName));
-                text2dropdown.appendChild(new Option(breederName, breederName));
-                text2dropdown.appendChild(new Option(plantName, plantName));
-                text2dropdown.appendChild(new Option("Day " + diffDays, "Day " + diffDays, true, true));
-                text2dropdown.appendChild(new Option("Week " + diffWeeks, "Week " + diffWeeks));
-                text2dropdown.appendChild(new Option("Custom", "Custom"));
-
+                currentImageIndex = index;
+                loadImage(currentImageIndex);
             });
         });
+        // Navigate to the previous image
+        function showPrevImage() {
+            if (currentImageIndex > 0) {
+                currentImageIndex--;
+                loadImage(currentImageIndex);
+            }
+        }
+
+        // Navigate to the next image
+        function showNextImage() {
+            if (currentImageIndex < images.length - 1) {
+                currentImageIndex++;
+                loadImage(currentImageIndex);
+            }
+        }
+        // Add click listeners for buttons
+        prevButton.addEventListener("click", showPrevImage);
+        nextButton.addEventListener("click", showNextImage);
+
+        // Add arrow key navigation
+        document.addEventListener("keydown", (e) => {
+            if (imageModal.classList.contains("show")) { // Only respond if modal is open
+                if (e.key === "ArrowLeft") {
+                    showPrevImage(); // Left arrow key
+                } else if (e.key === "ArrowRight") {
+                    showNextImage(); // Right arrow key
+                }
+            }
+        });
+
     });
+
 
 </script>
 

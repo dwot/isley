@@ -79,6 +79,7 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"metrics":    config.Metrics,
 			"plants":     handlers.GetLivingPlants(),
 			"activities": config.Activities,
+			"breeders":   config.Breeders,
 		})
 	})
 
@@ -145,6 +146,10 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 	r.POST("/activities", handlers.AddActivityHandler)
 	r.PUT("/activities/:id", handlers.UpdateActivityHandler)
 	r.DELETE("/activities/:id", handlers.DeleteActivityHandler)
+
+	r.POST("/breeders", handlers.AddBreederHandler)
+	r.PUT("/breeders/:id", handlers.UpdateBreederHandler)
+	r.DELETE("/breeders/:id", handlers.DeleteBreederHandler)
 
 	r.POST("/settings/upload-logo", handlers.UploadLogo)
 	r.POST("/record-multi-activity", handlers.RecordMultiPlantActivity)

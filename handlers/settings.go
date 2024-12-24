@@ -756,3 +756,124 @@ func LoadSettings() {
 	config.Strains = GetStrains()
 	config.Breeders = GetBreeders()
 }
+func AddBreederHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "AddBreederHandler")
+	var breeder struct {
+		Name string `json:"breeder_name"`
+	}
+	if err := c.ShouldBindJSON(&breeder); err != nil {
+		fieldLogger.WithError(err).Error("Failed to add breeder")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
+		return
+	}
+
+	// Add breeder to database
+	db, err := model.GetDB()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to add breeder")
+		return
+	}
+
+	// Insert new breeder and return new id
+	var id int
+	err = db.QueryRow("INSERT INTO breeder (name) VALUES ($1) RETURNING id", breeder.Name).Scan(&id)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to add breeder")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add breeder"})
+		return
+	}
+	config.Breeders = append(config.Breeders, types.Breeder{ID: id, Name: breeder.Name})
+
+	c.JSON(http.StatusCreated, gin.H{"id": id})
+}
+func UpdateBreederHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "UpdateBreederHandler")
+	id := c.Param("id")
+	var breeder struct {
+		Name string `json:"breeder_name"`
+	}
+	if err := c.ShouldBindJSON(&breeder); err != nil {
+		fieldLogger.WithError(err).Error("Failed to update breeder")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
+		return
+	}
+
+	// Update breeder in database
+	db, err := model.GetDB()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to update breeder")
+		return
+	}
+
+	// Update breeder in database
+	_, err = db.Exec("UPDATE breeder SET name = $1 WHERE id = $2", breeder.Name, id)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to update breeder")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update breeder"})
+		return
+	}
+
+	//Reload Config
+	config.Breeders = GetBreeders()
+
+	c.JSON(http.StatusOK, gin.H{"message": "Breeder updated"})
+}
+
+func DeleteBreederHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "DeleteBreederHandler")
+	id := c.Param("id")
+
+	// Delete breeder from database
+	db, err := model.GetDB()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to delete breeder")
+		return
+	}
+
+	// Delete any plants associated with this breeder
+	rows, err := db.Query("SELECT p.id FROM plant p LEFT OUTER JOIN strain s on s.id = p.strain_id WHERE s.breeder_id = $1", id)
+	if err != nil {
+		if err.Error() != "sql: no rows in result set" {
+
+		} else {
+			fieldLogger.WithError(err).Error("Failed to delete plants")
+			return
+		}
+	}
+	defer rows.Close()
+
+	plantList := []int{}
+	for rows.Next() {
+		var plantId int
+		err = rows.Scan(&plantId)
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to delete plant")
+			continue
+		}
+		plantList = append(plantList, plantId)
+	}
+
+	for _, plantId := range plantList {
+		DeletePlantById(fmt.Sprintf("%d", plantId))
+	}
+
+	// Delete any strains associated with this breeder
+	_, err = db.Exec("DELETE FROM strain WHERE breeder_id = $1", id)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to delete strains")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete strains"})
+	}
+
+	// Delete breeder from database
+	_, err = db.Exec("DELETE FROM breeder WHERE id = $1", id)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to delete breeder")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete breeder"})
+		return
+	}
+
+	//Reload Config
+	config.Breeders = GetBreeders()
+
+	c.JSON(http.StatusOK, gin.H{"message": "Breeder deleted"})
+}

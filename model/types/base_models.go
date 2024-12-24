@@ -102,6 +102,7 @@ type PlantListResponse struct {
 	StrainUrl             string    `json:"strain_url"`
 	EstHarvestDate        time.Time `json:"est_harvest_date"`
 	Autoflower            bool      `json:"autoflower"`
+	HarvestDate           time.Time `json:"harvest_date"`
 }
 
 type Sensor struct {

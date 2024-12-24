@@ -196,6 +196,30 @@ color: #0d6efd; /* Primary color */
                     </tbody>
                 </table>
             </div>
+
+            <!-- Breeders Table -->
+            <div class="mt-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3 class="text-secondary">Breeders</h3>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addBreederModal">
+                        <i class="fa-solid fa-plus"></i> Add Breeder
+                    </button>
+                </div>
+                <table class="table table-striped table-bordered table-hover">
+                    <thead class="table-dark">
+                    <tr>
+                        <th>Breeder</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {{ range .breeders }}
+                    <tr class="clickable-row breeder-row" data-breeder='{{ json . }}'>
+                        <td>{{ .Name }}</td>
+                    </tr>
+                    {{ end }}
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <!-- Set Logo Tab -->
@@ -341,6 +365,30 @@ color: #0d6efd; /* Primary color */
     </div>
 </div>
 
+<!-- Add Breeder Modal -->
+<div class="modal fade" id="addBreederModal" tabindex="-1" aria-labelledby="addBreederModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addBreederModalLabel">Add Breeder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addBreederForm">
+                    <!-- Breeder Name Input -->
+                    <div class="mb-3">
+                        <label for="breederName" class="form-label">Breeder Name</label>
+                        <input type="text" class="form-control" id="breederName" step="any" required>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-primary">Add Breeder</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Zone Edit Modal -->
 <div class="modal fade" id="editZoneModal" tabindex="-1" aria-labelledby="editZoneModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -408,6 +456,29 @@ color: #0d6efd; /* Primary color */
                     </div>
                     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
                     <button type="button" class="btn btn-danger" id="deleteMetric"><i class="fa-solid fa-trash"></i> Delete Metric</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Breeder Edit Modal -->
+<div class="modal fade" id="editBreederModal" tabindex="-1" aria-labelledby="editBreederModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editBreederModalLabel">Edit Breeder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="editBreederModalBody">
+                <form id="editBreederForm">
+                    <input type="hidden" id="breederId">
+                    <div class="mb-3">
+                        <label for="editBreederName" class="form-label">Breeder Name</label>
+                        <input type="text" class="form-control" id="editBreederName" step="any" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
+                    <button type="button" class="btn btn-danger" id="deleteBreeder"><i class="fa-solid fa-trash"></i> Delete Breeder</button>
                 </form>
             </div>
         </div>
@@ -768,6 +839,99 @@ color: #0d6efd; /* Primary color */
                     .then(response => response.json())
                     .then(() => location.reload())
                     .catch(err => alert("Failed to delete metric"));
+            }
+        });
+    });
+</script>
+
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const form = document.getElementById("addBreederForm");
+        const addBreederModal = document.getElementById("addBreederModal");
+
+        form.addEventListener("submit", (e) => {
+            e.preventDefault();
+
+            // Gather form data
+            const breederId = document.getElementById("breederId").value;
+            const breederName = document.getElementById("breederName").value;
+
+            // Construct the payload
+            const payload = {
+                breeder_name: breederName,
+            };
+
+            //alert(JSON.stringify(payload));
+
+            // Send POST request to /plantMeasurement
+            fetch("/breeders", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error("Failed to add breeder");
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    // Success: Close modal and reload page
+                    const modal = bootstrap.Modal.getInstance(document.getElementById("addBreederModal"));
+                    modal.hide();
+                    window.location.reload(); // Refresh page to show updated data
+                })
+                .catch((error) => {
+                    console.error("Error:", error);
+                    alert("Failed to add breeder. Please try again.");
+                });
+        });
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const editBreederModal = new bootstrap.Modal(document.getElementById("editBreederModal"));
+        const breederForm = document.getElementById("editBreederForm");
+        const deleteBreederButton = document.getElementById("deleteBreeder");
+
+        document.querySelectorAll(".breeder-row").forEach(row => {
+            row.addEventListener("click", () => {
+                const breederData = JSON.parse(row.getAttribute("data-breeder"));
+
+                document.getElementById("breederId").value = breederData.id;
+                document.getElementById("editBreederName").value = breederData.name;
+
+                editBreederModal.show();
+            });
+        });
+
+        breederForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const breederId = document.getElementById("breederId").value;
+            const payload = {
+                breeder_name: document.getElementById("editBreederName").value,
+            };
+
+            fetch(`/breeders/${breederId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            })
+                .then(response => response.json())
+                .then(() => location.reload())
+                .catch(err => alert("Failed to update breeder"));
+        });
+
+        deleteBreederButton.addEventListener("click", () => {
+            const breederId = document.getElementById("breederId").value;
+
+            if (confirm("Are you sure you want to delete this breeder? This will also delete any strains and plants associated with this breeder.")) {
+                fetch(`/breeders/${breederId}`, { method: "DELETE" })
+                    .then(response => response.json())
+                    .then(() => location.reload())
+                    .catch(err => alert("Failed to delete breeder"));
             }
         });
     });

@@ -1023,7 +1023,19 @@ func getPlantsByStatus(statuses []int) ([]types.PlantListResponse, error) {
        COALESCE((SELECT (strftime('%j', datetime('now', 'localtime')) - strftime('%j', MAX(date))) FROM plant_activity pa JOIN activity a ON pa.activity_id = a.id WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Water')),0) AS days_since_last_watering,
        COALESCE((SELECT (strftime('%j', datetime('now', 'localtime')) - strftime('%j', MAX(date))) FROM plant_activity pa JOIN activity a ON pa.activity_id = a.id WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Feed')),0) AS days_since_last_feeding,
        COALESCE((SELECT (strftime('%j', datetime('now', 'localtime')) - strftime('%j', MAX(date))) FROM plant_status_log WHERE plant_id = p.id AND status_id = (SELECT id FROM plant_status WHERE status = 'Flower')),0) AS flowering_days,
-		       p.harvest_weight, ps.status, psl.date as status_date, coalesce(s.cycle_time, 0), coalesce(s.url, ''), s.autoflower
+		       p.harvest_weight, ps.status, psl.date as status_date, coalesce(s.cycle_time, 0), coalesce(s.url, ''), s.autoflower,
+       COALESCE(
+			(SELECT MIN(h.date) 
+			 FROM plant_status_log h 
+			 WHERE h.plant_id = p.id 
+			   AND h.status_id IN (
+				   SELECT id 
+				   FROM plant_status 
+				   WHERE status IN ('Drying','Curing','Success','Dead')
+			   )
+			), 
+			DATE('now', 'localtime') -- Use today's date if no harvest date is found
+		) AS harvest_date
 		FROM plant p
 		JOIN strain s ON p.strain_id = s.id
 		JOIN breeder b ON s.breeder_id = b.id
@@ -1053,8 +1065,17 @@ func getPlantsByStatus(statuses []int) ([]types.PlantListResponse, error) {
 	plants := []types.PlantListResponse{}
 	for rows.Next() {
 		var plant types.PlantListResponse
-		if err := rows.Scan(&plant.ID, &plant.Name, &plant.Description, &plant.Clone, &plant.StrainName, &plant.BreederName, &plant.ZoneName, &plant.StartDT, &plant.CurrentWeek, &plant.CurrentDay, &plant.DaysSinceLastWatering, &plant.DaysSinceLastFeeding, &plant.FloweringDays, &plant.HarvestWeight, &plant.Status, &plant.StatusDate, &plant.CycleTime, &plant.StrainUrl, &plant.Autoflower); err != nil {
+
+		var harvestDateStr string
+		if err := rows.Scan(&plant.ID, &plant.Name, &plant.Description, &plant.Clone, &plant.StrainName, &plant.BreederName, &plant.ZoneName, &plant.StartDT, &plant.CurrentWeek, &plant.CurrentDay, &plant.DaysSinceLastWatering, &plant.DaysSinceLastFeeding, &plant.FloweringDays, &plant.HarvestWeight, &plant.Status, &plant.StatusDate, &plant.CycleTime, &plant.StrainUrl, &plant.Autoflower, &harvestDateStr); err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan plant")
+			return nil, err
+		}
+
+		// Parse the date string into time.Time
+		plant.HarvestDate, err = time.Parse("2006-01-02", harvestDateStr)
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to parse harvest date")
 			return nil, err
 		}
 		// calculate the estimated harvest date
