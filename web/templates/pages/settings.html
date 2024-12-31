@@ -84,10 +84,19 @@ color: #0d6efd; /* Primary color */
                     </div>
                 </div>
 
-                <!-- Sensor Polling Interval -->
+                <!-- Settings -->
                 <div class="card mb-4 shadow-sm">
                     <div class="card-header bg-info text-white">
-                        <h5 class="card-title mb-0">Sensor Polling Interval</h5>
+                        <h5 class="card-title mb-0">Settings</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="guestMode" {{ if .settings.GuestMode }}checked{{ end }}>
+                            <label class="form-check-label" for="guestMode">Enable Guest Access (view only)  REQUIRES RESTART</label>
+                        </div>
+                        <small class="text-muted d-block mt-2">
+                            Enable this option to allow unauthenticated users to view but not modify data.
+                        </small>
                     </div>
                     <div class="card-body">
                         <label for="pollingInterval" class="form-label">Polling Interval:
@@ -630,6 +639,7 @@ color: #0d6efd; /* Primary color */
                     enabled: document.getElementById("ecEnabled").checked,
                 },
                 polling_interval: document.getElementById("pollingInterval").value,
+                guest_mode: document.getElementById("guestMode").checked,
             };
 
             // Send POST request to save settings

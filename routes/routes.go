@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"isley/config"
 	"isley/handlers"
@@ -8,13 +9,14 @@ import (
 	"net/http"
 )
 
-func AddProtectedRotues(r *gin.RouterGroup, version string) {
+func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	r.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "views/index.html", gin.H{
 			"title":      "Dashboard",
 			"version":    version,
 			"plants":     handlers.GetLivingPlants(),
 			"activities": config.Activities,
+			"loggedIn":   sessions.Default(c).Get("logged_in"),
 		})
 	})
 
@@ -28,6 +30,7 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"breeders":   config.Breeders,
 			"plants":     handlers.GetLivingPlants(),
 			"activities": config.Activities,
+			"loggedIn":   sessions.Default(c).Get("logged_in"),
 		})
 	})
 
@@ -39,6 +42,7 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"breeders":   config.Breeders,
 			"plants":     handlers.GetLivingPlants(),
 			"activities": config.Activities,
+			"loggedIn":   sessions.Default(c).Get("logged_in"),
 		})
 	})
 
@@ -49,6 +53,7 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"SensorID":   c.Param("id"),
 			"plants":     handlers.GetLivingPlants(),
 			"activities": config.Activities,
+			"loggedIn":   sessions.Default(c).Get("logged_in"),
 		})
 	})
 
@@ -65,23 +70,11 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"sensors":      handlers.GetSensors(),
 			"plants":       handlers.GetLivingPlants(),
 			"activities":   config.Activities,
+			"loggedIn":     sessions.Default(c).Get("logged_in"),
 		})
 	})
 	r.GET("/listFonts", utils.ListFontsHandler)
 	r.GET("/listLogos", utils.ListLogosHandler)
-
-	r.GET("/settings", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "views/settings.html", gin.H{
-			"title":      "Settings",
-			"version":    version,
-			"settings":   handlers.GetSettings(),
-			"zones":      config.Zones,
-			"metrics":    config.Metrics,
-			"plants":     handlers.GetLivingPlants(),
-			"activities": config.Activities,
-			"breeders":   config.Breeders,
-		})
-	})
 
 	r.GET("/sensors", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "views/sensors.html", gin.H{
@@ -92,16 +85,28 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"zones":      config.Zones,
 			"plants":     handlers.GetLivingPlants(),
 			"activities": config.Activities,
+			"loggedIn":   sessions.Default(c).Get("logged_in"),
 		})
 	})
 
-	// API endpoints
-	r.POST("/plants", handlers.AddPlant)
 	r.GET("/plants/living", handlers.LivingPlantsHandler)
 	r.GET("/plants/harvested", handlers.HarvestedPlantsHandler)
 	r.GET("/plants/dead", handlers.DeadPlantsHandler)
 	r.GET("/plants/by-strain/:strainID", handlers.PlantsByStrainHandler)
+	r.GET("/sensorData", handlers.ChartHandler)
+	r.GET("/sensors/grouped", func(c *gin.Context) {
+		groupedSensors := handlers.GetGroupedSensorsWithLatestReading()
+		c.JSON(http.StatusOK, groupedSensors)
+	})
+	r.GET("/strains/:id", handlers.GetStrainHandler)
+	r.GET("/strains/in-stock", handlers.InStockStrainsHandler)
+	r.GET("/strains/out-of-stock", handlers.OutOfStockStrainsHandler)
+	r.POST("/decorateImage", utils.DecorateImageHandler)
+}
 
+func AddProtectedApiRoutes(r *gin.RouterGroup) {
+	// API endpoints
+	r.POST("/plants", handlers.AddPlant)
 	r.POST("/plant", func(c *gin.Context) { handlers.UpdatePlant(c) })
 	r.DELETE("/plant/delete/:id", handlers.DeletePlant)
 	r.POST("/plant/link-sensors", handlers.LinkSensorsToPlant)
@@ -115,26 +120,17 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 	r.DELETE("/plantActivity/delete/:id", handlers.DeleteActivity)
 	r.POST("/plant/:plantID/images/upload", handlers.UploadPlantImages)
 	r.DELETE("/plant/images/:imageID/delete", handlers.DeletePlantImage)
-	r.POST("/decorateImage", utils.DecorateImageHandler)
 
 	r.POST("/sensors/scanACI", handlers.ScanACInfinitySensors)
 	r.POST("/sensors/scanEC", handlers.ScanEcoWittSensors)
 	r.POST("/sensors/edit", handlers.EditSensor)
 	r.DELETE("/sensors/delete/:id", handlers.DeleteSensor)
-	r.GET("/sensorData", handlers.ChartHandler)
-	r.GET("/sensors/grouped", func(c *gin.Context) {
-		groupedSensors := handlers.GetGroupedSensorsWithLatestReading()
-		c.JSON(http.StatusOK, groupedSensors)
-	})
 
 	r.POST("/strains", handlers.AddStrainHandler)
-	r.GET("/strains/:id", handlers.GetStrainHandler)
+
 	r.PUT("/strains/:id", handlers.UpdateStrainHandler)
 	r.DELETE("/strains/:id", handlers.DeleteStrainHandler)
-	r.GET("/strains/in-stock", handlers.InStockStrainsHandler)
-	r.GET("/strains/out-of-stock", handlers.OutOfStockStrainsHandler)
 
-	r.POST("/settings", handlers.SaveSettings)
 	r.POST("/aci/login", handlers.ACILoginHandler)
 
 	r.POST("/zones", handlers.AddZoneHandler)
@@ -153,5 +149,22 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 
 	r.POST("/settings/upload-logo", handlers.UploadLogo)
 	r.POST("/record-multi-activity", handlers.RecordMultiPlantActivity)
+	r.POST("/settings", handlers.SaveSettings)
+}
+
+func AddProtectedRotues(r *gin.RouterGroup, version string) {
+	r.GET("/settings", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "views/settings.html", gin.H{
+			"title":      "Settings",
+			"version":    version,
+			"settings":   handlers.GetSettings(),
+			"zones":      config.Zones,
+			"metrics":    config.Metrics,
+			"plants":     handlers.GetLivingPlants(),
+			"activities": config.Activities,
+			"breeders":   config.Breeders,
+			"loggedIn":   sessions.Default(c).Get("logged_in"),
+		})
+	})
 
 }

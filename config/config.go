@@ -17,4 +17,5 @@ var (
 	Strains         []types.Strain
 	Breeders        []types.Breeder
 	SensorRetention = 90 // Default sensor retention in days
+	GuestMode       = 0  // Default guest mode
 )

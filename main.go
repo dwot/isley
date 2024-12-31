@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"html/template"
+	"isley/config"
 	"isley/handlers"
 	"isley/logger"
 	"isley/model"
@@ -176,6 +177,15 @@ func main() {
 		c.Data(200, "image/x-icon", faviconData)
 	})
 
+	guestMode := false
+	if config.GuestMode == 1 {
+		guestMode = true
+	}
+
+	if guestMode {
+		routes.AddBasicRoutes(r.Group("/"), version)
+	}
+
 	protected := r.Group("/")
 	protected.Use(AuthMiddleware())
 	{
@@ -190,6 +200,16 @@ func main() {
 		})
 
 		routes.AddProtectedRotues(protected, version)
+
+		if !guestMode {
+			routes.AddBasicRoutes(protected, version)
+		}
+	}
+
+	apiProtected := r.Group("/")
+	apiProtected.Use(AuthMiddlewareApi())
+	{
+		routes.AddProtectedApiRoutes(apiProtected)
 	}
 
 	// Start the server
@@ -253,6 +273,21 @@ func handleChangePassword(c *gin.Context) {
 	session.Save()
 
 	c.Redirect(http.StatusFound, "/")
+}
+
+func AuthMiddlewareApi() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		session := sessions.Default(c)
+		loggedIn := session.Get("logged_in")
+
+		if loggedIn == nil || !loggedIn.(bool) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
 }
 
 // Middleware to enforce authentication

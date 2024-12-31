@@ -12,11 +12,13 @@
 
     <!-- Navigation Links -->
     <ul class="nav nav-pills">
+        {{ if .loggedIn }}
         <li class="nav-item">
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMultiPlantActivityModal">
                 <i class="fa fa-plus"></i>
             </button>
         </li>
+        {{ end }}
         <li class="nav-item">
             <a href="/plants" class="nav-link" aria-label="Plants">
                 <i class="fa fa-cannabis" title="Plants"></i>
@@ -27,11 +29,13 @@
                 <i class="fa fa-dna" title="Strains"></i>
             </a>
         </li>
+        {{ if .loggedIn }}
         <li class="nav-item">
             <a href="/sensors" class="nav-link" aria-label="Sensors">
                 <i class="fa fa-thermometer-half" title="Sensors"></i>
             </a>
         </li>
+
         <!--
         <li class="nav-item">
             <a href="/alerts" class="nav-link" aria-label="Alerting">
@@ -49,6 +53,13 @@
                 <i class="fa fa-sign-out" title="Logout"></i>
             </a>
         </li>
+        {{ else }}
+        <li class="nav-item">
+            <a href="/login" class="nav-link" aria-label="Login">
+                <i class="fa fa-sign-in" title="Login"></i>
+            </a>
+        </li>
+        {{ end }}
     </ul>
 </header>
 
