@@ -61,9 +61,11 @@
                         <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
                         <input type="text" class="form-control" id="searchPlants" placeholder="Search plants...">
                     </div>
+                    {{ if .loggedIn }}
                     <button class="btn btn-success ms-3" data-bs-toggle="modal" data-bs-target="#addPlantModal">
                         <i class="fa-solid fa-plus"></i>
                     </button>
+                    {{ end }}
                 </div>
             </div>
 

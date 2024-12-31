@@ -79,6 +79,7 @@
                     <div class="card-body text-start">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h5 class="card-title text-primary">Plant Details</h5>
+                            {{ if .loggedIn }}
                             <div>
                                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#changeStatusModal">
                                     <i class="fa-solid fa-pen-to-square"></i>
@@ -87,6 +88,7 @@
                                     <i class="fa-solid fa-trash"></i>
                                 </button>
                             </div>
+                            {{ end }}
                         </div>
                         <input type="hidden" id="strainName" value="{{ .plant.StrainName }}">
                         <input type="hidden" id="breederName" value="{{ .plant.BreederName }}">
@@ -150,6 +152,7 @@
                 </div>
 
                 <!-- Quick Actions Section -->
+                {{ if .loggedIn }}
                 <div class="card">
                     <div class="card-body text-center">
                         <div class="d-flex justify-content-around">
@@ -165,6 +168,7 @@
                         </div>
                     </div>
                 </div>
+                {{ end }}
             </div>
 
         </div>
@@ -201,9 +205,11 @@
         <div class="tab-pane fade show active" id="sensors" role="tabpanel" aria-labelledby="sensors-tab">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h3 class="text-secondary">Sensors</h3>
+                {{ if .loggedIn }}
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#linkSensorModal">
                     <i class="fa-solid fa-link"></i> Link Sensors
                 </button>
+                {{ end }}
             </div>
             <div class="row g-4">
                 {{ range .plant.Sensors }}
@@ -437,10 +443,12 @@
                     <button id="prevImage" class="btn btn-secondary">Previous</button>
                     <button id="nextImage" class="btn btn-secondary">Next</button>
                 </div>
+                {{ if .loggedIn }}
                 <button class="btn btn-danger btn-sm position-absolute top-0 end-0 m-1"
                         onclick="confirmDeleteImage()">
                     <i class="fa-solid fa-trash"></i>
                 </button>
+                {{ end }}
             </div>
         </div>
     </div>
@@ -613,7 +621,9 @@
                     </div>
 
                     <!-- Submit Button -->
+                    {{ if .loggedIn }}
                     <button type="submit" class="btn btn-primary">Change Status</button>
+                    {{ end }}
                 </form>
             </div>
         </div>
@@ -713,8 +723,10 @@
                         <label for="editStatusDate" class="form-label">Date</label>
                         <input type="date" class="form-control" id="editStatusDate" required>
                     </div>
+                    {{ if .loggedIn }}
                     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
                     <button type="button" class="btn btn-danger" id="deleteStatus"><i class="fa-solid fa-trash"></i> Delete Status</button>
+                    {{ end }}
                 </form>
             </div>
         </div>
@@ -740,8 +752,10 @@
                         <label for="editMeasurementValue" class="form-label">Value</label>
                         <input type="number" class="form-control" id="editMeasurementValue" step="any" required>
                     </div>
+                    {{ if .loggedIn }}
                     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
                     <button type="button" class="btn btn-danger" id="deleteMeasurement"><i class="fa-solid fa-trash"></i> Delete Measurement</button>
+                    {{ end }}
                 </form>
             </div>
         </div>
@@ -775,8 +789,10 @@
                         <label for="editActivityNote" class="form-label">Note</label>
                         <textarea class="form-control" id="editActivityNote" rows="3"></textarea>
                     </div>
+                    {{ if .loggedIn }}
                     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
                     <button type="button" class="btn btn-danger" id="deleteActivity"><i class="fa-solid fa-trash"></i> Delete Activity</button>
+                    {{ end }}
                 </form>
             </div>
         </div>

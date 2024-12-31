@@ -39,9 +39,11 @@
                     <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
                     <input type="text" class="form-control" id="searchStrains" placeholder="Search strains...">
                 </div>
+                {{ if .loggedIn }}
                 <button class="btn btn-success ms-3" data-bs-toggle="modal" data-bs-target="#addStrainModal">
                     <i class="fa-solid fa-plus"></i>
                 </button>
+                {{ end }}
             </div>
         </div>
 
@@ -218,10 +220,12 @@
                         <textarea class="form-control" id="editStrainDescription" rows="3"></textarea>
                     </div>
 
+                    {{ if .loggedIn }}
                     <div class="text-end">
                         <button type="submit" class="btn btn-primary">Save Changes</button>
                         <button type="button" class="btn btn-danger" id="deleteStrainButton">Delete Strain</button>
                     </div>
+                    {{ end }}
                 </form>
             </div>
         </div>

@@ -73,6 +73,25 @@ func SaveSettings(c *gin.Context) {
 	} else {
 		config.PollingInterval, _ = strconv.Atoi(settings.PollingInterval)
 	}
+	if settings.GuestMode {
+		err := UpdateSetting("guest_mode", "1")
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to save settings")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+			return
+		} else {
+			config.GuestMode = 1
+		}
+	} else {
+		err := UpdateSetting("guest_mode", "0")
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to save settings")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+			return
+		} else {
+			config.GuestMode = 0
+		}
+	}
 
 	//Load Settings
 	LoadSettings()
@@ -168,6 +187,8 @@ func GetSettings() types.SettingsData {
 			}
 		case "polling_interval":
 			settingsData.PollingInterval, _ = strconv.Atoi(value)
+		case "guest_mode":
+			settingsData.GuestMode = value == "1"
 		}
 	}
 
@@ -747,6 +768,13 @@ func LoadSettings() {
 	strECDevices, err := LoadEcDevices()
 	if err == nil {
 		config.ECDevices = strECDevices
+	}
+
+	strGuestMode, err := GetSetting("guest_mode")
+	if err == nil {
+		if iGuestMode, err := strconv.Atoi(strGuestMode); err == nil {
+			config.GuestMode = iGuestMode
+		}
 	}
 
 	config.Activities = GetActivities()

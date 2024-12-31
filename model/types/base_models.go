@@ -144,6 +144,7 @@ type Settings struct {
 		Server  string `json:"server"`
 	} `json:"ec"`
 	PollingInterval string `json:"polling_interval"`
+	GuestMode       bool   `json:"guest_mode"`
 }
 
 type ACInfinitySettings struct {
@@ -159,6 +160,7 @@ type SettingsData struct {
 	ACI             ACInfinitySettings `json:"aci"`
 	EC              EcoWittSettings    `json:"ec"`
 	PollingInterval int                `json:"polling_interval"`
+	GuestMode       bool               `json:"guest_mode"`
 }
 
 type Status struct {
