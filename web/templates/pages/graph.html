@@ -13,33 +13,33 @@
 
 <div class="container">
     <!-- Sensor Names -->
-    <h2 class="text-light mb-3">Sensors: <span id="sensorName"></span></h2>
+    <h2 class="text-light mb-3">{{ .lcl.title_sensors }}: <span id="sensorName"></span></h2>
 
     <!-- Controls -->
     <div class="controls mb-4">
         <div class="dropdown">
             <button class="dropdown-button" id="timePickerButton">
-                Select Time Range
+                {{ .lcl.title_time_range }}
                 <i class="fa fa-caret-down"></i>
             </button>
             <div class="dropdown-menu">
                 <ul class="list-unstyled mb-3">
-                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="60">1 Hour</button></li>
-                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="360">6 Hours</button></li>
-                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="1440">24 Hours</button></li>
-                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="2880">48 Hours</button></li>
-                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="10080">1 Week</button></li>
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="60">{{ .lcl.time_range_60 }}</button></li>
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="360">{{ .lcl.time_range_360 }}</button></li>
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="1440">{{ .lcl.time_range_1440 }}</button></li>
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="2880">{{ .lcl.time_range_2880 }}</button></li>
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="10080">{{ .lcl.time_range_10080 }}</button></li>
                 </ul>
                 <div class="date-picker-container">
-                    <label for="startDate">Start Date:</label>
+                    <label for="startDate">{{ .lcl.start_date }}:</label>
                     <input type="date" id="startDate" class="form-control">
-                    <label for="endDate">End Date:</label>
+                    <label for="endDate">{{ .lcl.end_date }}:</label>
                     <input type="date" id="endDate" class="form-control">
-                    <button id="applyDateRange" class="btn btn-primary btn-block mt-2">Apply</button>
+                    <button id="applyDateRange" class="btn btn-primary btn-block mt-2">{{ .lcl.apply }}</button>
                 </div>
             </div>
         </div>
-        <button id="resetZoom" class="btn btn-secondary">Reset Zoom</button>
+        <button id="resetZoom" class="btn btn-secondary">{{ .lcl.reset_zoom }}</button>
     </div>
 
     <!-- Hidden Sensor IDs -->

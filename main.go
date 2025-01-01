@@ -43,6 +43,9 @@ func main() {
 	model.MigrateDB()
 	model.InitDB()
 
+	// Initialize translation service
+	utils.Init("en")
+
 	// Initialize default admin credentials if not present
 	present, err := handlers.ExistsSetting("auth_username")
 	if err != nil {
@@ -155,7 +158,11 @@ func main() {
 
 	// Public routes
 	r.GET("/login", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "views/login.html", gin.H{})
+		lang := c.DefaultQuery("lang", "en")
+		translations := utils.TranslationService.GetTranslations(lang)
+		c.HTML(http.StatusOK, "views/login.html", gin.H{
+			"lcl": translations,
+		})
 	})
 
 	r.POST("/login", func(c *gin.Context) {
@@ -192,7 +199,11 @@ func main() {
 		protected.Use(ForcePasswordChangeMiddleware())
 
 		protected.GET("/change-password", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "views/change-password.html", gin.H{})
+			lang := c.DefaultQuery("lang", "en")
+			translations := utils.TranslationService.GetTranslations(lang)
+			c.HTML(http.StatusOK, "views/change-password.html", gin.H{
+				"lcl": translations,
+			})
 		})
 
 		protected.POST("/change-password", func(c *gin.Context) {
