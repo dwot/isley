@@ -1016,37 +1016,57 @@ func getPlantsByStatus(statuses []int) ([]types.PlantListResponse, error) {
 
 	// Use the dynamic IN clause in the query
 	query := `
-		SELECT p.id, p.name, p.description, p.clone, s.name AS strain_name, b.name AS breeder_name, z.name AS zone_name, 
-		       p.start_dt,  
-		       ((strftime('%j', datetime('now', 'localtime')) - strftime('%j', p.start_dt)) / 7) +1 AS current_week,
-       (strftime('%j', datetime('now', 'localtime')) - strftime('%j', p.start_dt)) +1 AS current_day,
-       COALESCE((SELECT (strftime('%j', datetime('now', 'localtime')) - strftime('%j', MAX(date))) FROM plant_activity pa JOIN activity a ON pa.activity_id = a.id WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Water')),0) AS days_since_last_watering,
-       COALESCE((SELECT (strftime('%j', datetime('now', 'localtime')) - strftime('%j', MAX(date))) FROM plant_activity pa JOIN activity a ON pa.activity_id = a.id WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Feed')),0) AS days_since_last_feeding,
-       COALESCE((SELECT (strftime('%j', datetime('now', 'localtime')) - strftime('%j', MAX(date))) FROM plant_status_log WHERE plant_id = p.id AND status_id = (SELECT id FROM plant_status WHERE status = 'Flower')),0) AS flowering_days,
-		       p.harvest_weight, ps.status, psl.date as status_date, coalesce(s.cycle_time, 0), coalesce(s.url, ''), s.autoflower,
+		SELECT p.id, p.name, p.description, p.clone, s.name AS strain_name, b.name AS breeder_name, z.name AS zone_name,
+       p.start_dt,
+       CAST((julianday('now', 'localtime') - julianday(p.start_dt)) / 7 + 1 AS INT) AS current_week,
+       CAST((julianday('now', 'localtime') - julianday(p.start_dt)) + 1 AS INT) AS current_day,
        COALESCE(
-			(SELECT MIN(h.date) 
-			 FROM plant_status_log h 
-			 WHERE h.plant_id = p.id 
-			   AND h.status_id IN (
-				   SELECT id 
-				   FROM plant_status 
-				   WHERE status IN ('Drying','Curing','Success','Dead')
-			   )
-			), 
-			DATE('now', 'localtime') -- Use today's date if no harvest date is found
-		) AS harvest_date
-		FROM plant p
-		JOIN strain s ON p.strain_id = s.id
-		JOIN breeder b ON s.breeder_id = b.id
-		LEFT JOIN zones z ON p.zone_id = z.id
-		JOIN plant_status_log psl ON p.id = psl.plant_id
-		JOIN plant_status ps ON psl.status_id = ps.id
-		WHERE ps.id IN ` + inClause + ` AND psl.date = (
-			SELECT MAX(date) FROM plant_status_log WHERE plant_id = p.id
-		)
-		ORDER BY p.name;
-	`
+           (SELECT CAST(julianday('now', 'localtime') - julianday(MAX(date)) AS INT)
+            FROM plant_activity pa 
+            JOIN activity a ON pa.activity_id = a.id
+            WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Water')), 
+           0
+       ) AS days_since_last_watering,
+       COALESCE(
+           (SELECT CAST(julianday('now', 'localtime') - julianday(MAX(date)) AS INT)
+            FROM plant_activity pa 
+            JOIN activity a ON pa.activity_id = a.id
+            WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Feed')), 
+           0
+       ) AS days_since_last_feeding,
+       COALESCE(
+           (SELECT CAST(julianday('now', 'localtime') - julianday(MAX(date)) AS INT)
+            FROM plant_status_log 
+            WHERE plant_id = p.id 
+              AND status_id = (SELECT id FROM plant_status WHERE status = 'Flower')),
+           0
+       ) AS flowering_days,
+       p.harvest_weight, ps.status, psl.date as status_date, 
+       COALESCE(s.cycle_time, 0), 
+       COALESCE(s.url, '') AS strain_url, 
+       s.autoflower,
+       COALESCE(
+           (SELECT MIN(h.date)
+            FROM plant_status_log h
+            WHERE h.plant_id = p.id
+              AND h.status_id IN (
+                SELECT id
+                FROM plant_status
+                WHERE status IN ('Drying','Curing','Success','Dead')
+            )
+           ),
+           DATE('now', 'localtime') -- Use today's date if no harvest date is found
+       ) AS harvest_date
+FROM plant p
+         JOIN strain s ON p.strain_id = s.id
+         JOIN breeder b ON s.breeder_id = b.id
+         LEFT JOIN zones z ON p.zone_id = z.id
+         JOIN plant_status_log psl ON p.id = psl.plant_id
+         JOIN plant_status ps ON psl.status_id = ps.id
+WHERE ps.id IN ` + inClause + ` AND psl.date = (
+    SELECT MAX(date) FROM plant_status_log WHERE plant_id = p.id
+)
+ORDER BY p.name;`
 
 	// Open the database connection
 	db, err := model.GetDB()

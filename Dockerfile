@@ -4,6 +4,9 @@ FROM golang:alpine AS builder
 WORKDIR /build
 COPY . .
 
+# Install tzdata for time zone configuration
+RUN apk add --no-cache tzdata
+
 # Download dependencies
 RUN go mod download
 
@@ -15,10 +18,19 @@ FROM alpine:latest
 
 WORKDIR /app
 
+# Install tzdata for runtime configuration
+RUN apk add --no-cache tzdata
+
+# Copy the built application
 COPY --from=builder /app/isley /app/isley
 
 # Add database directory
 RUN mkdir data && touch data/isley.db
+
+# Set default timezone as UTC but allow override with ENV variable
+ENV TZ=UTC
+RUN ln -sf /usr/share/zoneinfo/$TZ /etc/localtime && \
+    echo $TZ > /etc/timezone
 
 EXPOSE 8080
 
