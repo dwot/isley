@@ -14,12 +14,14 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 		lang := c.DefaultQuery("lang", "en")
 		translations := utils.TranslationService.GetTranslations(lang)
 		c.HTML(http.StatusOK, "views/index.html", gin.H{
-			"title":      "Dashboard",
-			"version":    version,
-			"plants":     handlers.GetLivingPlants(),
-			"activities": config.Activities,
-			"loggedIn":   sessions.Default(c).Get("logged_in"),
-			"lcl":        translations,
+			"title":           "Dashboard",
+			"version":         version,
+			"plants":          handlers.GetLivingPlants(),
+			"activities":      config.Activities,
+			"loggedIn":        sessions.Default(c).Get("logged_in"),
+			"lcl":             translations,
+			"languages":       utils.AvailableLanguages,
+			"currentLanguage": lang,
 		})
 	})
 
@@ -27,16 +29,18 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 		lang := c.DefaultQuery("lang", "en")
 		translations := utils.TranslationService.GetTranslations(lang)
 		c.HTML(http.StatusOK, "views/plants.html", gin.H{
-			"title":      "Plants",
-			"version":    version,
-			"zones":      config.Zones,
-			"strains":    config.Strains,
-			"statuses":   config.Statuses,
-			"breeders":   config.Breeders,
-			"plants":     handlers.GetLivingPlants(),
-			"activities": config.Activities,
-			"loggedIn":   sessions.Default(c).Get("logged_in"),
-			"lcl":        translations,
+			"title":           "Plants",
+			"version":         version,
+			"zones":           config.Zones,
+			"strains":         config.Strains,
+			"statuses":        config.Statuses,
+			"breeders":        config.Breeders,
+			"plants":          handlers.GetLivingPlants(),
+			"activities":      config.Activities,
+			"loggedIn":        sessions.Default(c).Get("logged_in"),
+			"lcl":             translations,
+			"languages":       utils.AvailableLanguages,
+			"currentLanguage": lang,
 		})
 	})
 
@@ -44,14 +48,16 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 		lang := c.DefaultQuery("lang", "en")
 		translations := utils.TranslationService.GetTranslations(lang)
 		c.HTML(http.StatusOK, "views/strains.html", gin.H{
-			"title":      "Strains",
-			"version":    version,
-			"strains":    config.Strains,
-			"breeders":   config.Breeders,
-			"plants":     handlers.GetLivingPlants(),
-			"activities": config.Activities,
-			"loggedIn":   sessions.Default(c).Get("logged_in"),
-			"lcl":        translations,
+			"title":           "Strains",
+			"version":         version,
+			"strains":         config.Strains,
+			"breeders":        config.Breeders,
+			"plants":          handlers.GetLivingPlants(),
+			"activities":      config.Activities,
+			"loggedIn":        sessions.Default(c).Get("logged_in"),
+			"lcl":             translations,
+			"languages":       utils.AvailableLanguages,
+			"currentLanguage": lang,
 		})
 	})
 
@@ -59,13 +65,15 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 		lang := c.DefaultQuery("lang", "en")
 		translations := utils.TranslationService.GetTranslations(lang)
 		c.HTML(http.StatusOK, "views/graph.html", gin.H{
-			"title":      "Sensor Graphs",
-			"version":    version,
-			"SensorID":   c.Param("id"),
-			"plants":     handlers.GetLivingPlants(),
-			"activities": config.Activities,
-			"loggedIn":   sessions.Default(c).Get("logged_in"),
-			"lcl":        translations,
+			"title":           "Sensor Graphs",
+			"version":         version,
+			"SensorID":        c.Param("id"),
+			"plants":          handlers.GetLivingPlants(),
+			"activities":      config.Activities,
+			"loggedIn":        sessions.Default(c).Get("logged_in"),
+			"lcl":             translations,
+			"languages":       utils.AvailableLanguages,
+			"currentLanguage": lang,
 		})
 	})
 
@@ -73,19 +81,21 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 		lang := c.DefaultQuery("lang", "en")
 		translations := utils.TranslationService.GetTranslations(lang)
 		c.HTML(http.StatusOK, "views/plant.html", gin.H{
-			"title":        "Plant Details",
-			"version":      version,
-			"plant":        handlers.GetPlant(c.Param("id")),
-			"zones":        config.Zones,
-			"strains":      config.Strains,
-			"statuses":     config.Statuses,
-			"breeders":     config.Breeders,
-			"measurements": config.Metrics,
-			"sensors":      handlers.GetSensors(),
-			"plants":       handlers.GetLivingPlants(),
-			"activities":   config.Activities,
-			"loggedIn":     sessions.Default(c).Get("logged_in"),
-			"lcl":          translations,
+			"title":           "Plant Details",
+			"version":         version,
+			"plant":           handlers.GetPlant(c.Param("id")),
+			"zones":           config.Zones,
+			"strains":         config.Strains,
+			"statuses":        config.Statuses,
+			"breeders":        config.Breeders,
+			"measurements":    config.Metrics,
+			"sensors":         handlers.GetSensors(),
+			"plants":          handlers.GetLivingPlants(),
+			"activities":      config.Activities,
+			"loggedIn":        sessions.Default(c).Get("logged_in"),
+			"lcl":             translations,
+			"languages":       utils.AvailableLanguages,
+			"currentLanguage": lang,
 		})
 	})
 	r.GET("/listFonts", utils.ListFontsHandler)
@@ -95,15 +105,17 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 		lang := c.DefaultQuery("lang", "en")
 		translations := utils.TranslationService.GetTranslations(lang)
 		c.HTML(http.StatusOK, "views/sensors.html", gin.H{
-			"title":      "Sensors",
-			"version":    version,
-			"settings":   handlers.GetSettings(),
-			"sensors":    handlers.GetSensors(),
-			"zones":      config.Zones,
-			"plants":     handlers.GetLivingPlants(),
-			"activities": config.Activities,
-			"loggedIn":   sessions.Default(c).Get("logged_in"),
-			"lcl":        translations,
+			"title":           "Sensors",
+			"version":         version,
+			"settings":        handlers.GetSettings(),
+			"sensors":         handlers.GetSensors(),
+			"zones":           config.Zones,
+			"plants":          handlers.GetLivingPlants(),
+			"activities":      config.Activities,
+			"loggedIn":        sessions.Default(c).Get("logged_in"),
+			"lcl":             translations,
+			"languages":       utils.AvailableLanguages,
+			"currentLanguage": lang,
 		})
 	})
 
@@ -175,16 +187,18 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 		lang := c.DefaultQuery("lang", "en")
 		translations := utils.TranslationService.GetTranslations(lang)
 		c.HTML(http.StatusOK, "views/settings.html", gin.H{
-			"title":      "Settings",
-			"version":    version,
-			"settings":   handlers.GetSettings(),
-			"zones":      config.Zones,
-			"metrics":    config.Metrics,
-			"plants":     handlers.GetLivingPlants(),
-			"activities": config.Activities,
-			"breeders":   config.Breeders,
-			"loggedIn":   sessions.Default(c).Get("logged_in"),
-			"lcl":        translations,
+			"title":           "Settings",
+			"version":         version,
+			"settings":        handlers.GetSettings(),
+			"zones":           config.Zones,
+			"metrics":         config.Metrics,
+			"plants":          handlers.GetLivingPlants(),
+			"activities":      config.Activities,
+			"breeders":        config.Breeders,
+			"loggedIn":        sessions.Default(c).Get("logged_in"),
+			"lcl":             translations,
+			"languages":       utils.AvailableLanguages,
+			"currentLanguage": lang,
 		})
 	})
 

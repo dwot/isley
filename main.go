@@ -67,6 +67,13 @@ func main() {
 	r := gin.Default()
 
 	funcMap := template.FuncMap{
+		"upper": strings.ToUpper, // Define the 'upper' function
+		"default": func(val interface{}, def string) string {
+			if str, ok := val.(string); ok && str != "" {
+				return str
+			}
+			return def
+		},
 		"json": func(v interface{}) string {
 			a, err := json.Marshal(v)
 			if err != nil {
@@ -161,7 +168,9 @@ func main() {
 		lang := c.DefaultQuery("lang", "en")
 		translations := utils.TranslationService.GetTranslations(lang)
 		c.HTML(http.StatusOK, "views/login.html", gin.H{
-			"lcl": translations,
+			"lcl":             translations,
+			"languages":       utils.AvailableLanguages,
+			"currentLanguage": lang,
 		})
 	})
 
@@ -202,7 +211,9 @@ func main() {
 			lang := c.DefaultQuery("lang", "en")
 			translations := utils.TranslationService.GetTranslations(lang)
 			c.HTML(http.StatusOK, "views/change-password.html", gin.H{
-				"lcl": translations,
+				"lcl":             translations,
+				"languages":       utils.AvailableLanguages,
+				"currentLanguage": lang,
 			})
 		})
 
