@@ -11,7 +11,7 @@ import (
 
 func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	r.GET("/", func(c *gin.Context) {
-		lang := c.DefaultQuery("lang", "en")
+		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
 		c.HTML(http.StatusOK, "views/index.html", gin.H{
 			"title":           "Dashboard",
@@ -26,7 +26,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	})
 
 	r.GET("/plants", func(c *gin.Context) {
-		lang := c.DefaultQuery("lang", "en")
+		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
 		c.HTML(http.StatusOK, "views/plants.html", gin.H{
 			"title":           "Plants",
@@ -45,7 +45,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	})
 
 	r.GET("/strains", func(c *gin.Context) {
-		lang := c.DefaultQuery("lang", "en")
+		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
 		c.HTML(http.StatusOK, "views/strains.html", gin.H{
 			"title":           "Strains",
@@ -62,7 +62,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	})
 
 	r.GET("/graph/:id", func(c *gin.Context) {
-		lang := c.DefaultQuery("lang", "en")
+		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
 		c.HTML(http.StatusOK, "views/graph.html", gin.H{
 			"title":           "Sensor Graphs",
@@ -78,7 +78,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	})
 
 	r.GET("/plant/:id", func(c *gin.Context) {
-		lang := c.DefaultQuery("lang", "en")
+		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
 		c.HTML(http.StatusOK, "views/plant.html", gin.H{
 			"title":           "Plant Details",
@@ -166,7 +166,7 @@ func AddProtectedApiRoutes(r *gin.RouterGroup) {
 
 func AddProtectedRotues(r *gin.RouterGroup, version string) {
 	r.GET("/settings", func(c *gin.Context) {
-		lang := c.DefaultQuery("lang", "en")
+		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
 		c.HTML(http.StatusOK, "views/settings.html", gin.H{
 			"title":           "Settings",
@@ -185,7 +185,7 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 	})
 
 	r.GET("/sensors", func(c *gin.Context) {
-		lang := c.DefaultQuery("lang", "en")
+		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
 		c.HTML(http.StatusOK, "views/sensors.html", gin.H{
 			"title":           "Sensors",

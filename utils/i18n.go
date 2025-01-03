@@ -2,6 +2,8 @@ package utils
 
 import (
 	"embed"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
 	"gopkg.in/yaml.v3"
@@ -349,4 +351,19 @@ func (i *I18nManager) GetTranslations(lang string) map[string]string {
 
 	}
 	return translations
+}
+
+func GetLanguage(c *gin.Context) string {
+	lang := "en"
+	queryLang := c.Query("lang")
+	sessionLang := sessions.Default(c).Get("lang")
+	if sessionLang != nil {
+		lang = sessionLang.(string)
+	}
+	if queryLang != "" {
+		lang = queryLang
+		sessions.Default(c).Set("lang", lang)
+		sessions.Default(c).Save()
+	}
+	return lang
 }

@@ -165,7 +165,7 @@ func main() {
 
 	// Public routes
 	r.GET("/login", func(c *gin.Context) {
-		lang := c.DefaultQuery("lang", "en")
+		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
 		c.HTML(http.StatusOK, "views/login.html", gin.H{
 			"lcl":             translations,
@@ -208,7 +208,7 @@ func main() {
 		protected.Use(ForcePasswordChangeMiddleware())
 
 		protected.GET("/change-password", func(c *gin.Context) {
-			lang := c.DefaultQuery("lang", "en")
+			lang := utils.GetLanguage(c)
 			translations := utils.TranslationService.GetTranslations(lang)
 			c.HTML(http.StatusOK, "views/change-password.html", gin.H{
 				"lcl":             translations,
