@@ -16,21 +16,21 @@
 <body>
 
 <div class="container">
-    <h1 class="text-center text-primary">Login</h1>
+    <h1 class="text-center text-primary">{{ .lcl.title_login }}</h1>
     <div class="card shadow-sm">
         <form action="/login" method="POST">
             <div class="mb-3">
-                <label for="username" class="form-label">Username</label>
+                <label for="username" class="form-label">{{ .lcl.username }}</label>
                 <input type="text" id="username" name="username" class="form-control" required>
             </div>
             <div class="mb-3">
-                <label for="password" class="form-label">Password</label>
+                <label for="password" class="form-label">{{ .lcl.password }}</label>
                 <input type="password" id="password" name="password" class="form-control" required>
             </div>
             {{ if .Error }}
             <div class="alert alert-danger">{{ .Error }}</div>
             {{ end }}
-            <button type="submit" class="btn btn-primary w-100">Login</button>
+            <button type="submit" class="btn btn-primary w-100">{{ .lcl.title_login }}</button>
         </form>
     </div>
 </div>

@@ -15,7 +15,7 @@
     <div class="container">
         <!-- Sensors Section -->
         <div class="my-5">
-            <h3 class="text-secondary mb-4">Sensors Overview</h3>
+            <h3 class="text-secondary mb-4">{{ .lcl.sensors_overview }}</h3>
             <div id="sensorsOverview">
                 <!-- Sensors dynamically loaded here -->
             </div>
@@ -23,20 +23,20 @@
 
         <!-- Plants Table Section -->
         <div class="my-5">
-            <h3 class="text-secondary mb-4">Plants Overview</h3>
+            <h3 class="text-secondary mb-4">{{ .lcl.plants_overview }}</h3>
             <div class="table-responsive">
                 <table class="table table-striped table-hover">
                     <thead class="table-dark">
                     <tr>
-                        <th>Plant</th>
-                        <th>Strain</th>
-                        <th>Status</th>
-                        <th>Start</th>
-                        <th>Last 💧</th>
-                        <th>Last 🍬</th>
-                        <th>Days 🪻</th>
-                        <th>Week</th>
-                        <th>Day</th>
+                        <th>{{ .lcl.title_plant }}</th>
+                        <th>{{ .lcl.title_strain }}</th>
+                        <th>{{ .lcl.title_status }}</th>
+                        <th>{{ .lcl.title_start }}</th>
+                        <th>{{ .lcl.title_last_water }}</th>
+                        <th>{{ .lcl.title_last_feed }}</th>
+                        <th>{{ .lcl.title_days_flower }}</th>
+                        <th>{{ .lcl.title_week }}</th>
+                        <th>{{ .lcl.title_day }}</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -48,7 +48,7 @@
                         <td>{{ formatStringDate .StartDT }}</td>
                         <td>{{ .DaysSinceLastWatering }}</td>
                         <td>{{ .DaysSinceLastFeeding }}</td>
-                        <td>{{ if .FloweringDays }}{{ .FloweringDays }}{{ else }}N/A{{ end }}</td>
+                        <td>{{ if .FloweringDays }}{{ .FloweringDays }}{{ else }} {{ .lcl.na }} {{ end }}</td>
                         <td>{{ .CurrentWeek }}</td>
                         <td>{{ .CurrentDay }}</td>
                     </tr>
@@ -81,16 +81,16 @@
 
         // Define titles for each group
         const groupTitles = {
-            Other: "Environment Sensors",
-            ACIP: "AC Infinity Devices",
-            Soil: "EcoWitt Soil Sensors"
+            Other: {{ .lcl.title_group_other }},
+            ACIP: {{ .lcl.title_group_acip }},
+            Soil: {{ .lcl.title_group_soil }}
         };
 
         // Create spinner element
         const spinner = document.createElement("div");
         spinner.classList.add("spinner-border", "text-primary");
         spinner.setAttribute("role", "status");
-        spinner.innerHTML = `<span class="visually-hidden">Loading...</span>`;
+        spinner.innerHTML = `<span class="visually-hidden">{{ .lcl.loading }}...</span>`;
         sensorsOverview.appendChild(spinner);
 
         // Start timers

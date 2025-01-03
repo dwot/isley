@@ -20,46 +20,55 @@
         </li>
         {{ end }}
         <li class="nav-item">
-            <a href="/plants" class="nav-link" aria-label="Plants">
-                <i class="fa fa-cannabis" title="Plants"></i>
+            <a href="/plants" class="nav-link" aria-label="{{ .lcl.title_plants }}">
+                <i class="fa fa-cannabis" title="{{ .lcl.title_plants }}"></i>
             </a>
         </li>
         <li class="nav-item">
-            <a href="/strains" class="nav-link" aria-label="Strains">
-                <i class="fa fa-dna" title="Strains"></i>
+            <a href="/strains" class="nav-link" aria-label="{{ .lcl.title_strains }}">
+                <i class="fa fa-dna" title="{{ .lcl.title_strains }}"></i>
             </a>
         </li>
         {{ if .loggedIn }}
         <li class="nav-item">
-            <a href="/sensors" class="nav-link" aria-label="Sensors">
-                <i class="fa fa-thermometer-half" title="Sensors"></i>
-            </a>
-        </li>
-
-        <!--
-        <li class="nav-item">
-            <a href="/alerts" class="nav-link" aria-label="Alerting">
-                <i class="fa fa-bell" title="Alerting"></i>
-            </a>
-        </li>
-        -->
-        <li class="nav-item">
-            <a href="/settings" class="nav-link" aria-label="Settings">
-                <i class="fa fa-cog" title="Settings"></i>
+            <a href="/sensors" class="nav-link" aria-label="{{ .lcl.title_sensors }}">
+                <i class="fa fa-thermometer-half" title="{{ .lcl.title_sensors }}"></i>
             </a>
         </li>
         <li class="nav-item">
-            <a href="/logout" class="nav-link" aria-label="Logout">
-                <i class="fa fa-sign-out" title="Logout"></i>
+            <a href="/settings" class="nav-link" aria-label="{{ .lcl.title_settings }}">
+                <i class="fa fa-cog" title="{{ .lcl.title_settings }}"></i>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a href="/logout" class="nav-link" aria-label="{{ .lcl.title_logout }}">
+                <i class="fa fa-sign-out" title="{{ .lcl.title_logout }}"></i>
             </a>
         </li>
         {{ else }}
         <li class="nav-item">
-            <a href="/login" class="nav-link" aria-label="Login">
-                <i class="fa fa-sign-in" title="Login"></i>
+            <a href="/login" class="nav-link" aria-label="{{ .lcl.title_login }}">
+                <i class="fa fa-sign-in" title="{{ .lcl.title_login }}"></i>
             </a>
         </li>
         {{ end }}
+
+        <!-- Language Selector -->
+        <div class="dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="languageDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fa fa-globe"></i> <span id="currentLanguage">{{ .currentLanguage | default "en" | upper }}</span>
+            </button>
+            <ul class="dropdown-menu" id="languageMenu" aria-labelledby="languageDropdown">
+                {{ range .languages }}
+                <li>
+                    <a class="dropdown-item d-flex align-items-center lang-select" href="#" data-lang="{{ . }}">
+                        <i class="fa fa-flag me-2"></i> {{ . | upper }}
+                    </a>
+                </li>
+                {{ end }}
+            </ul>
+        </div>
+
     </ul>
 </header>
 
@@ -68,14 +77,14 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="addMultiPlantActivityModalLabel">Record Activity for Multiple Plants</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="addMultiPlantActivityModalLabel">{{ .lcl.multiple_action_desc }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <form id="addMultiPlantActivityForm">
                     <!-- Activity Name Dropdown -->
                     <div class="mb-3">
-                        <label for="activityMultiName" class="form-label">Activity Name</label>
+                        <label for="activityMultiName" class="form-label">{{ .lcl.activity_name }}</label>
                         <select class="form-select" id="activityMultiName" required>
                             {{ range .activities }}
                             <option value="{{ .ID }}">{{ .Name }}</option>
@@ -85,32 +94,32 @@
 
                     <!-- Activity Note Input -->
                     <div class="mb-3">
-                        <label for="activityMultiNote" class="form-label">Activity Note</label>
+                        <label for="activityMultiNote" class="form-label">{{ .lcl.activity_note }}</label>
                         <textarea class="form-control" id="activityMultiNote" rows="3"></textarea>
                     </div>
 
                     <!-- Date Picker -->
                     <div class="mb-3">
-                        <label for="activityMultiDate" class="form-label">Date</label>
+                        <label for="activityMultiDate" class="form-label">{{ .lcl.title_date }}</label>
                         <input type="date" class="form-control" id="activityMultiDate" required>
                     </div>
 
                     <!-- Plant Selection -->
                     <div class="mb-3">
-                        <label for="plantSelection" class="form-label">Select Plants</label>
+                        <label for="plantSelection" class="form-label">{{ .lcl.select_plants }}</label>
                         <select class="form-select" id="plantSelection" multiple required>
                             {{ range .plants }}
                             <option value="{{ .ID }}">
-                                {{ .Name }} (Zone: {{ .ZoneName }}, Week: {{ .CurrentWeek }})
+                                {{ .Name }} ({{ $.lcl.title_zone }}: {{ .ZoneName }}, {{ $.lcl.title_week }}: {{ .CurrentWeek }})
                             </option>
                             {{ end }}
                         </select>
-                        <small class="text-muted">Hold Ctrl (Cmd on Mac) to select multiple plants.</small>
+                        <small class="text-muted">{{ .lcl.multi_select_plant_note }}</small>
                     </div>
 
                     <!-- Submit Button -->
                     <div class="text-end">
-                        <button type="submit" class="btn btn-primary">Record Activity</button>
+                        <button type="submit" class="btn btn-primary">{{ .lcl.record_activity }}</button>
                     </div>
                 </form>
             </div>
@@ -120,6 +129,26 @@
 
 
 <script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const langMenu = document.getElementById("languageMenu");
+        const currentLangLabel = document.getElementById("currentLanguage");
+
+        // Get saved language or use current one from server
+        const savedLang = localStorage.getItem("language") || currentLangLabel.innerText.toLowerCase();
+
+        // Update the displayed language
+        currentLangLabel.innerText = savedLang.toUpperCase();
+
+        // Handle language selection
+        langMenu.addEventListener("click", (e) => {
+            const selectedLang = e.target.closest(".lang-select")?.getAttribute("data-lang");
+            if (selectedLang) {
+                localStorage.setItem("language", selectedLang); // Save preference
+                window.location.href = `/?lang=${selectedLang}`; // Reload page with new language
+            }
+        });
+    });
+
     document.addEventListener("DOMContentLoaded", () => {
         const form = document.getElementById("addMultiPlantActivityForm");
         const addMultiPlantActivityModal = document.getElementById("addMultiPlantActivityModal");
@@ -161,14 +190,14 @@
                     return response.json();
                 })
                 .then(() => {
-                    alert("Activity recorded successfully!");
+                    alert({{ .lcl.activity_success }});
                     const modal = bootstrap.Modal.getInstance(document.getElementById("addMultiPlantActivityModal"));
                     modal.hide();
                     location.reload(); // Reload page to reflect changes
                 })
                 .catch(error => {
                     console.error("Error:", error);
-                    alert("Failed to record activity. Please try again.");
+                    alert({{ .lcl.activity_error }});
                 });
         });
     });

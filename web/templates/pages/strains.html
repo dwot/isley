@@ -29,15 +29,15 @@
         <div class="d-flex justify-content-between align-items-center mb-4">
             <!-- View Selector -->
             <div>
-                <button class="btn btn-outline-primary view-button active" data-view="in-stock">In Stock</button>
-                <button class="btn btn-outline-secondary view-button" data-view="out-of-stock">Out of Stock</button>
+                <button class="btn btn-outline-primary view-button active" data-view="in-stock">{{ .lcl.in_stock }}</button>
+                <button class="btn btn-outline-secondary view-button" data-view="out-of-stock">{{ .lcl.out_stock }}</button>
             </div>
 
             <!-- Search Bar and Add Strain Button -->
             <div class="d-flex align-items-center">
                 <div class="input-group w-75">
                     <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
-                    <input type="text" class="form-control" id="searchStrains" placeholder="Search strains...">
+                    <input type="text" class="form-control" id="searchStrains" placeholder="{{ .lcl.search_strains }}...">
                 </div>
                 {{ if .loggedIn }}
                 <button class="btn btn-success ms-3" data-bs-toggle="modal" data-bs-target="#addStrainModal">
@@ -59,26 +59,26 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="addStrainModalLabel">Add New Strain</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="addStrainModalLabel">{{ .lcl.add_new_strain }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <form id="addStrainForm">
                     <!-- Strain Name -->
                     <div class="mb-3">
-                        <label for="strainName" class="form-label">Strain Name</label>
-                        <input type="text" class="form-control" id="strainName" placeholder="Enter strain name" required>
+                        <label for="strainName" class="form-label">{{ .lcl.strain_name }}</label>
+                        <input type="text" class="form-control" id="strainName" placeholder="{{ .lcl.strain_name_placeholder }}" required>
                     </div>
 
                     <!-- URL -->
                     <div class="mb-3">
-                        <label for="url" class="form-label">URL</label>
-                        <input type="text" class="form-control" id="url" placeholder="Enter strain url" >
+                        <label for="url" class="form-label">{{ .lcl.url }}</label>
+                        <input type="text" class="form-control" id="url" placeholder="{{ .lcl.strain_url_placeholder }}" >
                     </div>
 
                     <!-- Breeder Dropdown -->
                     <div class="mb-3">
-                        <label for="breederSelect" class="form-label">Breeder</label>
+                        <label for="breederSelect" class="form-label">{{ .lcl.breeder }}</label>
                         <select class="form-select" id="breederSelect" required>
                             {{ range .breeders }}
                             <option value="{{ .ID }}">{{ .Name }}</option>
@@ -89,13 +89,13 @@
 
                     <!-- New Breeder Input -->
                     <div class="mb-3 d-none" id="newBreederInput">
-                        <label for="newBreederName" class="form-label">New Breeder Name</label>
-                        <input type="text" class="form-control" id="newBreederName" placeholder="Enter new breeder name">
+                        <label for="newBreederName" class="form-label">{{ .lcl.add_new_breeder }}</label>
+                        <input type="text" class="form-control" id="newBreederName" placeholder="{{ .lcl.new_breeder_placeholder }}">
                     </div>
 
                     <!-- Indica / Sativa Ratio -->
                     <div class="mb-3">
-                        <label for="indicaSativaSlider" class="form-label">Indica / Sativa Ratio</label>
+                        <label for="indicaSativaSlider" class="form-label">{{ .lcl.i_s_ratio }}</label>
                         <input type="range" class="form-range" id="indicaSativaSlider" min="0" max="100" value="50">
                         <div class="d-flex justify-content-between">
                             <small class="text-primary" id="indicaLabel">Indica: 50%</small>
@@ -105,34 +105,34 @@
 
                     <!-- Autoflower -->
                     <div class="mb-3">
-                        <label for="autoflower" class="form-label">Autoflower</label>
+                        <label for="autoflower" class="form-label">{{ .lcl.autoflower }}</label>
                         <select class="form-select" id="autoflower" required>
-                            <option value="true">Yes</option>
-                            <option value="false" selected>No</option>
+                            <option value="true">{{ .lcl.yes }}</option>
+                            <option value="false" selected>{{ .lcl.no }}</option>
                         </select>
                     </div>
 
                     <!-- Cycle Time -->
                     <div class="mb-3">
-                        <label for="cycleTime" class="form-label">Cycle Time</label>
+                        <label for="cycleTime" class="form-label">{{ .lcl.cycle_time }}</label>
                         <input type="number" class="form-control" id="cycleTime" min="0" placeholder="days" required value="56">
-                        <p class="text-muted">Cycle time in days.  For Autoflowers, total runtime. For Photos, flower runtime.</p>
+                        <p class="text-muted">{{ .lcl.cycle_time_desc }}</p>
                     </div>
 
                     <!-- Seed Count -->
                     <div class="mb-3">
-                        <label for="seedCount" class="form-label">Seed Count</label>
-                        <input type="number" class="form-control" id="seedCount" min="0" placeholder="Enter seed count" required>
+                        <label for="seedCount" class="form-label">{{ .lcl.seed_count }}</label>
+                        <input type="number" class="form-control" id="seedCount" min="0" placeholder="{{ .lcl.seed_count_placeholder }}" required>
                     </div>
 
                     <!-- Description -->
                     <div class="mb-3">
-                        <label for="strainDescription" class="form-label">Description</label>
-                        <textarea class="form-control" id="strainDescription" rows="3" placeholder="Enter strain description"></textarea>
+                        <label for="strainDescription" class="form-label">{{ .lcl.description_txt }}</label>
+                        <textarea class="form-control" id="strainDescription" rows="3" placeholder="{{ .lcl.strain_description_placeholder }}"></textarea>
                     </div>
 
                     <!-- Submit Button -->
-                    <button type="submit" class="btn btn-primary">Add Strain</button>
+                    <button type="submit" class="btn btn-primary">{{ .lcl.add_strain }}</button>
                 </form>
             </div>
         </div>
@@ -145,8 +145,8 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="editStrainModalLabel">Edit Strain</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="editStrainModalLabel">{{ .lcl.edit_strain }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.close }}"></button>
             </div>
             <div class="modal-body">
                 <form id="editStrainForm">
@@ -155,36 +155,36 @@
 
                     <!-- Strain Name -->
                     <div class="mb-3">
-                        <label for="editStrainName" class="form-label">Strain Name</label>
+                        <label for="editStrainName" class="form-label">{{ .lcl.strain_name }}</label>
                         <input type="text" class="form-control" id="editStrainName" required>
                     </div>
 
                     <!-- URL -->
                     <div class="mb-3">
-                        <label for="editUrl" class="form-label">URL</label>
-                        <input type="text" class="form-control" id="editUrl" placeholder="Enter strain url" >
+                        <label for="editUrl" class="form-label">{{ .lcl.url }}</label>
+                        <input type="text" class="form-control" id="editUrl" placeholder="{{ .lcl.strain_url_placeholder }}" >
                     </div>
 
                     <!-- Breeder Dropdown -->
                     <div class="mb-3">
-                        <label for="editBreederSelect" class="form-label">Breeder</label>
+                        <label for="editBreederSelect" class="form-label">{{ .lcl.breeder }}</label>
                         <select class="form-select" id="editBreederSelect" required>
                             {{ range .breeders }}
                             <option value="{{ .ID }}">{{ .Name }}</option>
                             {{ end }}
-                            <option value="new">Add New Breeder</option>
+                            <option value="new">{{ .lcl.add_new_breeder }}</option>
                         </select>
                     </div>
 
                     <!-- New Breeder Input -->
                     <div class="mb-3 d-none" id="editNewBreederInput">
-                        <label for="editNewBreederName" class="form-label">New Breeder Name</label>
-                        <input type="text" class="form-control" id="editNewBreederName" placeholder="Enter new breeder name">
+                        <label for="editNewBreederName" class="form-label">{{ .lcl.new_breeder_name }}</label>
+                        <input type="text" class="form-control" id="editNewBreederName" placeholder="{{ .lcl.new_breeder_placeholder }}">
                     </div>
 
                     <!-- Indica/Sativa Slider -->
                     <div class="mb-3">
-                        <label for="editIndicaSativaSlider" class="form-label">Indica / Sativa Ratio</label>
+                        <label for="editIndicaSativaSlider" class="form-label">{{ .lcl.i_s_ratio }}</label>
                         <input type="range" class="form-range" id="editIndicaSativaSlider" min="0" max="100" value="50">
                         <div class="d-flex justify-content-between">
                             <small class="text-primary" id="editIndicaLabel">Indica: 50%</small>
@@ -194,36 +194,36 @@
 
                     <!-- Autoflower -->
                     <div class="mb-3">
-                        <label for="editAutoflower" class="form-label">Autoflower</label>
+                        <label for="editAutoflower" class="form-label">{{ .lcl.autoflower }}</label>
                         <select class="form-select" id="editAutoflower" required>
-                            <option value="true">Yes</option>
-                            <option value="false">No</option>
+                            <option value="true">{{ .lcl.yes }}</option>
+                            <option value="false">{{ .lcl.no }}</option>
                         </select>
                     </div>
 
                     <!-- Cycle Time -->
                     <div class="mb-3">
-                        <label for="editCycleTime" class="form-label">Cycle Time</label>
+                        <label for="editCycleTime" class="form-label">{{ .lcl.cycle_time }}</label>
                         <input type="number" class="form-control" id="editCycleTime" min="0" placeholder="days" required value="56">
-                        <p class="text-muted">Cycle time in days.  For Autoflowers, total runtime. For Photos, flower runtime.</p>
+                        <p class="text-muted">{{ .lcl.cycle_time_desc }}</p>
                     </div>
 
                     <!-- Seed Count -->
                     <div class="mb-3">
-                        <label for="editSeedCount" class="form-label">Seed Count</label>
+                        <label for="editSeedCount" class="form-label">{{ .lcl.seed_count }}</label>
                         <input type="number" class="form-control" id="editSeedCount" min="0">
                     </div>
 
                     <!-- Description -->
                     <div class="mb-3">
-                        <label for="editStrainDescription" class="form-label">Description</label>
+                        <label for="editStrainDescription" class="form-label">{{ .lcl.description_txt }}</label>
                         <textarea class="form-control" id="editStrainDescription" rows="3"></textarea>
                     </div>
 
                     {{ if .loggedIn }}
                     <div class="text-end">
-                        <button type="submit" class="btn btn-primary">Save Changes</button>
-                        <button type="button" class="btn btn-danger" id="deleteStrainButton">Delete Strain</button>
+                        <button type="submit" class="btn btn-primary">{{ .lcl.save_changes }}</button>
+                        <button type="button" class="btn btn-danger" id="deleteStrainButton">{{ .lcl.delete_strain }}</button>
                     </div>
                     {{ end }}
                 </form>
@@ -288,7 +288,7 @@
             })
                 .then((response) => {
                     if (!response.ok) {
-                        throw new Error("Failed to add strain");
+                        throw new Error("{{ .lcl.strain_add_fail }}");
                     }
                     return response.json();
                 })
@@ -297,7 +297,7 @@
                 })
                 .catch((error) => {
                     console.error("Error:", error);
-                    alert("An error occurred while adding the strain.");
+                    alert("{{ .lcl.strain_add_error }}");
                 });
         });
     });
@@ -355,12 +355,12 @@
                 body: JSON.stringify(payload),
             })
                 .then(response => {
-                    if (!response.ok) throw new Error("Failed to update strain");
+                    if (!response.ok) throw new Error("{{ .lcl.strain_update_fail }}");
                     location.reload();
                 })
                 .catch(error => {
-                    console.error("Error updating strain:", error);
-                    alert("Failed to update strain.");
+                    console.error("{{ .lcl.strain_update_error }}", error);
+                    alert("{{ .lcl.update_error }}");
                 });
         });
 
@@ -371,12 +371,12 @@
             if (confirm("Are you sure you want to delete this strain?")) {
                 fetch(`/strains/${strainId}`, { method: "DELETE" })
                     .then(response => {
-                        if (!response.ok) throw new Error("Failed to delete strain");
+                        if (!response.ok) throw new Error("{{ .lcl.delete_fail }}");
                         location.reload();
                     })
                     .catch(error => {
                         console.error("Error deleting strain:", error);
-                        alert("Failed to delete strain.");
+                        alert("{{ .lcl.delete_error }}");
                     });
             }
         });
@@ -428,11 +428,11 @@
         <table class="table table-striped table-bordered table-hover">
             <thead class="table-dark">
                 <tr>
-                    <th scope="col" data-key="name" data-type="text" class="sortable ${currentSort.key === "name" ? (currentSort.isAscending ? "asc" : "desc") : ""}">Strain <i class="fa-solid fa-sort"></i></th>
-                    <th scope="col" data-key="breeder" data-type="text" class="sortable ${currentSort.key === "breeder" ? (currentSort.isAscending ? "asc" : "desc") : ""}">Breeder <i class="fa-solid fa-sort"></i></th>
-                    <th scope="col" data-key="indica" data-type="numeric" class="sortable ${currentSort.key === "indica" ? (currentSort.isAscending ? "asc" : "desc") : ""}">I/S <i class="fa-solid fa-sort"></i></th>
-                    <th scope="col" data-key="autoflower" data-type="text" class="sortable ${currentSort.key === "autoflower" ? (currentSort.isAscending ? "asc" : "desc") : ""}">Auto <i class="fa-solid fa-sort"></i></th>
-                    <th scope="col" data-key="seed_count" data-type="numeric" class="sortable ${currentSort.key === "seed_count" ? (currentSort.isAscending ? "asc" : "desc") : ""}">Seed Count <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="name" data-type="text" class="sortable ${currentSort.key === "name" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.title_strain }} <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="breeder" data-type="text" class="sortable ${currentSort.key === "breeder" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.title_breeder }} <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="indica" data-type="numeric" class="sortable ${currentSort.key === "indica" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.title_i_s }} <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="autoflower" data-type="text" class="sortable ${currentSort.key === "autoflower" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.title_auto }} <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="seed_count" data-type="numeric" class="sortable ${currentSort.key === "seed_count" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.seed_count }} <i class="fa-solid fa-sort"></i></th>
                     <th scope="col">Edit </th>
                 </tr>
             </thead>
@@ -440,11 +440,11 @@
                 ${filteredData.map(strain => `
                     <tr >
                         <th scope="row">
-                        ${strain.url ? `<a href="${strain.url}" target="_blank">${strain.name || "N/A"}</a>` : strain.name || "N/A"}
+                        ${strain.url ? `<a href="${strain.url}" target="_blank">${strain.name || "{{ .lcl.na }}"}</a>` : strain.name || "{{ .lcl.na }}"}
                         </th>
                         <td>${strain.breeder || "N/A"}</td>
                         <td>${strain.indica || 0} / ${strain.sativa || 0}</td>
-                        <td>${strain.autoflower === "true" ? "Yes" : "No"}</td>
+                        <td>${strain.autoflower === "true" ? "{{ .lcl.yes }}" : "{{ .lcl.no }}"}</td>
                         <td>${strain.seed_count || 0}</td>
                         <td class="clickable-row"
                         data-id="${strain.id}"
