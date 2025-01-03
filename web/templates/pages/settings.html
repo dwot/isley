@@ -21,21 +21,21 @@ color: #0d6efd; /* Primary color */
     <ul class="nav nav-tabs" id="settingsTabs" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active" id="settings-tab" data-bs-toggle="tab" data-bs-target="#settings-content" type="button" role="tab" aria-controls="settings-content" aria-selected="true">
-                Settings
+                {{ .lcl.title_settings }}
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="tables-tab" data-bs-toggle="tab" data-bs-target="#tables-content" type="button" role="tab" aria-controls="tables-content" aria-selected="false">
-                Tables
+                {{ .lcl.title_tables }}
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="logo-tab" data-bs-toggle="tab" data-bs-target="#logo-content" type="button" role="tab" aria-controls="logo-content" aria-selected="false">
-                Set Logo Image
+                {{ .lcl.set_logo_image }}
             </button>
         </li>
         <li class="nav-item" role="presentation">
-            <a class="nav-link" href="/change-password">Change Password</a>
+            <a class="nav-link" href="/change-password">{{ .lcl.change_password }}</a>
         </li>
     </ul>
 
@@ -52,18 +52,18 @@ color: #0d6efd; /* Primary color */
                     <div class="card-body">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="aciEnabled" {{ if .settings.ACI.Enabled }}checked{{ end }}>
-                            <label class="form-check-label" for="aciEnabled">Enable AC Infinity Sensor Monitoring</label>
+                            <label class="form-check-label" for="aciEnabled">{{ .lcl.aci_enabled_info }}</label>
                         </div>
                         <div class="d-flex align-items-center mt-3">
                     <span id="tokenSetBadge" class="badge bg-{{ if .settings.ACI.TokenSet }}success{{ else }}danger{{ end }} me-2">
-                        {{ if .settings.ACI.TokenSet }}Token Set{{ else }}Token Not Set{{ end }}
+                        {{ if .settings.ACI.TokenSet }}{{ .lcl.token_set }}{{ else }}{{ .lcl.token_not_set }}{{ end }}
                     </span>
                             <button type="button" class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#aciLoginModal">
-                                Retrieve Token
+                                {{ .lcl.retrieve_token }}
                             </button>
                         </div>
                         <small class="text-muted d-block mt-2">
-                            AC Infinity integration requires a valid token. Use the button above to log in and retrieve it.
+                            {{ .lcl.retrieve_token_desc }}
                         </small>
                     </div>
                 </div>
@@ -76,10 +76,10 @@ color: #0d6efd; /* Primary color */
                     <div class="card-body">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="ecEnabled" {{ if .settings.EC.Enabled }}checked{{ end }}>
-                            <label class="form-check-label" for="ecEnabled">Enable EcoWitt Sensor Monitoring</label>
+                            <label class="form-check-label" for="ecEnabled">{{ .lcl.ecowitt_enabled_info }}</label>
                         </div>
                         <small class="text-muted d-block mt-2">
-                            Enable this option to monitor EcoWitt sensors connected to your setup.
+                            {{ .lcl.ecowitt_enabled_desc }}
                         </small>
                     </div>
                 </div>
@@ -87,25 +87,25 @@ color: #0d6efd; /* Primary color */
                 <!-- Settings -->
                 <div class="card mb-4 shadow-sm">
                     <div class="card-header bg-info text-white">
-                        <h5 class="card-title mb-0">Settings</h5>
+                        <h5 class="card-title mb-0">{{ .lcl.title_settings }}</h5>
                     </div>
                     <div class="card-body">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="guestMode" {{ if .settings.GuestMode }}checked{{ end }}>
-                            <label class="form-check-label" for="guestMode">Enable Guest Access (view only)  REQUIRES RESTART</label>
+                            <label class="form-check-label" for="guestMode">{{ .lcl.guest_mode_info }}</label>
                         </div>
                         <small class="text-muted d-block mt-2">
-                            Enable this option to allow unauthenticated users to view but not modify data.
+                            {{ .lcl.guest_mode_desc }}
                         </small>
                     </div>
                     <div class="card-body">
-                        <label for="pollingInterval" class="form-label">Polling Interval:
-                            <span id="pollingValue" class="fw-bold">{{ .settings.PollingInterval }} seconds</span>
+                        <label for="pollingInterval" class="form-label">{{ .lcl.polling_interval }}:
+                            <span id="pollingValue" class="fw-bold">{{ .settings.PollingInterval }} {{ .lcl.time_seconds }}</span>
                         </label>
                         <input type="range" class="form-range" id="pollingInterval"
                                min="15" max="300" step="5" value="{{ .settings.PollingInterval }}">
                         <small class="text-muted d-block mt-2">
-                            Use the slider to adjust the polling interval (15 - 300 seconds). Minimum is 15 seconds.
+                            {{ .lcl.polling_interval_desc }}
                         </small>
                     </div>
                 </div>
@@ -124,7 +124,7 @@ color: #0d6efd; /* Primary color */
 
                 <!-- Save Button -->
                 <div class="text-end">
-                    <button type="submit" class="btn btn-primary px-4">Save Settings</button>
+                    <button type="submit" class="btn btn-primary px-4">{{ .lcl.save_settings }}</button>
                 </div>
             </form>
         </div>
@@ -135,15 +135,15 @@ color: #0d6efd; /* Primary color */
             <!-- Zones Table -->
             <div class="mt-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h3 class="text-secondary">Zones</h3>
+                    <h3 class="text-secondary">{{ .lcl.title_zones }}</h3>
                     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addZoneModal">
-                        <i class="fa-solid fa-plus"></i> Add Zone
+                        <i class="fa-solid fa-plus"></i> {{ .lcl.add_zone }}
                     </button>
                 </div>
                 <table class="table table-striped table-bordered table-hover">
                     <thead class="table-dark">
                     <tr>
-                        <th>Zone</th>
+                        <th>{{ .lcl.title_zone }}</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -159,15 +159,15 @@ color: #0d6efd; /* Primary color */
             <!-- Activities Table -->
             <div class="mt-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h3 class="text-secondary">Activities</h3>
+                    <h3 class="text-secondary">{{ .lcl.title_activities }}</h3>
                     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addActivityModal">
-                        <i class="fa-solid fa-plus"></i> Add Activity
+                        <i class="fa-solid fa-plus"></i> {{ .lcl.add_activity }}
                     </button>
                 </div>
                 <table class="table table-striped table-bordered table-hover">
                     <thead class="table-dark">
                     <tr>
-                        <th>Activity</th>
+                        <th>{{ .lcl.title_activity }}</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -183,16 +183,16 @@ color: #0d6efd; /* Primary color */
             <!-- Metrics Table -->
             <div class="mt-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h3 class="text-secondary">Metrics</h3>
+                    <h3 class="text-secondary">{{ .lcl.title_metrics }}</h3>
                     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMetricModal">
-                        <i class="fa-solid fa-plus"></i> Add Metric
+                        <i class="fa-solid fa-plus"></i> {{ .lcl.add_metric }}
                     </button>
                 </div>
                 <table class="table table-striped table-bordered table-hover">
                     <thead class="table-dark">
                     <tr>
-                        <th>Metric</th>
-                        <th>Unit</th>
+                        <th>{{ .lcl.title_metric }}</th>
+                        <th>{{ .lcl.title_unit }}</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -209,15 +209,15 @@ color: #0d6efd; /* Primary color */
             <!-- Breeders Table -->
             <div class="mt-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h3 class="text-secondary">Breeders</h3>
+                    <h3 class="text-secondary">{{ .lcl.breeders }}</h3>
                     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addBreederModal">
-                        <i class="fa-solid fa-plus"></i> Add Breeder
+                        <i class="fa-solid fa-plus"></i> {{ .lcl.add_breeder }}
                     </button>
                 </div>
                 <table class="table table-striped table-bordered table-hover">
                     <thead class="table-dark">
                     <tr>
-                        <th>Breeder</th>
+                        <th>{{ .lcl.breeder }}</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -235,11 +235,11 @@ color: #0d6efd; /* Primary color */
         <div class="tab-pane fade" id="logo-content" role="tabpanel" aria-labelledby="logo-tab">
             <div class="mt-4">
                 <small class="text-muted d-block mt-2">
-                    This logo image is used by the magic wand feature on plant images.  It will overlay the logo, strain name and plant age in days on the image.
-                    <p>⚠️This feature is half baked and needs some work.⚠️</p>
+                    {{ .lcl.add_logo_info }}
+                    <p>{{ .lcl.add_logo_note }}</p>
                 </small>
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadImagesModal">
-                    <i class="fa-solid fa-upload"></i> Upload Logo Image
+                    <i class="fa-solid fa-upload"></i> {{ .lcl.add_logo }}
                 </button>
             </div>
         </div>
@@ -251,13 +251,13 @@ color: #0d6efd; /* Primary color */
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="uploadImagesModalLabel">Upload Logo Image</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="uploadImagesModalLabel">{{ .lcl.add_logo }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <!-- Drag-and-Drop Area -->
                 <div id="dropArea" class="border border-primary rounded p-4 text-center mb-3">
-                    <p>Drag and drop an image here or click to browse</p>
+                    <p>{{ .lcl.upload_image_info }}</p>
                     <input type="file" id="logoInput" accept="image/*" style="display: none;">
                 </div>
                 <div id="logoPreviewContainer" class="text-center">
@@ -265,7 +265,7 @@ color: #0d6efd; /* Primary color */
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-primary" id="saveLogoButton">Save Logo</button>
+                <button type="button" class="btn btn-primary" id="saveLogoButton">{{ .lcl.save_logo }}</button>
             </div>
         </div>
     </div>
@@ -276,20 +276,20 @@ color: #0d6efd; /* Primary color */
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="aciLoginModalLabel">AC Infinity Login</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="aciLoginModalLabel">AC Infinity {{ .lcl.title_login }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <form id="aciLoginForm">
                     <div class="mb-3">
-                        <label for="aciEmail" class="form-label">Email</label>
-                        <input type="email" class="form-control" id="aciEmail" placeholder="Enter AC Infinity Email" required>
+                        <label for="aciEmail" class="form-label">{{ .lcl.title_email }}</label>
+                        <input type="email" class="form-control" id="aciEmail" placeholder="{{ .lcl.title_aci_email_placeholder }}" required>
                     </div>
                     <div class="mb-3">
-                        <label for="aciPassword" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="aciPassword" placeholder="Enter AC Infinity Password" required>
+                        <label for="aciPassword" class="form-label">{{ .lcl.title_password }}</label>
+                        <input type="password" class="form-control" id="aciPassword" placeholder="{{ .lcl.title_aci_password_placeholder }}" required>
                     </div>
-                    <button type="submit" class="btn btn-primary">Login</button>
+                    <button type="submit" class="btn btn-primary">{{ .lcl.title_login }}</button>
                 </form>
             </div>
         </div>
@@ -301,19 +301,19 @@ color: #0d6efd; /* Primary color */
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="addZoneModalLabel">Add Zone</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="addZoneModalLabel">{{ .lcl.add_zone }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <form id="addZoneForm">
                     <!-- Zone Name Input -->
                     <div class="mb-3">
-                        <label for="zoneName" class="form-label">Zone Name</label>
+                        <label for="zoneName" class="form-label">{{ .lcl.zone_name }}</label>
                         <input type="text" class="form-control" id="zoneName" step="any" required>
                     </div>
 
                     <!-- Submit Button -->
-                    <button type="submit" class="btn btn-primary">Add Zone</button>
+                    <button type="submit" class="btn btn-primary">{{ .lcl.add_zone }}</button>
                 </form>
             </div>
         </div>
@@ -325,19 +325,19 @@ color: #0d6efd; /* Primary color */
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="addActivityModalLabel">Add Activity</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="addActivityModalLabel">{{ .lcl.add_activity }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <form id="addActivityForm">
                     <!-- Activity Name Input -->
                     <div class="mb-3">
-                        <label for="activityName" class="form-label">Activity Name</label>
+                        <label for="activityName" class="form-label">{{ .lcl.activity_name }}</label>
                         <input type="text" class="form-control" id="activityName" step="any" required>
                     </div>
                     
                     <!-- Submit Button -->
-                    <button type="submit" class="btn btn-primary">Add Activity</button>
+                    <button type="submit" class="btn btn-primary">{{ .lcl.add_activity }}</button>
                 </form>
             </div>
         </div>
@@ -349,25 +349,25 @@ color: #0d6efd; /* Primary color */
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="addMetricModalLabel">Add Metric</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="addMetricModalLabel">{{ .lcl.add_metric }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <form id="addMetricForm">
                     <!-- Metric Name Input -->
                     <div class="mb-3">
-                        <label for="metricName" class="form-label">Metric Name</label>
+                        <label for="metricName" class="form-label">{{ .lcl.metric_name }}</label>
                         <input type="text" class="form-control" id="metricName" step="any" required>
                     </div>
                     
                     <!-- Metric Unit Input -->
                     <div class="mb-3">
-                        <label for="metricUnit" class="form-label">Metric Unit</label>
+                        <label for="metricUnit" class="form-label">{{ .lcl.metric_unit }}</label>
                         <input type="text" class="form-control" id="metricUnit" step="any" required>
                     </div>
                     
                     <!-- Submit Button -->
-                    <button type="submit" class="btn btn-primary">Add Metric</button>
+                    <button type="submit" class="btn btn-primary">{{ .lcl.add_metric }}</button>
                 </form>
             </div>
         </div>
@@ -379,19 +379,19 @@ color: #0d6efd; /* Primary color */
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="addBreederModalLabel">Add Breeder</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="addBreederModalLabel">{{ .lcl.add_breeder }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <form id="addBreederForm">
                     <!-- Breeder Name Input -->
                     <div class="mb-3">
-                        <label for="breederName" class="form-label">Breeder Name</label>
+                        <label for="breederName" class="form-label">{{ .lcl.breeder_name }}</label>
                         <input type="text" class="form-control" id="breederName" step="any" required>
                     </div>
 
                     <!-- Submit Button -->
-                    <button type="submit" class="btn btn-primary">Add Breeder</button>
+                    <button type="submit" class="btn btn-primary">{{ .lcl.add_breeder }}</button>
                 </form>
             </div>
         </div>
@@ -403,18 +403,18 @@ color: #0d6efd; /* Primary color */
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="editZoneModalLabel">Edit Zone</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="editZoneModalLabel">{{ .lcl.edit_zone }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <form id="editZoneForm">
                     <input type="hidden" id="zoneId">
                     <div class="mb-3">
-                        <label for="editZoneName" class="form-label">Zone Name</label>
+                        <label for="editZoneName" class="form-label">{{ .lcl.zone_name }}</label>
                         <input type="text" class="form-control" id="editZoneName" step="any" required>
                     </div>
-                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
-                    <button type="button" class="btn btn-danger" id="deleteZone"><i class="fa-solid fa-trash"></i> Delete Zone</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
+                    <button type="button" class="btn btn-danger" id="deleteZone"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_zone }}</button>
                 </form>
             </div>
         </div>
@@ -426,18 +426,18 @@ color: #0d6efd; /* Primary color */
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="editActivityModalLabel">Edit Activity</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="editActivityModalLabel">{{ .lcl.edit_activity }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body" id="editActivityModalBody">
                 <form id="editActivityForm">
                     <input type="hidden" id="activityId">
                     <div class="mb-3">
-                        <label for="editActivityName" class="form-label">Activity Name</label>
+                        <label for="editActivityName" class="form-label">{{ .lcl.activity_name }}</label>
                         <input type="text" class="form-control" id="editActivityName" step="any" required>
                     </div>
-                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
-                    <button type="button" class="btn btn-danger" id="deleteActivity"><i class="fa-solid fa-trash"></i> Delete Activity</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
+                    <button type="button" class="btn btn-danger" id="deleteActivity"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_activity }}</button>
                 </form>
             </div>
         </div>
@@ -449,22 +449,22 @@ color: #0d6efd; /* Primary color */
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="editMetricModalLabel">Edit Metric</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="editMetricModalLabel">{{ .lcl.edit_metric }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body" id="editMetricModalBody">
                 <form id="editMetricForm">
                     <input type="hidden" id="metricId">
                     <div class="mb-3">
-                        <label for="editMetricName" class="form-label">Metric Name</label>
+                        <label for="editMetricName" class="form-label">{{ .lcl.metric_name }}</label>
                         <input type="text" class="form-control" id="editMetricName" step="any" required>
                     </div>
                     <div class="mb-3">
-                        <label for="editMetricUnit" class="form-label">Metric Unit</label>
+                        <label for="editMetricUnit" class="form-label">{{ .lcl.metric_unit }}</label>
                         <input type="text" class="form-control" id="editMetricUnit" step="any" required>
                     </div>
-                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
-                    <button type="button" class="btn btn-danger" id="deleteMetric"><i class="fa-solid fa-trash"></i> Delete Metric</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
+                    <button type="button" class="btn btn-danger" id="deleteMetric"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_metric }}</button>
                 </form>
             </div>
         </div>
@@ -476,18 +476,18 @@ color: #0d6efd; /* Primary color */
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="editBreederModalLabel">Edit Breeder</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="editBreederModalLabel">{{ .lcl.edit_breeder }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body" id="editBreederModalBody">
                 <form id="editBreederForm">
                     <input type="hidden" id="breederId">
                     <div class="mb-3">
-                        <label for="editBreederName" class="form-label">Breeder Name</label>
+                        <label for="editBreederName" class="form-label">{{ .lcl.breeder_name }}</label>
                         <input type="text" class="form-control" id="editBreederName" step="any" required>
                     </div>
-                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
-                    <button type="button" class="btn btn-danger" id="deleteBreeder"><i class="fa-solid fa-trash"></i> Delete Breeder</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
+                    <button type="button" class="btn btn-danger" id="deleteBreeder"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_breeder }}</button>
                 </form>
             </div>
         </div>
@@ -535,7 +535,7 @@ color: #0d6efd; /* Primary color */
                 })
                 .catch((error) => {
                     console.error("Error:", error);
-                    alert("Failed to add zone. Please try again.");
+                    alert("{{ .lcl.failed_to_add_zone }}");
                 });
         });
     });
@@ -570,17 +570,17 @@ color: #0d6efd; /* Primary color */
             })
                 .then(response => response.json())
                 .then(() => location.reload())
-                .catch(err => alert("Failed to update zone"));
+                .catch(err => alert("{{ .lcl.failed_to_update_zone }}"));
         });
 
         deleteZoneButton.addEventListener("click", () => {
             const zoneId = document.getElementById("zoneId").value;
 
-            if (confirm("Are you sure you want to delete this zone?  This will also delete all associate plants and sensors along with their data.")) {
+            if (confirm("{{ .lcl.delete_zone_confirm }}")) {
                 fetch(`/zones/${zoneId}`, { method: "DELETE" })
                     .then(response => response.json())
                     .then(() => location.reload())
-                    .catch(err => alert("Failed to delete zone"));
+                    .catch(err => alert("{{ .lcl.failed_to_delete_zone }}"));
             }
         });
     });
@@ -608,17 +608,17 @@ color: #0d6efd; /* Primary color */
                     if (data.success) {
                         const modal = bootstrap.Modal.getInstance(document.getElementById("aciLoginModal"));
                         modal.hide();
-                        document.getElementById("tokenSetBadge").textContent = "Token Set";
+                        document.getElementById("tokenSetBadge").textContent = "{{ .lcl.token_set }}";
                         document.getElementById("tokenSetBadge").classList.remove("bg-danger");
                         document.getElementById("tokenSetBadge").classList.add("bg-success");
                         //alert("Token fetched successfully!");
                     } else {
-                        alert("Failed to fetch token: " + data.message);
+                        alert("{{ .lcl.failed_to_fetch_token }}: " + data.message);
                     }
                 })
                 .catch((error) => {
-                    console.error("Error fetching token:", error);
-                    alert("An error occurred. Please try again.");
+                    console.error("{{ .lcl.error_fetching_token }}", error);
+                    alert("{{ .lcl.generic_error }}");
                 });
         });
     });
@@ -652,13 +652,13 @@ color: #0d6efd; /* Primary color */
             })
                 .then((response) => {
                     if (!response.ok) {
-                        throw new Error("Failed to save settings");
+                        throw new Error("{{ .lcl.failed_to_save_settings }}");
                     }
                     alert("Settings saved successfully!");
                 })
                 .catch((error) => {
                     console.error("Error:", error);
-                    alert("Failed to save settings. Please try again.");
+                    alert("{{ .lcl.failed_to_save_settings }}");
                 });
         });
     });
@@ -694,7 +694,7 @@ color: #0d6efd; /* Primary color */
             })
                 .then((response) => {
                     if (!response.ok) {
-                        throw new Error("Failed to add activity");
+                        throw new Error("{{ .lcl.failed_to_add_activity }}");
                     }
                     return response.json();
                 })
@@ -706,7 +706,7 @@ color: #0d6efd; /* Primary color */
                 })
                 .catch((error) => {
                     console.error("Error:", error);
-                    alert("Failed to add activity. Please try again.");
+                    alert("{{ .lcl.failed_to_add_activity }}");
                 });
         });
     });
@@ -741,17 +741,17 @@ color: #0d6efd; /* Primary color */
             })
                 .then(response => response.json())
                 .then(() => location.reload())
-                .catch(err => alert("Failed to update activity"));
+                .catch(err => alert("{{ .lcl.failed_to_update_activity }}"));
         });
 
         deleteActivityButton.addEventListener("click", () => {
             const activityId = document.getElementById("activityId").value;
 
-            if (confirm("Are you sure you want to delete this activity? This will also delete any instances of this activity tracked against any plants.")) {
+            if (confirm("{{ .lcl.delete_activity_confirm }}")) {
                 fetch(`/activities/${activityId}`, { method: "DELETE" })
                     .then(response => response.json())
                     .then(() => location.reload())
-                    .catch(err => alert("Failed to delete activity"));
+                    .catch(err => alert("{{ .lcl.failed_to_delete_activity }}"));
             }
         });
     });
@@ -789,7 +789,7 @@ color: #0d6efd; /* Primary color */
             })
                 .then((response) => {
                     if (!response.ok) {
-                        throw new Error("Failed to add metric");
+                        throw new Error("{{ .lcl.failed_to_add_metric }}");
                     }
                     return response.json();
                 })
@@ -801,7 +801,7 @@ color: #0d6efd; /* Primary color */
                 })
                 .catch((error) => {
                     console.error("Error:", error);
-                    alert("Failed to add metric. Please try again.");
+                    alert("{{ .lcl.failed_to_add_metric }}");
                 });
         });
     });
@@ -838,17 +838,17 @@ color: #0d6efd; /* Primary color */
             })
                 .then(response => response.json())
                 .then(() => location.reload())
-                .catch(err => alert("Failed to update metric"));
+                .catch(err => alert("{{ .lcl.failed_to_update_metric }}"));
         });
 
         deleteMetricButton.addEventListener("click", () => {
             const metricId = document.getElementById("metricId").value;
 
-            if (confirm("Are you sure you want to delete this metric?  This will also delete any instances of this metric tracked against any plants.")) {
+            if (confirm("{{ .lcl.delete_metric_confirm }}")) {
                 fetch(`/metrics/${metricId}`, { method: "DELETE" })
                     .then(response => response.json())
                     .then(() => location.reload())
-                    .catch(err => alert("Failed to delete metric"));
+                    .catch(err => alert("{{ .lcl.failed_to_delete_metric }}"));
             }
         });
     });
@@ -884,7 +884,7 @@ color: #0d6efd; /* Primary color */
             })
                 .then((response) => {
                     if (!response.ok) {
-                        throw new Error("Failed to add breeder");
+                        throw new Error("{{ .lcl.failed_to_add_breeder }}");
                     }
                     return response.json();
                 })
@@ -896,7 +896,7 @@ color: #0d6efd; /* Primary color */
                 })
                 .catch((error) => {
                     console.error("Error:", error);
-                    alert("Failed to add breeder. Please try again.");
+                    alert("{{ .lcl.failed_to_add_breeder }}");
                 });
         });
     });
@@ -931,17 +931,17 @@ color: #0d6efd; /* Primary color */
             })
                 .then(response => response.json())
                 .then(() => location.reload())
-                .catch(err => alert("Failed to update breeder"));
+                .catch(err => alert("{{ .lcl.failed_to_update_breeder }}"));
         });
 
         deleteBreederButton.addEventListener("click", () => {
             const breederId = document.getElementById("breederId").value;
 
-            if (confirm("Are you sure you want to delete this breeder? This will also delete any strains and plants associated with this breeder.")) {
+            if (confirm("{{ .lcl.delete_breeder_confirm }}")) {
                 fetch(`/breeders/${breederId}`, { method: "DELETE" })
                     .then(response => response.json())
                     .then(() => location.reload())
-                    .catch(err => alert("Failed to delete breeder"));
+                    .catch(err => alert("{{ .lcl.failed_to_delete_breeder }}"));
             }
         });
     });
@@ -981,18 +981,18 @@ color: #0d6efd; /* Primary color */
                 })
                     .then((response) => {
                         if (response.ok) {
-                            alert("Logo uploaded successfully!");
+                            alert("{{ .lcl.logo_uploaded_successfully }}");
                             location.reload();
                         } else {
-                            alert("Error uploading logo.");
+                            alert("{{ .lcl.error_uploading_logo }}");
                         }
                     })
                     .catch((error) => {
                         console.error("Error:", error);
-                        alert("Error uploading logo.");
+                        alert("{{ .lcl.error_uploading_logo }}");
                     });
             } else {
-                alert("Please select a logo image to upload.");
+                alert("{{ .lcl.select_logo_image }}");
             }
         });
     });

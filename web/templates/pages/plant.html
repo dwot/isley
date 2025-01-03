@@ -78,7 +78,7 @@
                 <div class="card mb-3">
                     <div class="card-body text-start">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="card-title text-primary">Plant Details</h5>
+                            <h5 class="card-title text-primary">{{ .lcl.plant_details }}</h5>
                             {{ if .loggedIn }}
                             <div>
                                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#changeStatusModal">
@@ -96,8 +96,8 @@
                         <input type="hidden" id="currentWeek" value="{{ .plant.CurrentWeek }}">
 
                         <ul class="list-unstyled">
-                            <li><strong>Status:</strong> {{ .plant.Status }}</li>
-                            <li><strong>Strain:</strong>
+                            <li><strong>{{ .lcl.title_status }}:</strong> {{ .plant.Status }}</li>
+                            <li><strong>{{ .lcl.title_strain }}:</strong>
                                 {{ if ne .plant.StrainUrl "" }}
                                     <a href="{{ .plant.StrainUrl }}" target="_blank">{{ .plant.StrainName }}</a> (by {{ .plant.BreederName }})
                                 {{ else }}
@@ -108,42 +108,42 @@
                             <!-- Conditional: If Plant is a Clone -->
                             {{ if .plant.IsClone }}
                             {{ if ne .plant.ParentID 0 }}
-                            <li><strong>Clone Of:</strong> <a href="/plant/{{ .plant.ParentID }}">{{ .plant.ParentName }}</a></li>
+                            <li><strong>{{ .lcl.clone_of }}:</strong> <a href="/plant/{{ .plant.ParentID }}">{{ .plant.ParentName }}</a></li>
                             {{ else }}
-                            <li><strong>Clone Of:</strong> Unknown</li>
+                            <li><strong>{{ .lcl.clone_of }}:</strong> {{ .lcl.title_unknown }}</li>
                             {{ end }}
                             {{ end }}
 
-                            <li><strong>Zone:</strong> {{ .plant.ZoneName }}</li>
-                            <li><strong>Start Date:</strong> {{ formatDate .plant.StartDT }}</li>
+                            <li><strong>{{ .lcl.title_zone }}:</strong> {{ .plant.ZoneName }}</li>
+                            <li><strong>{{ .lcl.start_date }}:</strong> {{ formatDate .plant.StartDT }}</li>
 
                             <!-- Conditional: If Plant is an Autoflower and not Harvested and not Dead -->
                             {{ if and (eq .plant.Autoflower true) (ne .plant.Status "Success") (ne .plant.Status "Drying") (ne .plant.Status "Curing") (ne .plant.Status "Dead") }}
-                            <li><strong>Estimated Harvest Date:</strong> {{ formatDate .plant.EstHarvestDate }}</li>
+                            <li><strong>{{ .lcl.est_harvest_date }}:</strong> {{ formatDate .plant.EstHarvestDate }}</li>
                             {{ end }}
 
 
                             <!-- Conditional: If Plant is Harvested or Dead -->
                             {{ if or (eq .plant.Status "Success") (eq .plant.Status "Drying") (eq .plant.Status "Curing") (eq .plant.Status "Dead") }}
-                            <li><strong>Harvest Date:</strong> {{ formatDate .plant.HarvestDate }}</li>
-                            <li><strong>Harvest Weight:</strong> {{ .plant.HarvestWeight }} grams</li>
+                            <li><strong>{{ .lcl.harvest_date }}:</strong> {{ formatDate .plant.HarvestDate }}</li>
+                            <li><strong>{{ .lcl.harvest_weight }}:</strong> {{ .plant.HarvestWeight }} {{ .lcl.title_grams }}</li>
                             {{ else }}
-                            <li><strong>Day:</strong> {{ .plant.CurrentDay }}</li>
-                            <li><strong>Week:</strong> {{ .plant.CurrentWeek }}</li>
+                            <li><strong>{{ .lcl.title_day }}:</strong> {{ .plant.CurrentDay }}</li>
+                            <li><strong>{{ .lcl.title_week }}:</strong> {{ .plant.CurrentWeek }}</li>
                             {{ end }}
 
                             <!-- Optional: Height -->
                             {{ if ne (formatDate .plant.HeightDate) "01/01/1970" }}
-                            <li><strong>Height:</strong> {{ .plant.CurrentHeight }}" - {{ formatDate .plant.HeightDate }}</li>
+                            <li><strong>{{ .lcl.title_height }}:</strong> {{ .plant.CurrentHeight }}" - {{ formatDate .plant.HeightDate }}</li>
                             {{ end }}
 
                             <!-- Optional: Last Watered or Fed -->
                             {{ if or (ne (formatDate .plant.LastWaterDate) "01/01/1970") (ne (formatDate .plant.LastFeedDate) "01/01/1970") }}
-                            <li><strong>Last Watered or Fed:</strong>
+                            <li><strong>{{ .lcl.last_watered_or_fed }}:</strong>
                                 {{ if gt (formatDate .plant.LastWaterDate) (formatDate .plant.LastFeedDate) }}
-                                {{ formatDate .plant.LastWaterDate }} (Watered)
+                                {{ formatDate .plant.LastWaterDate }} ({{ .lcl.title_watered }})
                                 {{ else }}
-                                {{ formatDate .plant.LastFeedDate }} (Fed)
+                                {{ formatDate .plant.LastFeedDate }} ({{ .lcl.title_fed }})
                                 {{ end }}
                             </li>
                             {{ end }}
@@ -157,13 +157,13 @@
                     <div class="card-body text-center">
                         <div class="d-flex justify-content-around">
                             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMeasurementModal">
-                                <i class="fa-solid fa-plus"></i> Add Measurement
+                                <i class="fa-solid fa-plus"></i> {{ .lcl.add_measurement }}
                             </button>
                             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addActivityModal">
-                                <i class="fa-solid fa-plus"></i> Add Activity
+                                <i class="fa-solid fa-plus"></i> {{ .lcl.add_activity }}
                             </button>
                             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadImagesModal">
-                                <i class="fa-solid fa-plus"></i> Upload Images
+                                <i class="fa-solid fa-plus"></i> {{ .lcl.upload_images }}
                             </button>
                         </div>
                     </div>
@@ -179,22 +179,22 @@
     <ul class="nav nav-tabs mb-4" id="plantDetailsTabs" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active" id="sensors-tab" data-bs-toggle="tab" data-bs-target="#sensors" type="button" role="tab" aria-controls="sensors" aria-selected="false">
-                Sensors
+                {{ .lcl.title_sensors }}
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="statusHistoryTab-tab" data-bs-toggle="tab" data-bs-target="#statusHistoryTab" type="button" role="tab" aria-controls="statusHistoryTab" aria-selected="false">
-                Status History
+                {{ .lcl.status_history }}
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="measurements-tab" data-bs-toggle="tab" data-bs-target="#measurements" type="button" role="tab" aria-controls="measurements" aria-selected="false">
-                Measurements
+                {{ .lcl.title_measurements }}
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="activities-tab" data-bs-toggle="tab" data-bs-target="#activities" type="button" role="tab" aria-controls="activities" aria-selected="false">
-                Activities
+                {{ .lcl.title_activities }}
             </button>
         </li>
     </ul>
@@ -204,10 +204,10 @@
         <!-- Sensors Tab -->
         <div class="tab-pane fade show active" id="sensors" role="tabpanel" aria-labelledby="sensors-tab">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h3 class="text-secondary">Sensors</h3>
+                <h3 class="text-secondary">{{ .lcl.title_sensors }}</h3>
                 {{ if .loggedIn }}
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#linkSensorModal">
-                    <i class="fa-solid fa-link"></i> Link Sensors
+                    <i class="fa-solid fa-link"></i> {{ .lcl.link_sensors }}
                 </button>
                 {{ end }}
             </div>
@@ -231,13 +231,13 @@
         <!-- Status History Tab -->
         <div class="tab-pane fade" id="statusHistoryTab" role="tabpanel" aria-labelledby="status-tab">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h3 class="text-secondary">Status History</h3>
+                <h3 class="text-secondary">{{ .lcl.status_history }}</h3>
             </div>
             <table class="table table-striped table-bordered table-hover">
                 <thead class="table-dark">
                 <tr>
-                    <th>Date</th>
-                    <th>Status</th>
+                    <th>{{ .lcl.title_date }}</th>
+                    <th>{{ .lcl.title_status }}</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -254,14 +254,14 @@
         <!-- Measurements Tab -->
         <div class="tab-pane fade" id="measurements" role="tabpanel" aria-labelledby="measurements-tab">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h3 class="text-secondary">Measurements</h3>
+                <h3 class="text-secondary">{{ .lcl.title_measurements }}</h3>
             </div>
             <table class="table table-striped table-bordered table-hover">
                 <thead class="table-dark">
                 <tr>
-                    <th>Date</th>
-                    <th>Measurement</th>
-                    <th>Value</th>
+                    <th>{{ .lcl.title_date }}</th>
+                    <th>{{ .lcl.title_measurement }}</th>
+                    <th>{{ .lcl.title_value }}</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -279,14 +279,14 @@
         <!-- Activities Tab -->
         <div class="tab-pane fade" id="activities" role="tabpanel" aria-labelledby="activities-tab">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h3 class="text-secondary">Activities</h3>
+                <h3 class="text-secondary">{{ .lcl.title_activities }}</h3>
             </div>
             <table class="table table-striped table-bordered table-hover">
                 <thead class="table-dark">
                 <tr>
-                    <th>Date</th>
-                    <th>Activity</th>
-                    <th>Note</th>
+                    <th>{{ .lcl.title_date }}</th>
+                    <th>{{ .lcl.title_activity }}</th>
+                    <th>{{ .lcl.title_note }}</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -308,7 +308,7 @@
     <!-- Image Gallery Tab -->
     <div class="row g-4" id="gallery">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h3 class="text-secondary">Image Gallery</h3>
+            <h3 class="text-secondary">{{ .lcl.image_gallery }}</h3>
         </div>
         <div class="row g-3">
             {{ range .plant.Images }}
@@ -341,13 +341,13 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="uploadImagesModalLabel">Upload Images</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="uploadImagesModalLabel">{{ .lcl.upload_images }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <!-- Drag-and-Drop Area -->
                 <div id="dropArea" class="border border-primary rounded p-4 text-center mb-3">
-                    <p>Drag and drop images here or click to browse</p>
+                    <p>{{ .lcl.upload_image_info }}</p>
                     <input type="file" id="imageInput" accept="image/*" multiple style="display: none;">
                 </div>
                 <div id="imagePreviewContainer" class="row g-3">
@@ -355,7 +355,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-primary" id="uploadImagesButton">Upload Images</button>
+                <button type="button" class="btn btn-primary" id="uploadImagesButton">{{ .lcl.upload_images }}</button>
             </div>
         </div>
     </div>
@@ -366,8 +366,8 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="imageModalLabel">Image Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="imageModalLabel">{{ .lcl.image_details }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <div class="text-center">
@@ -383,15 +383,15 @@
                 <div class="mt-3">
                     <div class="row">
                         <div class="col-md-6">
-                            <label for="fontDropdown">Select Font</label>
+                            <label for="fontDropdown">{{ .lcl.select_font }}</label>
                             <select id="fontDropdown" class="form-select">
                             </select>
-                            <p id="fontPreview" class="mt-2">Preview: The quick brown fox</p>
+                            <p id="fontPreview" class="mt-2">{{ .lcl.font_preview_text }}</p>
                         </div>
                         <div class="col-md-6">
-                            <label for="logoDropdown">Select Logo</label>
+                            <label for="logoDropdown">{{ .lcl.select_logo }}</label>
                             <select id="logoDropdown" class="form-select">
-                                <option value="">None</option>
+                                <option value="">{{ .lcl.title_none }}</option>
                             </select>
                             <img id="logoPreview" src="" class="img-thumbnail mt-2" style="max-width: 100px; display: none;" />
                         </div>
@@ -399,49 +399,49 @@
                     <div class="row mt-3">
                         <!-- Text Customization -->
                         <div class="col-md-6">
-                            <label for="text1">Top Text</label>
+                            <label for="text1">{{ .lcl.top_text }}</label>
                             <select id="text1Dropdown" class="form-select">
 
                             </select>
-                            <input type="text" id="text1" class="form-control mt-2" placeholder="Custom text" disabled>
-                            <label for="text1Corner" class="mt-2">Placement</label>
+                            <input type="text" id="text1" class="form-control mt-2" placeholder="{{ .lcl.custom_text }}" disabled>
+                            <label for="text1Corner" class="mt-2">{{ .lcl.title_placement }}</label>
                             <select id="text1Corner" class="form-select">
-                                <option selected value="top-left">Top Left</option>
-                                <option value="top-right">Top Right</option>
-                                <option value="bottom-left">Bottom Left</option>
-                                <option value="bottom-right">Bottom Right</option>
+                                <option selected value="top-left">{{ .lcl.top_left }}</option>
+                                <option value="top-right">{{ .lcl.top_right }}</option>
+                                <option value="bottom-left">{{ .lcl.bottom_left }}</option>
+                                <option value="bottom-right">{{ .lcl.bottom_right }}</option>
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label for="text2">Bottom Text</label>
+                            <label for="text2">{{ .lcl.bottom_text }}</label>
                             <select id="text2Dropdown" class="form-select">
 
                             </select>
                             <input type="text" id="text2" class="form-control mt-2" placeholder="Custom text" disabled>
-                            <label for="text2Corner" class="mt-2">Placement</label>
+                            <label for="text2Corner" class="mt-2">{{ .lcl.title_placement }}</label>
                             <select id="text2Corner" class="form-select">
-                                <option value="top-left">Top Left</option>
-                                <option value="top-right">Top Right</option>
-                                <option value="bottom-left">Bottom Left</option>
-                                <option selected value="bottom-right">Bottom Right</option>
+                                <option value="top-left">{{ .lcl.top_left }}</option>
+                                <option value="top-right">{{ .lcl.top_right }}</option>
+                                <option value="bottom-left">{{ .lcl.bottom_left }}</option>
+                                <option selected value="bottom-right">{{ .lcl.bottom_right }}</option>
                             </select>
                         </div>
                     </div>
                     <div class="row mt-3">
                         <div class="col-md-6">
-                            <label for="textColor">Text Color</label>
+                            <label for="textColor">{{ .lcl.text_color }}</label>
                             <input type="color" id="textColor" class="form-control form-control-color" value="#FFFFFF">
                         </div>
                     </div>
                 </div>
                 <div class="text-center mt-4">
                     <button id="decorateImage" class="btn btn-primary">
-                        <i class="fa fa-magic"></i> Decorate Image
+                        <i class="fa fa-magic"></i> {{ .lcl.decorate_image }}
                     </button>
                 </div>
                 <div class="d-flex justify-content-between mt-3">
-                    <button id="prevImage" class="btn btn-secondary">Previous</button>
-                    <button id="nextImage" class="btn btn-secondary">Next</button>
+                    <button id="prevImage" class="btn btn-secondary">{{ .lcl.title_previous }}</button>
+                    <button id="nextImage" class="btn btn-secondary">{{ .lcl.title_next }}</button>
                 </div>
                 {{ if .loggedIn }}
                 <button class="btn btn-danger btn-sm position-absolute top-0 end-0 m-1"
@@ -459,18 +459,18 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="linkSensorModalLabel">Link Sensors</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="linkSensorModalLabel">{{ .lcl.link_sensors }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <form id="linkSensorForm">
                     <table class="table table-bordered table-striped table-hover">
                         <thead class="table-dark">
                         <tr>
-                            <th>Select</th>
-                            <th>Sensor Name</th>
-                            <th>Source</th>
-                            <th>Device</th>
+                            <th>{{ .lcl.title_select }}</th>
+                            <th>{{ .lcl.sensor_name }}</th>
+                            <th>{{ .lcl.title_source }}</th>
+                            <th>{{ .lcl.title_device }}</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -496,7 +496,7 @@
 
                         </tbody>
                     </table>
-                    <button type="submit" class="btn btn-primary">Link Sensors</button>
+                    <button type="submit" class="btn btn-primary">{{ .lcl.link_sensors }}</button>
                 </form>
             </div>
         </div>
@@ -508,14 +508,14 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="changeStatusModalLabel">Update Plant</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="changeStatusModalLabel">{{ .lcl.update_plant }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <form id="changeStatusForm">
                     <!-- Status Dropdown -->
                     <div class="mb-3">
-                        <label for="status" class="form-label">Status</label>
+                        <label for="status" class="form-label">{{ .lcl.title_status }}</label>
                         <select class="form-select" id="status" required>
                             {{ range .statuses }}
                             <option
@@ -527,62 +527,62 @@
 
                     <!-- Date Picker -->
                     <div class="mb-3">
-                        <label for="statusDate" class="form-label">Effective Date</label>
+                        <label for="statusDate" class="form-label">{{ .lcl.effective_date }}</label>
                         <input type="date" class="form-control" id="statusDate" required>
                     </div>
 
                     <!-- Plant Name -->
                     <div class="mb-3">
-                        <label for="plantName" class="form-label">Plant Name</label>
+                        <label for="plantName" class="form-label">{{ .lcl.plant_name }}</label>
                         <input type="text" class="form-control" id="plantName" value="{{ .plant.Name }}">
                     </div>
 
                     <!-- Start Date -->
                     <div class="mb-3">
-                        <label for="startDate" class="form-label">Start Date</label>
+                        <label for="startDate" class="form-label">{{ .lcl.start_date }}</label>
                         <input type="date" class="form-control" id="startDate" value="{{ .plant.StartDT | formatDateISO }}">
                     </div>
 
                     <!-- Plant Description -->
                     <div class="mb-3">
-                        <label for="plantDescription" class="form-label">Plant Description</label>
+                        <label for="plantDescription" class="form-label">{{ .lcl.plant_description }}</label>
                         <textarea class="form-control" id="plantDescription" rows="3">{{ .plant.Description }}</textarea>
                     </div>
 
                     <!-- Plant Strain -->
                     <!-- Strain Dropdown -->
                     <div class="mb-3">
-                        <label for="strainSelect" class="form-label">Strain</label>
+                        <label for="strainSelect" class="form-label">{{ .lcl.title_strain }}</label>
                         <select class="form-select" id="strainSelect" required>
                             {{ range .strains }}
                             <option
                                     {{ if eq .ID $.plant.StrainID }}selected{{ end }}
                                     value="{{ .ID }}">{{ .Name }} ({{ .Breeder }})</option>
                             {{ end }}
-                            <option value="new">Add New Strain</option>
+                            <option value="new">{{ .lcl.add_new_strain }}</option>
                         </select>
                     </div>
 
                     <!-- New Strain Inputs -->
                     <div class="mb-3 d-none" id="newStrainInputs">
-                        <label for="newStrainName" class="form-label">Strain Name</label>
-                        <input type="text" class="form-control" id="newStrainName" placeholder="Enter Strain Name">
+                        <label for="newStrainName" class="form-label">{{ .lcl.strain_name }}</label>
+                        <input type="text" class="form-control" id="newStrainName" placeholder="{{ .lcl.enter_strain_name }}">
 
                         <!-- Breeder Dropdown -->
                         <div class="mb-3">
-                            <label for="breederSelect" class="form-label">Breeder</label>
+                            <label for="breederSelect" class="form-label">{{ .lcl.breeder }}</label>
                             <select class="form-select" id="breederSelect">
                                 {{ range .breeders }}
                                 <option value="{{ .ID }}">{{ .Name }}</option>
                                 {{ end }}
-                                <option value="new">Add New Breeder</option>
+                                <option value="new">{{ .lcl.add_new_breeder }}</option>
                             </select>
                         </div>
 
                         <!-- New Breeder Input -->
                         <div class="mb-3 d-none" id="newBreederInput">
-                            <label for="newBreederName" class="form-label">New Breeder Name</label>
-                            <input type="text" class="form-control" id="newBreederName" placeholder="Enter Breeder Name">
+                            <label for="newBreederName" class="form-label">{{ .lcl.new_breeder_name }}</label>
+                            <input type="text" class="form-control" id="newBreederName" placeholder="{{ .lcl.enter_breeder_name }}">
                         </div>
                     </div>
 
@@ -591,24 +591,24 @@
                         <input type="checkbox" class="form-check-input" id="cloneCheckbox"
                         {{ if .plant.IsClone }}checked{{ end }}
                         >
-                        <label class="form-check-label" for="cloneCheckbox">This plant is a clone</label>
+                        <label class="form-check-label" for="cloneCheckbox">{{ .lcl.is_clone_info }}</label>
                     </div>
 
                     <!-- Zone Dropdown -->
                     <div class="mb-3">
-                        <label for="zoneSelect" class="form-label">Zone</label>
+                        <label for="zoneSelect" class="form-label">{{ .lcl.title_zone }}</label>
                         <select class="form-select" id="zoneSelect" required>
                             {{ range .zones }}
                             <option value="{{ .ID }}">{{ .Name }}</option>
                             {{ end }}
-                            <option value="new">Add New Zone</option>
+                            <option value="new">{{ .lcl.add_new_zone }}</option>
                         </select>
                     </div>
 
                     <!-- New Zone Input -->
                     <div class="mb-3 d-none" id="newZoneInput">
-                        <label for="newZoneName" class="form-label">New Zone Name</label>
-                        <input type="text" class="form-control" id="newZoneName" placeholder="Enter Zone Name">
+                        <label for="newZoneName" class="form-label">{{ .lcl.new_zone_name }}</label>
+                        <input type="text" class="form-control" id="newZoneName" placeholder="{{ .lcl.enter_new_zone }}">
                     </div>
 
                     <!-- Plant ID (Hidden Input) -->
@@ -616,13 +616,13 @@
 
                     <!-- Harvest Weight -->
                     <div class="mb-3">
-                        <label for="harvestWeight" class="form-label">Harvest Weight (g)</label>
+                        <label for="harvestWeight" class="form-label">{{ .lcl.harvest_weight_g }}</label>
                         <input type="number" class="form-control" id="harvestWeight" value="{{ .plant.HarvestWeight }}">
                     </div>
 
                     <!-- Submit Button -->
                     {{ if .loggedIn }}
-                    <button type="submit" class="btn btn-primary">Change Status</button>
+                    <button type="submit" class="btn btn-primary">{{ .lcl.change_status }}</button>
                     {{ end }}
                 </form>
             </div>
@@ -635,14 +635,14 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="addMeasurementModalLabel">Add Measurement</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="addMeasurementModalLabel">{{ .lcl.add_measurement }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <form id="addMeasurementForm">
                     <!-- Metric Name Dropdown -->
                     <div class="mb-3">
-                        <label for="measurementName" class="form-label">Measurement Name</label>
+                        <label for="measurementName" class="form-label">{{ .lcl.measurement_name }}</label>
                         <select class="form-select" id="measurementName" required>
                             {{ range .measurements }}
                             <option value="{{ .ID }}">{{ .Name }}</option>
@@ -651,18 +651,18 @@
                     </div>
                     <!-- Metric Value Input -->
                     <div class="mb-3">
-                        <label for="measurementValue" class="form-label">Measurement Value</label>
+                        <label for="measurementValue" class="form-label">{{ .lcl.measurement_value }}</label>
                         <input type="number" class="form-control" id="measurementValue" step="any" required>
                     </div>
 
                     <!-- Date Picker -->
                     <div class="mb-3">
-                        <label for="measureDate" class="form-label">Date</label>
+                        <label for="measureDate" class="form-label">{{ .lcl.title_date }}</label>
                         <input type="date" class="form-control" id="measureDate" required>
                     </div>
 
                     <!-- Submit Button -->
-                    <button type="submit" class="btn btn-primary">Add Measurement</button>
+                    <button type="submit" class="btn btn-primary">{{ .lcl.add_measurement }}</button>
                 </form>
             </div>
         </div>
@@ -674,14 +674,14 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="addActivityModalLabel">Add Activity</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="addActivityModalLabel">{{ .lcl.add_activity }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <form id="addActivityForm">
                     <!-- Activity Name Dropdown -->
                     <div class="mb-3">
-                        <label for="activityName" class="form-label">Activity Name</label>
+                        <label for="activityName" class="form-label">{{ .lcl.activity_name }}</label>
                         <select class="form-select" id="activityName" required>
                             {{ range .activities }}
                             <option value="{{ .ID }}">{{ .Name }}</option>
@@ -690,18 +690,18 @@
                     </div>
                     <!-- Activity Note Input -->
                     <div class="mb-3">
-                        <label for="activityNote" class="form-label">Activity Note</label>
+                        <label for="activityNote" class="form-label">{{ .lcl.activity_note }}</label>
                         <textarea class="form-control" id="activityNote" rows="3"></textarea>
                     </div>
 
                     <!-- Date Picker -->
                     <div class="mb-3">
-                        <label for="activityDate" class="form-label">Date</label>
+                        <label for="activityDate" class="form-label">{{ .lcl.title_date }}</label>
                         <input type="date" class="form-control" id="activityDate" required>
                     </div>
 
                     <!-- Submit Button -->
-                    <button type="submit" class="btn btn-primary">Add Activity</button>
+                    <button type="submit" class="btn btn-primary">{{ .lcl.add_activity }}</button>
                 </form>
             </div>
         </div>
@@ -713,19 +713,19 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="editStatusModalLabel">Edit Status</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="editStatusModalLabel">{{ .lcl.edit_status }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <form id="editStatusForm">
                     <input type="hidden" id="statusId">
                     <div class="mb-3">
-                        <label for="editStatusDate" class="form-label">Date</label>
+                        <label for="editStatusDate" class="form-label">{{ .lcl.title_date }}</label>
                         <input type="date" class="form-control" id="editStatusDate" required>
                     </div>
                     {{ if .loggedIn }}
-                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
-                    <button type="button" class="btn btn-danger" id="deleteStatus"><i class="fa-solid fa-trash"></i> Delete Status</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
+                    <button type="button" class="btn btn-danger" id="deleteStatus"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_status }}</button>
                     {{ end }}
                 </form>
             </div>
@@ -738,23 +738,23 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="editMeasurementModalLabel">Edit Measurement</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="editMeasurementModalLabel">{{ .lcl.edit_measurement }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <form id="editMeasurementForm">
                     <input type="hidden" id="measurementId">
                     <div class="mb-3">
-                        <label for="editMeasurementDate" class="form-label">Date</label>
+                        <label for="editMeasurementDate" class="form-label">{{ .lcl.title_date }}</label>
                         <input type="date" class="form-control" id="editMeasurementDate" required>
                     </div>
                     <div class="mb-3">
-                        <label for="editMeasurementValue" class="form-label">Value</label>
+                        <label for="editMeasurementValue" class="form-label">{{ .lcl.title_value }}</label>
                         <input type="number" class="form-control" id="editMeasurementValue" step="any" required>
                     </div>
                     {{ if .loggedIn }}
-                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
-                    <button type="button" class="btn btn-danger" id="deleteMeasurement"><i class="fa-solid fa-trash"></i> Delete Measurement</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
+                    <button type="button" class="btn btn-danger" id="deleteMeasurement"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_measurement }}</button>
                     {{ end }}
                 </form>
             </div>
@@ -767,18 +767,18 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="editActivityModalLabel">Edit Activity</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="editActivityModalLabel">{{ .lcl.edit_activity }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <form id="editActivityForm">
                     <input type="hidden" id="activityId">
                     <div class="mb-3">
-                        <label for="editActivityDate" class="form-label">Date</label>
+                        <label for="editActivityDate" class="form-label">{{ .lcl.title_date }}</label>
                         <input type="date" class="form-control" id="editActivityDate" required>
                     </div>
                     <div class="mb-3">
-                        <label for="editActivityType" class="form-label">Type</label>
+                        <label for="editActivityType" class="form-label">{{ .lcl.title_type }}</label>
                         <select class="form-select" id="editActivityType" required>
                             {{ range .activities }}
                             <option value="{{ .ID }}">{{ .Name }}</option>
@@ -786,12 +786,12 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label for="editActivityNote" class="form-label">Note</label>
+                        <label for="editActivityNote" class="form-label">{{ .lcl.title_note }}</label>
                         <textarea class="form-control" id="editActivityNote" rows="3"></textarea>
                     </div>
                     {{ if .loggedIn }}
-                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
-                    <button type="button" class="btn btn-danger" id="deleteActivity"><i class="fa-solid fa-trash"></i> Delete Activity</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
+                    <button type="button" class="btn btn-danger" id="deleteActivity"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_activity }}</button>
                     {{ end }}
                 </form>
             </div>
@@ -841,7 +841,7 @@
             })
                 .then((response) => {
                     if (!response.ok) {
-                        throw new Error("Failed to add measurement");
+                        throw new Error("{{ .lcl.failed_to_add_measurement }}");
                     }
                     return response.json();
                 })
@@ -853,7 +853,7 @@
                 })
                 .catch((error) => {
                     console.error("Error:", error);
-                    alert("Failed to add measurement. Please try again.");
+                    alert("{{ .lcl.failed_to_add_measurement }}");
                 });
         });
     });
@@ -902,7 +902,7 @@
             })
                 .then((response) => {
                     if (!response.ok) {
-                        throw new Error("Failed to add activity");
+                        throw new Error("{{ .lcl.failed_to_add_activity }}");
                     }
                     return response.json();
                 })
@@ -914,7 +914,7 @@
                 })
                 .catch((error) => {
                     console.error("Error:", error);
-                    alert("Failed to add activity. Please try again.");
+                    alert("{{ .lcl.failed_to_add_activity }}");
                 });
         });
     });
@@ -1036,7 +1036,7 @@
             })
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error("Failed to change status");
+                        throw new Error("{{ .lcl.failed_to_change_status }}");
                     }
                     return response.json();
                 })
@@ -1046,7 +1046,7 @@
                 })
                 .catch(error => {
                     console.error("Error:", error);
-                    alert("Failed to change status. Please try again.");
+                    alert("{{ .lcl.failed_to_change_status }}");
                 });
         });
     });
@@ -1074,13 +1074,13 @@
                 body: JSON.stringify(payload),
             })
                 .then(response => {
-                    if (!response.ok) throw new Error("Failed to link sensors");
+                    if (!response.ok) throw new Error("{{ .lcl.failed_to_link_sensors }}");
                     //alert("Sensors linked successfully!");
                     location.reload();
                 })
                 .catch(error => {
                     console.error("Error:", error);
-                    alert("Failed to link sensors. Please try again.");
+                    alert("{{ .lcl.failed_to_link_sensors }}");
                 });
         });
     });
@@ -1119,17 +1119,17 @@
             })
                 .then(response => response.json())
                 .then(() => location.reload())
-                .catch(err => alert("Failed to update measurement"));
+                .catch(err => alert("{{ .lcl.failed_to_update_measurement }}"));
         });
 
         deleteMeasurementButton.addEventListener("click", () => {
             const measurementId = document.getElementById("measurementId").value;
 
-            if (confirm("Are you sure you want to delete this measurement?")) {
+            if (confirm("{{ .lcl.confirm_delete_measurement }}")) {
                 fetch(`/plantMeasurement/delete/${measurementId}`, { method: "DELETE" })
                     .then(response => response.json())
                     .then(() => location.reload())
-                    .catch(err => alert("Failed to delete measurement"));
+                    .catch(err => alert("{{ .lcl.failed_to_delete_measurement }}"));
             }
         });
     });
@@ -1166,17 +1166,17 @@
             })
                 .then(response => response.json())
                 .then(() => location.reload())
-                .catch(err => alert("Failed to update status history"));
+                .catch(err => alert("{{ .lcl.failed_to_update_status }}"));
         });
 
         deleteStatusButton.addEventListener("click", () => {
             const statusId = document.getElementById("statusId").value;
 
-            if (confirm("Are you sure you want to delete this status?")) {
+            if (confirm("{{ .lcl.confirm_delete_status }}")) {
                 fetch(`/plantStatus/delete/${statusId}`, { method: "DELETE" })
                     .then(response => response.json())
                     .then(() => location.reload())
-                    .catch(err => alert("Failed to delete status history"));
+                    .catch(err => alert("{{ .lcl.failed_to_delete_status }}"));
             }
         });
     });
@@ -1217,17 +1217,17 @@
             })
                 .then(response => response.json())
                 .then(() => location.reload())
-                .catch(err => alert("Failed to update activity"));
+                .catch(err => alert("{{ .lcl.failed_to_update_activity }}"));
         });
 
         deleteActivityButton.addEventListener("click", () => {
             const activityId = document.getElementById("activityId").value;
 
-            if (confirm("Are you sure you want to delete this activity?")) {
+            if (confirm("{{ .lcl.confirm_delete_activity }}")) {
                 fetch(`/plantActivity/delete/${activityId}`, { method: "DELETE" })
                     .then(response => response.json())
                     .then(() => location.reload())
-                    .catch(err => alert("Failed to delete activity"));
+                    .catch(err => alert("{{ .lcl.failed_to_delete_activity }}"));
             }
         });
 
@@ -1384,7 +1384,7 @@
         function handleFiles(files) {
             files.forEach((file) => {
                 if (!file.type.startsWith("image/")) {
-                    alert("Only image files are allowed!");
+                    alert("{{ .lcl.only_image_files }}");
                     return;
                 }
 
@@ -1435,11 +1435,11 @@
             <img src="${src}" class="card-img-top" alt="Preview">
             <div class="card-body">
                 <div class="mb-3">
-                    <label class="form-label">Description</label>
+                    <label class="form-label">{{ .lcl.title_description }}</label>
                     <input type="text" class="form-control description" placeholder="Enter description">
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Date</label>
+                    <label class="form-label">{{ .lcl.title_date }}</label>
                     <input type="date" class="form-control image-date" value="${imageDate}">
                 </div>
             </div>

@@ -20,13 +20,13 @@
     <div class="mb-4">
         {{ if .settings.ACI.Enabled }}
         <button class="btn btn-primary me-2" id="scanACI">
-            <i class="fa-solid fa-search"></i> Scan and Add AC Infinity Sensors
+            <i class="fa-solid fa-search"></i> {{ .lcl.aci_scan_add }}
         </button>
         {{ end }}
 
         {{ if .settings.EC.Enabled }}
         <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#ecScanModal" id="scanEC">
-            <i class="fa-solid fa-search"></i> Scan and Add EcoWitt Sensors
+            <i class="fa-solid fa-search"></i> {{ .lcl.ecowitt_scan_add }}
         </button>
         {{ end }}
     </div>
@@ -36,31 +36,31 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="ecScanModalLabel">Scan EcoWitt Sensors</h5>
+                    <h5 class="modal-title" id="ecScanModalLabel">{{ .lcl.ecowitt_scan }}</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <form id="ecScanForm">
                         <!-- Server Address -->
                         <div class="mb-3">
-                            <label for="serverAddress" class="form-label">Server Address</label>
-                            <input type="text" class="form-control" id="serverAddress" placeholder="Enter EcoWitt Hub Address (IP or Domain)" required>
+                            <label for="serverAddress" class="form-label">{{ .lcl.server_address }}</label>
+                            <input type="text" class="form-control" id="serverAddress" placeholder="{{ .lcl.server_address_placeholder }}" required>
                         </div>
                         <!-- Zone Selection -->
                         <div class="mb-3">
-                            <label for="ecZoneSelect" class="form-label">Zone</label>
+                            <label for="ecZoneSelect" class="form-label">{{ .lcl.title_zone }}</label>
                             <select class="form-select" id="ecZoneSelect" required>
                                 {{ range .zones }}
                                 <option value="{{ .ID }}">{{ .Name }}</option>
                                 {{ end }}
-                                <option value="new">Add New Zone</option>
+                                <option value="new">{{ .lcl.add_new_zone }}</option>
                             </select>
                         </div>
                         <div class="mb-3 d-none" id="ecNewZoneInput">
-                            <label for="ecNewZoneName" class="form-label">New Zone Name</label>
-                            <input type="text" class="form-control" id="ecNewZoneName" placeholder="Enter Zone Name">
+                            <label for="ecNewZoneName" class="form-label">{{ .lcl.new_zone_name }}</label>
+                            <input type="text" class="form-control" id="ecNewZoneName" placeholder="{{ .lcl.enter_zone_name }}">
                         </div>
-                        <button type="submit" class="btn btn-primary">Scan Sensors</button>
+                        <button type="submit" class="btn btn-primary">{{ .lcl.scan_sensors }}</button>
                     </form>
                 </div>
             </div>
@@ -73,16 +73,16 @@
         <table class="table table-striped table-bordered table-hover">
             <thead class="table-dark">
             <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Zone</th>
-                <th>Source</th>
-                <th>Device</th>
-                <th>Type</th>
-                <th>Unit</th>
-                <th>Show/Hide</th>
-                <th>Created</th>
-                <th>Updated</th>
+                <th>{{ .lcl.title_id }}</th>
+                <th>{{ .lcl.title_name }}</th>
+                <th>{{ .lcl.title_zone }}</th>
+                <th>{{ .lcl.title_source }}</th>
+                <th>{{ .lcl.title_device }}</th>
+                <th>{{ .lcl.title_type }}</th>
+                <th>{{ .lcl.title_unit }}</th>
+                <th>{{ .lcl.title_show_hide }}</th>
+                <th>{{ .lcl.title_created }}</th>
+                <th>{{ .lcl.title_updated }}</th>
             </tr>
             </thead>
             <tbody>
@@ -95,7 +95,7 @@
                 <td>{{ .device }}</td>
                 <td>{{ .type }}</td>
                 <td>{{ .unit }}</td>
-                <td>{{ if .visible }}Show{{ else }}Hide{{ end }}</td>
+                <td>{{ if .visible }}{{ .lcl.title_show }}{{ else }}{{ .lcl.title_hide }}{{ end }}</td>
                 <td>{{ formatStringDate .create_dt }}</td>
                 <td>{{ formatStringDate .update_dt }}</td>
             </tr>
@@ -111,28 +111,28 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="zoneModalLabel">Select Zone</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="zoneModalLabel">{{ .lcl.select_zone }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <form id="zoneForm">
                     <div class="mb-3">
-                        <label for="zoneSelect" class="form-label">Zone</label>
+                        <label for="zoneSelect" class="form-label">{{ .lcl.title_zone }}</label>
                         <select class="form-select" id="zoneSelect" required>
                             {{ range .zones }}
                             <option value="{{ .ID }}">{{ .Name }}</option>
                             {{ end }}
-                            <option value="new">Add New Zone</option>
+                            <option value="new">{{ .lcl.add_new_zone }}</option>
                         </select>
                         <div class="form-text" id="noZoneHelp" style="display: none;">
-                            No zones available. Please add a new zone.
+                            {{ .lcl.no_zones_available }}
                         </div>
                     </div>
                     <div class="mb-3 d-none" id="newZoneInput">
-                        <label for="newZoneName" class="form-label">New Zone Name</label>
-                        <input type="text" class="form-control" id="newZoneName" placeholder="Enter Zone Name">
+                        <label for="newZoneName" class="form-label">{{ .lcl.new_zone_name }}</label>
+                        <input type="text" class="form-control" id="newZoneName" placeholder="{{ .lcl.enter_zone_name }}">
                     </div>
-                    <button type="submit" class="btn btn-primary">Proceed</button>
+                    <button type="submit" class="btn btn-primary">{{ .lcl.title_proceed }}</button>
                 </form>
             </div>
         </div>
@@ -146,8 +146,8 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="editSensorModalLabel">Edit Sensor</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="editSensorModalLabel">{{ .lcl.edit_sensor }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <form id="editSensorForm">
@@ -156,29 +156,29 @@
 
                     <!-- Sensor Name -->
                     <div class="mb-3">
-                        <label for="sensorName" class="form-label">Sensor Name</label>
+                        <label for="sensorName" class="form-label">{{ .lcl.sensor_name }}</label>
                         <input type="text" class="form-control" id="sensorName" required>
                     </div>
 
                     <!-- Sensor Device -->
                     <div class="mb-3">
-                        <label for="sensorDevice" class="form-label">Device</label>
+                        <label for="sensorDevice" class="form-label">{{ .lcl.title_device }}</label>
                         <input type="text" class="form-control" id="sensorDevice" required>
-                        <p class="form-text">Edit this only if you've changed devices</p>
+                        <p class="form-text">{{ .lcl.edit_device_info }}</p>
                     </div>
 
                     <!-- Show/Hide -->
                     <div class="mb-3">
-                        <label for="sensorVisibility" class="form-label">Visibility</label>
+                        <label for="sensorVisibility" class="form-label">{{ .lcl.title_visibility }}</label>
                         <select class="form-select" id="sensorVisibility" required>
-                            <option value="true">Show</option>
-                            <option value="false">Hide</option>
+                            <option value="true">{{ .lcl.title_show }}</option>
+                            <option value="false">{{ .lcl.title_hide }}</option>
                         </select>
                     </div>
 
                     <!-- Zone Dropdown -->
                     <div class="mb-3">
-                        <label for="sensorZone" class="form-label">Zone</label>
+                        <label for="sensorZone" class="form-label">{{ .lcl.title_zone }}</label>
                         <select class="form-select" id="sensorZone" required>
                             {{ range .zones }}
                             <option value="{{ .ID }}">{{ .Name }}</option>
@@ -188,14 +188,14 @@
 
                     <!-- Unit -->
                     <div class="mb-3">
-                        <label for="sensorUnit" class="form-label">Unit</label>
+                        <label for="sensorUnit" class="form-label">{{ .lcl.title_unit }}</label>
                         <input type="text" class="form-control" id="sensorUnit" required>
                     </div>
 
                     <!-- Buttons -->
                     <div class="d-flex justify-content-between">
-                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
-                        <button type="button" class="btn btn-danger" id="deleteSensor"><i class="fa-solid fa-trash"></i> Delete Sensor</button>
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
+                        <button type="button" class="btn btn-danger" id="deleteSensor"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_sensor }}</button>
                     </div>
                 </form>
             </div>
@@ -322,7 +322,7 @@
             })
                 .then((response) => {
                     if (!response.ok) {
-                        throw new Error("Failed to scan sensors");
+                        throw new Error("{{ .lcl.failed_sensor_scan }}");
                     }
                     return response.json();
                 })
@@ -331,7 +331,7 @@
                 })
                 .catch((error) => {
                     console.error("Error:", error);
-                    alert("Failed to scan sensors.");
+                    alert("{{ .lcl.failed_sensor_scan }}");
                 });
         });
 
@@ -351,7 +351,7 @@
             };
 
             if (!currentScanEndpoint) {
-                alert("No scan endpoint defined.");
+                alert("{{ .lcl.no_scan_endppoint }}");
                 return;
             }
 
@@ -365,7 +365,7 @@
             })
                 .then((response) => {
                     if (!response.ok) {
-                        throw new Error("Failed to scan EcoWitt sensors");
+                        throw new Error("{{ .lcl.failed_sensor_scan }}");
                     }
                     return response.json();
                 })
@@ -374,7 +374,7 @@
                 })
                 .catch((error) => {
                     console.error("Error:", error);
-                    alert("Failed to scan EcoWitt sensors.");
+                    alert("{{ .lcl.failed_sensor_scan }}");
                 });
         });
     });
@@ -433,7 +433,7 @@
                 body: JSON.stringify(payload),
             })
                 .then(response => {
-                    if (!response.ok) throw new Error("Failed to save changes");
+                    if (!response.ok) throw new Error("{{ .lcl.failed_save_changes }}");
                     return response.json();
                 })
                 .then(data => {
@@ -442,22 +442,22 @@
                 })
                 .catch(error => {
                     console.error("Error:", error);
-                    alert("Failed to update sensor.");
+                    alert("{{ .lcl.failed_update_sensor }}");
                 });
         });
 
         // Delete sensor
         deleteButton.addEventListener("click", () => {
-            if (confirm("Are you sure you want to delete this sensor? This action cannot be undone.")) {
+            if (confirm("{{ .lcl.confirm_delete_sensor }}")) {
                 fetch(`/sensors/delete/${currentSensor.id}`, { method: "DELETE" })
                     .then(response => {
-                        if (!response.ok) throw new Error("Failed to delete sensor");
+                        if (!response.ok) throw new Error("{{ .lcl.failed_delete_sensor }}");
                         //alert("Sensor deleted successfully!");
                         window.location.reload();
                     })
                     .catch(error => {
                         console.error("Error:", error);
-                        alert("Failed to delete sensor.");
+                        alert("{{ .lcl.failed_delete_sensor }}");
                     });
             }
         });

@@ -52,14 +52,14 @@
             <!-- View Selector -->
             <div class="mb-4 d-flex justify-content-between align-items-center">
                 <div class="btn-group" role="group">
-                    <button class="btn view-button active" data-view="living">Living Plants</button>
-                    <button class="btn view-button" data-view="harvested">Harvested Plants</button>
-                    <button class="btn view-button" data-view="dead">Dead Plants</button>
+                    <button class="btn view-button active" data-view="living">{{ .lcl.living_plants }}</button>
+                    <button class="btn view-button" data-view="harvested">{{ .lcl.harvested_plants }}</button>
+                    <button class="btn view-button" data-view="dead">{{ .lcl.dead_plants }}</button>
                 </div>
                 <div class="d-flex align-items-center">
                     <div class="input-group">
                         <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
-                        <input type="text" class="form-control" id="searchPlants" placeholder="Search plants...">
+                        <input type="text" class="form-control" id="searchPlants" placeholder="{{ .lcl.search_plants }}...">
                     </div>
                     {{ if .loggedIn }}
                     <button class="btn btn-success ms-3" data-bs-toggle="modal" data-bs-target="#addPlantModal">
@@ -76,13 +76,13 @@
                 <table class="table table-striped table-bordered table-hover">
                     <thead class="table-dark" id="plantsTableHeader">
                     <tr>
-                        <th scope="col" data-sort="name" data-type="text" class="sortable">Plant <i class="fa-solid fa-sort"></i></th>
-                        <th scope="col" data-sort="strain_name" data-type="text" class="sortable">Strain <i class="fa-solid fa-sort"></i></th>
-                        <th scope="col" data-sort="breeder_name" data-type="text" class="sortable">Breeder <i class="fa-solid fa-sort"></i></th>
-                        <th scope="col" data-sort="status" data-type="text" class="sortable">Status <i class="fa-solid fa-sort"></i></th>
-                        <th scope="col" data-sort="start_date" data-type="date" class="sortable">Start Date <i class="fa-solid fa-sort"></i></th>
-                        <th scope="col" id="dynamicHeader1" class="sortable">Current Week <i class="fa-solid fa-sort"></i></th>
-                        <th scope="col" id="dynamicHeader2" class="sortable">Current Day <i class="fa-solid fa-sort"></i></th>
+                        <th scope="col" data-sort="name" data-type="text" class="sortable">{{ .lcl.title_plant }} <i class="fa-solid fa-sort"></i></th>
+                        <th scope="col" data-sort="strain_name" data-type="text" class="sortable">{{ .lcl.title_strain }} <i class="fa-solid fa-sort"></i></th>
+                        <th scope="col" data-sort="breeder_name" data-type="text" class="sortable">{{ .lcl.breeder }} <i class="fa-solid fa-sort"></i></th>
+                        <th scope="col" data-sort="status" data-type="text" class="sortable">{{ .lcl.title_status }} <i class="fa-solid fa-sort"></i></th>
+                        <th scope="col" data-sort="start_date" data-type="date" class="sortable">{{ .lcl.start_date }} <i class="fa-solid fa-sort"></i></th>
+                        <th scope="col" id="dynamicHeader1" class="sortable">{{ .lcl.current_week }} <i class="fa-solid fa-sort"></i></th>
+                        <th scope="col" id="dynamicHeader2" class="sortable">{{ .lcl.current_day }} <i class="fa-solid fa-sort"></i></th>
                     </tr>
                     </thead>
                     <tbody id="plantsTableBody">
@@ -99,71 +99,71 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="addPlantModalLabel">Add New Plant</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="addPlantModalLabel">{{ .lcl.add_new_plant }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
                 <form id="addPlantForm">
                     <!-- Plant Name -->
                     <div class="mb-3">
-                        <label for="plantName" class="form-label">Plant Name</label>
-                        <input type="text" class="form-control" id="plantName" placeholder="Enter Plant Name" required>
+                        <label for="plantName" class="form-label">{{ .lcl.plant_name }}</label>
+                        <input type="text" class="form-control" id="plantName" placeholder="{{ .lcl.plant_name_placeholder }}" required>
                     </div>
 
                     <!-- Zone Dropdown -->
                     <div class="mb-3">
-                        <label for="zoneSelect" class="form-label">Zone</label>
+                        <label for="zoneSelect" class="form-label">{{ .lcl.title_zone }}</label>
                         <select class="form-select" id="zoneSelect" required>
                             {{ range .zones }}
                             <option value="{{ .ID }}">{{ .Name }}</option>
                             {{ end }}
-                            <option value="new">Add New Zone</option>
+                            <option value="new">{{ .lcl.add_new_zone }}</option>
                         </select>
                     </div>
 
                     <!-- New Zone Input -->
                     <div class="mb-3 d-none" id="newZoneInput">
-                        <label for="newZoneName" class="form-label">New Zone Name</label>
-                        <input type="text" class="form-control" id="newZoneName" placeholder="Enter Zone Name">
+                        <label for="newZoneName" class="form-label">{{ .lcl.new_zone_name }}</label>
+                        <input type="text" class="form-control" id="newZoneName" placeholder="{{ .lcl.enter_zone_name }}">
                     </div>
 
                     <!-- Strain Dropdown -->
                     <div class="mb-3">
-                        <label for="strainSelect" class="form-label">Strain</label>
+                        <label for="strainSelect" class="form-label">{{ .lcl.title_strain }}</label>
                         <select class="form-select" id="strainSelect" required>
                             {{ range .strains }}
                             <option value="{{ .ID }}">{{ .Name }} ({{ .Breeder }})</option>
                             {{ end }}
-                            <option value="new">Add New Strain</option>
+                            <option value="new">{{ .lcl.add_new_strain }}</option>
                         </select>
                     </div>
 
                     <!-- New Strain Inputs -->
                     <div class="mb-3 d-none" id="newStrainInputs">
-                        <label for="newStrainName" class="form-label">Strain Name</label>
-                        <input type="text" class="form-control" id="newStrainName" placeholder="Enter Strain Name">
+                        <label for="newStrainName" class="form-label">{{ .lcl.strain_name }}</label>
+                        <input type="text" class="form-control" id="newStrainName" placeholder="{{ .lcl.enter_strain_name }}">
 
                         <!-- Breeder Dropdown -->
                         <div class="mb-3">
-                            <label for="breederSelect" class="form-label">Breeder</label>
+                            <label for="breederSelect" class="form-label">{{ .lcl.breeder }}</label>
                             <select class="form-select" id="breederSelect">
                                 {{ range .breeders }}
                                 <option value="{{ .ID }}">{{ .Name }}</option>
                                 {{ end }}
-                                <option value="new">Add New Breeder</option>
+                                <option value="new">{{ .lcl.add_new_breeder }}</option>
                             </select>
                         </div>
 
                         <!-- New Breeder Input -->
                         <div class="mb-3 d-none" id="newBreederInput">
-                            <label for="newBreederName" class="form-label">New Breeder Name</label>
-                            <input type="text" class="form-control" id="newBreederName" placeholder="Enter Breeder Name">
+                            <label for="newBreederName" class="form-label">{{ .lcl.new_breeder_name }}</label>
+                            <input type="text" class="form-control" id="newBreederName" placeholder="{{ .lcl.enter_breeder_name }}">
                         </div>
                     </div>
 
                     <!-- Status Dropdown -->
                     <div class="mb-3">
-                        <label for="statusSelect" class="form-label">Status</label>
+                        <label for="statusSelect" class="form-label">{{ .lcl.title_status }}</label>
                         <select class="form-select" id="statusSelect" required>
                             {{ range .statuses }}
                             <option value="{{ .ID }}">{{ .Status }}</option>
@@ -173,33 +173,33 @@
 
                     <!-- Date Picker -->
                     <div class="mb-3">
-                        <label for="startDate" class="form-label">Date</label>
+                        <label for="startDate" class="form-label">{{ .lcl.title_date }}</label>
                         <input type="date" class="form-control" id="startDate" required>
                     </div>
 
                     <!-- Clone Checkbox -->
                     <div class="mb-3 form-check">
                         <input type="checkbox" class="form-check-input" id="isClone">
-                        <label class="form-check-label" for="isClone">Is Clone</label>
+                        <label class="form-check-label" for="isClone">{{ .lcl.is_clone }}</label>
                     </div>
 
 
                     <!-- Parent Plant Dropdown (Hidden by default) -->
                     <div class="mb-3 d-none" id="parentPlantDropdown">
-                        <label for="parentPlantSelect" class="form-label">Parent Plant</label>
+                        <label for="parentPlantSelect" class="form-label">{{ .lcl.parent_plant }}</label>
                         <select class="form-select" id="parentPlantSelect">
-                            <option value="0">None</option>
+                            <option value="0">{{ .lcl.title_none }}</option>
                         </select>
                     </div>
 
                     <!-- Decrement Seed Count Checkbox -->
                     <div class="mb-3 form-check">
                         <input type="checkbox" class="form-check-input" id="decrementSeedCount">
-                        <label class="form-check-label" for="decrementSeedCount">Decrement Seed Count</label>
+                        <label class="form-check-label" for="decrementSeedCount">{{ .lcl.decrement_seed_count }}</label>
                     </div>
 
                     <!-- Submit Button -->
-                    <button type="submit" class="btn btn-primary">Add Plant</button>
+                    <button type="submit" class="btn btn-primary">{{ .lcl.add_plant }}</button>
                 </form>
             </div>
         </div>
@@ -241,14 +241,14 @@
 
         const updateHeaders = (view) => {
             if (view === "harvested") {
-                headerDynamic1.textContent = "Harvest Weight (g)";
-                headerDynamic2.textContent = "Harvest Date";
+                headerDynamic1.textContent = "{{ .lcl.harvest_weight_g }}";
+                headerDynamic2.textContent = "{{ .lcl.harvest_date }}";
             } else if (view === "dead") {
-                headerDynamic1.textContent = "Dead Date";
+                headerDynamic1.textContent = "{{ .lcl.dead_date }}";
                 headerDynamic2.textContent = ""; // Hide second header
             } else {
-                headerDynamic1.textContent = "Current Week";
-                headerDynamic2.textContent = "Current Day";
+                headerDynamic1.textContent = "{{ .lcl.current_week }}";
+                headerDynamic2.textContent = "{{ .lcl.current_day }}";
             }
         };
 
@@ -385,19 +385,19 @@
                 parentPlantDropdown.classList.remove("d-none");
             } else {
                 parentPlantDropdown.classList.add("d-none");
-                parentPlantSelect.innerHTML = '<option value="0">None</option>';
+                parentPlantSelect.innerHTML = '<option value="0">{{ .lcl.title_none }}</option>';
             }
         });
 
         strainSelect.addEventListener("change", () => {
             if (strainSelect.value === "new") {
                 parentPlantDropdown.classList.add("d-none");
-                parentPlantSelect.innerHTML = '<option value="0">None</option>';
+                parentPlantSelect.innerHTML = '<option value="0">{{ .lcl.title_none }}</option>';
             } else {
                 fetch(`/plants/by-strain/${strainSelect.value}`)
                     .then(response => response.json())
                     .then(plants => {
-                        parentPlantSelect.innerHTML = '<option value="0">None</option>';
+                        parentPlantSelect.innerHTML = '<option value="0">{{ .lcl.title_none }}</option>';
                         plants.forEach(plant => {
                             parentPlantSelect.innerHTML += `<option value="${plant.id}">${plant.name}</option>`;
                         });

@@ -101,24 +101,6 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	r.GET("/listFonts", utils.ListFontsHandler)
 	r.GET("/listLogos", utils.ListLogosHandler)
 
-	r.GET("/sensors", func(c *gin.Context) {
-		lang := c.DefaultQuery("lang", "en")
-		translations := utils.TranslationService.GetTranslations(lang)
-		c.HTML(http.StatusOK, "views/sensors.html", gin.H{
-			"title":           "Sensors",
-			"version":         version,
-			"settings":        handlers.GetSettings(),
-			"sensors":         handlers.GetSensors(),
-			"zones":           config.Zones,
-			"plants":          handlers.GetLivingPlants(),
-			"activities":      config.Activities,
-			"loggedIn":        sessions.Default(c).Get("logged_in"),
-			"lcl":             translations,
-			"languages":       utils.AvailableLanguages,
-			"currentLanguage": lang,
-		})
-	})
-
 	r.GET("/plants/living", handlers.LivingPlantsHandler)
 	r.GET("/plants/harvested", handlers.HarvestedPlantsHandler)
 	r.GET("/plants/dead", handlers.DeadPlantsHandler)
@@ -195,6 +177,24 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"plants":          handlers.GetLivingPlants(),
 			"activities":      config.Activities,
 			"breeders":        config.Breeders,
+			"loggedIn":        sessions.Default(c).Get("logged_in"),
+			"lcl":             translations,
+			"languages":       utils.AvailableLanguages,
+			"currentLanguage": lang,
+		})
+	})
+
+	r.GET("/sensors", func(c *gin.Context) {
+		lang := c.DefaultQuery("lang", "en")
+		translations := utils.TranslationService.GetTranslations(lang)
+		c.HTML(http.StatusOK, "views/sensors.html", gin.H{
+			"title":           "Sensors",
+			"version":         version,
+			"settings":        handlers.GetSettings(),
+			"sensors":         handlers.GetSensors(),
+			"zones":           config.Zones,
+			"plants":          handlers.GetLivingPlants(),
+			"activities":      config.Activities,
 			"loggedIn":        sessions.Default(c).Get("logged_in"),
 			"lcl":             translations,
 			"languages":       utils.AvailableLanguages,
