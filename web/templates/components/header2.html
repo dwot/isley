@@ -101,7 +101,7 @@
                     <!-- Date Picker -->
                     <div class="mb-3">
                         <label for="activityMultiDate" class="form-label">{{ .lcl.title_date }}</label>
-                        <input type="date" class="form-control" id="activityMultiDate" required>
+                        <input type="datetime-local" class="form-control" id="activityMultiDate" required value="{{ now | formatDateTimeLocal }}">
                     </div>
 
                     <!-- Plant Selection -->
@@ -155,13 +155,13 @@
         const activityMultiDateInput = document.getElementById("activityMultiDate");
 
         // Set default date to today
-        const setMultiDefaultDate = () => {
-            const today = new Date().toISOString().split("T")[0];
-            activityMultiDateInput.value = today;
-        };
+        //const setMultiDefaultDate = () => {
+        //    const today = new Date().toISOString().split("T")[0];
+        //    activityMultiDateInput.value = today;
+        //};
 
         // Set default date when the modal is shown
-        addMultiPlantActivityModal.addEventListener("show.bs.modal", setMultiDefaultDate);
+        //addMultiPlantActivityModal.addEventListener("show.bs.modal", setMultiDefaultDate);
 
         form.addEventListener("submit", (e) => {
             e.preventDefault();

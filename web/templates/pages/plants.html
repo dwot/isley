@@ -174,7 +174,7 @@
                     <!-- Date Picker -->
                     <div class="mb-3">
                         <label for="startDate" class="form-label">{{ .lcl.title_date }}</label>
-                        <input type="date" class="form-control" id="startDate" required>
+                        <input type="datetime-local" class="form-control" id="startDate" required value="{{ now | formatDateTimeLocal }}">
                     </div>
 
                     <!-- Clone Checkbox -->
@@ -349,10 +349,10 @@
         const decrementSeedCount = document.getElementById("decrementSeedCount");
 
         // Set default date to today
-        const setDefaultDate = () => {
-            const today = new Date().toISOString().split("T")[0];
-            startDt.value = today;
-        };
+        //const setDefaultDate = () => {
+        //    const today = new Date().toISOString().split("T")[0];
+        //    startDt.value = today;
+        //};
 
         // Reset Zone Selection
         const resetZoneSelection = () => {

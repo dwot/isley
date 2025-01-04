@@ -82,9 +82,26 @@ func main() {
 			}
 			return string(a)
 		},
+		"formatStringDateTimeLocal": func(t string) string {
+			parsedTime, err := time.Parse(time.RFC3339, t)
+			if err != nil {
+				return "" // Return empty if parsing fails
+			}
+			return parsedTime.Format("2006-01-02T15:04")
+		},
+		"formatDateTimeLocal": func(t time.Time) string {
+			return t.Format("2006-01-02T15:04")
+		},
+		"toLocalTimeString": func(t time.Time) string {
+			if err != nil {
+				return "" // Fallback to the original string if parsing fails
+			}
+			return t.In(time.Local).Format("01/02/2006 03:04 PM")
+		},
 		"formatDate": func(t time.Time) string {
 			return t.Format("01/02/2006")
 		},
+		"formatDateTime": func(t time.Time) string { return t.Format("01/02/2006 03:04 PM") },
 		"formatDateISO": func(t time.Time) string {
 			return t.Format("2006-01-02")
 		},
@@ -125,6 +142,9 @@ func main() {
 				return t[:100] + "..."
 			}
 			return t
+		},
+		"now": func() time.Time {
+			return time.Now()
 		},
 	}
 

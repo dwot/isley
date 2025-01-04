@@ -115,7 +115,7 @@
                             {{ end }}
 
                             <li><strong>{{ .lcl.title_zone }}:</strong> {{ .plant.ZoneName }}</li>
-                            <li><strong>{{ .lcl.start_date }}:</strong> {{ formatDate .plant.StartDT }}</li>
+                            <li><strong>{{ .lcl.start_date }}:</strong> {{ formatDateTime .plant.StartDT }}</li>
 
                             <!-- Conditional: If Plant is an Autoflower and not Harvested and not Dead -->
                             {{ if and (eq .plant.Autoflower true) (ne .plant.Status "Success") (ne .plant.Status "Drying") (ne .plant.Status "Curing") (ne .plant.Status "Dead") }}
@@ -125,7 +125,7 @@
 
                             <!-- Conditional: If Plant is Harvested or Dead -->
                             {{ if or (eq .plant.Status "Success") (eq .plant.Status "Drying") (eq .plant.Status "Curing") (eq .plant.Status "Dead") }}
-                            <li><strong>{{ .lcl.harvest_date }}:</strong> {{ formatDate .plant.HarvestDate }}</li>
+                            <li><strong>{{ .lcl.harvest_date }}:</strong> {{ formatDateTime .plant.HarvestDate }}</li>
                             <li><strong>{{ .lcl.harvest_weight }}:</strong> {{ .plant.HarvestWeight }} {{ .lcl.title_grams }}</li>
                             {{ else }}
                             <li><strong>{{ .lcl.title_day }}:</strong> {{ .plant.CurrentDay }}</li>
@@ -138,12 +138,12 @@
                             {{ end }}
 
                             <!-- Optional: Last Watered or Fed -->
-                            {{ if or (ne (formatDate .plant.LastWaterDate) "01/01/1970") (ne (formatDate .plant.LastFeedDate) "01/01/1970") }}
+                            {{ if or (ne (formatDateTime .plant.LastWaterDate) "01/01/1970") (ne (formatDateTime .plant.LastFeedDate) "01/01/1970") }}
                             <li><strong>{{ .lcl.last_watered_or_fed }}:</strong>
-                                {{ if gt (formatDate .plant.LastWaterDate) (formatDate .plant.LastFeedDate) }}
-                                {{ formatDate .plant.LastWaterDate }} ({{ .lcl.title_watered }})
+                                {{ if gt (formatDateTime .plant.LastWaterDate) (formatDateTime .plant.LastFeedDate) }}
+                                {{ formatDateTime .plant.LastWaterDate }} ({{ .lcl.title_watered }})
                                 {{ else }}
-                                {{ formatDate .plant.LastFeedDate }} ({{ .lcl.title_fed }})
+                                {{ formatDateTime .plant.LastFeedDate }} ({{ .lcl.title_fed }})
                                 {{ end }}
                             </li>
                             {{ end }}
@@ -219,7 +219,7 @@
                             <div class="card-body">
                                 <h5 class="card-title">{{ .Name }}</h5>
                                 <p class="display-6 fw-bold">{{ .Value }} {{ .Unit }}</p>
-                                <small class="text-muted">{{ formatDate .Date }}</small>
+                                <small class="text-muted">{{ toLocalTimeString .Date }}</small>
                             </div>
                         </div>
                     </a>
@@ -243,7 +243,7 @@
                 <tbody>
                 {{ range .plant.StatusHistory }}
                 <tr class="clickable-row status-row" data-status='{{ json . }}'>
-                    <td>{{ formatDate .Date }}</td>
+                    <td>{{ formatDateTime .Date }}</td>
                     <td>{{ .Status }}</td>
                 </tr>
                 {{ end }}
@@ -267,7 +267,7 @@
                 <tbody>
                 {{ range .plant.Measurements }}
                 <tr class="clickable-row measurement-row" data-measurement='{{ json . }}'>
-                    <td>{{ formatDate .Date }}</td>
+                    <td>{{ formatDateTime .Date }}</td>
                     <td>{{ .Name }}</td>
                     <td>{{ .Value }}</td>
                 </tr>
@@ -292,7 +292,7 @@
                 <tbody>
                 {{ range .plant.Activities }}
                 <tr class="clickable-row activity-row" data-activity='{{ json . }}'>
-                    <td>{{ formatDate .Date }}</td>
+                    <td>{{ formatDateTime .Date }}</td>
                     <td>{{ .Name }}</td>
                     <td>{{ preview .Note }}</td>
                 </tr>
@@ -528,7 +528,7 @@
                     <!-- Date Picker -->
                     <div class="mb-3">
                         <label for="statusDate" class="form-label">{{ .lcl.effective_date }}</label>
-                        <input type="date" class="form-control" id="statusDate" required>
+                        <input type="datetime-local" class="form-control" id="statusDate" required value="{{ now | formatDateTimeLocal }}">
                     </div>
 
                     <!-- Plant Name -->
@@ -540,7 +540,7 @@
                     <!-- Start Date -->
                     <div class="mb-3">
                         <label for="startDate" class="form-label">{{ .lcl.start_date }}</label>
-                        <input type="date" class="form-control" id="startDate" value="{{ .plant.StartDT | formatDateISO }}">
+                        <input type="datetime-local" class="form-control" id="startDate" value="{{ .plant.StartDT | formatDateTimeLocal }}">
                     </div>
 
                     <!-- Plant Description -->
@@ -658,7 +658,7 @@
                     <!-- Date Picker -->
                     <div class="mb-3">
                         <label for="measureDate" class="form-label">{{ .lcl.title_date }}</label>
-                        <input type="date" class="form-control" id="measureDate" required>
+                        <input type="datetime-local" class="form-control" id="measureDate" required value="{{ now | formatDateTimeLocal }}">
                     </div>
 
                     <!-- Submit Button -->
@@ -697,7 +697,7 @@
                     <!-- Date Picker -->
                     <div class="mb-3">
                         <label for="activityDate" class="form-label">{{ .lcl.title_date }}</label>
-                        <input type="date" class="form-control" id="activityDate" required>
+                        <input type="datetime-local" class="form-control" id="activityDate" required value="{{ now | formatDateTimeLocal }}">
                     </div>
 
                     <!-- Submit Button -->
@@ -721,7 +721,7 @@
                     <input type="hidden" id="statusId">
                     <div class="mb-3">
                         <label for="editStatusDate" class="form-label">{{ .lcl.title_date }}</label>
-                        <input type="date" class="form-control" id="editStatusDate" required>
+                        <input type="datetime-local" class="form-control" id="editStatusDate" required value="{{ now | formatDateTimeLocal }}">
                     </div>
                     {{ if .loggedIn }}
                     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
@@ -746,7 +746,7 @@
                     <input type="hidden" id="measurementId">
                     <div class="mb-3">
                         <label for="editMeasurementDate" class="form-label">{{ .lcl.title_date }}</label>
-                        <input type="date" class="form-control" id="editMeasurementDate" required>
+                        <input type="datetime-local" class="form-control" id="editMeasurementDate" required value="{{ now | formatDateTimeLocal }}">
                     </div>
                     <div class="mb-3">
                         <label for="editMeasurementValue" class="form-label">{{ .lcl.title_value }}</label>
@@ -775,7 +775,7 @@
                     <input type="hidden" id="activityId">
                     <div class="mb-3">
                         <label for="editActivityDate" class="form-label">{{ .lcl.title_date }}</label>
-                        <input type="date" class="form-control" id="editActivityDate" required>
+                        <input type="datetime-local" class="form-control" id="editActivityDate" required value="{{ now | formatDateTimeLocal }}">
                     </div>
                     <div class="mb-3">
                         <label for="editActivityType" class="form-label">{{ .lcl.title_type }}</label>
@@ -806,13 +806,13 @@
         const measurementDateInput = document.getElementById("measureDate");
 
         // Set default date to today
-        const setDefaultDate = () => {
-            const today = new Date().toISOString().split("T")[0];
-            measurementDateInput.value = today;
-        };
+        //const setDefaultDate = () => {
+        //    const today = new Date().toISOString().split("T")[0];
+        //    measurementDateInput.value = today;
+        //};
 
         // Set default date when the modal is shown
-        addMeasurementModal.addEventListener("show.bs.modal", setDefaultDate);
+        //addMeasurementModal.addEventListener("show.bs.modal", setDefaultDate);
 
         form.addEventListener("submit", (e) => {
             e.preventDefault();
@@ -867,13 +867,13 @@
         const activityDateInput = document.getElementById("activityDate");
 
         // Set default date to today
-        const setDefaultDate = () => {
-            const today = new Date().toISOString().split("T")[0];
-            activityDateInput.value = today;
-        };
+        //const setDefaultDate = () => {
+        //    const today = new Date().toISOString().split("T")[0];
+        //    activityDateInput.value = today;
+        //};
 
         // Set default date when the modal is shown
-        addActivityModal.addEventListener("show.bs.modal", setDefaultDate);
+        //addActivityModal.addEventListener("show.bs.modal", setDefaultDate);
 
         form.addEventListener("submit", (e) => {
             e.preventDefault();
@@ -936,10 +936,10 @@
         const harvestWeight = document.getElementById("harvestWeight");
 
         // Set default date to today
-        const setDefaultDate = () => {
-            const today = new Date().toISOString().split("T")[0];
-            statusDateInput.value = today;
-        };
+        //const setDefaultDate = () => {
+        //    const today = new Date().toISOString().split("T")[0];
+        //    statusDateInput.value = today;
+        //};
 
         // Reset Zone Selection
         const resetZoneSelection = () => {
@@ -963,9 +963,9 @@
 
 
         // Set default date when the modal is shown
-        changeStatusModal.addEventListener("show.bs.modal", () => {
-            setDefaultDate();
-        });
+        //changeStatusModal.addEventListener("show.bs.modal", () => {
+        //    setDefaultDate();
+        //});
 
         // Show/Hide New Zone Input
         zoneSelect.addEventListener("change", () => {
