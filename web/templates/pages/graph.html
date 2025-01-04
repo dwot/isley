@@ -22,7 +22,7 @@
                 {{ .lcl.title_time_range }}
                 <i class="fa fa-caret-down"></i>
             </button>
-            <div class="dropdown-menu">
+            <div class="dropdown-menu" id="timeRangeMenu">
                 <ul class="list-unstyled mb-3">
                     <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="60">{{ .lcl.time_range_60 }}</button></li>
                     <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="360">{{ .lcl.time_range_360 }}</button></li>
@@ -58,7 +58,8 @@
         const ctx = document.getElementById('chart').getContext('2d');
         const sensorIds = document.getElementById('sensorID').value.split(',');
         const timePickerButton = document.getElementById('timePickerButton');
-        const dropdownMenu = document.querySelector('.dropdown-menu');
+        const dropdownMenu = document.getElementById('timeRangeMenu');
+        //const dropdownMenu = document.querySelector('.dropdown-menu');
         const timeRangeButtons = document.querySelectorAll('.time-range-btn');
         const startDateInput = document.getElementById('startDate');
         const endDateInput = document.getElementById('endDate');
