@@ -599,7 +599,9 @@
                         <label for="zoneSelect" class="form-label">{{ .lcl.title_zone }}</label>
                         <select class="form-select" id="zoneSelect" required>
                             {{ range .zones }}
-                            <option value="{{ .ID }}">{{ .Name }}</option>
+                            <option
+                                    {{ if eq .ID $.plant.ZoneID }}selected{{ end }}
+                                    value="{{ .ID }}">{{ .Name }}</option>
                             {{ end }}
                             <option value="new">{{ .lcl.add_new_zone }}</option>
                         </select>
@@ -721,7 +723,7 @@
                     <input type="hidden" id="statusId">
                     <div class="mb-3">
                         <label for="editStatusDate" class="form-label">{{ .lcl.title_date }}</label>
-                        <input type="datetime-local" class="form-control" id="editStatusDate" required value="{{ now | formatDateTimeLocal }}">
+                        <input type="datetime-local" class="form-control" id="editStatusDate" required>
                     </div>
                     {{ if .loggedIn }}
                     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
@@ -1144,8 +1146,12 @@
                 const statusData = JSON.parse(row.getAttribute("data-status"));
 
                 document.getElementById("statusId").value = statusData.id;
-                const formattedDate = statusData.date.split("T")[0];
+                console.log(statusData.date);
+
+                const date = new Date(statusData.date);
+                const formattedDate = date.toISOString().slice(0, 16); // Removes seconds and 'Z'
                 document.getElementById("editStatusDate").value = formattedDate;
+
 
                 editStatusModal.show();
             });
