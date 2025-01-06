@@ -113,7 +113,7 @@ func querySensorHistoryByTime(sensor string, timeMinutes string) ([]types.Sensor
 	}
 
 	timeThreshold := time.Now().In(time.Local).Add(-time.Duration(timeMinutesInt) * time.Minute).Format("2006-01-02 15:04:05")
-	query := "SELECT sd.id, sd.sensor_id, sd.value, sd.create_dt, s.name FROM sensor_data sd left outer join sensors s on s.id = sd.sensor_id WHERE sd.sensor_id = $1 AND sd.create_dt > $2 ORDER BY sd.create_dt"
+	query := "SELECT sd.id, sd.sensor_id, sd.value, sd.create_dt, s.name FROM sensor_data sd left outer join sensors s on s.id = sd.sensor_id WHERE sd.sensor_id = $1 AND datetime(sd.create_dt, 'localtime') > $2 ORDER BY sd.create_dt"
 	rows, err := db.Query(query, sensorInt, timeThreshold)
 	if err != nil {
 		sensorLogger.WithError(err).Error("Failed to execute query")
@@ -127,6 +127,7 @@ func querySensorHistoryByTime(sensor string, timeMinutes string) ([]types.Sensor
 			sensorLogger.WithError(err).Error("Failed to scan row")
 			return sensorData, err
 		}
+		record.CreateDT = record.CreateDT.Local()
 		sensorData = append(sensorData, record)
 	}
 
@@ -160,7 +161,7 @@ func querySensorHistoryByDateRange(sensor string, startDate string, endDate stri
 	}
 
 	// Query sensor_data table for the given date range
-	query := "SELECT sd.id, sd.sensor_id, sd.value, sd.create_dt, s.name FROM sensor_data sd left outer join sensors s on s.id = sd.sensor_id WHERE sd.sensor_id = $1 AND sd.create_dt BETWEEN $2 AND $3 ORDER BY sd.create_dt"
+	query := "SELECT sd.id, sd.sensor_id, sd.value, sd.create_dt, s.name FROM sensor_data sd left outer join sensors s on s.id = sd.sensor_id WHERE sd.sensor_id = $1 AND datetime(sd.create_dt, 'localtime') BETWEEN $2 AND $3 ORDER BY sd.create_dt"
 	rows, err := db.Query(query, sensorInt, startDate, endDate)
 	if err != nil {
 		sensorLogger.WithError(err).Error(err)
@@ -175,6 +176,7 @@ func querySensorHistoryByDateRange(sensor string, startDate string, endDate stri
 			sensorLogger.WithError(err).Error(err)
 			return sensorData, err
 		}
+		record.CreateDT = record.CreateDT.Local()
 		sensorData = append(sensorData, record)
 	}
 
