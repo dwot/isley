@@ -45,6 +45,7 @@ type Plant struct {
 	StrainID       int                  `json:"strain_id"`
 	BreederName    string               `json:"breeder_name"`
 	ZoneName       string               `json:"zone_name"`
+	ZoneID         int                  `json:"zone_id"`
 	CurrentDay     int                  `json:"current_day"`
 	CurrentWeek    int                  `json:"current_week"`
 	CurrentHeight  string               `json:"current_height"`
