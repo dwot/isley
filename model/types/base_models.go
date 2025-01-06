@@ -45,6 +45,7 @@ type Plant struct {
 	StrainID       int                  `json:"strain_id"`
 	BreederName    string               `json:"breeder_name"`
 	ZoneName       string               `json:"zone_name"`
+	ZoneID         int                  `json:"zone_id"`
 	CurrentDay     int                  `json:"current_day"`
 	CurrentWeek    int                  `json:"current_week"`
 	CurrentHeight  string               `json:"current_height"`
@@ -186,4 +187,13 @@ type Strain struct {
 type Zone struct {
 	ID   uint   `json:"id"`
 	Name string `json:"name"`
+}
+
+type Stream struct {
+	ID              uint   `json:"id"`
+	Name            string `json:"name"`
+	URL             string `json:"url"`
+	ZoneID          uint   `json:"zone_id"`
+	ZoneName        string `json:"zone_name"`
+	CaptureInterval int    `json:"capture_interval"`
 }

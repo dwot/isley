@@ -35,6 +35,11 @@ color: #0d6efd; /* Primary color */
             </button>
         </li>
         <li class="nav-item" role="presentation">
+            <button class="nav-link" id="streams-tab" data-bs-toggle="tab" data-bs-target="#streams-content" type="button" role="tab" aria-controls="streams-content" aria-selected="false">
+                {{ .lcl.title_streams }}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
             <a class="nav-link" href="/change-password">{{ .lcl.change_password }}</a>
         </li>
     </ul>
@@ -241,6 +246,37 @@ color: #0d6efd; /* Primary color */
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadImagesModal">
                     <i class="fa-solid fa-upload"></i> {{ .lcl.add_logo }}
                 </button>
+            </div>
+        </div>
+
+        <!-- Streams Tab -->
+        <div class="tab-pane fade" id="streams-content" role="tabpanel" aria-labelledby="streams-tab">
+            <!-- Streams Table -->
+            <div class="mt-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3 class="text-secondary">{{ .lcl.title_streams }}</h3>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStreamModal">
+                        <i class="fa-solid fa-plus"></i> {{ .lcl.add_stream }}
+                    </button>
+                </div>
+                <table class="table table-striped table-bordered table-hover">
+                    <thead class="table-dark">
+                    <tr>
+                        <th>{{ .lcl.stream_name }}</th>
+                        <th>{{ .lcl.stream_zone }}</th>
+                        <th>{{ .lcl.stream_url }}</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {{ range .streams }}
+                    <tr class="clickable-row stream-row" data-stream='{{ json . }}'>
+                        <td>{{ .Name }}</td>
+                        <td>{{ .ZoneName }}</td>
+                        <td>{{ .URL }}</td>
+                    </tr>
+                    {{ end }}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -494,7 +530,141 @@ color: #0d6efd; /* Primary color */
     </div>
 </div>
 
+<!-- Add Stream Modal -->
+<div class="modal fade" id="addStreamModal" tabindex="-1" aria-labelledby="addStreamModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addStreamModalLabel">{{ .lcl.add_stream }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addStreamForm">
+                    <!-- Stream Name Input -->
+                    <div class="mb-3">
+                        <label for="streamName" class="form-label">{{ .lcl.stream_name }}</label>
+                        <input type="text" class="form-control" id="streamName" step="any" required>
+                    </div>
+                    <!-- Stream Zone Input -->
+                    <div class="mb-3">
+                        <label for="streamZone" class="form-label">{{ .lcl.stream_zone }}</label>
+                        <select class="form-select" id="streamZone" required>
+                            <option value="" selected disabled>{{ .lcl.select_zone }}</option>
+                            {{ range .zones }}
+                            <option value="{{ .ID }}">{{ .Name }}</option>
+                            {{ end }}
+                        </select>
+                    </div>
+                    <!-- Stream URL Input -->
+                    <div class="mb-3">
+                        <label for="streamURL" class="form-label">{{ .lcl.stream_url }}</label>
+                        <input type="text" class="form-control" id="streamURL" step="any" required>
+                    </div>
+                    <!-- Capture Interval -->
+                    <!-- 5 - 360 minutes, 5 minute increments -->
+                    <div class="mb-3">
+                        <label for="streamInterval" class="form-label">{{ .lcl.capture_interval }}</label>
+                        <input type="number" class="form-control" id="streamInterval" min="5" max="360" step="5" required>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-primary">{{ .lcl.add_stream }}</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Stream Modal -->
+<div class="modal fade" id="editStreamModal" tabindex="-1" aria-labelledby="editStreamModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editStreamModalLabel">{{ .lcl.edit_stream }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editStreamForm">
+                    <input type="hidden" id="streamId">
+                    <div class="mb-3">
+                        <label for="editStreamName" class="form-label">{{ .lcl.stream_name }}</label>
+                        <input type="text" class="form-control" id="editStreamName" step="any" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editStreamZone" class="form-label">{{ .lcl.stream_zone }}</label>
+                        <select class="form-select" id="editStreamZone" required>
+                            <option value="" selected disabled>{{ .lcl.select_zone }}</option>
+                            {{ range .zones }}
+                            <option value="{{ .ID }}">{{ .Name }}</option>
+                            {{ end }}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editStreamURL" class="form-label">{{ .lcl.stream_url }}</label>
+                        <input type="text" class="form-control" id="editStreamURL" step="any" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editStreamInterval" class="form-label">{{ .lcl.capture_interval }}</label>
+                        <input type="number" class="form-control" id="editStreamInterval" min="5" max="360" step="5" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
+                    <button type="button" class="btn btn-danger" id="deleteStream"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_stream }}</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const addStreamForm = document.getElementById("addStreamForm");
+        const addStreamModal = document.getElementById("addStreamModal");
+
+        addStreamForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+
+            // Gather form data
+            const streamName = document.getElementById("streamName").value;
+            const streamZone = document.getElementById("streamZone").value;
+            const streamURL = document.getElementById("streamURL").value;
+            const streamInterval = document.getElementById("streamInterval").value;
+
+            // Construct the payload
+            const payload = {
+                stream_name: streamName,
+                zone_id: streamZone,
+                url: streamURL,
+                interval: streamInterval,
+            };
+
+            // Send POST request to /streams
+            fetch("/streams", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error("Failed to add stream");
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    // Success: Close modal and reload page
+                    const modal = bootstrap.Modal.getInstance(document.getElementById("addStreamModal"));
+                    modal.hide();
+                    window.location.reload(); // Refresh page to show updated data
+                })
+                .catch((error) => {
+                    console.error("Error:", error);
+                    alert("Failed to add stream");
+                });
+
+        })
+    })
+
     document.addEventListener("DOMContentLoaded", () => {
         const form = document.getElementById("addZoneForm");
         const addZoneModal = document.getElementById("addZoneModal");
@@ -752,6 +922,57 @@ color: #0d6efd; /* Primary color */
                     .then(response => response.json())
                     .then(() => location.reload())
                     .catch(err => alert("{{ .lcl.failed_to_delete_activity }}"));
+            }
+        });
+    });
+
+    document.addEventListener("DOMContentLoaded", ()=> {
+        const editStreamModal = new bootstrap.Modal(document.getElementById("editStreamModal"));
+        const streamForm = document.getElementById("editStreamForm");
+        const deleteStreamButton = document.getElementById("deleteStream");
+
+        document.querySelectorAll(".stream-row").forEach(row => {
+            row.addEventListener("click", () => {
+                const streamData = JSON.parse(row.getAttribute("data-stream"));
+
+                document.getElementById("streamId").value = streamData.id;
+                document.getElementById("editStreamName").value = streamData.name;
+                document.getElementById("editStreamZone").value = streamData.zone_id;
+                document.getElementById("editStreamURL").value = streamData.url;
+                document.getElementById("editStreamInterval").value = streamData.capture_interval;
+
+                editStreamModal.show();
+            });
+        });
+
+        streamForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const streamId = document.getElementById("streamId").value;
+            const payload = {
+                stream_name: document.getElementById("editStreamName").value,
+                zone_id: document.getElementById("editStreamZone").value,
+                url: document.getElementById("editStreamURL").value,
+                interval: document.getElementById("editStreamInterval").value,
+            };
+
+            fetch(`/streams/${streamId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            })
+                .then(response => response.json())
+                .then(() => location.reload())
+                .catch(err => alert("{{ .lcl.failed_to_update_stream }}"));
+        });
+
+        deleteStreamButton.addEventListener("click", () => {
+            const streamId = document.getElementById("streamId").value;
+
+            if (confirm("{{ .lcl.delete_stream_confirm }}")) {
+                fetch(`/streams/${streamId}`, { method: "DELETE" })
+                    .then(response => response.json())
+                    .then(() => location.reload())
+                    .catch(err => alert("{{ .lcl.failed_to_delete_stream }}"));
             }
         });
     });

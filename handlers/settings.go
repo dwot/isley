@@ -905,3 +905,161 @@ func DeleteBreederHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Breeder deleted"})
 }
+
+func GetStreams() []types.Stream {
+	streams := []types.Stream{}
+	fieldLogger := logger.Log.WithField("func", "GetStreams")
+	db, err := model.GetDB()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to open database")
+		return streams
+	}
+	rows, err := db.Query("SELECT s.id, s.name, url, zone_id, capture_interval, z.name as zone_name FROM streams s left outer join zones z on s.zone_id = z.id")
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to read stream")
+		return streams
+	}
+	defer rows.Close()
+
+	stream := types.Stream{}
+	for rows.Next() {
+		var id, zoneID uint
+		var captureInterval int
+		var name, url, zoneName string
+		err = rows.Scan(&id, &name, &url, &zoneID, &captureInterval, &zoneName)
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to read stream")
+			continue
+		}
+		stream = types.Stream{ID: id, Name: name, URL: url, ZoneID: zoneID, ZoneName: zoneName, CaptureInterval: captureInterval}
+		streams = append(streams, stream)
+	}
+
+	return streams
+}
+
+func AddStreamHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "AddStreamHandler")
+	var stream struct {
+		Name            string `json:"stream_name"`
+		URL             string `json:"url"`
+		ZoneID          string `json:"zone_id"`
+		CaptureInterval string `json:"interval"`
+	}
+	if err := c.ShouldBindJSON(&stream); err != nil {
+		fieldLogger.WithError(err).Error("Failed to add stream")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
+		return
+	}
+
+	// Add stream to database
+	db, err := model.GetDB()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to add stream")
+		return
+	}
+
+	// Insert new stream and return new id
+	var id int
+	err = db.QueryRow("INSERT INTO streams (name, url, zone_id, capture_interval) VALUES ($1, $2, $3, $4) RETURNING id", stream.Name, stream.URL, stream.ZoneID, stream.CaptureInterval).Scan(&id)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to add stream")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add stream"})
+		return
+	}
+
+	streams := GetStreams()
+
+	c.JSON(http.StatusCreated, gin.H{"id": id, "streams": streams})
+}
+
+func UpdateStreamHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "UpdateStreamHandler")
+	id := c.Param("id")
+	var stream struct {
+		Name            string `json:"stream_name"`
+		URL             string `json:"url"`
+		ZoneID          string `json:"zone_id"`
+		CaptureInterval string `json:"interval"`
+	}
+	if err := c.ShouldBindJSON(&stream); err != nil {
+		fieldLogger.WithError(err).Error("Failed to update stream")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
+		return
+	}
+
+	// Update stream in database
+	db, err := model.GetDB()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to update stream")
+		return
+	}
+
+	// Update stream in database
+	_, err = db.Exec("UPDATE streams SET name = $1, url = $2, zone_id = $3, capture_interval = $4 WHERE id = $5", stream.Name, stream.URL, stream.ZoneID, stream.CaptureInterval, id)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to update stream")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update stream"})
+		return
+	}
+
+	streams := GetStreams()
+
+	c.JSON(http.StatusOK, gin.H{"message": "Stream updated", "streams": streams})
+}
+
+func DeleteStreamHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "DeleteStreamHandler")
+	id := c.Param("id")
+
+	// Delete stream from database
+	db, err := model.GetDB()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to delete stream")
+		return
+	}
+
+	// Delete stream from database
+	_, err = db.Exec("DELETE FROM streams WHERE id = $1", id)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to delete stream")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete stream"})
+		return
+	}
+
+	streams := GetStreams()
+
+	c.JSON(http.StatusOK, gin.H{"message": "Stream deleted", "streams": streams})
+}
+
+func GetStreamsByZoneHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "GetStreamsByZoneHandler")
+	db, err := model.GetDB()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to open database")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open database"})
+		return
+	}
+
+	rows, err := db.Query("SELECT s.name, s.url, z.name as zone_name FROM streams s left outer join zones z on s.zone_id = z.id")
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to read streams")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read streams"})
+		return
+	}
+	defer rows.Close()
+
+	streamsByZone := make(map[string][]types.Stream)
+	for rows.Next() {
+		var name, url, zoneName string
+		err = rows.Scan(&name, &url, &zoneName)
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to read streams")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read streams"})
+			return
+		}
+		streamsByZone[zoneName] = append(streamsByZone[zoneName], types.Stream{Name: name, URL: url})
+	}
+
+	c.JSON(http.StatusOK, streamsByZone)
+}

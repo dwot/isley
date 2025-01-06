@@ -229,7 +229,7 @@ func GetStatuses() []types.Status {
 		return nil
 	}
 
-	rows, err := db.Query("SELECT id, status FROM plant_status")
+	rows, err := db.Query("SELECT id, status FROM plant_status ORDER BY status_order")
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query statuses")
 		return nil
@@ -378,7 +378,7 @@ func GetPlant(id string) types.Plant {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return plant
 	}
-	rows, err := db.Query("SELECT p.id, p.name, p.description, p.clone, p.start_dt, s.name as strain_name, b.name as breeder_name, z.name as zone_name, (select ps.status from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as current_status, (select ps.id from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as status_id, p.sensors, s.id, p.harvest_weight, coalesce(s.cycle_time, 0), coalesce(s.url, ''), s.autoflower, coalesce(p.parent_plant_id, 0), coalesce(p2.name, '') as parent_name FROM plant p LEFT OUTER JOIN plant p2 on coalesce(p.parent_plant_id, 0) = p2.id LEFT OUTER JOIN strain s on p.strain_id = s.id left outer join breeder b on b.id = s.breeder_id LEFT OUTER JOIN zones z on p.zone_id = z.id WHERE p.id = $1", id)
+	rows, err := db.Query("SELECT p.id, p.name, p.description, p.clone, p.start_dt, s.name as strain_name, b.name as breeder_name, z.name as zone_name, z.id as zone_id, (select ps.status from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as current_status, (select ps.id from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as status_id, p.sensors, s.id, p.harvest_weight, coalesce(s.cycle_time, 0), coalesce(s.url, ''), s.autoflower, coalesce(p.parent_plant_id, 0), coalesce(p2.name, '') as parent_name FROM plant p LEFT OUTER JOIN plant p2 on coalesce(p.parent_plant_id, 0) = p2.id LEFT OUTER JOIN strain s on p.strain_id = s.id left outer join breeder b on b.id = s.breeder_id LEFT OUTER JOIN zones z on p.zone_id = z.id WHERE p.id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query plant")
 		return plant
@@ -394,6 +394,7 @@ func GetPlant(id string) types.Plant {
 		var strain_name string
 		var breeder_name string
 		var zone_name string
+		var zoneID int
 		var status string
 		var statusID int
 		var sensors string
@@ -404,7 +405,7 @@ func GetPlant(id string) types.Plant {
 		var autoflower bool
 		var parent_id uint
 		var parent_name string
-		err = rows.Scan(&id, &name, &description, &isClone, &start_dt, &strain_name, &breeder_name, &zone_name, &status, &statusID, &sensors, &strain_id, &harvest_weight, &cycle_time, &strain_url, &autoflower, &parent_id, &parent_name)
+		err = rows.Scan(&id, &name, &description, &isClone, &start_dt, &strain_name, &breeder_name, &zone_name, &zoneID, &status, &statusID, &sensors, &strain_id, &harvest_weight, &cycle_time, &strain_url, &autoflower, &parent_id, &parent_name)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan plant")
 			return plant
@@ -613,7 +614,7 @@ func GetPlant(id string) types.Plant {
 		//Convert int and dates to strings
 		strCurrentHeight := strconv.Itoa(iCurrentHeight)
 
-		plant = types.Plant{id, name, description, status, statusID, strain_name, strain_id, breeder_name, zone_name, iCurrentDay, iCurrentWeek, strCurrentHeight, heightDate, lastWaterDate, lastFeedDate, measurements, activities, statusHistory, sensorList, latestImage, images, isClone, start_dt, harvest_weight, harvestDate, cycle_time, strain_url, estHarvestDate, autoflower, parent_id, parent_name}
+		plant = types.Plant{id, name, description, status, statusID, strain_name, strain_id, breeder_name, zone_name, zoneID, iCurrentDay, iCurrentWeek, strCurrentHeight, heightDate, lastWaterDate, lastFeedDate, measurements, activities, statusHistory, sensorList, latestImage, images, isClone, start_dt, harvest_weight, harvestDate, cycle_time, strain_url, estHarvestDate, autoflower, parent_id, parent_name}
 	}
 
 	return plant
@@ -1066,7 +1067,7 @@ FROM plant p
 WHERE ps.id IN ` + inClause + ` AND psl.date = (
     SELECT MAX(date) FROM plant_status_log WHERE plant_id = p.id
 )
-ORDER BY p.name;`
+ORDER BY p.start_dt, p.name;`
 
 	// Open the database connection
 	db, err := model.GetDB()
@@ -1120,7 +1121,29 @@ ORDER BY p.name;`
 }
 
 func GetLivingPlants() []types.PlantListResponse {
-	statuses := []int{1, 2, 3} // Seedling, Veg, Flower
+	//Load status ids from database where active = 1
+	db, err := model.GetDB()
+	if err != nil {
+		logger.Log.WithError(err).Error("Failed to open database")
+		return nil
+	}
+	rows, err := db.Query("SELECT id FROM plant_status WHERE active = 1")
+	if err != nil {
+		logger.Log.WithError(err).Error("Failed to query plant statuses")
+		return nil
+	}
+	defer rows.Close()
+
+	var statuses []int
+	for rows.Next() {
+		var status int
+		if err := rows.Scan(&status); err != nil {
+			logger.Log.WithError(err).Error("Failed to scan status")
+			return nil
+		}
+		statuses = append(statuses, status)
+	}
+
 	result, _ := getPlantsByStatus(statuses)
 	return result
 }
@@ -1133,7 +1156,28 @@ func LivingPlantsHandler(c *gin.Context) {
 
 // HarvestedPlantsHandler handles the /plants/harvested endpoint.
 func HarvestedPlantsHandler(c *gin.Context) {
-	statuses := []int{4, 5, 6} // Success
+	db, err := model.GetDB()
+	if err != nil {
+		logger.Log.WithError(err).Error("Failed to open database")
+		return
+	}
+	rows, err := db.Query("SELECT id FROM plant_status WHERE active = 0 and status <> 'Dead'")
+	if err != nil {
+		logger.Log.WithError(err).Error("Failed to query plant statuses")
+		return
+	}
+	defer rows.Close()
+
+	var statuses []int
+	for rows.Next() {
+		var status int
+		if err := rows.Scan(&status); err != nil {
+			logger.Log.WithError(err).Error("Failed to scan status")
+			return
+		}
+		statuses = append(statuses, status)
+	}
+
 	plants, err := getPlantsByStatus(statuses)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve plants"})
@@ -1145,7 +1189,28 @@ func HarvestedPlantsHandler(c *gin.Context) {
 
 // DeadPlantsHandler handles the /plants/dead endpoint.
 func DeadPlantsHandler(c *gin.Context) {
-	statuses := []int{7} // Dead
+	db, err := model.GetDB()
+	if err != nil {
+		logger.Log.WithError(err).Error("Failed to open database")
+		return
+	}
+
+	rows, err := db.Query("SELECT id FROM plant_status WHERE status = 'Dead'")
+	if err != nil {
+		logger.Log.WithError(err).Error("Failed to query plant statuses")
+		return
+	}
+	defer rows.Close()
+
+	var statuses []int
+	for rows.Next() {
+		var status int
+		if err := rows.Scan(&status); err != nil {
+			logger.Log.WithError(err).Error("Failed to scan status")
+			return
+		}
+		statuses = append(statuses, status)
+	}
 	plants, err := getPlantsByStatus(statuses)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve plants"})
