@@ -112,7 +112,7 @@ func querySensorHistoryByTime(sensor string, timeMinutes string) ([]types.Sensor
 		return sensorData, err
 	}
 
-	timeThreshold := time.Now().In(time.Local).Add(-time.Duration(timeMinutesInt) * time.Minute).Format("2006-01-02 15:04:05")
+	timeThreshold := time.Now().In(time.UTC).Add(-time.Duration(timeMinutesInt) * time.Minute).Format("2006-01-02 15:04:05")
 	query := "SELECT sd.id, sd.sensor_id, sd.value, sd.create_dt, s.name FROM sensor_data sd left outer join sensors s on s.id = sd.sensor_id WHERE sd.sensor_id = $1 AND sd.create_dt > $2 ORDER BY sd.create_dt"
 	rows, err := db.Query(query, sensorInt, timeThreshold)
 	if err != nil {
@@ -127,6 +127,7 @@ func querySensorHistoryByTime(sensor string, timeMinutes string) ([]types.Sensor
 			sensorLogger.WithError(err).Error("Failed to scan row")
 			return sensorData, err
 		}
+		record.CreateDT = record.CreateDT.Local()
 		sensorData = append(sensorData, record)
 	}
 
@@ -159,6 +160,18 @@ func querySensorHistoryByDateRange(sensor string, startDate string, endDate stri
 		return sensorData, err
 	}
 
+	//Convert startDate and endDate strings from Local to UTC and back to strings
+	startDate, err = timeConversion(startDate)
+	if err != nil {
+		sensorLogger.WithError(err).Error(err)
+		return sensorData, err
+	}
+	endDate, err = timeConversion(endDate)
+	if err != nil {
+		sensorLogger.WithError(err).Error(err)
+		return sensorData, err
+	}
+
 	// Query sensor_data table for the given date range
 	query := "SELECT sd.id, sd.sensor_id, sd.value, sd.create_dt, s.name FROM sensor_data sd left outer join sensors s on s.id = sd.sensor_id WHERE sd.sensor_id = $1 AND sd.create_dt BETWEEN $2 AND $3 ORDER BY sd.create_dt"
 	rows, err := db.Query(query, sensorInt, startDate, endDate)
@@ -175,10 +188,32 @@ func querySensorHistoryByDateRange(sensor string, startDate string, endDate stri
 			sensorLogger.WithError(err).Error(err)
 			return sensorData, err
 		}
+		record.CreateDT = record.CreateDT.Local()
 		sensorData = append(sensorData, record)
 	}
 
 	return sensorData, nil
+}
+
+func timeConversion(date string) (string, error) {
+	// If date does not contain time, append 00:00:00
+	if len(date) == 10 {
+		date = date + " 00:00:00"
+	}
+
+	// Convert the date string to time.Time
+	time, err := time.Parse("2006-01-02 15:04:05", date)
+	if err != nil {
+		return "", err
+	}
+
+	// Convert the time.Time to UTC
+	time = time.UTC()
+
+	// Convert the time.Time back to string
+	date = time.Format("2006-01-02 15:04:05")
+
+	return date, nil
 }
 
 // Filter sensor data density based on the time range
