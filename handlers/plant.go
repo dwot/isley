@@ -413,10 +413,6 @@ func GetPlant(id string) types.Plant {
 		// Calculate current day and week
 		currentTime := time.Now().In(time.Local)
 		//Calculate the # of hours difference between the current timezone and UTC
-		_, tzDiff := currentTime.Zone()
-		_, utcOffset := start_dt.Zone()
-		tzDiff = utcOffset - tzDiff
-		start_dt = start_dt.Add(time.Duration(tzDiff) * time.Second)
 		diff := currentTime.Sub(start_dt)
 		iCurrentDay := int(diff.Hours()/24) + 1
 		iCurrentWeek := int((diff.Hours() / 24 / 7) + 1)

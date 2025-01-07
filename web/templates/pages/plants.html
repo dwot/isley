@@ -243,12 +243,33 @@
             if (view === "harvested") {
                 headerDynamic1.textContent = "{{ .lcl.harvest_weight_g }}";
                 headerDynamic2.textContent = "{{ .lcl.harvest_date }}";
+                //append  <i class="fa-solid fa-sort"></i> to the headers
+                headerDynamic1.innerHTML += '<i class="fa-solid fa-sort"></i>';
+                headerDynamic2.innerHTML += '<i class="fa-solid fa-sort"></i>';
+                //Set data-sort and data-type for the columns
+                headerDynamic1.setAttribute("data-sort", "harvest_weight");
+                headerDynamic1.setAttribute("data-type", "number");
+                headerDynamic2.setAttribute("data-sort", "harvest_date");
+                headerDynamic2.setAttribute("data-type", "date");
             } else if (view === "dead") {
                 headerDynamic1.textContent = "{{ .lcl.dead_date }}";
                 headerDynamic2.textContent = ""; // Hide second header
+                //append  <i class="fa-solid fa-sort"></i> to the headers
+                headerDynamic1.innerHTML += '<i class="fa-solid fa-sort"></i>';
+                //Set data-sort and data-type for the columns
+                headerDynamic1.setAttribute("data-sort", "harvest_date");
+                headerDynamic1.setAttribute("data-type", "date");
             } else {
                 headerDynamic1.textContent = "{{ .lcl.current_week }}";
                 headerDynamic2.textContent = "{{ .lcl.current_day }}";
+                //append  <i class="fa-solid fa-sort"></i> to the headers
+                headerDynamic1.innerHTML += '<i class="fa-solid fa-sort"></i>';
+                headerDynamic2.innerHTML += '<i class="fa-solid fa-sort"></i>';
+                //Set data-sort and data-type for the columns
+                headerDynamic1.setAttribute("data-sort", "current_week");
+                headerDynamic1.setAttribute("data-type", "number");
+                headerDynamic2.setAttribute("data-sort", "current_day");
+                headerDynamic2.setAttribute("data-type", "number");
             }
         };
 
@@ -316,6 +337,22 @@
                 currentView = button.dataset.view; // Update current view
                 setActiveButton(button); // Update active button visually
                 fetchPlants(currentView); // Fetch plants based on selected view
+            });
+        });
+
+        // Handle column sorting
+        document.querySelectorAll(".sortable").forEach(header => {
+            header.addEventListener("click", () => {
+                const column = header.getAttribute("data-sort");
+                if (sortColumn === column) {
+                    // Toggle sort direction if already sorted by this column
+                    sortDirection = sortDirection === "asc" ? "desc" : "asc";
+                } else {
+                    // Set new column and reset direction
+                    sortColumn = column;
+                    sortDirection = "asc";
+                }
+                updateTable();
             });
         });
 
@@ -469,6 +506,7 @@
                 .catch(error => alert("Failed to add plant. Try again."));
         });
     });
+
 </script>
 
 
