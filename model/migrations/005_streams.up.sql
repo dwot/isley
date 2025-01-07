@@ -3,7 +3,7 @@ CREATE TABLE streams (
                         name TEXT NOT NULL,
                         URL TEXT NOT NULL,
                         zone_id INTEGER NOT NULL,
-                        capture_interval INTEGER NOT NULL,
+                        visible BOOLEAN NOT NULL DEFAULT TRUE,
                         FOREIGN KEY (zone_id) REFERENCES zones(id)
 );
 

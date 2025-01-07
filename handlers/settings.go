@@ -92,6 +92,33 @@ func SaveSettings(c *gin.Context) {
 			config.GuestMode = 0
 		}
 	}
+	if settings.StreamGrabEnabled {
+		err := UpdateSetting("stream_grab_enabled", "1")
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to save settings")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+			return
+		} else {
+			config.StreamGrabEnabled = 1
+		}
+	} else {
+		err := UpdateSetting("stream_grab_enabled", "0")
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to save settings")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+			return
+		} else {
+			config.StreamGrabEnabled = 0
+		}
+	}
+	err = UpdateSetting("stream_grab_interval", settings.StreamGrabInterval)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to save settings")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+		return
+	} else {
+		config.StreamGrabInterval, _ = strconv.Atoi(settings.StreamGrabInterval)
+	}
 
 	//Load Settings
 	LoadSettings()
@@ -189,6 +216,14 @@ func GetSettings() types.SettingsData {
 			settingsData.PollingInterval, _ = strconv.Atoi(value)
 		case "guest_mode":
 			settingsData.GuestMode = value == "1"
+		case "stream_grab_enabled":
+			settingsData.StreamGrabEnabled = value == "1"
+		case "stream_grab_interval":
+			iValue, err := strconv.Atoi(value)
+			if err != nil {
+				iValue = 3000
+			}
+			settingsData.StreamGrabInterval = iValue
 		}
 	}
 
@@ -777,12 +812,27 @@ func LoadSettings() {
 		}
 	}
 
+	strStreamGrabEnabled, err := GetSetting("stream_grab_enabled")
+	if err == nil {
+		if iStreamGrabEnabled, err := strconv.Atoi(strStreamGrabEnabled); err == nil {
+			config.StreamGrabEnabled = iStreamGrabEnabled
+		}
+	}
+
+	strStreamGrabInterval, err := GetSetting("stream_grab_interval")
+	if err == nil {
+		if iStreamGrabInterval, err := strconv.Atoi(strStreamGrabInterval); err == nil {
+			config.StreamGrabInterval = iStreamGrabInterval
+		}
+	}
+
 	config.Activities = GetActivities()
 	config.Metrics = GetMetrics()
 	config.Statuses = GetStatuses()
 	config.Zones = GetZones()
 	config.Strains = GetStrains()
 	config.Breeders = GetBreeders()
+	config.Streams = GetStreams()
 }
 func AddBreederHandler(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "AddBreederHandler")
@@ -914,7 +964,7 @@ func GetStreams() []types.Stream {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return streams
 	}
-	rows, err := db.Query("SELECT s.id, s.name, url, zone_id, capture_interval, z.name as zone_name FROM streams s left outer join zones z on s.zone_id = z.id")
+	rows, err := db.Query("SELECT s.id, s.name, url, zone_id, visible, z.name as zone_name FROM streams s left outer join zones z on s.zone_id = z.id")
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to read stream")
 		return streams
@@ -924,14 +974,14 @@ func GetStreams() []types.Stream {
 	stream := types.Stream{}
 	for rows.Next() {
 		var id, zoneID uint
-		var captureInterval int
+		var visible bool
 		var name, url, zoneName string
-		err = rows.Scan(&id, &name, &url, &zoneID, &captureInterval, &zoneName)
+		err = rows.Scan(&id, &name, &url, &zoneID, &visible, &zoneName)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to read stream")
 			continue
 		}
-		stream = types.Stream{ID: id, Name: name, URL: url, ZoneID: zoneID, ZoneName: zoneName, CaptureInterval: captureInterval}
+		stream = types.Stream{ID: id, Name: name, URL: url, ZoneID: zoneID, ZoneName: zoneName, Visible: visible}
 		streams = append(streams, stream)
 	}
 
@@ -941,10 +991,10 @@ func GetStreams() []types.Stream {
 func AddStreamHandler(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "AddStreamHandler")
 	var stream struct {
-		Name            string `json:"stream_name"`
-		URL             string `json:"url"`
-		ZoneID          string `json:"zone_id"`
-		CaptureInterval string `json:"interval"`
+		Name    string `json:"stream_name"`
+		URL     string `json:"url"`
+		ZoneID  string `json:"zone_id"`
+		Visible string `json:"visible"`
 	}
 	if err := c.ShouldBindJSON(&stream); err != nil {
 		fieldLogger.WithError(err).Error("Failed to add stream")
@@ -961,7 +1011,7 @@ func AddStreamHandler(c *gin.Context) {
 
 	// Insert new stream and return new id
 	var id int
-	err = db.QueryRow("INSERT INTO streams (name, url, zone_id, capture_interval) VALUES ($1, $2, $3, $4) RETURNING id", stream.Name, stream.URL, stream.ZoneID, stream.CaptureInterval).Scan(&id)
+	err = db.QueryRow("INSERT INTO streams (name, url, zone_id, visible) VALUES ($1, $2, $3, $4) RETURNING id", stream.Name, stream.URL, stream.ZoneID, stream.Visible).Scan(&id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to add stream")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add stream"})
@@ -969,6 +1019,7 @@ func AddStreamHandler(c *gin.Context) {
 	}
 
 	streams := GetStreams()
+	config.Streams = streams
 
 	c.JSON(http.StatusCreated, gin.H{"id": id, "streams": streams})
 }
@@ -977,10 +1028,10 @@ func UpdateStreamHandler(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "UpdateStreamHandler")
 	id := c.Param("id")
 	var stream struct {
-		Name            string `json:"stream_name"`
-		URL             string `json:"url"`
-		ZoneID          string `json:"zone_id"`
-		CaptureInterval string `json:"interval"`
+		Name    string `json:"stream_name"`
+		URL     string `json:"url"`
+		ZoneID  string `json:"zone_id"`
+		Visible string `json:"visible"`
 	}
 	if err := c.ShouldBindJSON(&stream); err != nil {
 		fieldLogger.WithError(err).Error("Failed to update stream")
@@ -996,7 +1047,7 @@ func UpdateStreamHandler(c *gin.Context) {
 	}
 
 	// Update stream in database
-	_, err = db.Exec("UPDATE streams SET name = $1, url = $2, zone_id = $3, capture_interval = $4 WHERE id = $5", stream.Name, stream.URL, stream.ZoneID, stream.CaptureInterval, id)
+	_, err = db.Exec("UPDATE streams SET name = $1, url = $2, zone_id = $3, visible = $4 WHERE id = $5", stream.Name, stream.URL, stream.ZoneID, stream.Visible, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update stream")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update stream"})
@@ -1004,6 +1055,7 @@ func UpdateStreamHandler(c *gin.Context) {
 	}
 
 	streams := GetStreams()
+	config.Streams = streams
 
 	c.JSON(http.StatusOK, gin.H{"message": "Stream updated", "streams": streams})
 }
@@ -1028,6 +1080,7 @@ func DeleteStreamHandler(c *gin.Context) {
 	}
 
 	streams := GetStreams()
+	config.Streams = streams
 
 	c.JSON(http.StatusOK, gin.H{"message": "Stream deleted", "streams": streams})
 }
@@ -1041,7 +1094,7 @@ func GetStreamsByZoneHandler(c *gin.Context) {
 		return
 	}
 
-	rows, err := db.Query("SELECT s.name, s.url, z.name as zone_name FROM streams s left outer join zones z on s.zone_id = z.id")
+	rows, err := db.Query("SELECT s.id, s.name, s.url, z.name as zone_name, visible FROM streams s left outer join zones z on s.zone_id = z.id")
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to read streams")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read streams"})
@@ -1051,14 +1104,16 @@ func GetStreamsByZoneHandler(c *gin.Context) {
 
 	streamsByZone := make(map[string][]types.Stream)
 	for rows.Next() {
+		var id int
 		var name, url, zoneName string
-		err = rows.Scan(&name, &url, &zoneName)
+		var visible bool
+		err = rows.Scan(&id, &name, &url, &zoneName, &visible)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to read streams")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read streams"})
 			return
 		}
-		streamsByZone[zoneName] = append(streamsByZone[zoneName], types.Stream{Name: name, URL: url})
+		streamsByZone[zoneName] = append(streamsByZone[zoneName], types.Stream{ID: uint(id), Name: name, URL: url, ZoneName: zoneName, Visible: visible})
 	}
 
 	c.JSON(http.StatusOK, streamsByZone)

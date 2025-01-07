@@ -144,8 +144,10 @@ type Settings struct {
 		Enabled bool   `json:"enabled"`
 		Server  string `json:"server"`
 	} `json:"ec"`
-	PollingInterval string `json:"polling_interval"`
-	GuestMode       bool   `json:"guest_mode"`
+	PollingInterval    string `json:"polling_interval"`
+	GuestMode          bool   `json:"guest_mode"`
+	StreamGrabEnabled  bool   `json:"stream_grab_enabled"`
+	StreamGrabInterval string `json:"stream_grab_interval"`
 }
 
 type ACInfinitySettings struct {
@@ -158,10 +160,12 @@ type EcoWittSettings struct {
 }
 
 type SettingsData struct {
-	ACI             ACInfinitySettings `json:"aci"`
-	EC              EcoWittSettings    `json:"ec"`
-	PollingInterval int                `json:"polling_interval"`
-	GuestMode       bool               `json:"guest_mode"`
+	ACI                ACInfinitySettings `json:"aci"`
+	EC                 EcoWittSettings    `json:"ec"`
+	PollingInterval    int                `json:"polling_interval"`
+	GuestMode          bool               `json:"guest_mode"`
+	StreamGrabEnabled  bool               `json:"stream_grab_enabled"`
+	StreamGrabInterval int                `json:"stream_grab_interval"`
 }
 
 type Status struct {
@@ -190,10 +194,10 @@ type Zone struct {
 }
 
 type Stream struct {
-	ID              uint   `json:"id"`
-	Name            string `json:"name"`
-	URL             string `json:"url"`
-	ZoneID          uint   `json:"zone_id"`
-	ZoneName        string `json:"zone_name"`
-	CaptureInterval int    `json:"capture_interval"`
+	ID       uint   `json:"id"`
+	Name     string `json:"name"`
+	URL      string `json:"url"`
+	ZoneID   uint   `json:"zone_id"`
+	ZoneName string `json:"zone_name"`
+	Visible  bool   `json:"visible"`
 }

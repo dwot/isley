@@ -157,6 +157,8 @@ func main() {
 	// Load settings (PollingInterval, ACIEnabled, etc.)
 	handlers.LoadSettings()
 
+	go watcher.Grab()
+
 	r.Static("/uploads", "./uploads")
 
 	r.GET("/static/*filepath", func(c *gin.Context) {

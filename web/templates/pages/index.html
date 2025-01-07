@@ -9,15 +9,12 @@
         cursor: pointer;
     }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/video.js@8.21.0/dist/video.min.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/video.js@8.21.0/dist/video-js.min.css">
 {{ template "layouts/header2.html" .}}
 
 <header class="masthead text-center">
     <div class="container">
         <!-- Sensors Section -->
         <div class="my-5">
-            <h3 class="text-secondary mb-4">{{ .lcl.sensors_overview }}</h3>
             <div id="sensorsOverview">
                 <!-- Sensors dynamically loaded here -->
             </div>
@@ -93,11 +90,9 @@
         spinner.innerHTML = `<span class="visually-hidden">{{ .lcl.loading }}...</span>`;
         sensorsOverview.appendChild(spinner);
 
-        console.time("Total Load Time");
 
         try {
             // Fetch sensor and stream data concurrently
-            console.time("Fetch Data");
             const [sensorResponse, streamResponse] = await Promise.all([
                 fetch("/sensors/grouped"),
                 fetch("/streams")
@@ -105,17 +100,13 @@
 
             const sensorData = await sensorResponse.json();
             const streamData = await streamResponse.json();
-            console.timeEnd("Fetch Data");
-
-            console.time("DOM Rendering");
             sensorsOverview.innerHTML = "";
 
             Object.keys(sensorData).forEach((zone) => {
-                console.time(`Render Zone: ${zone}`);
                 const zoneContainer = document.createElement("div");
                 zoneContainer.classList.add("mb-5");
 
-                const showZoneHeader = Object.keys(sensorData).length > 1;
+                const showZoneHeader = Object.keys(sensorData).length > 0;
                 if (showZoneHeader) {
                     zoneContainer.innerHTML = `
                     <h4 class="text-secondary">${zone}</h4>
@@ -130,29 +121,19 @@
 
                     streamData[zone].forEach((stream, index) => {
                         const videoId = `${zone.replace(/\s+/g, '-')}-video-${index}`;
+                        const imageUrl = `/uploads/streams/stream_${stream.id}_latest.jpg`; // Replace stream.id with appropriate identifier
 
                         videoContainer.innerHTML += `
-                        <div class="mb-3">
-                            <h6 class="text-light">${stream.name}</h6>
-                            <video id="${videoId}" class="video-js vjs-default-skin" controls preload="auto" width="640" height="360">
-                                <source src="${stream.url}" type="application/x-mpegURL" />
-                            </video>
-                        </div>
-                    `;
-
-                        // Delay player initialization
-                        setTimeout(() => {
-                            videojs(videoId, {
-                                autoplay: false,
-                                controls: true,
-                                responsive: true,
-                                fluid: true
-                            });
-                        }, 100);
+            <div class="mb-3">
+                <h6 class="text-light">${stream.name}</h6>
+                <img src="${imageUrl}" alt="Screengrab of ${stream.name}" style="width: 480px; height: 270px;" />
+            </div>
+        `;
                     });
 
                     zoneContainer.appendChild(videoContainer);
                 }
+
 
                 // --- Process Sensors ---
                 const sensorGroups = { Other: [], ACIP: [], Soil: [] };
@@ -216,11 +197,7 @@
 
                 zoneContainer.appendChild(cardRow);
                 sensorsOverview.appendChild(zoneContainer);
-                console.timeEnd(`Render Zone: ${zone}`);
             });
-
-            console.timeEnd("DOM Rendering");
-            console.timeEnd("Total Load Time");
         } catch (error) {
             console.error("Error fetching data:", error);
         }

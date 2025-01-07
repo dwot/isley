@@ -9,11 +9,13 @@ import (
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	"image/color"
+	"io"
 	"io/fs"
 	"isley/logger"
 	"math"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -354,4 +356,78 @@ func ListLogosHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Unable to list logos"})
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "logos": logos})
+}
+
+func GrabWebcamImage(url string, outputPath string) error {
+	logger.Log.WithFields(logrus.Fields{
+		"url":        url,
+		"outputPath": outputPath,
+	}).Info("Capturing image from webcam")
+
+	// Use ffmpeg to capture an image
+	cmd := exec.Command(
+		"ffmpeg", "-i", url, "-vframes", "1", "-q:v", "2", outputPath,
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		logger.Log.WithFields(logrus.Fields{
+			"error":  err,
+			"output": string(output),
+		}).Error("Failed to capture image from webcam")
+		return fmt.Errorf("failed to capture image: %w", err)
+	}
+
+	logger.Log.WithFields(logrus.Fields{
+		"outputPath": outputPath,
+	}).Info("Image captured successfully")
+
+	return nil
+}
+
+func CreateFolderIfNotExists(join string) {
+	//Create folder at path from input join argument if not exists
+	if _, err := os.Stat(join); os.IsNotExist(err) {
+		err := os.MkdirAll(join, os.ModePerm)
+		if err != nil {
+			logger.Log.WithError(err).Error("Failed to create folder")
+		}
+	}
+}
+
+func CopyFile(path string, path2 string) {
+	//Copy file from path to path2
+	from, err := os.Open(path)
+	if err != nil {
+		logger.Log.WithError(err).Error("Failed to open source file")
+		return
+	}
+	defer from.Close()
+
+	to, err := os.OpenFile(path2, os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		logger.Log.WithError(err).Error("Failed to open destination file")
+		return
+	}
+	defer to.Close()
+
+	_, err = io.Copy(to, from)
+	if err != nil {
+		logger.Log.WithError(err).Error("Failed to copy file")
+	}
+
+	err = to.Sync()
+	if err != nil {
+		logger.Log.WithError(err).Error("Failed to sync file")
+	}
+
+	err = to.Close()
+	if err != nil {
+		logger.Log.WithError(err).Error("Failed to close file")
+	}
+
+	err = from.Close()
+	if err != nil {
+		logger.Log.WithError(err).Error("Failed to close file")
+	}
+
 }

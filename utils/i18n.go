@@ -349,6 +349,10 @@ func (i *I18nManager) GetTranslations(lang string) map[string]string {
 		"failed_to_update_stream",
 		"failed_to_delete_stream",
 		"delete_stream_confirm",
+		"stream_grab_enabled",
+		"stream_grab_enabled_desc",
+		"stream_grab_interval",
+		"stream_grab_interval_desc",
 	}
 
 	translations := make(map[string]string)

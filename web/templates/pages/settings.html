@@ -113,6 +113,25 @@ color: #0d6efd; /* Primary color */
                             {{ .lcl.polling_interval_desc }}
                         </small>
                     </div>
+                    <div class="card-body">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="streamGrabEnabled" {{ if .settings.StreamGrabEnabled }}checked{{ end }}>
+                            <label class="form-check-label" for="streamGrabEnabled">{{ .lcl.stream_grab_enabled }}</label>
+                        </div>
+                        <small class="text-muted d-block mt-2">
+                            {{ .lcl.stream_grab_enabled_desc }}
+                        </small>
+                    </div>
+                    <div class="card-body">
+                        <label for="streamGrabInterval" class="form-label">{{ .lcl.stream_grab_interval }}:
+                            <span id="streamGrabIntervalValue" class="fw-bold">{{ .settings.StreamGrabInterval }} {{ .lcl.time_seconds }}</span>
+                        </label>
+                        <input type="range" class="form-range" id="streamGrabInterval"
+                               min="15" max="3000" step="15" value="{{ .settings.StreamGrabInterval }}">
+                        <small class="text-muted d-block mt-2">
+                            {{ .lcl.stream_grab_interval_desc }}
+                        </small>
+                    </div>
                 </div>
 
                 <script>
@@ -123,6 +142,14 @@ color: #0d6efd; /* Primary color */
                         // Update display when slider is adjusted
                         pollingSlider.addEventListener("input", () => {
                             pollingValue.textContent = `${pollingSlider.value} seconds`;
+                        });
+
+                        const streamGrabSlider = document.getElementById("streamGrabInterval");
+                        const streamGrabValue = document.getElementById("streamGrabIntervalValue");
+
+                        // Update display when slider is adjusted
+                        streamGrabSlider.addEventListener("input", () => {
+                            streamGrabValue.textContent = `${streamGrabSlider.value} seconds`;
                         });
                     });
                 </script>
@@ -560,11 +587,13 @@ color: #0d6efd; /* Primary color */
                         <label for="streamURL" class="form-label">{{ .lcl.stream_url }}</label>
                         <input type="text" class="form-control" id="streamURL" step="any" required>
                     </div>
-                    <!-- Capture Interval -->
-                    <!-- 5 - 360 minutes, 5 minute increments -->
+                    <!-- Show/Hide -->
                     <div class="mb-3">
-                        <label for="streamInterval" class="form-label">{{ .lcl.capture_interval }}</label>
-                        <input type="number" class="form-control" id="streamInterval" min="5" max="360" step="5" required>
+                        <label for="streamVisibility" class="form-label">{{ .lcl.title_visibility }}</label>
+                        <select class="form-select" id="streamVisibility" required>
+                            <option value="true">{{ .lcl.title_show }}</option>
+                            <option value="false">{{ .lcl.title_hide }}</option>
+                        </select>
                     </div>
 
                     <!-- Submit Button -->
@@ -603,9 +632,13 @@ color: #0d6efd; /* Primary color */
                         <label for="editStreamURL" class="form-label">{{ .lcl.stream_url }}</label>
                         <input type="text" class="form-control" id="editStreamURL" step="any" required>
                     </div>
+                    <!-- Show/Hide -->
                     <div class="mb-3">
-                        <label for="editStreamInterval" class="form-label">{{ .lcl.capture_interval }}</label>
-                        <input type="number" class="form-control" id="editStreamInterval" min="5" max="360" step="5" required>
+                        <label for="editStreamVisibility" class="form-label">{{ .lcl.title_visibility }}</label>
+                        <select class="form-select" id="editStreamVisibility" required>
+                            <option value="true">{{ .lcl.title_show }}</option>
+                            <option value="false">{{ .lcl.title_hide }}</option>
+                        </select>
                     </div>
                     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
                     <button type="button" class="btn btn-danger" id="deleteStream"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_stream }}</button>
@@ -627,14 +660,14 @@ color: #0d6efd; /* Primary color */
             const streamName = document.getElementById("streamName").value;
             const streamZone = document.getElementById("streamZone").value;
             const streamURL = document.getElementById("streamURL").value;
-            const streamInterval = document.getElementById("streamInterval").value;
+            const streamVisibility = document.getElementById("streamVisibility").value;
 
             // Construct the payload
             const payload = {
                 stream_name: streamName,
                 zone_id: streamZone,
                 url: streamURL,
-                interval: streamInterval,
+                visible: streamVisibility,
             };
 
             // Send POST request to /streams
@@ -810,6 +843,8 @@ color: #0d6efd; /* Primary color */
                 },
                 polling_interval: document.getElementById("pollingInterval").value,
                 guest_mode: document.getElementById("guestMode").checked,
+                stream_grab_enabled: document.getElementById("streamGrabEnabled").checked,
+                stream_grab_interval: document.getElementById("streamGrabInterval").value,
             };
 
             // Send POST request to save settings
@@ -939,7 +974,7 @@ color: #0d6efd; /* Primary color */
                 document.getElementById("editStreamName").value = streamData.name;
                 document.getElementById("editStreamZone").value = streamData.zone_id;
                 document.getElementById("editStreamURL").value = streamData.url;
-                document.getElementById("editStreamInterval").value = streamData.capture_interval;
+                document.getElementById("editStreamVisibility").value = streamData.visible;
 
                 editStreamModal.show();
             });
@@ -952,7 +987,7 @@ color: #0d6efd; /* Primary color */
                 stream_name: document.getElementById("editStreamName").value,
                 zone_id: document.getElementById("editStreamZone").value,
                 url: document.getElementById("editStreamURL").value,
-                interval: document.getElementById("editStreamInterval").value,
+                visible: document.getElementById("editStreamVisibility").value,
             };
 
             fetch(`/streams/${streamId}`, {
