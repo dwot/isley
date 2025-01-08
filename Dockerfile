@@ -7,6 +7,9 @@ COPY . .
 # Install tzdata for time zone configuration
 RUN apk add --no-cache tzdata
 
+# Install ffmpeg for video processing
+RUN apk add --no-cache ffmpeg
+
 # Download dependencies
 RUN go mod download
 

@@ -114,6 +114,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	r.GET("/strains/in-stock", handlers.InStockStrainsHandler)
 	r.GET("/strains/out-of-stock", handlers.OutOfStockStrainsHandler)
 	r.POST("/decorateImage", utils.DecorateImageHandler)
+	r.GET("/streams", handlers.GetStreamsByZoneHandler)
 }
 
 func AddProtectedApiRoutes(r *gin.RouterGroup) {
@@ -154,6 +155,9 @@ func AddProtectedApiRoutes(r *gin.RouterGroup) {
 	r.POST("/activities", handlers.AddActivityHandler)
 	r.PUT("/activities/:id", handlers.UpdateActivityHandler)
 	r.DELETE("/activities/:id", handlers.DeleteActivityHandler)
+	r.POST("/streams", handlers.AddStreamHandler)
+	r.PUT("/streams/:id", handlers.UpdateStreamHandler)
+	r.DELETE("/streams/:id", handlers.DeleteStreamHandler)
 
 	r.POST("/breeders", handlers.AddBreederHandler)
 	r.PUT("/breeders/:id", handlers.UpdateBreederHandler)
@@ -177,6 +181,7 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"plants":          handlers.GetLivingPlants(),
 			"activities":      config.Activities,
 			"breeders":        config.Breeders,
+			"streams":         handlers.GetStreams(),
 			"loggedIn":        sessions.Default(c).Get("logged_in"),
 			"lcl":             translations,
 			"languages":       utils.AvailableLanguages,
