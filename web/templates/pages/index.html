@@ -32,12 +32,7 @@
             <!-- Sensors dynamically loaded here -->
         </div>
 
-        <!-- Sensors Section -->
-        <div class="my-5">
-
-        </div>
-
-        <!-- Plants Table Section -->
+           <!-- Plants Table Section -->
         <div class="my-5">
             <h3 class="text-secondary mb-4">{{ .lcl.plants_overview }}</h3>
             <div class="table-responsive">
@@ -95,12 +90,14 @@
     document.addEventListener("DOMContentLoaded", async () => {
         const sensorsOverview = document.getElementById("sensorsOverview");
 
+        // Define titles for each group
         const groupTitles = {
             Other: {{ .lcl.title_group_other }},
         ACIP: {{ .lcl.title_group_acip }},
         Soil: {{ .lcl.title_group_soil }}
     };
 
+        // Create spinner element
         const spinner = document.createElement("div");
         spinner.classList.add("spinner-border", "text-primary");
         spinner.setAttribute("role", "status");
@@ -257,6 +254,18 @@
                 zoneContainer.appendChild(cardRow);
                 sensorsOverview.appendChild(zoneContainer);
             });
+
+            // Add click event to sensor rows
+            console.time("Add Click Events");
+            document.querySelectorAll(".sensor-row").forEach((row) => {
+                row.addEventListener("click", () => {
+                    const sensorId = row.getAttribute("data-id");
+                    if (sensorId) {
+                        window.location.href = `/graph/${sensorId}`;
+                    }
+                });
+            });
+
         } catch (error) {
             console.error("Error fetching data:", error);
         }
