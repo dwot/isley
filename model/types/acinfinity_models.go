@@ -11,6 +11,7 @@ type ACIDeviceData struct {
 
 type ACIDeviceInfo struct {
 	TemperatureF int         `json:"temperatureF"`
+	Temperature  int         `json:"temperature"`
 	Humidity     int         `json:"humidity"`
 	Ports        []ACIPort   `json:"ports"`
 	Sensors      []ACISensor `json:"sensors"`

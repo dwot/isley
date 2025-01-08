@@ -164,6 +164,11 @@ func ScanACInfinitySensors(c *gin.Context) {
 			unit = "%"
 			checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
 
+			sensorType = "ACI.tempC"
+			name = "AC Infinity (" + device + ") Temp"
+			unit = "°C"
+			checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
+
 			for _, sensor := range deviceData.DeviceInfo.Sensors {
 				sensorType := fmt.Sprintf("ACI.%d.%d", sensor.AccessPort, sensor.SensorType)
 				switch sensor.SensorType {

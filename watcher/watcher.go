@@ -123,6 +123,7 @@ func updateACISensorData(token string) {
 		device := deviceData.DevCode
 
 		dataMap["ACI.tempF"] = float64(deviceData.DeviceInfo.TemperatureF) / 100.0
+		dataMap["ACI.tempC"] = float64(deviceData.DeviceInfo.Temperature) / 100.0
 		dataMap["ACI.humidity"] = float64(deviceData.DeviceInfo.Humidity) / 100.0
 
 		for _, sensor := range deviceData.DeviceInfo.Sensors {
