@@ -24,6 +24,9 @@ WORKDIR /app
 # Install tzdata for runtime configuration
 RUN apk add --no-cache tzdata
 
+# Install ffmpeg for video processing
+RUN apk add --no-cache ffmpeg
+
 # Copy the built application
 COPY --from=builder /app/isley /app/isley
 
