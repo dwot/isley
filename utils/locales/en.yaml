@@ -262,7 +262,6 @@ parent_plant: "Parent Plant"
 decrement_seed_count: "Decrement Seed Count"
 add_plant: "Add Plant"
 dead_date: "Dead Date"
-
 title_streams: "Streams"
 add_stream: "Add Stream"
 stream_name: "Stream Name"
@@ -279,4 +278,7 @@ delete_stream_confirm: "Are you sure you want to delete this stream?"
 stream_grab_enabled: "Enable Stream Grab"
 stream_grab_enabled_desc: "Enable this option to capture and store images from the stream."
 stream_grab_interval: "Stream Grab Interval"
-stream_grab_interval_desc: "Use the slider to adjust the stream grab interval (5 - 360 minutes). Minimum is 5 minutes."
+stream_grab_interval_desc: "Use the slider to adjust the stream grab interval (5 - 60 minutes). Minimum is 5 minutes."
+time_minutes: "minutes"
+
+

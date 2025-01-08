@@ -8,6 +8,7 @@ import (
 	"isley/logger"
 	model "isley/model"
 	"isley/model/types"
+	"isley/utils"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -1020,6 +1021,10 @@ func AddStreamHandler(c *gin.Context) {
 
 	streams := GetStreams()
 	config.Streams = streams
+
+	latestFileName := fmt.Sprintf("stream_%d_latest%s", id, filepath.Ext(".jpg"))
+	latestSavePath := filepath.Join("uploads", "streams", latestFileName)
+	utils.GrabWebcamImage(stream.URL, latestSavePath)
 
 	c.JSON(http.StatusCreated, gin.H{"id": id, "streams": streams})
 }

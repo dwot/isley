@@ -8,16 +8,33 @@
     .clickable-row {
         cursor: pointer;
     }
+    @media (max-width: 768px) {
+        .mb-3 img {
+            margin-bottom: 1rem;
+        }
+    }
+    .video-js {
+        border-radius: 0.375rem; /* Match rounded corners */
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+    }
+    .centered-video {
+        display: flex;
+        justify-content: center;
+    }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/video.js@8.21.0/dist/video.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/video.js@8.21.0/dist/video-js.min.css">
 {{ template "layouts/header2.html" .}}
 
 <header class="masthead text-center">
     <div class="container">
+        <div id="sensorsOverview">
+            <!-- Sensors dynamically loaded here -->
+        </div>
+
         <!-- Sensors Section -->
         <div class="my-5">
-            <div id="sensorsOverview">
-                <!-- Sensors dynamically loaded here -->
-            </div>
+
         </div>
 
         <!-- Plants Table Section -->
@@ -101,6 +118,7 @@
             const sensorData = await sensorResponse.json();
             const streamData = await streamResponse.json();
             sensorsOverview.innerHTML = "";
+            sensorsOverview.classList.add("p-3");
 
             Object.keys(sensorData).forEach((zone) => {
                 const zoneContainer = document.createElement("div");
@@ -109,26 +127,67 @@
                 const showZoneHeader = Object.keys(sensorData).length > 0;
                 if (showZoneHeader) {
                     zoneContainer.innerHTML = `
-                    <h4 class="text-secondary">${zone}</h4>
-                    <hr />
+                    <h4 class="text-secondary mb-3">${zone}</h4>
                 `;
                 }
 
                 // --- Add Video Feeds ---
                 if (streamData[zone] && streamData[zone].length > 0) {
                     const videoContainer = document.createElement("div");
-                    videoContainer.classList.add("mb-3");
+                    videoContainer.classList.add("row", "g-3");
+
+                    let streamCount = 0;
+                    streamData[zone].forEach((stream, index) => {
+                        if (stream.visible === false) {
+                            return;
+                        } else {
+                            streamCount++;
+                        }
+                    });
+                    let classItem = "col-12 col-md-6 mb-3";
+                    if (streamCount === 1) {
+                        classItem = "col-12 mb-3";
+                    }
 
                     streamData[zone].forEach((stream, index) => {
+                        if (stream.visible === false) {
+                            return;
+                        }
                         const videoId = `${zone.replace(/\s+/g, '-')}-video-${index}`;
-                        const imageUrl = `/uploads/streams/stream_${stream.id}_latest.jpg`; // Replace stream.id with appropriate identifier
+                        const imageUrl = `/uploads/streams/stream_${stream.id}_latest.jpg`;
 
-                        videoContainer.innerHTML += `
-            <div class="mb-3">
-                <h6 class="text-light">${stream.name}</h6>
-                <img src="${imageUrl}" alt="Screengrab of ${stream.name}" style="width: 480px; height: 270px;" />
-            </div>
-        `;
+                        const streamHTML = `
+    <div class="${classItem}">
+        <div id="${videoId}-container">
+            <img id="${videoId}-img" src="${imageUrl}" alt="Screengrab of ${stream.name}"
+                 class="img-fluid rounded shadow-sm" style="cursor: pointer;" />
+        </div>
+    </div>
+`;
+
+                        videoContainer.insertAdjacentHTML("beforeend", streamHTML);
+
+                        // Attach event listener AFTER ensuring the element is rendered
+                        setTimeout(() => {
+                            if (stream.url.endsWith('.m3u8')) {
+                                const imageElement = document.getElementById(`${videoId}-img`);
+                                if (imageElement) { // Check if the element exists
+                                    imageElement.addEventListener("click", () => {
+                                        const container = document.getElementById(`${videoId}-container`);
+                                        container.innerHTML = `
+                    <video id="${videoId}-player" class="video-js vjs-default-skin" controls preload="auto" width="480" height="270">
+                        <source src="${stream.url}" type="application/vnd.apple.mpegurl" />
+                    </video>
+                `;
+                                        videojs(`${videoId}-player`, { fluid: true, liveui: true }).ready(function() {
+                                            this.play();
+                                        });
+                                    });
+                                } else {
+                                    console.error(`Element ${videoId}-img not found.`);
+                                }
+                            }
+                        }, 0); // Delay execution until next render cycle
                     });
 
                     zoneContainer.appendChild(videoContainer);

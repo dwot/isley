@@ -124,10 +124,10 @@ color: #0d6efd; /* Primary color */
                     </div>
                     <div class="card-body">
                         <label for="streamGrabInterval" class="form-label">{{ .lcl.stream_grab_interval }}:
-                            <span id="streamGrabIntervalValue" class="fw-bold">{{ .settings.StreamGrabInterval }} {{ .lcl.time_seconds }}</span>
+                            <span id="streamGrabIntervalValue" class="fw-bold">{{ div .settings.StreamGrabInterval 60 }} {{ .lcl.time_minutes }}</span>
                         </label>
                         <input type="range" class="form-range" id="streamGrabInterval"
-                               min="15" max="3000" step="15" value="{{ .settings.StreamGrabInterval }}">
+                               min="5" max="60" step="5" value="{{ div .settings.StreamGrabInterval 60 }}">
                         <small class="text-muted d-block mt-2">
                             {{ .lcl.stream_grab_interval_desc }}
                         </small>
@@ -144,13 +144,20 @@ color: #0d6efd; /* Primary color */
                             pollingValue.textContent = `${pollingSlider.value} seconds`;
                         });
 
+
                         const streamGrabSlider = document.getElementById("streamGrabInterval");
                         const streamGrabValue = document.getElementById("streamGrabIntervalValue");
 
                         // Update display when slider is adjusted
                         streamGrabSlider.addEventListener("input", () => {
-                            streamGrabValue.textContent = `${streamGrabSlider.value} seconds`;
+                            const minutes = streamGrabSlider.value;
+                            const seconds = minutes * 60;
+                            streamGrabValue.textContent = `${minutes} {{ .lcl.time_minutes }}`;
+                            streamGrabSlider.setAttribute('data-seconds', seconds);
                         });
+
+                        // Set initial value in seconds
+                        streamGrabSlider.setAttribute('data-seconds', streamGrabSlider.value * 60);
                     });
                 </script>
 
@@ -833,6 +840,9 @@ color: #0d6efd; /* Primary color */
         form.addEventListener("submit", (e) => {
             e.preventDefault();
 
+            // Get stream grab interval and convert to seconds
+            const streamGrabInterval = document.getElementById("streamGrabInterval").value * 60;
+
             // Gather form data
             const settings = {
                 aci: {
@@ -844,7 +854,7 @@ color: #0d6efd; /* Primary color */
                 polling_interval: document.getElementById("pollingInterval").value,
                 guest_mode: document.getElementById("guestMode").checked,
                 stream_grab_enabled: document.getElementById("streamGrabEnabled").checked,
-                stream_grab_interval: document.getElementById("streamGrabInterval").value,
+                stream_grab_interval: streamGrabInterval.toString(),
             };
 
             // Send POST request to save settings

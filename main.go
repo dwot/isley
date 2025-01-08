@@ -116,6 +116,9 @@ func main() {
 			}
 			return tm.Format("01/02/2006")
 		},
+		"div": func(a, b int) int {
+			return a / b
+		},
 		"toInt": func(value interface{}) int {
 			switch v := value.(type) {
 			case string:
