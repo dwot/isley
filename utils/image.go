@@ -366,7 +366,7 @@ func GrabWebcamImage(url string, outputPath string) error {
 
 	// Use ffmpeg to capture an image
 	cmd := exec.Command(
-		"ffmpeg", "-i", url, "-vframes", "1", "-q:v", "2", outputPath,
+		"ffmpeg", "-y", "-i", url, "-vframes", "1", "-q:v", "2", outputPath,
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
