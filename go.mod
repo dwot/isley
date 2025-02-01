@@ -8,8 +8,8 @@ require (
 	github.com/fogleman/gg v1.3.0
 	github.com/gin-contrib/sessions v1.0.2
 	github.com/gin-gonic/gin v1.10.0
-	github.com/golang-migrate/migrate/v4 v4.18.1
-	github.com/nicksnyder/go-i18n/v2 v2.4.1
+	github.com/golang-migrate/migrate/v4 v4.18.2
+	github.com/nicksnyder/go-i18n/v2 v2.5.0
 	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/crypto v0.32.0
 	golang.org/x/image v0.23.0
