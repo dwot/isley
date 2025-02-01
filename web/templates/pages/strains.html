@@ -261,6 +261,11 @@
             sativaLabel.textContent = `Sativa: ${sativa}%`;
         });
 
+        // If no breeders exist, show the new breeder input by default
+        if (document.getElementById("breederSelect").length === 1) {
+            newBreederInput.classList.remove("d-none");
+        }
+
         addStrainForm.addEventListener("submit", (e) => {
             e.preventDefault();
 
@@ -422,9 +427,28 @@
 
         function renderStrainsTable(data) {
             const editStrainModal = new bootstrap.Modal(document.getElementById("editStrainModal"));
-            const filteredData = filterStrains(data, searchInput.value);
+            let filteredData = filterStrains(data, searchInput.value);
 
-            strainsContainer.innerHTML = `
+            //If filteredData is null, reset with empty map object
+            if (filteredData == null) {
+                strainsContainer.innerHTML = `
+        <table class="table table-striped table-bordered table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th scope="col" data-key="name" data-type="text" class="sortable ${currentSort.key === "name" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.title_strain }} <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="breeder" data-type="text" class="sortable ${currentSort.key === "breeder" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.breeder }} <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="indica" data-type="numeric" class="sortable ${currentSort.key === "indica" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.title_is }} <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="autoflower" data-type="text" class="sortable ${currentSort.key === "autoflower" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.title_auto }} <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="seed_count" data-type="numeric" class="sortable ${currentSort.key === "seed_count" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.seed_count }} <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col">Edit </th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+                `;
+            } else {
+                strainsContainer.innerHTML = `
         <table class="table table-striped table-bordered table-hover">
             <thead class="table-dark">
                 <tr>
@@ -454,6 +478,10 @@
             </tbody>
         </table>
     `;
+            }
+
+
+
 
             // Add click listeners for sorting
             document.querySelectorAll(".sortable").forEach(header => {
