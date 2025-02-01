@@ -8,6 +8,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"isley/logger"
 	"os"
+	"time"
 )
 
 //go:embed migrations/*.sql
@@ -23,7 +24,9 @@ func InitDB() {
 	}
 
 	// Set connection pool limits
-	db.SetMaxOpenConns(1)
+	db.SetMaxOpenConns(5)
+	db.SetMaxIdleConns(2)
+	db.SetConnMaxLifetime(5 * time.Minute)
 }
 
 func GetDB() (*sql.DB, error) {
