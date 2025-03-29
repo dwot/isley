@@ -64,7 +64,7 @@ services:
       POSTGRES_PASSWORD: isley
       POSTGRES_DB: isley
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
 
   isley:
     image: dwot/isley:latest
@@ -81,7 +81,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  pgdata:
+  postgres-data:
   isley-uploads:
 ```
 
@@ -265,7 +265,7 @@ For production:
 
 - 🐳 Use **Docker with PostgreSQL** and a reverse proxy (e.g., Nginx, Traefik) to handle TLS and external access.
 - 💾 **Backup Directories/Volumes**:
-    - `pgdata` for PostgreSQL
+    - `postgres-data` for PostgreSQL
     - `/uploads` for user content
 - ❌ Avoid using SQLite or the Windows executable in production.
 - 🛠️ Use volume mounts for persistence and scheduled backups.
