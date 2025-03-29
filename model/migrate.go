@@ -27,6 +27,7 @@ func InitDB() {
 	var dsn string
 	switch driver {
 	case "postgres":
+		logger.Log.Info("Using Postgres driver")
 		dsn = fmt.Sprintf(
 			"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 			os.Getenv("DB_HOST"),
@@ -36,6 +37,7 @@ func InitDB() {
 			os.Getenv("DB_NAME"),
 		)
 	case "sqlite", "":
+		logger.Log.Info("Using Sqlite driver")
 		dsn = DbPath()
 		driver = "sqlite"
 	default:
@@ -86,6 +88,7 @@ func DbPath() string {
 func MigrateDB() {
 	driver := os.Getenv("DB_DRIVER")
 	if driver == "" {
+		logger.Log.Info("DB_DRIVER not set, defaulting to sqlite")
 		driver = "sqlite"
 	}
 
