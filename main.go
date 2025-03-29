@@ -42,6 +42,8 @@ func main() {
 
 	model.MigrateDB()
 	model.InitDB()
+	dbDriver := model.GetDriver()
+	version = fmt.Sprintf("%s-%s", version, dbDriver)
 
 	// Initialize translation service
 	utils.Init("en")
