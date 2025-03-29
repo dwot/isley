@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  isley:
+    image: dwot/isley:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - ISLEY_PORT=8080
+      - DB_DRIVER=sqlite
+    volumes:
+      - isley-db:/app/data
+      - isley-uploads:/app/uploads
+    restart: unless-stopped
+
+volumes:
+  isley-db:
+  isley-uploads:
