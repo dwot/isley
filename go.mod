@@ -12,7 +12,7 @@ require (
 	github.com/nicksnyder/go-i18n/v2 v2.5.1
 	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/crypto v0.32.0
-	golang.org/x/image v0.23.0
+	golang.org/x/image v0.25.0
 	golang.org/x/text v0.23.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
