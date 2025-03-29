@@ -9,6 +9,7 @@ require (
 	github.com/gin-contrib/sessions v1.0.2
 	github.com/gin-gonic/gin v1.10.0
 	github.com/golang-migrate/migrate/v4 v4.18.2
+	github.com/lib/pq v1.10.9
 	github.com/nicksnyder/go-i18n/v2 v2.5.0
 	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/crypto v0.32.0
@@ -16,6 +17,7 @@ require (
 	golang.org/x/text v0.21.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
+	modernc.org/sqlite v1.23.1
 )
 
 require (
@@ -64,7 +66,6 @@ require (
 	modernc.org/mathutil v1.5.0 // indirect
 	modernc.org/memory v1.5.0 // indirect
 	modernc.org/opt v0.1.3 // indirect
-	modernc.org/sqlite v1.23.1 // indirect
 	modernc.org/strutil v1.1.3 // indirect
 	modernc.org/token v1.0.1 // indirect
 )

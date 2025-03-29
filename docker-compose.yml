@@ -7,11 +7,28 @@ services:
       - "8080:8080"
     environment:
       - ISLEY_PORT=8080
+      - DB_DRIVER=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=isley
+      - DB_PASSWORD=supersecret
+      - DB_NAME=isleydb
+    depends_on:
+      - postgres
     volumes:
-      - isley-db:/app/data
       - isley-uploads:/app/uploads
     restart: unless-stopped
 
+  postgres:
+    image: postgres:16
+    environment:
+      - POSTGRES_DB=isleydb
+      - POSTGRES_USER=isley
+      - POSTGRES_PASSWORD=supersecret
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
 volumes:
-  isley-db:
+  postgres-data:
   isley-uploads:
