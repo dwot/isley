@@ -161,7 +161,7 @@ func addSensorData(source string, device string, key string, value string) {
 	}
 
 	var sensorID int
-	err = db.QueryRow("SELECT id FROM sensors WHERE source = ? AND device = ? AND type = ?", source, device, key).Scan(&sensorID)
+	err = db.QueryRow("SELECT id FROM sensors WHERE source = $1 AND device = $2 AND type = $3", source, device, key).Scan(&sensorID)
 	if err != nil {
 		logger.Log.WithFields(logrus.Fields{
 			"source": source,
@@ -172,7 +172,7 @@ func addSensorData(source string, device string, key string, value string) {
 		return
 	}
 
-	_, err = db.Exec("INSERT INTO sensor_data (sensor_id, value) VALUES (?, ?)", sensorID, value)
+	_, err = db.Exec("INSERT INTO sensor_data (sensor_id, value) VALUES ($1, $2)", sensorID, value)
 	if err != nil {
 		logger.Log.WithFields(logrus.Fields{
 			"sensorID": sensorID,

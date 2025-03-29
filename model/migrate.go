@@ -12,13 +12,15 @@ import (
 	"isley/logger"
 	_ "modernc.org/sqlite"
 	"os"
+	"strings"
 	"time"
 )
 
-//go:embed migrations/*.sql
+//go:embed migrations/sqlite/*.sql migrations/postgres/*.sql
 var migrationsFS embed.FS
 
 var db *sql.DB
+var dbDriver string
 
 func InitDB() {
 	var err error
@@ -43,6 +45,7 @@ func InitDB() {
 	default:
 		logger.Log.Fatalf("Unsupported DB_DRIVER: %s", driver)
 	}
+	dbDriver = driver
 
 	logger.Log.Infof("Driver is: %s", driver)
 	db, err = sql.Open(driver, dsn)
@@ -68,17 +71,31 @@ func InitDB() {
 					logger.Log.Info("Migration from SQLite to Postgres completed successfully")
 				}
 			}
+		} else {
+			logger.Log.Info("Postgres database is not empty, skipping migration")
 		}
 	}
 
 }
 
 func GetDB() (*sql.DB, error) {
-	stats := db.Stats()
-	logger.Log.Infof("Open connections: %d", stats.OpenConnections)
-	logger.Log.Infof("In-use connections: %d", stats.InUse)
-	logger.Log.Infof("Idle connections: %d", stats.Idle)
+	//stats := db.Stats()
+	//logger.Log.Infof("Open connections: %d", stats.OpenConnections)
+	//logger.Log.Infof("In-use connections: %d", stats.InUse)
+	//logger.Log.Infof("Idle connections: %d", stats.Idle)
 	return db, nil
+}
+
+func GetDriver() string {
+	return dbDriver
+}
+
+func IsPostgres() bool {
+	return dbDriver == "postgres"
+}
+
+func IsSQLite() bool {
+	return dbDriver == "sqlite"
 }
 
 func DbPath() string {
@@ -125,7 +142,7 @@ func MigrateDB() {
 	// Use concrete types and interfaces specific to driver packages
 	var m *migrate.Migrate
 
-	sourceDriver, err := iofs.New(migrationsFS, "migrations")
+	sourceDriver, err := iofs.New(migrationsFS, fmt.Sprintf("migrations/%s", driver))
 	if err != nil {
 		logger.Log.Fatalf("Failed to load migrations: %v", err)
 	}
@@ -209,4 +226,20 @@ func enforceWalMode() {
 		}
 		logger.Log.Info("WAL mode set successfully")
 	}
+}
+
+func BuildInClause(driver string, items []interface{}) (string, []interface{}) {
+	placeholders := make([]string, len(items))
+	args := make([]interface{}, len(items))
+
+	for i, val := range items {
+		args[i] = val
+		if driver == "postgres" {
+			placeholders[i] = fmt.Sprintf("$%d", i+1)
+		} else {
+			placeholders[i] = "?"
+		}
+	}
+
+	return "(" + strings.Join(placeholders, ", ") + ")", args
 }

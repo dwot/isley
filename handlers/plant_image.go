@@ -109,7 +109,7 @@ func UploadPlantImages(c *gin.Context) {
 		// Save image metadata to the database
 		_, err = db.Exec(`
             INSERT INTO plant_images (plant_id, image_path, image_description, image_order, image_date)
-            VALUES (?, ?, ?, 100, ?)`,
+            VALUES ($1, $2, $3, 100, $4)`,
 			plantID, savePath, description, imageDate)
 		if err != nil {
 			fileLogger.WithError(err).Error("Failed to save image metadata to database")
@@ -144,7 +144,7 @@ func DeletePlantImage(c *gin.Context) {
 
 	// Retrieve the image path
 	var imagePath string
-	err = db.QueryRow("SELECT image_path FROM plant_images WHERE id = ?", imageID).Scan(&imagePath)
+	err = db.QueryRow("SELECT image_path FROM plant_images WHERE id = $1", imageID).Scan(&imagePath)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			fileLogger.WithError(err).Error("Image not found in database")
@@ -166,7 +166,7 @@ func DeletePlantImage(c *gin.Context) {
 	}
 
 	// Delete the image record from the database
-	_, err = db.Exec("DELETE FROM plant_images WHERE id = ?", imageID)
+	_, err = db.Exec("DELETE FROM plant_images WHERE id = $1", imageID)
 	if err != nil {
 		fileLogger.WithError(err).Error("Failed to delete image record from database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete image record"})
