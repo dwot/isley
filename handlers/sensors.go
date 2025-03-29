@@ -52,7 +52,7 @@ func GetSensors() []map[string]interface{} {
 	for rows.Next() {
 		var id, zoneId int
 		var name, zone, source, device, sensorType, createDT, updateDT, unit string
-		var show int // SQLite represents booleans as integers
+		var show bool // SQLite represents booleans as integers
 
 		// Scan the row data
 		err := rows.Scan(&id, &name, &zone, &source, &device, &sensorType, &show, &createDT, &updateDT, &zoneId, &unit)
@@ -69,7 +69,7 @@ func GetSensors() []map[string]interface{} {
 			"source":    source,
 			"device":    device,
 			"type":      sensorType,
-			"visible":   show == 1, // Convert to boolean
+			"visible":   show, // Convert to boolean
 			"create_dt": createDT,
 			"update_dt": updateDT,
 			"zone_id":   zoneId,
@@ -321,7 +321,7 @@ func ScanEcoWittSensors(c *gin.Context) {
 func checkInsertSensor(db *sql.DB, source string, device string, sensorType string, name string, zoneId *int, unit string) {
 	fieldLogger := logger.Log.WithField("func", "checkInsertSensor")
 	sensorid := 0
-	err := db.QueryRow("SELECT id FROM sensors WHERE source = ? and device = ? and type = ?", source, device, sensorType).Scan(&sensorid)
+	err := db.QueryRow("SELECT id FROM sensors WHERE source = $1 and device = $2 and type = $3", source, device, sensorType).Scan(&sensorid)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			//fmt.Println("No rows found")
@@ -331,7 +331,7 @@ func checkInsertSensor(db *sql.DB, source string, device string, sensorType stri
 		}
 	}
 	if sensorid == 0 {
-		_, err := db.Exec("INSERT INTO sensors (name, source, device, type, zone_id, unit) VALUES (?, ?, ?, ?, ?, ?)", name, source, device, sensorType, zoneId, unit)
+		_, err := db.Exec("INSERT INTO sensors (name, source, device, type, zone_id, unit) VALUES ($1, $2, $3, $4, $5, $6)", name, source, device, sensorType, zoneId, unit)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Error inserting sensor")
 			return
@@ -375,7 +375,8 @@ func CreateNewZone(name string) (int, error) {
 		return 0, err
 	}
 
-	result, err := db.Exec("INSERT INTO zones (name) VALUES (?)", name)
+	var id int
+	err = db.QueryRow("INSERT INTO zones (name) VALUES ($1) RETURNING id", name).Scan(&id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error inserting new zone")
 		return 0, err
@@ -383,12 +384,7 @@ func CreateNewZone(name string) (int, error) {
 
 	config.Zones = GetZones()
 
-	id, err := result.LastInsertId()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error getting last insert ID")
-		return 0, err
-	}
-	return int(id), nil
+	return id, nil
 }
 func GetGroupedSensorsWithLatestReading() map[string]map[string][]map[string]interface{} {
 	fieldLogger := logger.Log.WithField("func", "GetGroupedSensorsWithLatestReading")
@@ -428,7 +424,7 @@ LEFT JOIN rolling_averages ra ON ra.sensor_id = s.id AND ra.create_dt = sd.creat
 WHERE sd.id = (
     SELECT MAX(id) FROM sensor_data WHERE sensor_id = s.id
 )
-AND s.show = 1
+AND s.show
 ORDER BY z.name, s.device, s.type;
 
 `)
@@ -550,7 +546,7 @@ func EditSensor(c *gin.Context) {
 		return
 	}
 
-	_, err = db.Exec("UPDATE sensors SET name = ?, show = ?, zone_id = ?, unit = ?, device = ? WHERE id = ?",
+	_, err = db.Exec("UPDATE sensors SET name = $1, show = $2, zone_id = $3, unit = $4, device = $5 WHERE id = $6",
 		input.Name, input.Visible, input.ZoneID, input.Unit, input.Device, input.ID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error updating sensor")
@@ -584,13 +580,13 @@ func DeleteSensorByID(id string) error {
 	}
 
 	// Delete sensor_data for this sensor
-	_, err = db.Exec("DELETE FROM sensor_data WHERE sensor_id = ?", id)
+	_, err = db.Exec("DELETE FROM sensor_data WHERE sensor_id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error deleting sensor data")
 		return err
 	}
 
-	_, err = db.Exec("DELETE FROM sensors WHERE id = ?", id)
+	_, err = db.Exec("DELETE FROM sensors WHERE id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error deleting sensor")
 		return err
@@ -607,7 +603,7 @@ func GetSensorName(id string) string {
 	}
 
 	var name string
-	err = db.QueryRow("SELECT name FROM sensors WHERE id = ?", id).Scan(&name)
+	err = db.QueryRow("SELECT name FROM sensors WHERE id = $1", id).Scan(&name)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error querying sensor name")
 		return ""

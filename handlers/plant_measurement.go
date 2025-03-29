@@ -43,7 +43,7 @@ func CreatePlantMeasurement(c *gin.Context) {
 		return
 	}
 
-	_, err = db.Exec("INSERT INTO plant_measurements (plant_id, metric_id, value, date) VALUES (?, ?, ?, ?)",
+	_, err = db.Exec("INSERT INTO plant_measurements (plant_id, metric_id, value, date) VALUES ($1, $2, $3, $4)",
 		input.PlantID, input.MetricID, input.Value, input.Date)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert measurement into database")
@@ -85,7 +85,7 @@ func EditMeasurement(c *gin.Context) {
 		return
 	}
 
-	query := `UPDATE plant_measurements SET date = ?, value = ? WHERE id = ?`
+	query := `UPDATE plant_measurements SET date = $1, value = $2 WHERE id = $3`
 	_, err = db.Exec(query, input.Date, input.Value, input.ID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update measurement in database")
@@ -112,7 +112,7 @@ func DeleteMeasurement(c *gin.Context) {
 		return
 	}
 
-	query := `DELETE FROM plant_measurements WHERE id = ?`
+	query := `DELETE FROM plant_measurements WHERE id = $1`
 	_, err = db.Exec(query, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete measurement from database")

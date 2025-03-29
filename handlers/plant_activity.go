@@ -40,7 +40,7 @@ func CreatePlantActivity(c *gin.Context) {
 		return
 	}
 
-	_, err = db.Exec("INSERT INTO plant_activity (plant_id, activity_id, note, date) VALUES (?, ?, ?, ?)", input.PlantID, input.ActivityID, input.Note, input.Date)
+	_, err = db.Exec("INSERT INTO plant_activity (plant_id, activity_id, note, date) VALUES ($1, $2, $3, $4)", input.PlantID, input.ActivityID, input.Note, input.Date)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert activity into database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create activity"})
@@ -83,7 +83,7 @@ func EditActivity(c *gin.Context) {
 		return
 	}
 
-	query := `UPDATE plant_activity SET date = ?, activity_id = ?, note = ? WHERE id = ?`
+	query := `UPDATE plant_activity SET date = $1, activity_id = $2, note = $3 WHERE id = $4`
 	_, err = db.Exec(query, input.Date, input.ActivityID, input.Note, input.ID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update activity")
@@ -110,7 +110,7 @@ func DeleteActivity(c *gin.Context) {
 		return
 	}
 
-	query := `DELETE FROM plant_activity WHERE id = ?`
+	query := `DELETE FROM plant_activity WHERE id = $1`
 	_, err = db.Exec(query, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete activity")
@@ -161,7 +161,7 @@ func RecordMultiPlantActivity(c *gin.Context) {
 	}
 
 	for _, plantID := range request.PlantIDs {
-		_, err = db.Exec(`INSERT INTO plant_activity (plant_id, activity_id, note, date) VALUES (?, ?, ?, ?)`,
+		_, err = db.Exec(`INSERT INTO plant_activity (plant_id, activity_id, note, date) VALUES ($1, $2, $3, $4)`,
 			plantID, request.ActivityID, request.Note, request.Date)
 		if err != nil {
 			fieldLogger.WithError(err).WithField("plant_id", plantID).Error("Failed to insert activity for plant")

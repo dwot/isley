@@ -37,132 +37,237 @@ For full details, screenshots, and feature highlights, visit our official site �
 - **🗒️ Logging and Debugging**: Improved logging and debugging tools for troubleshooting.
 
 --- 
-
 ## 🚀 Quick Start
 
-Isley runs either on **Docker** 🐳 or as a **Windows Executable** 💻. For Docker deployments, it is recommended to use a reverse proxy for production setups to manage external access.
+Isley runs in **Docker** 🐳. Support for the **Windows Executable** 💻 has been deprecated and is no longer recommended for production use due to its reliance on SQLite and inability to scale.
+
+SQLite was ideal for early development and lightweight single-container deployments. However, it introduces write contention issues under production loads. **PostgreSQL is now the recommended database backend** for all production deployments.
 
 If you don’t already have Docker, follow the [Docker installation instructions](https://docs.docker.com/get-docker/). For `docker-compose`, you can install it [here](https://docs.docker.com/compose/install/).
 
-For Windows, running the executable from the command line allows you to see useful output logs. You can also configure it to run as a service.
-
 ---
 
-### 🐳 Option 1: Using Docker Hub (Recommended)
+### 🐳 Option 1: Docker with PostgreSQL (Recommended)
 
-Run Isley directly from the prebuilt Docker image hosted on Docker Hub.
+Use the `docker-compose.postgres.yml` file to deploy Isley with a PostgreSQL backend:
 
-1. **Run Isley Using Docker Compose**:
-   Create a `docker-compose.yml` file:
+1. **Create `docker-compose.postgres.yml`** (or use the provided one):
 
-   ```yaml
-   version: '3.8'
+```yaml
+version: '3.8'
 
-   services:
-     isley:
-       image: dwot/isley:latest
-       ports:
-         - "8080:8080"
-       environment:
-         - ISLEY_PORT=8080
-       volumes:
-         - isley-db:/app/data
-         - isley-uploads:/app/uploads
-       restart: unless-stopped
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: isley
+      POSTGRES_PASSWORD: isley
+      POSTGRES_DB: isley
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
 
-   volumes:
-     isley-db:
-     isley-uploads:
-   ```
+  isley:
+    image: dwot/isley:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - ISLEY_PORT=8080
+      - ISLEY_DB_DRIVER=postgres
+      - ISLEY_DB_DSN=postgres://isley:isley@postgres:5432/isley?sslmode=disable
+    volumes:
+      - isley-uploads:/app/uploads
+    depends_on:
+      - postgres
+    restart: unless-stopped
 
-2. **Start the Container**:
-   ```bash
-   docker-compose up -d
-   ```
+volumes:
+  postgres-data:
+  isley-uploads:
+```
+
+2. **Start the container**:
+```bash
+docker-compose -f docker-compose.postgres.yml up -d
+```
 
 3. **Access Isley**:
-    - Open your browser and go to:
-        - `http://localhost:8080` if running locally.
-        - `http://<server-ip>:8080` if running remotely.
-    - **Default Username**: `admin`  
-      **Default Password**: `isley`  
-      You will be prompted to change your password on the first login.
+- Open your browser:
+    - `http://localhost:8080` if running locally.
+    - `http://<server-ip>:8080` if running remotely.
+- **Default Username**: `admin`  
+  **Default Password**: `isley`
 
-4. **Data Persistence**:
-   Isley stores all data in the following directories:
-    - `/data`: For database storage.
-    - `/uploads`: For storing image uploads.
-
-   These directories are mapped to Docker volumes (or bind mounts). Ensure you **do not delete or recreate** these directories during updates. Add them to your **backup process** to prevent data loss.
+You will be prompted to change your password on first login.
 
 ---
 
-### 💻 Option 2: Using Windows Executable
+### 🔄 Optional: Migrate from SQLite to PostgreSQL
 
-1. **Download the Executable**:
-    - Visit the [Releases Page](https://github.com/dwot/isley/releases) and download the latest `isley.exe` file.
+If you're upgrading from an existing SQLite-based deployment to PostgreSQL, use the provided `docker-compose.migration.yml` file. This configuration mounts both the existing SQLite volume and the new PostgreSQL data volume into the container.
 
-2. **Run Isley**:
-    - Open a command prompt and navigate to the folder containing `isley.exe`.
-    - Set a custom port (if needed) using the `ISLEY_PORT` environment variable:
-      ```bash
-      set ISLEY_PORT=8080
-      isley.exe
-      ```
-    - Open your browser and navigate to:
-        - `http://localhost:8080` if running locally.
-        - `http://<server-ip>:8080` if accessing remotely.
+On startup, **Isley will automatically check**:
 
-    - **Default Username**: `admin`  
-      **Default Password**: `isley`  
-      You will be prompted to change your password on the first login.
+- If an existing SQLite database is present in `/app/data/`.
+- If the target PostgreSQL instance has no user data.
 
-3. **Data Storage**:
-   Isley persists all data in the following directories created alongside the executable:
-    - `data/`: For database storage.
-    - `uploads/`: For storing image uploads.
+If both conditions are met, **Isley will import your data from SQLite into PostgreSQL automatically**.
 
-   Add these directories to your **backup process** to avoid data loss.
+#### 📄 `docker-compose.migration.yml`
 
-4. **Run as a Service (Optional)**:
-    - Use tools like **NSSM** (Non-Sucking Service Manager) to set up Isley as a Windows service:
-      ```bash
-      nssm install Isley "C:\path\to\isley.exe"
-      nssm start Isley
-      ```
+```yaml
+version: '3.8'
+
+services:
+  isley:
+    image: dwot/isley:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - ISLEY_PORT=8080
+      - DB_DRIVER=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=isley
+      - DB_PASSWORD=supersecret
+      - DB_NAME=isleydb
+    depends_on:
+      - postgres
+    volumes:
+      - isley-db:/app/data         # existing SQLite volume
+      - isley-uploads:/app/uploads # image uploads
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    environment:
+      - POSTGRES_DB=isleydb
+      - POSTGRES_USER=isley
+      - POSTGRES_PASSWORD=supersecret
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  isley-db:
+  postgres-data:
+  isley-uploads:
+```
+
+After migration, you can switch to `docker-compose.postgres.yml` for your regular production deployment. Be sure to back up your SQLite volume (`isley-db`) before running the migration just in case.
+
+---
+
+### ⚪ Option 2: Docker with SQLite (Legacy)
+
+This method is still available for testing or lightweight local deployments.
+
+1. **Use `docker-compose.sqlite.yml`**:
+
+```yaml
+version: '3.8'
+
+services:
+  isley:
+    image: dwot/isley:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - ISLEY_PORT=8080
+      - ISLEY_DB_DRIVER=sqlite
+    volumes:
+      - isley-db:/app/data
+      - isley-uploads:/app/uploads
+    restart: unless-stopped
+
+volumes:
+  isley-db:
+  isley-uploads:
+```
+
+2. **Start the container**:
+```bash
+docker-compose -f docker-compose.sqlite.yml up -d
+```
+
+3. **Access Isley**:
+- Open your browser:
+    - `http://localhost:8080` if running locally.
+    - `http://<server-ip>:8080` if running remotely.
+- **Default Username**: `admin`  
+  **Default Password**: `isley`
+
+4. **Data Storage**:
+- `/data`: SQLite database storage.
+- `/uploads`: Image uploads.
+
+These are mapped via Docker volumes. Add them to your **backup process** to prevent data loss.
+
+> **Note:** This setup is not recommended for production use due to SQLite's limitations with concurrent writes.
+
+---
+
+### 💻 Deprecated: Windows Executable
+
+Running Isley on Windows via `isley.exe` is now **deprecated** and only supports SQLite. It is no longer recommended for active or production deployments.
+
+If you still wish to run the executable for testing:
+
+1. **Download** from the [Releases Page](https://github.com/dwot/isley/releases).
+2. **Run** via command prompt:
+```cmd
+set ISLEY_PORT=8080
+isley.exe
+```
+3. **Data** will be stored in `data/` and `uploads/` directories next to the executable.
 
 ---
 
 ## ⚙️ Configuration
 
-All settings are configurable via the **Settings icon** in the app. You can:
+All settings can be configured via the **Settings icon** in the app. You can:
 
 - 🔧 Enable/disable integrations (e.g., AC Infinity, Ecowitt).
-- 🔑 Set API keys or server IPs for integrations.
+- 🔑 Set API keys or device IPs.
 - 🔍 Scan for devices and start data collection.
 
-To override the default port, set the `ISLEY_PORT` environment variable:
+To override the default port:
 ```bash
 ISLEY_PORT=8080
+```
+
+Environment variables for Postgres:
+```bash
+DB_DRIVER=postgres
+DB_HOST=postgres
+DB_PORT=5432
+DB_USER=isley
+DB_PASSWORD=supersecret
+DB_NAME=isleydb
+```
+
+For SQLite:
+```bash
+ISLEY_DB_DRIVER=sqlite
 ```
 
 ---
 
 ## 📝 Notes
 
-- Isley is still in **active development** 🚧. While we strive to avoid breaking changes, improvements are ongoing.
-- Found a bug or have suggestions? Report them on the [GitHub repository](https://github.com/dwot/isley/issues).
+- Isley is in **active development** 🚧. Breaking changes may occasionally occur.
+- Found a bug or have a suggestion? Open an issue on the [GitHub repository](https://github.com/dwot/isley/issues).
 
 ---
 
 ## 🛡️ Recommendations
 
-For production deployments:
-- 🐳 Use **Docker** with a reverse proxy (e.g., Nginx, Traefik) to handle external access and TLS.
-- 💾 **Backup Directories**:
-    - `/data` for database storage.
-    - `/uploads` for image uploads.
-- 🚫 Avoid deleting or recreating these directories during updates.
-- 🔧 Use a Windows service manager to run Isley executable for long-term uptime.
+For production:
+
+- 🐳 Use **Docker with PostgreSQL** and a reverse proxy (e.g., Nginx, Traefik) to handle TLS and external access.
+- 💾 **Backup Directories/Volumes**:
+    - `postgres-data` for PostgreSQL
+    - `/uploads` for user content
+- ❌ Avoid using SQLite or the Windows executable in production.
+- 🛠️ Use volume mounts for persistence and scheduled backups.
 
 🌐 For more details, screenshots, and the latest updates, visit: [https://isley.dwot.io](https://isley.dwot.io).

@@ -36,7 +36,7 @@ func EditStatus(c *gin.Context) {
 		return
 	}
 
-	query := `UPDATE plant_status_log SET date = ? WHERE id = ?`
+	query := `UPDATE plant_status_log SET date = $1 WHERE id = $2`
 	_, err = db.Exec(query, input.Date, input.ID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update status in database")
@@ -63,7 +63,7 @@ func DeleteStatus(c *gin.Context) {
 		return
 	}
 
-	query := `DELETE FROM plant_status_log WHERE id = ?`
+	query := `DELETE FROM plant_status_log WHERE id = $1`
 	_, err = db.Exec(query, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete status from database")

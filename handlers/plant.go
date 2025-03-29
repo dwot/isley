@@ -103,28 +103,26 @@ func AddPlant(c *gin.Context) {
 	}
 
 	//Insert into the plants table returning id
-	result, err := db.Exec("INSERT INTO plant (name, zone_id, strain_id, description, clone, parent_plant_id, start_dt, sensors) VALUES (?, ?, ?, '', ?, ?, ?, '[]')", input.Name, *input.ZoneID, *input.StrainID, input.Clone, input.ParentID, input.Date)
+	plantID := 0
+	err = db.QueryRow("INSERT INTO plant (name, zone_id, strain_id, description, clone, parent_plant_id, start_dt, sensors) VALUES ($1, $2, $3, '', $4, $5, $6, '[]') RETURNING id", input.Name, *input.ZoneID, *input.StrainID, input.Clone, input.ParentID, input.Date).Scan(&plantID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert plant")
+		return
+	} else if plantID == 0 {
+		fieldLogger.Error("Failed to retrieve plant ID")
 		return
 	}
 
 	//If decrement seed count, lower seed count on strain by 1, min 0
 	if input.DecrementSeedCount {
-		_, err = db.Exec("UPDATE strain SET seed_count = MAX(0, seed_count - 1) WHERE id = ?", *input.StrainID)
+		_, err = db.Exec("UPDATE strain SET seed_count = MAX(0, seed_count - 1) WHERE id = $1", *input.StrainID)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to decrement seed count")
 			return
 		}
 	}
 
-	//Update plant_status_log with the new plant id and status id
-	plantID, err := result.LastInsertId()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to get last insert ID")
-		return
-	}
-	_, err = db.Exec("INSERT INTO plant_status_log (plant_id, status_id, date) VALUES (?, ?, ?)", plantID, input.StatusID, input.Date)
+	_, err = db.Exec("INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, $3)", plantID, input.StatusID, input.Date)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert plant status log")
 		return
@@ -267,31 +265,25 @@ func CreateNewStrain(newStrain *struct {
 	// Check if a new breeder needs to be added
 	if newStrain.BreederId == 0 && newStrain.NewBreeder != "" {
 		// Insert the new breeder into the `breeder` table
-		result, err := db.Exec("INSERT INTO breeder (name) VALUES (?)", newStrain.NewBreeder)
+		var breederId int
+		err := db.QueryRow("INSERT INTO breeder (name) VALUES ($1) RETURNING id", newStrain.NewBreeder).Scan(&breederId)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to insert new breeder")
 			return 0, fmt.Errorf("failed to insert new breeder: %w", err)
 		}
 
 		config.Breeders = GetBreeders()
-
-		// Get the ID of the newly inserted breeder
-		lastInsertId, err := result.LastInsertId()
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to retrieve new breeder ID")
-			return 0, fmt.Errorf("failed to retrieve new breeder ID: %w", err)
-		}
-		breederId = int(lastInsertId)
 	} else {
 		// Use the existing breeder ID
 		breederId = newStrain.BreederId
 	}
 
 	// Insert the new strain into the `strain` table
-	result, err := db.Exec(
+	var id int
+	err = db.QueryRow(
 		`INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
-		 VALUES (?, ?, 50, 50, 'true', '', 0)`,
-		newStrain.Name, breederId)
+		 VALUES ($1, $2, 50, 50, 'true', '', 0) RETURNING id`,
+		newStrain.Name, breederId).Scan(&id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert new strain")
 		return 0, fmt.Errorf("failed to insert new strain: %w", err)
@@ -299,14 +291,7 @@ func CreateNewStrain(newStrain *struct {
 
 	config.Strains = GetStrains()
 
-	// Get the ID of the newly inserted strain
-	id, err := result.LastInsertId()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to retrieve new strain ID")
-		return 0, fmt.Errorf("failed to retrieve new strain ID: %w", err)
-	}
-
-	return int(id), nil
+	return id, nil
 }
 
 func DeletePlant(c *gin.Context) {
@@ -333,35 +318,35 @@ func DeletePlantById(id string) error {
 	}
 
 	// Delete the plant's images
-	_, err = db.Exec("DELETE FROM plant_images WHERE plant_id = ?", id)
+	_, err = db.Exec("DELETE FROM plant_images WHERE plant_id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete plant images")
 		return err
 	}
 
 	// Delete the plant's measurements
-	_, err = db.Exec("DELETE FROM plant_measurements WHERE plant_id = ?", id)
+	_, err = db.Exec("DELETE FROM plant_measurements WHERE plant_id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete plant measurements")
 		return err
 	}
 
 	// Delete the plant's activities
-	_, err = db.Exec("DELETE FROM plant_activity WHERE plant_id = ?", id)
+	_, err = db.Exec("DELETE FROM plant_activity WHERE plant_id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete plant activities")
 		return err
 	}
 
 	// Delete the plant's status log
-	_, err = db.Exec("DELETE FROM plant_status_log WHERE plant_id = ?", id)
+	_, err = db.Exec("DELETE FROM plant_status_log WHERE plant_id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete plant status log")
 		return err
 	}
 
 	// Delete the plant
-	_, err = db.Exec("DELETE FROM plant WHERE id = ?", id)
+	_, err = db.Exec("DELETE FROM plant WHERE id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete plant")
 		return err
@@ -378,7 +363,42 @@ func GetPlant(id string) types.Plant {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return plant
 	}
-	rows, err := db.Query("SELECT p.id, p.name, p.description, p.clone, p.start_dt, s.name as strain_name, b.name as breeder_name, z.name as zone_name, z.id as zone_id, (select ps.status from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as current_status, (select ps.id from plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id where psl.plant_id = p.id order by strftime('%s', psl.date) desc limit 1) as status_id, p.sensors, s.id, p.harvest_weight, coalesce(s.cycle_time, 0), coalesce(s.url, ''), s.autoflower, coalesce(p.parent_plant_id, 0), coalesce(p2.name, '') as parent_name FROM plant p LEFT OUTER JOIN plant p2 on coalesce(p.parent_plant_id, 0) = p2.id LEFT OUTER JOIN strain s on p.strain_id = s.id left outer join breeder b on b.id = s.breeder_id LEFT OUTER JOIN zones z on p.zone_id = z.id WHERE p.id = $1", id)
+	var orderByExpr string
+	if model.IsPostgres() {
+		orderByExpr = "EXTRACT(EPOCH FROM psl.date)"
+	} else {
+		orderByExpr = "strftime('%s', psl.date)"
+	}
+
+	query := fmt.Sprintf(`
+		SELECT p.id, p.name, p.description, p.clone, p.start_dt,
+			   s.name AS strain_name, b.name AS breeder_name, z.name AS zone_name, z.id AS zone_id,
+			   (SELECT ps.status
+				FROM plant_status_log psl
+				LEFT OUTER JOIN plant_status ps ON psl.status_id = ps.id
+				WHERE psl.plant_id = p.id
+				ORDER BY %s DESC
+				LIMIT 1) AS current_status,
+			   (SELECT ps.id
+				FROM plant_status_log psl
+				LEFT OUTER JOIN plant_status ps ON psl.status_id = ps.id
+				WHERE psl.plant_id = p.id
+				ORDER BY %s DESC
+				LIMIT 1) AS status_id,
+			   p.sensors, s.id, p.harvest_weight,
+			   COALESCE(s.cycle_time, 0),
+			   COALESCE(s.url, ''),
+			   s.autoflower,
+			   COALESCE(p.parent_plant_id, 0),
+			   COALESCE(p2.name, '') AS parent_name
+		FROM plant p
+		LEFT OUTER JOIN plant p2 ON COALESCE(p.parent_plant_id, 0) = p2.id
+		LEFT OUTER JOIN strain s ON p.strain_id = s.id
+		LEFT OUTER JOIN breeder b ON b.id = s.breeder_id
+		LEFT OUTER JOIN zones z ON p.zone_id = z.id
+		WHERE p.id = $1`, orderByExpr, orderByExpr)
+
+	rows, err := db.Query(query, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query plant")
 		return plant
@@ -441,7 +461,7 @@ func GetPlant(id string) types.Plant {
 			var sensor types.SensorDataResponse
 
 			// Query sensor details from the sensors table
-			err := db.QueryRow("SELECT id, name, unit FROM sensors WHERE id = ?", sensorID).Scan(&sensor.ID, &sensor.Name, &sensor.Unit)
+			err := db.QueryRow("SELECT id, name, unit FROM sensors WHERE id = $1", sensorID).Scan(&sensor.ID, &sensor.Name, &sensor.Unit)
 			if err != nil {
 				fieldLogger.WithError(err).Error("Failed to query sensor details")
 				continue
@@ -449,7 +469,7 @@ func GetPlant(id string) types.Plant {
 
 			// Query the latest sensor data from the sensor_data table
 			var sensorData types.SensorData
-			err = db.QueryRow("SELECT id, value, create_dt FROM sensor_data WHERE sensor_id = ? ORDER BY create_dt DESC LIMIT 1", sensorID).Scan(&sensorData.ID, &sensorData.Value, &sensorData.CreateDT)
+			err = db.QueryRow("SELECT id, value, create_dt FROM sensor_data WHERE sensor_id = $1 ORDER BY create_dt DESC LIMIT 1", sensorID).Scan(&sensorData.ID, &sensorData.Value, &sensorData.CreateDT)
 			if err != nil {
 				fieldLogger.WithError(err).Error("Failed to query sensor data")
 				continue
@@ -519,7 +539,7 @@ func GetPlant(id string) types.Plant {
 
 		//Load latest image
 		var latestImage types.PlantImage
-		err = db.QueryRow("SELECT id, image_path, image_description, image_order, image_date FROM plant_images WHERE plant_id = ? ORDER BY image_date DESC LIMIT 1", id).Scan(&latestImage.ID, &latestImage.ImagePath, &latestImage.ImageDescription, &latestImage.ImageOrder, &latestImage.ImageDate)
+		err = db.QueryRow("SELECT id, image_path, image_description, image_order, image_date FROM plant_images WHERE plant_id = $1 ORDER BY image_date DESC LIMIT 1", id).Scan(&latestImage.ID, &latestImage.ImagePath, &latestImage.ImageDescription, &latestImage.ImageOrder, &latestImage.ImageDate)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to query latest image")
 			latestImage = types.PlantImage{ID: 0, PlantID: plant.ID, ImagePath: "/static/img/winston.hat.jpg", ImageDescription: "Placeholder", ImageOrder: 100, ImageDate: time.Now().In(time.Local), CreatedAt: time.Now().In(time.Local), UpdatedAt: time.Now().In(time.Local)}
@@ -646,7 +666,7 @@ func LinkSensorsToPlant(c *gin.Context) {
 	}
 
 	// Update the plant with the serialized sensor IDs
-	_, err = db.Exec("UPDATE plant SET sensors = ? WHERE id = ?", sensorIDsJSON, input.PlantID)
+	_, err = db.Exec("UPDATE plant SET sensors = $1 WHERE id = $2", sensorIDsJSON, input.PlantID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update sensors")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update sensors for the plant"})
@@ -704,9 +724,9 @@ func AddStrainHandler(c *gin.Context) {
 		// Insert new breeder
 		insertBreederStmt := `
 			INSERT INTO breeder (name)
-			VALUES (?)
-		`
-		result, err := db.Exec(insertBreederStmt, req.NewBreeder)
+			VALUES ($1)
+		 RETURNING id`
+		err := db.QueryRow(insertBreederStmt, req.NewBreeder).Scan(&breederID)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to insert new breeder")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add new breeder"})
@@ -714,15 +734,6 @@ func AddStrainHandler(c *gin.Context) {
 		}
 
 		config.Breeders = GetBreeders()
-
-		// Get the new breeder's ID
-		newBreederID, err := result.LastInsertId()
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to retrieve new breeder ID")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve new breeder ID"})
-			return
-		}
-		breederID = int(newBreederID)
 	} else {
 		// Use existing breeder ID
 		breederID = *req.BreederID
@@ -731,7 +742,7 @@ func AddStrainHandler(c *gin.Context) {
 	// Insert the new strain into the database
 	stmt := `
 		INSERT INTO strain (name, breeder_id, indica, sativa, autoflower, seed_count, description, cycle_time, url)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 	_, err = db.Exec(stmt, req.Name, breederID, req.Indica, req.Sativa, req.Autoflower, req.SeedCount, req.Description, req.CycleTime, req.Url)
 	if err != nil {
@@ -767,7 +778,7 @@ func GetStrainHandler(c *gin.Context) {
 	err = db.QueryRow(`
         SELECT s.id, s.name, b.name as breeder, s.indica, s.sativa, s.autoflower, s.description, s.seed_count
         FROM strain s LEFT OUTER JOIN breeder b on s.breeder_id = b.id
-        WHERE id = ?`, id).Scan(
+        WHERE id = $1`, id).Scan(
 		&strain.ID, &strain.Name, &strain.Breeder, &strain.Indica, &strain.Sativa,
 		&strain.Autoflower, &strain.Description, &strain.SeedCount)
 	if err != nil {
@@ -838,9 +849,10 @@ func UpdateStrainHandler(c *gin.Context) {
 		// Insert the new breeder into the database
 		insertBreederStmt := `
 			INSERT INTO breeder (name)
-			VALUES (?)
+			VALUES ($1)
+			RETURNING id
 		`
-		result, err := db.Exec(insertBreederStmt, req.NewBreeder)
+		err := db.QueryRow(insertBreederStmt, req.NewBreeder).Scan(&breederID)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to insert new breeder")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add new breeder"})
@@ -848,15 +860,6 @@ func UpdateStrainHandler(c *gin.Context) {
 		}
 
 		config.Breeders = GetBreeders()
-
-		// Get the new breeder's ID
-		newBreederID, err := result.LastInsertId()
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to retrieve new breeder ID")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve new breeder ID"})
-			return
-		}
-		breederID = int(newBreederID)
 	} else {
 		breederID = *req.BreederID
 	}
@@ -864,8 +867,8 @@ func UpdateStrainHandler(c *gin.Context) {
 	// Update the strain in the database
 	updateStmt := `
         UPDATE strain
-        SET name = ?, breeder_id = ?, indica = ?, sativa = ?, autoflower = ?, description = ?, seed_count = ?, cycle_time = ?, url = ?
-        WHERE id = ?
+        SET name = $1, breeder_id = $2, indica = $3, sativa = $4, autoflower = $5, description = $6, seed_count = $7, cycle_time = $8, url = $9
+        WHERE id = $10
     `
 	_, err = db.Exec(updateStmt, req.Name, breederID, req.Indica, req.Sativa,
 		req.Autoflower, req.Description, req.SeedCount, req.CycleTime, req.Url, id)
@@ -895,7 +898,7 @@ func DeleteStrainHandler(c *gin.Context) {
 		return
 	}
 
-	result, err := db.Exec(`DELETE FROM strain WHERE id = ?`, id)
+	result, err := db.Exec(`DELETE FROM strain WHERE id = $1`, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete strain")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete strain"})
@@ -972,7 +975,7 @@ func UpdatePlant(c *gin.Context) {
 	}
 
 	//Update the plant
-	_, err = db.Exec("UPDATE plant SET name = ?, description = ?, zone_id = ?, strain_id = ?, clone = ?, start_dt = ?, harvest_weight = ? WHERE id = ?", input.PlantName, input.PlantDescription, input.ZoneID, input.StrainID, input.IsClone, input.StartDT, input.HarvestWeight, input.PlantID)
+	_, err = db.Exec("UPDATE plant SET name = $1, description = $2, zone_id = $3, strain_id = $4, clone = $5, start_dt = $6, harvest_weight = $7 WHERE id = $8", input.PlantName, input.PlantDescription, input.ZoneID, input.StrainID, input.IsClone, input.StartDT, input.HarvestWeight, input.PlantID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update plant")
 		return
@@ -981,13 +984,13 @@ func UpdatePlant(c *gin.Context) {
 	//Update the Plant Status Log
 	//Check the current status and do not update if it's unchanged
 	var currentStatus int
-	err = db.QueryRow("SELECT status_id FROM plant_status_log WHERE plant_id = ? ORDER BY date DESC LIMIT 1", input.PlantID).Scan(&currentStatus)
+	err = db.QueryRow("SELECT status_id FROM plant_status_log WHERE plant_id = $1 ORDER BY date DESC LIMIT 1", input.PlantID).Scan(&currentStatus)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to get current status")
 		return
 	}
 	if currentStatus != input.StatusID {
-		_, err = db.Exec("INSERT INTO plant_status_log (plant_id, status_id, date) VALUES (?, ?, ?)", input.PlantID, input.StatusID, input.Date)
+		_, err = db.Exec("INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, $3)", input.PlantID, input.StatusID, input.Date)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to update plant status")
 			return
@@ -1008,62 +1011,117 @@ func getPlantsByStatus(statuses []int) ([]types.PlantListResponse, error) {
 		args[i] = status
 	}
 
-	// Join the placeholders with commas
-	inClause := "(" + strings.Join(placeholders, ",") + ")"
+	driver := model.GetDriver()
+	statusVals := make([]interface{}, len(statuses))
+	for i, s := range statuses {
+		statusVals[i] = s
+	}
+	inClause, args := model.BuildInClause(driver, statusVals)
 
 	// Use the dynamic IN clause in the query
-	query := `
-		SELECT p.id, p.name, p.description, p.clone, s.name AS strain_name, b.name AS breeder_name, z.name AS zone_name,
-       p.start_dt,
-       CAST((julianday('now', 'localtime') - julianday(p.start_dt)) / 7 + 1 AS INT) AS current_week,
-       CAST((julianday('now', 'localtime') - julianday(p.start_dt)) + 1 AS INT) AS current_day,
-       COALESCE(
-           (SELECT CAST(julianday('now', 'localtime') - julianday(MAX(date)) AS INT)
-            FROM plant_activity pa 
-            JOIN activity a ON pa.activity_id = a.id
-            WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Water')), 
-           0
-       ) AS days_since_last_watering,
-       COALESCE(
-           (SELECT CAST(julianday('now', 'localtime') - julianday(MAX(date)) AS INT)
-            FROM plant_activity pa 
-            JOIN activity a ON pa.activity_id = a.id
-            WHERE pa.plant_id = p.id AND a.id = (SELECT id FROM activity WHERE name = 'Feed')), 
-           0
-       ) AS days_since_last_feeding,
-       COALESCE(
-           (SELECT CAST(julianday('now', 'localtime') - julianday(MAX(date)) AS INT)
-            FROM plant_status_log 
-            WHERE plant_id = p.id 
-              AND status_id = (SELECT id FROM plant_status WHERE status = 'Flower')),
-           0
-       ) AS flowering_days,
-       p.harvest_weight, ps.status, psl.date as status_date, 
-       COALESCE(s.cycle_time, 0), 
-       COALESCE(s.url, '') AS strain_url, 
-       s.autoflower,
-       COALESCE(
-           (SELECT MIN(h.date)
-            FROM plant_status_log h
-            WHERE h.plant_id = p.id
-              AND h.status_id IN (
-                SELECT id
-                FROM plant_status
-                WHERE status IN ('Drying','Curing','Success','Dead')
-            )
-           ),
-           DATE('now', 'localtime') -- Use today's date if no harvest date is found
-       ) AS harvest_date
+	var query string
+
+	if model.IsPostgres() {
+		query = `
+SELECT 
+    p.id, p.name, p.description, p.clone, 
+    s.name AS strain_name, b.name AS breeder_name, z.name AS zone_name,
+    p.start_dt,
+    ((EXTRACT(DAY FROM CURRENT_DATE - p.start_dt)::int) / 7 + 1) AS current_week,
+    (EXTRACT(DAY FROM CURRENT_DATE - p.start_dt)::int + 1) AS current_day,
+    COALESCE((
+        SELECT EXTRACT(DAY FROM CURRENT_DATE - MAX(pa.date))::int
+        FROM plant_activity pa 
+        JOIN activity a ON pa.activity_id = a.id
+        WHERE pa.plant_id = p.id AND a.name = 'Water'
+    ), 0) AS days_since_last_watering,
+    COALESCE((
+        SELECT EXTRACT(DAY FROM CURRENT_DATE - MAX(pa.date))::int
+        FROM plant_activity pa 
+        JOIN activity a ON pa.activity_id = a.id
+        WHERE pa.plant_id = p.id AND a.name = 'Feed'
+    ), 0) AS days_since_last_feeding,
+    COALESCE((
+        SELECT EXTRACT(DAY FROM CURRENT_DATE - MAX(date))::int
+        FROM plant_status_log 
+        WHERE plant_id = p.id AND status_id = (
+            SELECT id FROM plant_status WHERE status = 'Flower'
+        )
+    ), 0) AS flowering_days,
+    p.harvest_weight, ps.status, psl.date as status_date,
+    COALESCE(s.cycle_time, 0), 
+    COALESCE(s.url, '') AS strain_url, 
+    s.autoflower,
+    COALESCE((
+        SELECT MIN(h.date)
+        FROM plant_status_log h
+        WHERE h.plant_id = p.id
+          AND h.status_id IN (
+            SELECT id FROM plant_status 
+            WHERE status IN ('Drying','Curing','Success','Dead')
+        )
+    ), CURRENT_DATE) AS harvest_date
 FROM plant p
-         JOIN strain s ON p.strain_id = s.id
-         JOIN breeder b ON s.breeder_id = b.id
-         LEFT JOIN zones z ON p.zone_id = z.id
-         JOIN plant_status_log psl ON p.id = psl.plant_id
-         JOIN plant_status ps ON psl.status_id = ps.id
-WHERE ps.id IN ` + inClause + ` AND psl.date = (
-    SELECT MAX(date) FROM plant_status_log WHERE plant_id = p.id
-)
-ORDER BY p.start_dt, p.name;`
+JOIN strain s ON p.strain_id = s.id
+JOIN breeder b ON s.breeder_id = b.id
+LEFT JOIN zones z ON p.zone_id = z.id
+JOIN plant_status_log psl ON p.id = psl.plant_id
+JOIN plant_status ps ON psl.status_id = ps.id
+WHERE ps.id IN ` + inClause + `
+  AND psl.date = (SELECT MAX(date) FROM plant_status_log WHERE plant_id = p.id)
+ORDER BY p.start_dt, p.name;
+`
+	} else {
+		query = `
+SELECT 
+    p.id, p.name, p.description, p.clone, 
+    s.name AS strain_name, b.name AS breeder_name, z.name AS zone_name,
+    p.start_dt,
+    CAST((julianday('now', 'localtime') - julianday(p.start_dt)) / 7 + 1 AS INT) AS current_week,
+    CAST((julianday('now', 'localtime') - julianday(p.start_dt)) + 1 AS INT) AS current_day,
+    COALESCE((
+        SELECT CAST(julianday('now', 'localtime') - julianday(MAX(pa.date)) AS INT)
+        FROM plant_activity pa 
+        JOIN activity a ON pa.activity_id = a.id
+        WHERE pa.plant_id = p.id AND a.name = 'Water'
+    ), 0) AS days_since_last_watering,
+    COALESCE((
+        SELECT CAST(julianday('now', 'localtime') - julianday(MAX(pa.date)) AS INT)
+        FROM plant_activity pa 
+        JOIN activity a ON pa.activity_id = a.id
+        WHERE pa.plant_id = p.id AND a.name = 'Feed'
+    ), 0) AS days_since_last_feeding,
+    COALESCE((
+        SELECT CAST(julianday('now', 'localtime') - julianday(MAX(date)) AS INT)
+        FROM plant_status_log 
+        WHERE plant_id = p.id AND status_id = (
+            SELECT id FROM plant_status WHERE status = 'Flower'
+        )
+    ), 0) AS flowering_days,
+    p.harvest_weight, ps.status, psl.date as status_date,
+    COALESCE(s.cycle_time, 0), 
+    COALESCE(s.url, '') AS strain_url, 
+    s.autoflower,
+    COALESCE((
+        SELECT MIN(h.date)
+        FROM plant_status_log h
+        WHERE h.plant_id = p.id
+          AND h.status_id IN (
+            SELECT id FROM plant_status 
+            WHERE status IN ('Drying','Curing','Success','Dead')
+        )
+    ), DATE('now', 'localtime')) AS harvest_date
+FROM plant p
+JOIN strain s ON p.strain_id = s.id
+JOIN breeder b ON s.breeder_id = b.id
+LEFT JOIN zones z ON p.zone_id = z.id
+JOIN plant_status_log psl ON p.id = psl.plant_id
+JOIN plant_status ps ON psl.status_id = ps.id
+WHERE ps.id IN ` + inClause + `
+  AND psl.date = (SELECT MAX(date) FROM plant_status_log WHERE plant_id = p.id)
+ORDER BY p.start_dt, p.name;
+`
+	}
 
 	// Open the database connection
 	db, err := model.GetDB()
@@ -1092,7 +1150,7 @@ ORDER BY p.start_dt, p.name;`
 		// Parse the date string into time.Time
 		//If harvestDateStr contains T it has a time component, otherwise it's just a date, parse it accordingly
 		if strings.Contains(harvestDateStr, "T") {
-			plant.HarvestDate, err = time.Parse("2006-01-02T15:04", harvestDateStr)
+			plant.HarvestDate, err = time.Parse(time.RFC3339, harvestDateStr)
 		} else {
 			plant.HarvestDate, err = time.Parse("2006-01-02", harvestDateStr)
 		}
@@ -1297,7 +1355,7 @@ func PlantsByStrainHandler(context *gin.Context) {
 	}
 
 	// Query plants with the given strain ID
-	rows, err := db.Query(`SELECT id, name FROM plant WHERE strain_id = ? ORDER BY name ASC`, strainID)
+	rows, err := db.Query(`SELECT id, name FROM plant WHERE strain_id = $1 ORDER BY name ASC`, strainID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query database")
 		context.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch plants"})
