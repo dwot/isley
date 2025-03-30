@@ -1,10 +1,11 @@
 package handlers
 
 import (
-	"bytes"
 	"encoding/json"
 	"github.com/sirupsen/logrus"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"isley/logger"
@@ -27,11 +28,14 @@ func ACILoginHandler(c *gin.Context) {
 		req.Password = req.Password[:25]
 	}
 
-	formData := "appEmail=" + req.Email + "&appPasswordl=" + req.Password
+	// Properly encode form data
+	values := url.Values{}
+	values.Set("appEmail", req.Email)
+	values.Set("appPasswordl", req.Password)
+	formData := values.Encode()
 	apiURL := "http://www.acinfinityserver.com/api/user/appUserLogin"
 
-	// Create a new HTTP request
-	httpRequest, err := http.NewRequest("POST", apiURL, bytes.NewBufferString(formData))
+	httpRequest, err := http.NewRequest("POST", apiURL, strings.NewReader(formData))
 	if err != nil {
 		logger.Log.WithError(err).Error("Failed to create HTTP request")
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to create request"})
