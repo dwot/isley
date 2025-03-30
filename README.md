@@ -72,7 +72,7 @@ services:
       - "8080:8080"
     environment:
       - ISLEY_PORT=8080
-      - ISLEY_DB_DRIVER=postgres
+      - DB_DRIVER=postgres
       - ISLEY_DB_DSN=postgres://isley:isley@postgres:5432/isley?sslmode=disable
     volumes:
       - isley-uploads:/app/uploads
@@ -173,7 +173,7 @@ services:
       - "8080:8080"
     environment:
       - ISLEY_PORT=8080
-      - ISLEY_DB_DRIVER=sqlite
+      - DB_DRIVER=sqlite
     volumes:
       - isley-db:/app/data
       - isley-uploads:/app/uploads
@@ -247,7 +247,7 @@ DB_NAME=isleydb
 
 For SQLite:
 ```bash
-ISLEY_DB_DRIVER=sqlite
+DB_DRIVER=sqlite
 ```
 
 ---
