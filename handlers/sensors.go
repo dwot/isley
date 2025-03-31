@@ -392,7 +392,7 @@ func GetGroupedSensorsWithLatestReading() map[string]map[string][]map[string]int
 	defer cacheMutex.Unlock()
 
 	// Check if the cache is still valid
-	if time.Since(cacheLastUpdatedTime) < time.Duration(config.PollingInterval)*time.Second {
+	if time.Since(cacheLastUpdatedTime) < time.Duration(config.PollingInterval/10)*time.Second {
 		return sensorCache
 	}
 
