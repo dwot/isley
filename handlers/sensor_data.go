@@ -51,7 +51,7 @@ func ChartHandler(c *gin.Context) {
 	cached, found := sensorDataCache[cacheKey]
 	sdCacheMutex.Unlock()
 
-	if found && time.Since(cached.timestamp) < time.Duration(config.PollingInterval)*time.Second {
+	if found && time.Since(cached.timestamp) < time.Duration(config.PollingInterval/10)*time.Second {
 		sensorLogger.Info("Serving data from cache")
 		c.JSON(http.StatusOK, cached.data)
 		return

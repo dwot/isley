@@ -974,8 +974,13 @@ func UpdatePlant(c *gin.Context) {
 		input.StrainID = &strainID // Set the created strain ID
 	}
 
+	isClone := 0
+	if input.IsClone {
+		isClone = 1
+	}
+
 	//Update the plant
-	_, err = db.Exec("UPDATE plant SET name = $1, description = $2, zone_id = $3, strain_id = $4, clone = $5, start_dt = $6, harvest_weight = $7 WHERE id = $8", input.PlantName, input.PlantDescription, input.ZoneID, input.StrainID, input.IsClone, input.StartDT, input.HarvestWeight, input.PlantID)
+	_, err = db.Exec("UPDATE plant SET name = $1, description = $2, zone_id = $3, strain_id = $4, clone = $5, start_dt = $6, harvest_weight = $7 WHERE id = $8", input.PlantName, input.PlantDescription, input.ZoneID, input.StrainID, isClone, input.StartDT, input.HarvestWeight, input.PlantID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update plant")
 		return
