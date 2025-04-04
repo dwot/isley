@@ -276,7 +276,7 @@
                 new_breeder: breederSelect.value === "new" ? document.getElementById("newBreederName").value : null,
                 indica: parseInt(indicaSativaSlider.value, 10),
                 sativa: 100 - parseInt(indicaSativaSlider.value, 10),
-                autoflower: document.getElementById("autoflower").value,
+                autoflower: document.getElementById("autoflower").value === "true",
                 seed_count: parseInt(document.getElementById("seedCount").value, 10),
                 description: document.getElementById("strainDescription").value,
                 cycle_time: parseInt(cycleTime.value, 10),
@@ -346,7 +346,7 @@
                 new_breeder: editBreederSelect.value === "new" ? document.getElementById("editNewBreederName").value : null,
                 indica: parseInt(editIndicaSativaSlider.value, 10),
                 sativa: 100 - parseInt(editIndicaSativaSlider.value, 10),
-                autoflower: document.getElementById("editAutoflower").value,
+                autoflower: document.getElementById("editAutoflower").value === "true",
                 seed_count: parseInt(document.getElementById("editSeedCount").value, 10),
                 description: document.getElementById("editStrainDescription").value,
                 cycle_time: parseInt(editCycleTime.value, 10),
@@ -468,7 +468,8 @@
                         </th>
                         <td>${strain.breeder || "N/A"}</td>
                         <td>${strain.indica || 0} / ${strain.sativa || 0}</td>
-                        <td>${strain.autoflower === "true" ? "{{ .lcl.yes }}" : "{{ .lcl.no }}"}</td>
+                        <!-- Autoflower may be true or "true" or 1 -->
+                        <td>${strain.autoflower === "true" || strain.autoflower === true || strain.autoflower === 1 ? "{{ .lcl.yes }}" : "{{ .lcl.no }}"}</td>
                         <td>${strain.seed_count || 0}</td>
                         <td class="clickable-row"
                         data-id="${strain.id}"
@@ -531,6 +532,11 @@
                     document.getElementById("editIndicaSativaSlider").value = strainData.indica;
                     editIndicaLabel.textContent = `Indica: ${strainData.indica}%`;
                     editSativaLabel.textContent = `Sativa: ${100 - strainData.indica}%`;
+                    if (strainData.autoflower === "true" || strainData.autoflower === true || strainData.autoflower === 1) {
+                        document.getElementById("editAutoflower").value = "true";
+                    } else {
+                        document.getElementById("editAutoflower").value = "false";
+                    }
                     document.getElementById("editAutoflower").value = strainData.autoflower;
                     document.getElementById("editSeedCount").value = strainData.seed_count;
                     document.getElementById("editStrainDescription").value = strainData.description;

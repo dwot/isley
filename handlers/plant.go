@@ -115,7 +115,15 @@ func AddPlant(c *gin.Context) {
 
 	//If decrement seed count, lower seed count on strain by 1, min 0
 	if input.DecrementSeedCount {
-		_, err = db.Exec("UPDATE strain SET seed_count = MAX(0, seed_count - 1) WHERE id = $1", *input.StrainID)
+		var query string
+		if model.IsPostgres() {
+			query = "UPDATE strain SET seed_count = GREATEST(0, seed_count - 1) WHERE id = $1"
+		} else {
+			query = "UPDATE strain SET seed_count = MAX(0, seed_count - 1) WHERE id = $1"
+		}
+
+		_, err := db.Exec(query, *input.StrainID)
+
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to decrement seed count")
 			return
@@ -685,7 +693,7 @@ func AddStrainHandler(c *gin.Context) {
 		NewBreeder  string `json:"new_breeder"`
 		Indica      int    `json:"indica"`
 		Sativa      int    `json:"sativa"`
-		Autoflower  string `json:"autoflower"`
+		Autoflower  bool   `json:"autoflower"`
 		SeedCount   int    `json:"seed_count"`
 		Description string `json:"description"`
 		CycleTime   int    `json:"cycle_time"`
@@ -744,7 +752,14 @@ func AddStrainHandler(c *gin.Context) {
 		INSERT INTO strain (name, breeder_id, indica, sativa, autoflower, seed_count, description, cycle_time, url)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
-	_, err = db.Exec(stmt, req.Name, breederID, req.Indica, req.Sativa, req.Autoflower, req.SeedCount, req.Description, req.CycleTime, req.Url)
+	//convert autoflower to int
+	var autoflowerInt int
+	if req.Autoflower {
+		autoflowerInt = 1
+	} else {
+		autoflowerInt = 0
+	}
+	_, err = db.Exec(stmt, req.Name, breederID, req.Indica, req.Sativa, autoflowerInt, req.SeedCount, req.Description, req.CycleTime, req.Url)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert strain")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add strain"})
@@ -809,7 +824,7 @@ func UpdateStrainHandler(c *gin.Context) {
 		NewBreeder  string `json:"new_breeder"`
 		Indica      int    `json:"indica"`
 		Sativa      int    `json:"sativa"`
-		Autoflower  string `json:"autoflower"`
+		Autoflower  bool   `json:"autoflower"`
 		Description string `json:"description"`
 		SeedCount   int    `json:"seed_count"`
 		CycleTime   int    `json:"cycle_time"`
@@ -870,8 +885,15 @@ func UpdateStrainHandler(c *gin.Context) {
         SET name = $1, breeder_id = $2, indica = $3, sativa = $4, autoflower = $5, description = $6, seed_count = $7, cycle_time = $8, url = $9
         WHERE id = $10
     `
+	//Convert autoflower to int
+	var autoflowerInt int
+	if req.Autoflower {
+		autoflowerInt = 1
+	} else {
+		autoflowerInt = 0
+	}
 	_, err = db.Exec(updateStmt, req.Name, breederID, req.Indica, req.Sativa,
-		req.Autoflower, req.Description, req.SeedCount, req.CycleTime, req.Url, id)
+		autoflowerInt, req.Description, req.SeedCount, req.CycleTime, req.Url, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update strain")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update strain"})

@@ -219,6 +219,9 @@ func main() {
 		// Write the favicon data to the response
 		c.Data(200, "image/x-icon", faviconData)
 	})
+	r.GET("/health", func(c *gin.Context) {
+		handleHealth(c)
+	})
 
 	guestMode := false
 	if config.GuestMode == 1 {
@@ -263,7 +266,15 @@ func main() {
 
 	// Start the server
 	logger.Log.Fatal(r.Run(":" + port))
-	logger.Log.Info("Server started on port %s", port)
+	logger.Log.Info("Server started on port", port)
+}
+
+func handleHealth(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status": "ok",
+	})
+	c.String(http.StatusOK, "Isley is running")
+	logger.Log.Info("Health check passed")
 }
 
 func handleLogin(c *gin.Context) {
