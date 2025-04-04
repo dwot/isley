@@ -57,32 +57,38 @@ Use the `docker-compose.postgres.yml` file to deploy Isley with a PostgreSQL bac
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15
-    environment:
-      POSTGRES_USER: isley
-      POSTGRES_PASSWORD: isley
-      POSTGRES_DB: isley
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-
   isley:
     image: dwot/isley:latest
     ports:
       - "8080:8080"
     environment:
       - ISLEY_PORT=8080
-      - DB_DRIVER=postgres
-      - ISLEY_DB_DSN=postgres://isley:isley@postgres:5432/isley?sslmode=disable
-    volumes:
-      - isley-uploads:/app/uploads
+      - ISLEY_DB_DRIVER=postgres
+      - ISLEY_DB_HOST=postgres
+      - ISLEY_DB_PORT=5432
+      - ISLEY_DB_USER=isley
+      - ISLEY_DB_PASSWORD=supersecret
+      - ISLEY_DB_NAME=isleydb
     depends_on:
       - postgres
+    volumes:
+      - isley-uploads:/app/uploads
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    environment:
+      - POSTGRES_DB=isleydb
+      - POSTGRES_USER=isley
+      - POSTGRES_PASSWORD=supersecret
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
     restart: unless-stopped
 
 volumes:
   postgres-data:
   isley-uploads:
+
 ```
 
 2. **Start the container**:
@@ -124,17 +130,17 @@ services:
       - "8080:8080"
     environment:
       - ISLEY_PORT=8080
-      - DB_DRIVER=postgres
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=isley
-      - DB_PASSWORD=supersecret
-      - DB_NAME=isleydb
+      - ISLEY_DB_DRIVER=postgres
+      - ISLEY_DB_HOST=postgres
+      - ISLEY_DB_PORT=5432
+      - ISLEY_DB_USER=isley
+      - ISLEY_DB_PASSWORD=supersecret
+      - ISLEY_DB_NAME=isleydb
     depends_on:
       - postgres
     volumes:
-      - isley-db:/app/data         # existing SQLite volume
-      - isley-uploads:/app/uploads # image uploads
+      - isley-db:/app/data
+      - isley-uploads:/app/uploads
     restart: unless-stopped
 
   postgres:
@@ -151,6 +157,7 @@ volumes:
   isley-db:
   postgres-data:
   isley-uploads:
+
 ```
 
 After migration, you can switch to `docker-compose.postgres.yml` for your regular production deployment. Be sure to back up your SQLite volume (`isley-db`) before running the migration just in case.
@@ -173,7 +180,7 @@ services:
       - "8080:8080"
     environment:
       - ISLEY_PORT=8080
-      - DB_DRIVER=sqlite
+      - ISLEY_DB_DRIVER=sqlite
     volumes:
       - isley-db:/app/data
       - isley-uploads:/app/uploads
@@ -237,17 +244,17 @@ ISLEY_PORT=8080
 
 Environment variables for Postgres:
 ```bash
-DB_DRIVER=postgres
-DB_HOST=postgres
-DB_PORT=5432
-DB_USER=isley
-DB_PASSWORD=supersecret
-DB_NAME=isleydb
+ISLEY_DB_DRIVER=postgres
+ISLEY_DB_HOST=postgres
+ISLEY_DB_PORT=5432
+ISLEY_DB_USER=isley
+ISLEY_DB_PASSWORD=supersecret
+ISLEY_DB_NAME=isleydb
 ```
 
 For SQLite:
 ```bash
-DB_DRIVER=sqlite
+ISLEY_DB_DRIVER=sqlite
 ```
 
 ---

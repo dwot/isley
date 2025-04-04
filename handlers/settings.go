@@ -995,7 +995,7 @@ func AddStreamHandler(c *gin.Context) {
 		Name    string `json:"stream_name"`
 		URL     string `json:"url"`
 		ZoneID  string `json:"zone_id"`
-		Visible string `json:"visible"`
+		Visible bool   `json:"visible"`
 	}
 	if err := c.ShouldBindJSON(&stream); err != nil {
 		fieldLogger.WithError(err).Error("Failed to add stream")
@@ -1036,7 +1036,7 @@ func UpdateStreamHandler(c *gin.Context) {
 		Name    string `json:"stream_name"`
 		URL     string `json:"url"`
 		ZoneID  string `json:"zone_id"`
-		Visible string `json:"visible"`
+		Visible bool   `json:"visible"`
 	}
 	if err := c.ShouldBindJSON(&stream); err != nil {
 		fieldLogger.WithError(err).Error("Failed to update stream")

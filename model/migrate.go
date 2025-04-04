@@ -24,7 +24,14 @@ var dbDriver string
 
 func InitDB() {
 	var err error
-	driver := os.Getenv("DB_DRIVER")
+	driver := os.Getenv("ISLEY_DB_DRIVER")
+	logger.Log.Info("DB_DRIVER is: ", driver)
+
+	dbFile := os.Getenv("ISLEY_DB_FILE")
+	logger.Log.Info("DB_FILE is: ", dbFile)
+	if dbFile == "" {
+		dbFile = "data/isley.db"
+	}
 
 	var dsn string
 	switch driver {
@@ -32,11 +39,11 @@ func InitDB() {
 		logger.Log.Info("Using Postgres driver")
 		dsn = fmt.Sprintf(
 			"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-			os.Getenv("DB_HOST"),
-			os.Getenv("DB_PORT"),
-			os.Getenv("DB_USER"),
-			os.Getenv("DB_PASSWORD"),
-			os.Getenv("DB_NAME"),
+			os.Getenv("ISLEY_DB_HOST"),
+			os.Getenv("ISLEY_DB_PORT"),
+			os.Getenv("ISLEY_DB_USER"),
+			os.Getenv("ISLEY_DB_PASSWORD"),
+			os.Getenv("ISLEY_DB_NAME"),
 		)
 	case "sqlite", "":
 		logger.Log.Info("Using Sqlite driver")
@@ -63,8 +70,8 @@ func InitDB() {
 			logger.Log.WithError(err).Error("Failed to check if Postgres is empty")
 		} else if isEmpty {
 			logger.Log.Info("Postgres database is empty, checking for SQLite migration source")
-			if _, err := os.Stat("data/isley.db"); err == nil {
-				err := MigrateSqliteToPostgres("data/isley.db", db)
+			if _, err := os.Stat(dbFile); err == nil {
+				err := MigrateSqliteToPostgres(dbFile, db)
 				if err != nil {
 					logger.Log.WithError(err).Error("Failed to migrate from SQLite")
 				} else {
@@ -99,11 +106,17 @@ func IsSQLite() bool {
 }
 
 func DbPath() string {
-	return "data/isley.db?_journal_mode=WAL"
+	dbPath := os.Getenv("ISLEY_DB_FILE")
+	logger.Log.Info("DB_FILE is: ", dbPath)
+	if dbPath == "" {
+		dbPath = "data/isley.db"
+	}
+	//return "data/isley.db?_journal_mode=WAL"
+	return dbPath + "?_journal_mode=WAL"
 }
 
 func MigrateDB() {
-	driver := os.Getenv("DB_DRIVER")
+	driver := os.Getenv("ISLEY_DB_DRIVER")
 	if driver == "" {
 		logger.Log.Info("DB_DRIVER not set, defaulting to sqlite")
 		driver = "sqlite"
@@ -119,11 +132,11 @@ func MigrateDB() {
 	case "postgres":
 		dsn = fmt.Sprintf(
 			"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-			os.Getenv("DB_HOST"),
-			os.Getenv("DB_PORT"),
-			os.Getenv("DB_USER"),
-			os.Getenv("DB_PASSWORD"),
-			os.Getenv("DB_NAME"),
+			os.Getenv("ISLEY_DB_HOST"),
+			os.Getenv("ISLEY_DB_PORT"),
+			os.Getenv("ISLEY_DB_USER"),
+			os.Getenv("ISLEY_DB_PASSWORD"),
+			os.Getenv("ISLEY_DB_NAME"),
 		)
 	case "sqlite":
 		dsn = DbPath()

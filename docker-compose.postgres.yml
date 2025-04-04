@@ -7,12 +7,12 @@ services:
       - "8080:8080"
     environment:
       - ISLEY_PORT=8080
-      - DB_DRIVER=postgres
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=isley
-      - DB_PASSWORD=supersecret
-      - DB_NAME=isleydb
+      - ISLEY_DB_DRIVER=postgres
+      - ISLEY_DB_HOST=postgres
+      - ISLEY_DB_PORT=5432
+      - ISLEY_DB_USER=isley
+      - ISLEY_DB_PASSWORD=supersecret
+      - ISLEY_DB_NAME=isleydb
     depends_on:
       - postgres
     volumes:
