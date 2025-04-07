@@ -49,7 +49,7 @@ func UploadPlantImages(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
 	}
-
+	imageIDs := make([]int, 0)
 	// Process each uploaded file
 	for index, fileHeader := range files {
 		fileLogger := logger.Log.WithField("fileIndex", index)
@@ -107,19 +107,22 @@ func UploadPlantImages(c *gin.Context) {
 		}
 
 		// Save image metadata to the database
-		_, err = db.Exec(`
+
+		var imageID int
+		err = db.QueryRow(`
             INSERT INTO plant_images (plant_id, image_path, image_description, image_order, image_date)
-            VALUES ($1, $2, $3, 100, $4)`,
-			plantID, savePath, description, imageDate)
+            VALUES ($1, $2, $3, 100, $4) returning id`,
+			plantID, savePath, description, imageDate).Scan(&imageID)
 		if err != nil {
 			fileLogger.WithError(err).Error("Failed to save image metadata to database")
 			continue
 		}
+		imageIDs = append(imageIDs, imageID)
 
 		fileLogger.Info("Successfully processed and saved image")
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Images uploaded successfully"})
+	c.JSON(http.StatusOK, gin.H{"ids": imageIDs, "message": "Images uploaded successfully"})
 }
 
 func DeletePlantImage(c *gin.Context) {

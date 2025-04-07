@@ -1,0 +1,300 @@
+{{ define "views/strain.html"}}
+<!--index.html-->
+
+<!--Embed the header.html template at this location-->
+{{ template "layouts/header.html" .}}
+<style>
+    .clickable-row {
+        cursor: pointer;
+    }
+
+    .clickable-row:hover {
+        background-color: #f8f9fa; /* Optional: Light background on hover */
+    }
+</style>
+{{ template "layouts/header2.html" .}}
+<div class="container">
+    <!-- Page Title -->
+    <div class="text-center mb-5">
+        <h1 class="display-4 text-primary">{{ .strain.Name }}</h1>
+        <h2 class="text-secondary">by {{ .strain.Breeder }}</h2>
+        <p class="text-muted">{{ .strain.ShortDescription }}</p>
+        {{ if .strain.Autoflower }}
+        <i class="fas fa-bolt"></i>
+        {{ else }}
+        <i class="fas fa-photo-film"></i>
+        {{ end }}
+        {{ if .strain.Url }}
+        <a href="{{ .strain.Url }}" class="btn btn-secondary" target="_blank">
+            <i class="fas fa-external-link-alt"></i>
+        </a>
+        {{ end }}
+        {{ if .loggedIn }}
+        <button class="btn btn-primary"
+                data-bs-toggle="modal"
+                data-bs-target="#editStrainModal"
+                data-id="{{ .strain.ID }}"
+                data-strain="{{ .strain | jsonify }}">
+            {{ .lcl.edit_strain }}
+        </button>
+        {{ end }}
+
+    </div>
+
+    <!-- Strain Details -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <!-- Render Description from Markdown -->
+            <div class="markdown-body">
+                {{ .strain.Description | markdownify }}
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Edit Strain Modal -->
+<div class="modal fade" id="editStrainModal" tabindex="-1" aria-labelledby="editStrainModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editStrainModalLabel">{{ .lcl.edit_strain }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.close }}"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editStrainForm">
+                    <!-- Hidden Field for Strain ID -->
+                    <input type="hidden" id="editStrainId">
+
+                    <!-- Strain Name -->
+                    <div class="mb-3">
+                        <label for="editStrainName" class="form-label">{{ .lcl.strain_name }}</label>
+                        <input type="text" class="form-control" id="editStrainName" required>
+                    </div>
+
+                    <!-- URL -->
+                    <div class="mb-3">
+                        <label for="editUrl" class="form-label">{{ .lcl.url }}</label>
+                        <input type="text" class="form-control" id="editUrl" placeholder="{{ .lcl.strain_url_placeholder }}" >
+                    </div>
+
+                    <!-- Breeder Dropdown -->
+                    <div class="mb-3">
+                        <label for="editBreederSelect" class="form-label">{{ .lcl.breeder }}</label>
+                        <select class="form-select" id="editBreederSelect" required>
+                            {{ range .breeders }}
+                            <option value="{{ .ID }}">{{ .Name }}</option>
+                            {{ end }}
+                            <option value="new">{{ .lcl.add_new_breeder }}</option>
+                        </select>
+                    </div>
+
+                    <!-- New Breeder Input -->
+                    <div class="mb-3 d-none" id="editNewBreederInput">
+                        <label for="editNewBreederName" class="form-label">{{ .lcl.new_breeder_name }}</label>
+                        <input type="text" class="form-control" id="editNewBreederName" placeholder="{{ .lcl.new_breeder_placeholder }}">
+                    </div>
+
+                    <!-- Indica/Sativa Slider -->
+                    <div class="mb-3">
+                        <label for="editIndicaSativaSlider" class="form-label">{{ .lcl.i_s_ratio }}</label>
+                        <input type="range" class="form-range" id="editIndicaSativaSlider" min="0" max="100" value="50">
+                        <div class="d-flex justify-content-between">
+                            <small class="text-primary" id="editIndicaLabel">Indica: 50%</small>
+                            <small class="text-success" id="editSativaLabel">Sativa: 50%</small>
+                        </div>
+                    </div>
+
+                    <!-- Autoflower -->
+                    <div class="mb-3">
+                        <label for="editAutoflower" class="form-label">{{ .lcl.autoflower }}</label>
+                        <select class="form-select" id="editAutoflower" required>
+                            <option value="true">{{ .lcl.yes }}</option>
+                            <option value="false">{{ .lcl.no }}</option>
+                        </select>
+                    </div>
+
+                    <!-- Cycle Time -->
+                    <div class="mb-3">
+                        <label for="editCycleTime" class="form-label">{{ .lcl.cycle_time }}</label>
+                        <input type="number" class="form-control" id="editCycleTime" min="0" placeholder="days" required value="56">
+                        <p class="text-muted">{{ .lcl.cycle_time_desc }}</p>
+                    </div>
+
+                    <!-- Seed Count -->
+                    <div class="mb-3">
+                        <label for="editSeedCount" class="form-label">{{ .lcl.seed_count }}</label>
+                        <input type="number" class="form-control" id="editSeedCount" min="0">
+                    </div>
+
+                    <!-- Short Description -->
+                    <div class="mb-3">
+                        <label for="editStrainShortDescription" class="form-label">{{ .lcl.short_description_txt }}</label>
+                        <input type="text" class="form-control" id="editStrainShortDescription" placeholder="{{ .lcl.short_description_placeholder }}" required>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="mb-3">
+                        <label for="editStrainDescription" class="form-label">{{ .lcl.description_txt }}</label>
+                        <textarea class="form-control" id="editStrainDescription" rows="3"></textarea>
+                        <p class="text-muted">{{ .lcl.description_txt_desc }}</p>
+                    </div>
+
+                    {{ if .loggedIn }}
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary">{{ .lcl.save_changes }}</button>
+                        <button type="button" class="btn btn-danger" id="deleteStrainButton">{{ .lcl.delete_strain }}</button>
+                    </div>
+                    {{ end }}
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const editStrainModal = new bootstrap.Modal(document.getElementById("editStrainModal"));
+        const editStrainForm = document.getElementById("editStrainForm");
+        const deleteStrainButton = document.getElementById("deleteStrainButton");
+        const editBreederSelect = document.getElementById("editBreederSelect");
+        const editNewBreederInput = document.getElementById("editNewBreederInput");
+        const editIndicaSativaSlider = document.getElementById("editIndicaSativaSlider");
+        const editIndicaLabel = document.getElementById("editIndicaLabel");
+        const editSativaLabel = document.getElementById("editSativaLabel");
+        const editCycleTime = document.getElementById("editCycleTime");
+        const editUrl = document.getElementById("editUrl");
+
+        // Show/Hide New Breeder Input
+        editBreederSelect.addEventListener("change", () => {
+            if (editBreederSelect.value === "new") {
+                editNewBreederInput.classList.remove("d-none");
+            } else {
+                editNewBreederInput.classList.add("d-none");
+            }
+        });
+
+        // Update Indica/Sativa labels dynamically
+        editIndicaSativaSlider.addEventListener("input", () => {
+            const indica = editIndicaSativaSlider.value;
+            const sativa = 100 - indica;
+            editIndicaLabel.textContent = `Indica: ${indica}%`;
+            editSativaLabel.textContent = `Sativa: ${sativa}%`;
+        });
+
+        // Handle form submission
+        editStrainForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+
+            const strainId = document.getElementById("editStrainId").value;
+            const payload = {
+                name: document.getElementById("editStrainName").value,
+                breeder_id: editBreederSelect.value === "new" ? null : parseInt(editBreederSelect.value, 10),
+                new_breeder: editBreederSelect.value === "new" ? document.getElementById("editNewBreederName").value : null,
+                indica: parseInt(editIndicaSativaSlider.value, 10),
+                sativa: 100 - parseInt(editIndicaSativaSlider.value, 10),
+                autoflower: document.getElementById("editAutoflower").value === "true",
+                seed_count: parseInt(document.getElementById("editSeedCount").value, 10),
+                description: document.getElementById("editStrainDescription").value,
+                short_desc: document.getElementById("editStrainShortDescription").value,
+                cycle_time: parseInt(editCycleTime.value, 10),
+                url: editUrl.value
+            };
+            fetch(`/strains/${strainId}`, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            })
+                .then(response => {
+                    if (!response.ok) throw new Error("{{ .lcl.strain_update_fail }}");
+                    location.reload();
+                })
+                .catch(error => {
+                    console.error("{{ .lcl.strain_update_error }}", error);
+                    alert("{{ .lcl.update_error }}");
+                });
+        });
+
+        deleteStrainButton.addEventListener("click", () => {
+            const strainId = document.getElementById("editStrainId").value;
+
+            if (confirm("Are you sure you want to delete this strain?")) {
+                fetch(`/strains/${strainId}`, { method: "DELETE" })
+                    .then(response => {
+                        if (!response.ok) throw new Error("{{ .lcl.delete_fail }}");
+
+                        // ✅ Redirect only after successful deletion
+                        window.location.href = "/strains";
+                    })
+                    .catch(error => {
+                        console.error("Error deleting strain:", error);
+                        alert("{{ .lcl.delete_error }}");
+                    });
+            }
+        });
+
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+        // Listen for when any modal is hidden
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('hidden.bs.modal', () => {
+                // Remove lingering modal-backdrop elements
+                document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+
+                // Ensure the body class does not remain disabled
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+            });
+        });
+    });
+    // Populate modal fields when editing
+    const editModal = document.getElementById('editStrainModal');
+
+    editModal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const encodedStrain = button.getAttribute('data-strain');
+
+        if (!encodedStrain) return;
+
+        const strainData = JSON.parse(decodeURIComponent(encodedStrain));
+
+        // Populate form fields
+        document.getElementById("editStrainId").value = strainData.id;
+        document.getElementById("editStrainName").value = strainData.name;
+        editBreederSelect.value = strainData.breeder_id || "new";
+
+        if (strainData.breeder_id) {
+            editNewBreederInput.classList.add("d-none");
+            document.getElementById("editNewBreederName").value = "";
+        } else {
+            editNewBreederInput.classList.remove("d-none");
+            document.getElementById("editNewBreederName").value = strainData.new_breeder || "";
+        }
+
+        document.getElementById("editIndicaSativaSlider").value = strainData.indica;
+        editIndicaLabel.textContent = `Indica: ${strainData.indica}%`;
+        editSativaLabel.textContent = `Sativa: ${100 - strainData.indica}%`;
+        if (strainData.autoflower === "true" || strainData.autoflower === true || strainData.autoflower === 1) {
+            document.getElementById("editAutoflower").value = "true";
+        } else {
+            document.getElementById("editAutoflower").value = "false";
+        }
+        document.getElementById("editAutoflower").value = strainData.autoflower;
+        document.getElementById("editSeedCount").value = strainData.seed_count;
+        document.getElementById("editStrainDescription").value = strainData.description;
+        document.getElementById("editCycleTime").value = strainData.cycle_time;
+        document.getElementById("editUrl").value = strainData.url;
+        document.getElementById("editStrainShortDescription").value = strainData.short_desc;
+
+        // Show the modal
+        editModal.show();
+    });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.min.js"></script>
+<!--Embed the footer.html template at this location-->
+{{ template "layouts/footer.html" .}}
+
+{{ end }}

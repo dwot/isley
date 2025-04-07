@@ -528,6 +528,28 @@ func DeleteZoneHandler(c *gin.Context) {
 		DeleteSensorByID(fmt.Sprintf("%d", sensorId))
 	}
 
+	// Build a list of streams associated with this zone to delete first
+	rows, err = db.Query("SELECT id FROM streams WHERE zone_id = $1", id)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to delete streams")
+		return
+	}
+	defer rows.Close()
+
+	streamList := []int{}
+	for rows.Next() {
+		var streamId int
+		err = rows.Scan(&streamId)
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to delete stream")
+			continue
+		}
+		streamList = append(streamList, streamId)
+	}
+	for _, streamId := range streamList {
+		DeleteStreamByID(fmt.Sprintf("%d", streamId))
+	}
+
 	// Delete zone from database
 	_, err = db.Exec("DELETE FROM zones WHERE id = $1", id)
 	if err != nil {
@@ -647,8 +669,13 @@ func GetSetting(name string) (string, error) {
 	var value string
 	err = db.QueryRow("SELECT value FROM settings WHERE name = $1", name).Scan(&value)
 	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to read setting")
-		return "", err
+		if err.Error() == "sql: no rows in result set" {
+			fieldLogger.WithField("name", name).Warn("Setting not found")
+			return "", nil
+		} else {
+			fieldLogger.WithError(err).Error("Failed to read setting")
+			return "", err
+		}
 	}
 
 	return value, nil
@@ -1035,7 +1062,7 @@ func UpdateStreamHandler(c *gin.Context) {
 	var stream struct {
 		Name    string `json:"stream_name"`
 		URL     string `json:"url"`
-		ZoneID  string `json:"zone_id"`
+		ZoneID  int    `json:"zone_id"`
 		Visible bool   `json:"visible"`
 	}
 	if err := c.ShouldBindJSON(&stream); err != nil {
@@ -1051,8 +1078,16 @@ func UpdateStreamHandler(c *gin.Context) {
 		return
 	}
 
+	//convert visible to int
+	var visibleInt int
+	if stream.Visible {
+		visibleInt = 1
+	} else {
+		visibleInt = 0
+	}
+
 	// Update stream in database
-	_, err = db.Exec("UPDATE streams SET name = $1, url = $2, zone_id = $3, visible = $4 WHERE id = $5", stream.Name, stream.URL, stream.ZoneID, stream.Visible, id)
+	_, err = db.Exec("UPDATE streams SET name = $1, url = $2, zone_id = $3, visible = $4 WHERE id = $5", stream.Name, stream.URL, stream.ZoneID, visibleInt, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update stream")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update stream"})
@@ -1122,4 +1157,20 @@ func GetStreamsByZoneHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, streamsByZone)
+}
+
+func DeleteStreamByID(id string) error {
+	fieldLogger := logger.Log.WithField("func", "DeleteStreamByID")
+	db, err := model.GetDB()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Error opening database")
+		return err
+	}
+
+	_, err = db.Exec("DELETE FROM streams WHERE id = $1", id)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Error deleting sensor")
+		return err
+	}
+	return nil
 }

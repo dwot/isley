@@ -282,3 +282,6 @@ stream_grab_interval_desc: "Use the slider to adjust the stream grab interval (5
 time_minutes: "minutes"
 
 
+short_description_txt: "Short Description"
+short_description_placeholder: "Enter short description"
+description_txt_desc: "Description should be in Markdown format."

@@ -98,6 +98,22 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"currentLanguage": lang,
 		})
 	})
+
+	r.GET("/strain/:id", func(c *gin.Context) {
+		lang := utils.GetLanguage(c)
+		translations := utils.TranslationService.GetTranslations(lang)
+		c.HTML(http.StatusOK, "views/strain.html", gin.H{
+			"title":           "Strain Details",
+			"version":         version,
+			"strain":          handlers.GetStrain(c.Param("id")),
+			"breeders":        config.Breeders,
+			"loggedIn":        sessions.Default(c).Get("logged_in"),
+			"lcl":             translations,
+			"languages":       utils.AvailableLanguages,
+			"currentLanguage": lang,
+		})
+	})
+
 	r.GET("/listFonts", utils.ListFontsHandler)
 	r.GET("/listLogos", utils.ListLogosHandler)
 

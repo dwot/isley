@@ -175,17 +175,18 @@ type Status struct {
 }
 
 type Strain struct {
-	ID          int    `json:"id"`
-	Name        string `json:"name"`
-	Breeder     string `json:"breeder"`
-	BreederID   int    `json:"breeder_id"`
-	Indica      int    `json:"indica"`
-	Sativa      int    `json:"sativa"`
-	Autoflower  bool   `json:"autoflower"`
-	Description string `json:"description"`
-	SeedCount   int    `json:"seed_count"`
-	CycleTime   int    `json:"cycle_time"`
-	Url         string `json:"url"`
+	ID               int    `json:"id"`
+	Name             string `json:"name"`
+	Breeder          string `json:"breeder"`
+	BreederID        int    `json:"breeder_id"`
+	Indica           int    `json:"indica"`
+	Sativa           int    `json:"sativa"`
+	Autoflower       bool   `json:"autoflower"`
+	Description      string `json:"description"`
+	SeedCount        int    `json:"seed_count"`
+	CycleTime        int    `json:"cycle_time"`
+	Url              string `json:"url"`
+	ShortDescription string `json:"short_desc"`
 }
 
 type Zone struct {

@@ -125,10 +125,17 @@
                         <input type="number" class="form-control" id="seedCount" min="0" placeholder="{{ .lcl.seed_count_placeholder }}" required>
                     </div>
 
+                    <!-- Short Description -->
+                    <div class="mb-3">
+                        <label for="strainShortDescription" class="form-label">{{ .lcl.short_description_txt }}</label>
+                        <input type="text" class="form-control" id="strainShortDescription" placeholder="{{ .lcl.short_description_placeholder }}" required>
+                    </div>
+
                     <!-- Description -->
                     <div class="mb-3">
                         <label for="strainDescription" class="form-label">{{ .lcl.description_txt }}</label>
                         <textarea class="form-control" id="strainDescription" rows="3" placeholder="{{ .lcl.strain_description_placeholder }}"></textarea>
+                        <p class="text-muted">{{ .lcl.description_txt_desc }}</p>
                     </div>
 
                     <!-- Submit Button -->
@@ -214,10 +221,17 @@
                         <input type="number" class="form-control" id="editSeedCount" min="0">
                     </div>
 
+                    <!-- Short Description -->
+                    <div class="mb-3">
+                        <label for="editStrainShortDescription" class="form-label">{{ .lcl.short_description_txt }}</label>
+                        <input type="text" class="form-control" id="editStrainShortDescription" placeholder="{{ .lcl.short_description_placeholder }}" required>
+                    </div>
+
                     <!-- Description -->
                     <div class="mb-3">
                         <label for="editStrainDescription" class="form-label">{{ .lcl.description_txt }}</label>
                         <textarea class="form-control" id="editStrainDescription" rows="3"></textarea>
+                        <p class="text-muted">{{ .lcl.description_txt_desc }}</p>
                     </div>
 
                     {{ if .loggedIn }}
@@ -279,6 +293,7 @@
                 autoflower: document.getElementById("autoflower").value === "true",
                 seed_count: parseInt(document.getElementById("seedCount").value, 10),
                 description: document.getElementById("strainDescription").value,
+                short_desc: document.getElementById("strainShortDescription").value,
                 cycle_time: parseInt(cycleTime.value, 10),
                 url: url.value
             };
@@ -349,6 +364,7 @@
                 autoflower: document.getElementById("editAutoflower").value === "true",
                 seed_count: parseInt(document.getElementById("editSeedCount").value, 10),
                 description: document.getElementById("editStrainDescription").value,
+                short_desc: document.getElementById("editStrainShortDescription").value,
                 cycle_time: parseInt(editCycleTime.value, 10),
                 url: editUrl.value
             };
@@ -437,10 +453,9 @@
                 <tr>
                     <th scope="col" data-key="name" data-type="text" class="sortable ${currentSort.key === "name" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.title_strain }} <i class="fa-solid fa-sort"></i></th>
                     <th scope="col" data-key="breeder" data-type="text" class="sortable ${currentSort.key === "breeder" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.breeder }} <i class="fa-solid fa-sort"></i></th>
-                    <th scope="col" data-key="indica" data-type="numeric" class="sortable ${currentSort.key === "indica" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.title_is }} <i class="fa-solid fa-sort"></i></th>
-                    <th scope="col" data-key="autoflower" data-type="text" class="sortable ${currentSort.key === "autoflower" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.title_auto }} <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="short_desc" data-type="text" class="sortable ${currentSort.key === "short_desc" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.description_txt }} <i class="fa-solid fa-sort"></i></th>
                     <th scope="col" data-key="seed_count" data-type="numeric" class="sortable ${currentSort.key === "seed_count" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.seed_count }} <i class="fa-solid fa-sort"></i></th>
-                    <th scope="col">Edit </th>
+                    <th scope="col" colspan="2"> </th>
                 </tr>
             </thead>
             <tbody>
@@ -454,23 +469,21 @@
                 <tr>
                     <th scope="col" data-key="name" data-type="text" class="sortable ${currentSort.key === "name" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.title_strain }} <i class="fa-solid fa-sort"></i></th>
                     <th scope="col" data-key="breeder" data-type="text" class="sortable ${currentSort.key === "breeder" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.breeder }} <i class="fa-solid fa-sort"></i></th>
-                    <th scope="col" data-key="indica" data-type="numeric" class="sortable ${currentSort.key === "indica" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.title_is }} <i class="fa-solid fa-sort"></i></th>
-                    <th scope="col" data-key="autoflower" data-type="text" class="sortable ${currentSort.key === "autoflower" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.title_auto }} <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="short_desc" data-type="text" class="sortable ${currentSort.key === "short_desc" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.description_txt }} <i class="fa-solid fa-sort"></i></th>
                     <th scope="col" data-key="seed_count" data-type="numeric" class="sortable ${currentSort.key === "seed_count" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.seed_count }} <i class="fa-solid fa-sort"></i></th>
-                    <th scope="col">Edit </th>
+                    <th scope="col" colspan="2"> </th>
                 </tr>
             </thead>
             <tbody>
                 ${filteredData.map(strain => `
                     <tr >
-                        <th scope="row">
-                        ${strain.url ? `<a href="${strain.url}" target="_blank">${strain.name || "{{ .lcl.na }}"}</a>` : strain.name || "{{ .lcl.na }}"}
-                        </th>
+                        <td><a href="strain/${strain.id}">${strain.name || "N/A"}</a></td>
                         <td>${strain.breeder || "N/A"}</td>
-                        <td>${strain.indica || 0} / ${strain.sativa || 0}</td>
-                        <!-- Autoflower may be true or "true" or 1 -->
-                        <td>${strain.autoflower === "true" || strain.autoflower === true || strain.autoflower === 1 ? "{{ .lcl.yes }}" : "{{ .lcl.no }}"}</td>
+                        <td>${strain.short_desc || "&nbsp;"}</td>
                         <td>${strain.seed_count || 0}</td>
+                        <td>
+                        ${strain.url ? `<a href="${strain.url}" target="_blank"><i class="fa-solid fa-link"></i></a>` : "&nbsp;"}
+                        </td>
                         <td class="clickable-row"
                         data-id="${strain.id}"
                         data-strain="${encodeURIComponent(JSON.stringify(strain))}"><i class="fa-solid fa-pen-to-square"></i></td>
@@ -542,6 +555,7 @@
                     document.getElementById("editStrainDescription").value = strainData.description;
                     document.getElementById("editCycleTime").value = strainData.cycle_time;
                     document.getElementById("editUrl").value = strainData.url;
+                    document.getElementById("editStrainShortDescription").value = strainData.short_desc;
 
                     // Show the modal
                     editStrainModal.show();
