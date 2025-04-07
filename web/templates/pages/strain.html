@@ -259,7 +259,12 @@
 
         if (!encodedStrain) return;
 
-        const strainData = JSON.parse(decodeURIComponent(encodedStrain));
+        // Decode HTML entities like &#34;
+        const parser = new DOMParser();
+        const decodedHtml = parser.parseFromString(encodedStrain, 'text/html').documentElement.textContent;
+
+        // Now parse the JSON
+        const strainData = JSON.parse(decodedHtml);
 
         // Populate form fields
         document.getElementById("editStrainId").value = strainData.id;
