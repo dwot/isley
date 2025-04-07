@@ -280,3 +280,7 @@ stream_grab_enabled_desc: "Aktivieren Sie diese Option, um Bilder aus dem Stream
 stream_grab_interval: "Stream-Aufnahmeintervall"
 stream_grab_interval_desc: "Verwenden Sie den Schieberegler, um das Stream-Aufnahmeintervall anzupassen (5 - 60 Minuten). Minimum sind 5 Minuten."
 time_minutes: "Minuten"
+
+short_description_txt: "Short Description"
+short_description_placeholder: "Enter short description"
+description_txt_desc: "Description should be in Markdown format."

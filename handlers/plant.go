@@ -136,7 +136,7 @@ func AddPlant(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Plant added successfully"})
+	c.JSON(http.StatusOK, gin.H{"id": plantID, "message": "Plant added successfully"})
 }
 
 func GetStrains() []types.Strain {
@@ -148,7 +148,7 @@ func GetStrains() []types.Strain {
 		return nil
 	}
 
-	rows, err := db.Query("SELECT s.id, s.name, b.id as breeder_id, b.name as breeder, s.indica, s.sativa, s.autoflower, s.description, s.seed_count FROM strain s left outer join breeder b on s.breeder_id = b.id")
+	rows, err := db.Query("SELECT s.id, s.name, b.id as breeder_id, b.name as breeder, s.indica, s.sativa, s.autoflower, s.description, coalesce(s.short_desc, ''), s.seed_count FROM strain s left outer join breeder b on s.breeder_id = b.id ORDER BY s.name ASC")
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query strains")
 		return nil
@@ -157,7 +157,7 @@ func GetStrains() []types.Strain {
 	var strains []types.Strain
 	for rows.Next() {
 		var strain types.Strain
-		err = rows.Scan(&strain.ID, &strain.Name, &strain.BreederID, &strain.Breeder, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.Description, &strain.SeedCount)
+		err = rows.Scan(&strain.ID, &strain.Name, &strain.BreederID, &strain.Breeder, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.Description, &strain.ShortDescription, &strain.SeedCount)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan strain")
 			return nil
@@ -688,16 +688,17 @@ func AddStrainHandler(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "AddStrainHandler")
 	// Parse the incoming JSON request
 	var req struct {
-		Name        string `json:"name"`
-		BreederID   *int   `json:"breeder_id"` // Nullable for new breeders
-		NewBreeder  string `json:"new_breeder"`
-		Indica      int    `json:"indica"`
-		Sativa      int    `json:"sativa"`
-		Autoflower  bool   `json:"autoflower"`
-		SeedCount   int    `json:"seed_count"`
-		Description string `json:"description"`
-		CycleTime   int    `json:"cycle_time"`
-		Url         string `json:"url"`
+		Name             string `json:"name"`
+		BreederID        *int   `json:"breeder_id"` // Nullable for new breeders
+		NewBreeder       string `json:"new_breeder"`
+		Indica           int    `json:"indica"`
+		Sativa           int    `json:"sativa"`
+		Autoflower       bool   `json:"autoflower"`
+		SeedCount        int    `json:"seed_count"`
+		Description      string `json:"description"`
+		ShortDescription string `json:"short_desc"`
+		CycleTime        int    `json:"cycle_time"`
+		Url              string `json:"url"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -749,8 +750,8 @@ func AddStrainHandler(c *gin.Context) {
 
 	// Insert the new strain into the database
 	stmt := `
-		INSERT INTO strain (name, breeder_id, indica, sativa, autoflower, seed_count, description, cycle_time, url)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO strain (name, breeder_id, indica, sativa, autoflower, seed_count, description, cycle_time, url, short_desc)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id
 	`
 	//convert autoflower to int
 	var autoflowerInt int
@@ -759,7 +760,8 @@ func AddStrainHandler(c *gin.Context) {
 	} else {
 		autoflowerInt = 0
 	}
-	_, err = db.Exec(stmt, req.Name, breederID, req.Indica, req.Sativa, autoflowerInt, req.SeedCount, req.Description, req.CycleTime, req.Url)
+	var id int
+	err = db.QueryRow(stmt, req.Name, breederID, req.Indica, req.Sativa, autoflowerInt, req.SeedCount, req.Description, req.CycleTime, req.Url, req.ShortDescription).Scan(&id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert strain")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add strain"})
@@ -769,7 +771,7 @@ func AddStrainHandler(c *gin.Context) {
 	config.Strains = GetStrains()
 
 	// Respond with success
-	c.JSON(http.StatusCreated, gin.H{"message": "Strain added successfully"})
+	c.JSON(http.StatusCreated, gin.H{"id": id, "message": "Strain added successfully"})
 }
 
 func GetStrainHandler(c *gin.Context) {
@@ -791,11 +793,11 @@ func GetStrainHandler(c *gin.Context) {
 	var strain types.Strain
 
 	err = db.QueryRow(`
-        SELECT s.id, s.name, b.name as breeder, s.indica, s.sativa, s.autoflower, s.description, s.seed_count
+        SELECT s.id, s.name, b.name as breeder, s.indica, s.sativa, s.autoflower, s.description, coalesce(s.short_desc, ''), s.seed_count
         FROM strain s LEFT OUTER JOIN breeder b on s.breeder_id = b.id
         WHERE id = $1`, id).Scan(
 		&strain.ID, &strain.Name, &strain.Breeder, &strain.Indica, &strain.Sativa,
-		&strain.Autoflower, &strain.Description, &strain.SeedCount)
+		&strain.Autoflower, &strain.Description, &strain.ShortDescription, &strain.SeedCount)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Strain not found"})
@@ -819,16 +821,17 @@ func UpdateStrainHandler(c *gin.Context) {
 	}
 
 	var req struct {
-		Name        string `json:"name"`
-		BreederID   *int   `json:"breeder_id"` // Nullable for new breeders
-		NewBreeder  string `json:"new_breeder"`
-		Indica      int    `json:"indica"`
-		Sativa      int    `json:"sativa"`
-		Autoflower  bool   `json:"autoflower"`
-		Description string `json:"description"`
-		SeedCount   int    `json:"seed_count"`
-		CycleTime   int    `json:"cycle_time"`
-		Url         string `json:"url"`
+		Name             string `json:"name"`
+		BreederID        *int   `json:"breeder_id"` // Nullable for new breeders
+		NewBreeder       string `json:"new_breeder"`
+		Indica           int    `json:"indica"`
+		Sativa           int    `json:"sativa"`
+		Autoflower       bool   `json:"autoflower"`
+		Description      string `json:"description"`
+		ShortDescription string `json:"short_desc"`
+		SeedCount        int    `json:"seed_count"`
+		CycleTime        int    `json:"cycle_time"`
+		Url              string `json:"url"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -882,8 +885,8 @@ func UpdateStrainHandler(c *gin.Context) {
 	// Update the strain in the database
 	updateStmt := `
         UPDATE strain
-        SET name = $1, breeder_id = $2, indica = $3, sativa = $4, autoflower = $5, description = $6, seed_count = $7, cycle_time = $8, url = $9
-        WHERE id = $10
+        SET name = $1, breeder_id = $2, indica = $3, sativa = $4, autoflower = $5, description = $6, seed_count = $7, cycle_time = $8, url = $9, short_desc = $10
+        WHERE id = $11
     `
 	//Convert autoflower to int
 	var autoflowerInt int
@@ -893,7 +896,7 @@ func UpdateStrainHandler(c *gin.Context) {
 		autoflowerInt = 0
 	}
 	_, err = db.Exec(updateStmt, req.Name, breederID, req.Indica, req.Sativa,
-		autoflowerInt, req.Description, req.SeedCount, req.CycleTime, req.Url, id)
+		autoflowerInt, req.Description, req.SeedCount, req.CycleTime, req.Url, req.ShortDescription, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update strain")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update strain"})
@@ -1320,17 +1323,19 @@ func OutOfStockStrainsHandler(c *gin.Context) {
 func getStrainsBySeedCount(inStock bool) ([]types.Strain, error) {
 	fieldLogger := logger.Log.WithField("func", "getStrainsBySeedCount")
 	query := `
-        SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count, s.description, coalesce(s.cycle_time, 0), coalesce(s.url, '')
+        SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count, s.description, coalesce(s.short_desc, ''), coalesce(s.cycle_time, 0), coalesce(s.url, '')
         FROM strain s
         JOIN breeder b ON s.breeder_id = b.id
         WHERE s.seed_count > 0
+		ORDER BY s.name ASC
     `
 	if !inStock {
 		query = `
-            SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count, s.description, coalesce(s.cycle_time, 0), coalesce(s.url, '')
+            SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count, s.description, coalesce(s.short_desc, ''), coalesce(s.cycle_time, 0), coalesce(s.url, '')
             FROM strain s
             JOIN breeder b ON s.breeder_id = b.id
             WHERE s.seed_count = 0
+            ORDER BY s.name ASC
         `
 	}
 
@@ -1350,7 +1355,7 @@ func getStrainsBySeedCount(inStock bool) ([]types.Strain, error) {
 	var strains []types.Strain
 	for rows.Next() {
 		var strain types.Strain
-		if err := rows.Scan(&strain.ID, &strain.Name, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount, &strain.Description, &strain.CycleTime, &strain.Url); err != nil {
+		if err := rows.Scan(&strain.ID, &strain.Name, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount, &strain.Description, &strain.ShortDescription, &strain.CycleTime, &strain.Url); err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan strain")
 			return nil, err
 		}
@@ -1411,4 +1416,33 @@ func PlantsByStrainHandler(context *gin.Context) {
 	// Return the list of plants as JSON
 	fieldLogger.WithField("plantCount", len(plants)).Info("Plants fetched successfully")
 	context.JSON(http.StatusOK, plants)
+}
+
+func GetStrain(id string) types.Strain {
+	fieldLogger := logger.Log.WithField("func", "GetStrain")
+	db, err := model.GetDB()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to open database")
+		return types.Strain{}
+	}
+
+	var strain types.Strain
+	//join in breeder name
+	err = db.QueryRow(`
+		SELECT s.id, s.name, coalesce(s.short_desc, ''), b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count, s.description, coalesce(s.cycle_time, 0), coalesce(s.url, '')
+		FROM strain s
+		JOIN breeder b ON s.breeder_id = b.id
+		WHERE s.id = $1`, id).Scan(
+		&strain.ID, &strain.Name, &strain.ShortDescription, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount, &strain.Description, &strain.CycleTime, &strain.Url)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			fieldLogger.Error("Strain not found")
+		} else {
+			fieldLogger.WithError(err).Error("Failed to fetch strain")
+		}
+		return types.Strain{}
+	}
+	//strain.Description = html.EscapeString(strain.Description)
+
+	return strain
 }

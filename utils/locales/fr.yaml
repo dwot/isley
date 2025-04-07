@@ -281,3 +281,6 @@ stream_grab_interval: "Intervalle de capture du flux"
 stream_grab_interval_desc: "Utilisez le curseur pour ajuster l'intervalle de capture du flux (5 - 60 minutes). Minimum de 5 minutes."
 time_minutes: "minutes"
 
+short_description_txt: "Short Description"
+short_description_placeholder: "Enter short description"
+description_txt_desc: "Description should be in Markdown format."

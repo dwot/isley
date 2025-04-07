@@ -7,6 +7,8 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
+	"github.com/microcosm-cc/bluemonday"
+	"github.com/russross/blackfriday/v2"
 	"github.com/sirupsen/logrus"
 	"html/template"
 	"isley/config"
@@ -150,6 +152,24 @@ func main() {
 		},
 		"now": func() time.Time {
 			return time.Now()
+		},
+		"markdownify": func(t string) template.HTML {
+			// Render Markdown to HTML
+			unsafe := blackfriday.Run([]byte(t))
+
+			// Sanitize the HTML
+			safe := bluemonday.UGCPolicy().SanitizeBytes(unsafe)
+
+			// Return as template.HTML so it's not escaped again
+			return template.HTML(safe)
+		},
+		"jsonify": func(v interface{}) template.HTML {
+			a, err := json.Marshal(v)
+			if err != nil {
+				logger.Log.WithError(err).Error("Error marshalling JSON")
+				return ""
+			}
+			return template.HTML(a)
 		},
 	}
 

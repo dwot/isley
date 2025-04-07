@@ -280,3 +280,7 @@ stream_grab_enabled_desc: "Habilite esta opción para capturar y almacenar imág
 stream_grab_interval: "Intervalo de captura de transmisión"
 stream_grab_interval_desc: "Use el control deslizante para ajustar el intervalo de captura de transmisión (5 - 60 minutos). El mínimo es 5 minutos."
 time_minutes: "minutos"
+
+short_description_txt: "Short Description"
+short_description_placeholder: "Enter short description"
+description_txt_desc: "Description should be in Markdown format."

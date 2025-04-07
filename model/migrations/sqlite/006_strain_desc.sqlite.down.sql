@@ -1,0 +1,1 @@
+ALTER TABLE strain DROP COLUMN short_desc;

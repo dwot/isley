@@ -354,6 +354,9 @@ func (i *I18nManager) GetTranslations(lang string) map[string]string {
 		"stream_grab_interval",
 		"stream_grab_interval_desc",
 		"time_minutes",
+		"short_description_txt",
+		"short_description_placeholder",
+		"description_txt_desc",
 	}
 
 	translations := make(map[string]string)
