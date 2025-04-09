@@ -2,18 +2,8 @@
 <!--index.html-->
 
 <!--Embed the header.html template at this location-->
-{{ template "layouts/header.html" .}}
-<style>
-    .clickable-row {
-        cursor: pointer;
-    }
-
-    .clickable-row:hover {
-        background-color: #f8f9fa; /* Optional: Light background on hover */
-    }
-</style>
-
-{{ template "layouts/header2.html" .}}
+{{ template "common/header.html" .}}
+{{ template "common/header2.html" .}}
 
 <div class="container">
     <!-- Action Buttons -->
@@ -466,6 +456,6 @@
 
 
 <!--Embed the footer.html template at this location-->
-{{ template "layouts/footer.html" .}}
+{{ template "common/footer.html" .}}
 
 {{ end }}

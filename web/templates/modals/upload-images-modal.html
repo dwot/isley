@@ -1,0 +1,28 @@
+{{ define "modals/upload-images-modal.html" }}
+<!-- Upload Images Modal -->
+<div class="modal fade" id="uploadImagesModal" tabindex="-1" aria-labelledby="uploadImagesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uploadImagesModalLabel">{{ .lcl.upload_images }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Drag-and-Drop Area -->
+                <div id="dropArea" class="border border-primary rounded p-4 text-center mb-3">
+                    <p>{{ .lcl.upload_image_info }}</p>
+                    <input type="file" id="imageInput" accept="image/*" multiple style="display: none;">
+                </div>
+                <div id="imagePreviewContainer" class="row g-3">
+                    <!-- Preview cards for uploaded images will be appended here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="uploadImagesButton">{{ .lcl.upload_images }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/upload-images-modal.js"></script>
+{{ end }}

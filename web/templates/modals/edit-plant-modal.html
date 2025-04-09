@@ -1,0 +1,132 @@
+{{ define "modals/edit-plant-modal.html" }}
+<!-- Change Status Modal -->
+<div class="modal fade" id="changeStatusModal" tabindex="-1" aria-labelledby="changeStatusModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="changeStatusModalLabel">{{ .lcl.update_plant }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
+            </div>
+            <div class="modal-body">
+                <form id="changeStatusForm">
+                    <!-- Status Dropdown -->
+                    <div class="mb-3">
+                        <label for="status" class="form-label">{{ .lcl.title_status }}</label>
+                        <select class="form-select" id="status" required>
+                            {{ range .statuses }}
+                            <option
+                                    {{ if eq .ID $.plant.StatusID }}selected{{ end }}
+                                    value="{{ .ID }}">{{ .Status }}</option>
+                            {{ end }}
+                        </select>
+                    </div>
+
+                    <!-- Date Picker -->
+                    <div class="mb-3">
+                        <label for="statusDate" class="form-label">{{ .lcl.effective_date }}</label>
+                        <input type="datetime-local" class="form-control" id="statusDate" required value="{{ now | formatDateTimeLocal }}">
+                    </div>
+
+                    <!-- Plant Name -->
+                    <div class="mb-3">
+                        <label for="plantName" class="form-label">{{ .lcl.plant_name }}</label>
+                        <input type="text" class="form-control" id="plantName" value="{{ .plant.Name }}">
+                    </div>
+
+                    <!-- Start Date -->
+                    <div class="mb-3">
+                        <label for="startDate" class="form-label">{{ .lcl.start_date }}</label>
+                        <input type="datetime-local" class="form-control" id="startDate" value="{{ .plant.StartDT | formatDateTimeLocal }}">
+                    </div>
+
+                    <!-- Plant Description -->
+                    <div class="mb-3">
+                        <label for="plantDescription" class="form-label">{{ .lcl.plant_description }}</label>
+                        <textarea class="form-control" id="plantDescription" rows="3">{{ .plant.Description }}</textarea>
+                    </div>
+
+                    <!-- Plant Strain -->
+                    <!-- Strain Dropdown -->
+                    <div class="mb-3">
+                        <label for="strainSelect" class="form-label">{{ .lcl.title_strain }}</label>
+                        <select class="form-select" id="strainSelect" required>
+                            {{ range .strains }}
+                            <option
+                                    {{ if eq .ID $.plant.StrainID }}selected{{ end }}
+                                    value="{{ .ID }}">{{ .Name }} ({{ .Breeder }})</option>
+                            {{ end }}
+                            <option value="new">{{ .lcl.add_new_strain }}</option>
+                        </select>
+                    </div>
+
+                    <!-- New Strain Inputs -->
+                    <div class="mb-3 d-none" id="newStrainInputs">
+                        <label for="newStrainName" class="form-label">{{ .lcl.strain_name }}</label>
+                        <input type="text" class="form-control" id="newStrainName" placeholder="{{ .lcl.enter_strain_name }}">
+
+                        <!-- Breeder Dropdown -->
+                        <div class="mb-3">
+                            <label for="breederSelect" class="form-label">{{ .lcl.breeder }}</label>
+                            <select class="form-select" id="breederSelect">
+                                {{ range .breeders }}
+                                <option value="{{ .ID }}">{{ .Name }}</option>
+                                {{ end }}
+                                <option value="new">{{ .lcl.add_new_breeder }}</option>
+                            </select>
+                        </div>
+
+                        <!-- New Breeder Input -->
+                        <div class="mb-3 d-none" id="newBreederInput">
+                            <label for="newBreederName" class="form-label">{{ .lcl.new_breeder_name }}</label>
+                            <input type="text" class="form-control" id="newBreederName" placeholder="{{ .lcl.enter_breeder_name }}">
+                        </div>
+                    </div>
+
+                    <!-- Clone Checkbox -->
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="cloneCheckbox"
+                               {{ if .plant.IsClone }}checked{{ end }}
+                        >
+                        <label class="form-check-label" for="cloneCheckbox">{{ .lcl.is_clone_info }}</label>
+                    </div>
+
+                    <!-- Zone Dropdown -->
+                    <div class="mb-3">
+                        <label for="zoneSelect" class="form-label">{{ .lcl.title_zone }}</label>
+                        <select class="form-select" id="zoneSelect" required>
+                            {{ range .zones }}
+                            <option
+                                    {{ if eq .ID $.plant.ZoneID }}selected{{ end }}
+                                    value="{{ .ID }}">{{ .Name }}</option>
+                            {{ end }}
+                            <option value="new">{{ .lcl.add_new_zone }}</option>
+                        </select>
+                    </div>
+
+                    <!-- New Zone Input -->
+                    <div class="mb-3 d-none" id="newZoneInput">
+                        <label for="newZoneName" class="form-label">{{ .lcl.new_zone_name }}</label>
+                        <input type="text" class="form-control" id="newZoneName" placeholder="{{ .lcl.enter_new_zone }}">
+                    </div>
+
+                    <!-- Plant ID (Hidden Input) -->
+                    <input type="hidden" id="plantId" value="{{ .plant.ID }}">
+
+                    <!-- Harvest Weight -->
+                    <div class="mb-3">
+                        <label for="harvestWeight" class="form-label">{{ .lcl.harvest_weight_g }}</label>
+                        <input type="number" class="form-control" id="harvestWeight" value="{{ .plant.HarvestWeight }}">
+                    </div>
+
+                    <!-- Submit Button -->
+                    {{ if .loggedIn }}
+                    <button type="submit" class="btn btn-primary">{{ .lcl.change_status }}</button>
+                    {{ end }}
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/edit-plant-modal.js"></script>
+{{ end }}

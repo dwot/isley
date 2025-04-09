@@ -1,0 +1,101 @@
+{{ define "modals/edit-strain-modal.html" }}
+<!-- Edit Strain Modal -->
+<div class="modal fade" id="editStrainModal" tabindex="-1" aria-labelledby="editStrainModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editStrainModalLabel">{{ .lcl.edit_strain }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.close }}"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editStrainForm">
+                    <!-- Hidden Field for Strain ID -->
+                    <input type="hidden" id="editStrainId">
+
+                    <!-- Strain Name -->
+                    <div class="mb-3">
+                        <label for="editStrainName" class="form-label">{{ .lcl.strain_name }}</label>
+                        <input type="text" class="form-control" id="editStrainName" required>
+                    </div>
+
+                    <!-- URL -->
+                    <div class="mb-3">
+                        <label for="editUrl" class="form-label">{{ .lcl.url }}</label>
+                        <input type="text" class="form-control" id="editUrl" placeholder="{{ .lcl.strain_url_placeholder }}" >
+                    </div>
+
+                    <!-- Breeder Dropdown -->
+                    <div class="mb-3">
+                        <label for="editBreederSelect" class="form-label">{{ .lcl.breeder }}</label>
+                        <select class="form-select" id="editBreederSelect" required>
+                            {{ range .breeders }}
+                            <option value="{{ .ID }}">{{ .Name }}</option>
+                            {{ end }}
+                            <option value="new">{{ .lcl.add_new_breeder }}</option>
+                        </select>
+                    </div>
+
+                    <!-- New Breeder Input -->
+                    <div class="mb-3 d-none" id="editNewBreederInput">
+                        <label for="editNewBreederName" class="form-label">{{ .lcl.new_breeder_name }}</label>
+                        <input type="text" class="form-control" id="editNewBreederName" placeholder="{{ .lcl.new_breeder_placeholder }}">
+                    </div>
+
+                    <!-- Indica/Sativa Slider -->
+                    <div class="mb-3">
+                        <label for="editIndicaSativaSlider" class="form-label">{{ .lcl.i_s_ratio }}</label>
+                        <input type="range" class="form-range" id="editIndicaSativaSlider" min="0" max="100" value="50">
+                        <div class="d-flex justify-content-between">
+                            <small class="text-primary" id="editIndicaLabel">Indica: 50%</small>
+                            <small class="text-success" id="editSativaLabel">Sativa: 50%</small>
+                        </div>
+                    </div>
+
+                    <!-- Autoflower -->
+                    <div class="mb-3">
+                        <label for="editAutoflower" class="form-label">{{ .lcl.autoflower }}</label>
+                        <select class="form-select" id="editAutoflower" required>
+                            <option value="true">{{ .lcl.yes }}</option>
+                            <option value="false">{{ .lcl.no }}</option>
+                        </select>
+                    </div>
+
+                    <!-- Cycle Time -->
+                    <div class="mb-3">
+                        <label for="editCycleTime" class="form-label">{{ .lcl.cycle_time }}</label>
+                        <input type="number" class="form-control" id="editCycleTime" min="0" placeholder="days" required value="56">
+                        <p class="text-muted">{{ .lcl.cycle_time_desc }}</p>
+                    </div>
+
+                    <!-- Seed Count -->
+                    <div class="mb-3">
+                        <label for="editSeedCount" class="form-label">{{ .lcl.seed_count }}</label>
+                        <input type="number" class="form-control" id="editSeedCount" min="0">
+                    </div>
+
+                    <!-- Short Description -->
+                    <div class="mb-3">
+                        <label for="editStrainShortDescription" class="form-label">{{ .lcl.short_description_txt }}</label>
+                        <input type="text" class="form-control" id="editStrainShortDescription" placeholder="{{ .lcl.short_description_placeholder }}" required>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="mb-3">
+                        <label for="editStrainDescription" class="form-label">{{ .lcl.description_txt }}</label>
+                        <textarea class="form-control" id="editStrainDescription" rows="3"></textarea>
+                        <p class="text-muted">{{ .lcl.description_txt_desc }}</p>
+                    </div>
+
+                    {{ if .loggedIn }}
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary">{{ .lcl.save_changes }}</button>
+                        <button type="button" class="btn btn-danger" id="deleteStrainButton">{{ .lcl.delete_strain }}</button>
+                    </div>
+                    {{ end }}
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="/static/js/edit-strain-modal.js"></script>
+{{ end }}

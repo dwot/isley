@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-//go:embed model/migrations/sqlite/*.sql model/migrations/postgres/*.sql web/templates/* web/static/**/* utils/fonts/* VERSION
+//go:embed model/migrations/sqlite/*.sql model/migrations/postgres/*.sql web/templates/**/*.html web/static/**/* utils/fonts/* VERSION
 var embeddedFiles embed.FS
 
 func main() {
@@ -174,7 +174,7 @@ func main() {
 	}
 
 	// Attach FuncMap and ParseFS
-	templ := template.Must(template.New("").Funcs(funcMap).ParseFS(embeddedFiles, "web/templates/**/*"))
+	templ := template.Must(template.New("").Funcs(funcMap).ParseFS(embeddedFiles, "web/templates/**/*.html"))
 
 	// Set HTML templates in Gin
 	r.SetHTMLTemplate(templ)

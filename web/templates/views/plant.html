@@ -1,0 +1,303 @@
+{{ define "views/plant.html"}}
+<!--index.html-->
+
+<!--Embed the header.html template at this location-->
+{{ template "common/header.html" .}}
+{{ template "common/header2.html" .}}
+<div class="container">
+    <!-- Page Title -->
+    <div class="text-center mb-5">
+        <h1 class="display-4 text-primary">{{ .plant.Name }}</h1>
+        <p class="text-muted">{{ .plant.Description }}</p>
+    </div>
+
+    <div class="text-center mb-5">
+        <div class="row g-4">
+            <!-- Latest Image Section -->
+            <div class="col-md-6">
+                <div class="card">
+                    <img
+                            src="{{ .plant.LatestImage.ImagePath }}"
+                            class="card-img-top"
+                            alt="{{ .plant.LatestImage.ImageDescription }}"
+                            style="max-height: 450px; object-fit: contain;"
+                    >
+                </div>
+            </div>
+
+            <!-- Plant Details Section -->
+            <div class="col-md-6">
+                <div class="card mb-3">
+                    <div class="card-body text-start">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="card-title text-primary">{{ .lcl.plant_details }}</h5>
+                            {{ if .loggedIn }}
+                            <div>
+                                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#changeStatusModal">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+                                <button class="btn btn-danger" id="deletePlantButton">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                            {{ end }}
+                        </div>
+                        <input type="hidden" id="strainName" value="{{ .plant.StrainName }}">
+                        <input type="hidden" id="breederName" value="{{ .plant.BreederName }}">
+                        <input type="hidden" id="currentDay" value="{{ .plant.CurrentDay }}">
+                        <input type="hidden" id="currentWeek" value="{{ .plant.CurrentWeek }}">
+
+                        <ul class="list-unstyled">
+                            <li><strong>{{ .lcl.title_status }}:</strong> {{ .plant.Status }}</li>
+                            <li><strong>{{ .lcl.title_strain }}:</strong>
+                                {{ if ne .plant.StrainUrl "" }}
+                                    <a href="{{ .plant.StrainUrl }}" target="_blank">{{ .plant.StrainName }}</a> (by {{ .plant.BreederName }})
+                                {{ else }}
+                                    {{ .plant.StrainName }} (by {{ .plant.BreederName }})
+                                {{ end }}
+                                </li>
+
+                            <!-- Conditional: If Plant is a Clone -->
+                            {{ if .plant.IsClone }}
+                            {{ if ne .plant.ParentID 0 }}
+                            <li><strong>{{ .lcl.clone_of }}:</strong> <a href="/plant/{{ .plant.ParentID }}">{{ .plant.ParentName }}</a></li>
+                            {{ else }}
+                            <li><strong>{{ .lcl.clone_of }}:</strong> {{ .lcl.title_unknown }}</li>
+                            {{ end }}
+                            {{ end }}
+
+                            <li><strong>{{ .lcl.title_zone }}:</strong> {{ .plant.ZoneName }}</li>
+                            <li><strong>{{ .lcl.start_date }}:</strong> {{ formatDateTime .plant.StartDT }}</li>
+
+                            <!-- Conditional: If Plant is an Autoflower and not Harvested and not Dead -->
+                            {{ if and (eq .plant.Autoflower true) (ne .plant.Status "Success") (ne .plant.Status "Drying") (ne .plant.Status "Curing") (ne .plant.Status "Dead") }}
+                            <li><strong>{{ .lcl.est_harvest_date }}:</strong> {{ formatDate .plant.EstHarvestDate }}</li>
+                            {{ end }}
+
+
+                            <!-- Conditional: If Plant is Harvested or Dead -->
+                            {{ if or (eq .plant.Status "Success") (eq .plant.Status "Drying") (eq .plant.Status "Curing") (eq .plant.Status "Dead") }}
+                            <li><strong>{{ .lcl.harvest_date }}:</strong> {{ formatDateTime .plant.HarvestDate }}</li>
+                            <li><strong>{{ .lcl.harvest_weight }}:</strong> {{ .plant.HarvestWeight }} {{ .lcl.title_grams }}</li>
+                            {{ else }}
+                            <li><strong>{{ .lcl.title_day }}:</strong> {{ .plant.CurrentDay }}</li>
+                            <li><strong>{{ .lcl.title_week }}:</strong> {{ .plant.CurrentWeek }}</li>
+                            {{ end }}
+
+                            <!-- Optional: Height -->
+                            {{ if ne (formatDate .plant.HeightDate) "01/01/1970" }}
+                            <li><strong>{{ .lcl.title_height }}:</strong> {{ .plant.CurrentHeight }}" - {{ formatDate .plant.HeightDate }}</li>
+                            {{ end }}
+
+                            <!-- Optional: Last Watered or Fed -->
+                            {{ if or (ne (formatDateTime .plant.LastWaterDate) "01/01/1970") (ne (formatDateTime .plant.LastFeedDate) "01/01/1970") }}
+                            <li><strong>{{ .lcl.last_watered_or_fed }}:</strong>
+                                {{ if gt (formatDateTime .plant.LastWaterDate) (formatDateTime .plant.LastFeedDate) }}
+                                {{ formatDateTime .plant.LastWaterDate }} ({{ .lcl.title_watered }})
+                                {{ else }}
+                                {{ formatDateTime .plant.LastFeedDate }} ({{ .lcl.title_fed }})
+                                {{ end }}
+                            </li>
+                            {{ end }}
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Quick Actions Section -->
+                {{ if .loggedIn }}
+                <div class="card">
+                    <div class="card-body text-center">
+                        <div class="d-flex justify-content-around">
+                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMeasurementModal">
+                                <i class="fa-solid fa-plus"></i> {{ .lcl.add_measurement }}
+                            </button>
+                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addActivityModal">
+                                <i class="fa-solid fa-plus"></i> {{ .lcl.add_activity }}
+                            </button>
+                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadImagesModal">
+                                <i class="fa-solid fa-plus"></i> {{ .lcl.upload_images }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {{ end }}
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- Tabs Navigation -->
+    <ul class="nav nav-tabs mb-4" id="plantDetailsTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="sensors-tab" data-bs-toggle="tab" data-bs-target="#sensors" type="button" role="tab" aria-controls="sensors" aria-selected="false">
+                {{ .lcl.title_sensors }}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="statusHistoryTab-tab" data-bs-toggle="tab" data-bs-target="#statusHistoryTab" type="button" role="tab" aria-controls="statusHistoryTab" aria-selected="false">
+                {{ .lcl.status_history }}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="measurements-tab" data-bs-toggle="tab" data-bs-target="#measurements" type="button" role="tab" aria-controls="measurements" aria-selected="false">
+                {{ .lcl.title_measurements }}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="activities-tab" data-bs-toggle="tab" data-bs-target="#activities" type="button" role="tab" aria-controls="activities" aria-selected="false">
+                {{ .lcl.title_activities }}
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tabs Content -->
+    <div class="tab-content" id="plantDetailsTabsContent">
+        <!-- Sensors Tab -->
+        <div class="tab-pane fade show active" id="sensors" role="tabpanel" aria-labelledby="sensors-tab">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3 class="text-secondary">{{ .lcl.title_sensors }}</h3>
+                {{ if .loggedIn }}
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#linkSensorModal">
+                    <i class="fa-solid fa-link"></i> {{ .lcl.link_sensors }}
+                </button>
+                {{ end }}
+            </div>
+            <div class="row g-4">
+                {{ range .plant.Sensors }}
+                <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                    <a href="/graph/{{.ID}}" class="text-decoration-none">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title">{{ .Name }}</h5>
+                                <p class="display-6 fw-bold">{{ .Value }} {{ .Unit }}</p>
+                                <small class="text-muted">{{ toLocalTimeString .Date }}</small>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                {{ end }}
+            </div>
+        </div>
+
+        <!-- Status History Tab -->
+        <div class="tab-pane fade" id="statusHistoryTab" role="tabpanel" aria-labelledby="status-tab">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3 class="text-secondary">{{ .lcl.status_history }}</h3>
+            </div>
+            <table class="table table-striped table-bordered table-hover">
+                <thead class="table-dark">
+                <tr>
+                    <th>{{ .lcl.title_date }}</th>
+                    <th>{{ .lcl.title_status }}</th>
+                </tr>
+                </thead>
+                <tbody>
+                {{ range .plant.StatusHistory }}
+                <tr class="clickable-row status-row" data-status='{{ json . }}'>
+                    <td>{{ formatDateTime .Date }}</td>
+                    <td>{{ .Status }}</td>
+                </tr>
+                {{ end }}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Measurements Tab -->
+        <div class="tab-pane fade" id="measurements" role="tabpanel" aria-labelledby="measurements-tab">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3 class="text-secondary">{{ .lcl.title_measurements }}</h3>
+            </div>
+            <table class="table table-striped table-bordered table-hover">
+                <thead class="table-dark">
+                <tr>
+                    <th>{{ .lcl.title_date }}</th>
+                    <th>{{ .lcl.title_measurement }}</th>
+                    <th>{{ .lcl.title_value }}</th>
+                </tr>
+                </thead>
+                <tbody>
+                {{ range .plant.Measurements }}
+                <tr class="clickable-row measurement-row" data-measurement='{{ json . }}'>
+                    <td>{{ formatDateTime .Date }}</td>
+                    <td>{{ .Name }}</td>
+                    <td>{{ .Value }}</td>
+                </tr>
+                {{ end }}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Activities Tab -->
+        <div class="tab-pane fade" id="activities" role="tabpanel" aria-labelledby="activities-tab">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3 class="text-secondary">{{ .lcl.title_activities }}</h3>
+            </div>
+            <table class="table table-striped table-bordered table-hover">
+                <thead class="table-dark">
+                <tr>
+                    <th>{{ .lcl.title_date }}</th>
+                    <th>{{ .lcl.title_activity }}</th>
+                    <th>{{ .lcl.title_note }}</th>
+                </tr>
+                </thead>
+                <tbody>
+                {{ range .plant.Activities }}
+                <tr class="clickable-row activity-row" data-activity='{{ json . }}'>
+                    <td>{{ formatDateTime .Date }}</td>
+                    <td>{{ .Name }}</td>
+                    <td>{{ preview .Note }}</td>
+                </tr>
+                {{ end }}
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <hr class="my-5" />
+
+    <!-- Image Gallery Tab -->
+    <div class="row g-4" id="gallery">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="text-secondary">{{ .lcl.image_gallery }}</h3>
+        </div>
+        <div class="row g-3">
+            {{ range .plant.Images }}
+            <div class="col-6 col-md-4 col-lg-3">
+                <div class="card">
+                    <img
+                            src="{{ .ImagePath }}"
+                            class="card-img-top thumbnail-img"
+                            alt="{{ .ImageDescription }}"
+                            data-bs-toggle="modal"
+                            data-bs-target="#imageModal"
+                            data-image="{{ .ImagePath }}"
+                            data-description="{{ .ImageDescription }}"
+                            data-date="{{ formatDate .ImageDate }}"
+                            data-id="{{ .ID }}"
+                    >
+                    <div class="card-body text-center">
+                        <small class="text-muted">{{ formatDate .ImageDate }}</small>
+                    </div>
+                </div>
+
+            </div>
+            {{ end }}
+        </div>
+    </div>
+</div>
+
+{{ template "modals/upload-images-modal.html" . }}
+{{ template "modals/decorate-image-modal.html" . }}
+{{ template "modals/link-sensor-modal.html" . }}
+{{ template "modals/edit-plant-modal.html" . }}
+{{ template "modals/add-measurement-modal.html" . }}
+{{ template "modals/add-activity-modal.html" . }}
+{{ template "modals/status-history-edit-modal.html" . }}
+{{ template "modals/measurement-edit-modal.html" . }}
+{{ template "modals/activity-edit-modal.html" . }}
+<!--Embed the footer.html template at this location-->
+{{ template "common/footer.html" .}}
+
+{{ end }}

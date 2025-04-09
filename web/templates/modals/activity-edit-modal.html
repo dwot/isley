@@ -1,0 +1,39 @@
+{{ define "modals/activity-edit-modal.html" }}
+<!-- Activity Edit Modal -->
+<div class="modal fade" id="editActivityModal" tabindex="-1" aria-labelledby="editActivityModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editActivityModalLabel">{{ .lcl.edit_activity }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editActivityForm">
+                    <input type="hidden" id="activityId">
+                    <div class="mb-3">
+                        <label for="editActivityDate" class="form-label">{{ .lcl.title_date }}</label>
+                        <input type="datetime-local" class="form-control" id="editActivityDate" required value="{{ now | formatDateTimeLocal }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editActivityType" class="form-label">{{ .lcl.title_type }}</label>
+                        <select class="form-select" id="editActivityType" required>
+                            {{ range .activities }}
+                            <option value="{{ .ID }}">{{ .Name }}</option>
+                            {{ end }}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editActivityNote" class="form-label">{{ .lcl.title_note }}</label>
+                        <textarea class="form-control" id="editActivityNote" rows="3"></textarea>
+                    </div>
+                    {{ if .loggedIn }}
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
+                    <button type="button" class="btn btn-danger" id="deleteActivity"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_activity }}</button>
+                    {{ end }}
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="/static/js/activity-edit-modal.js"></script>
+{{ end }}

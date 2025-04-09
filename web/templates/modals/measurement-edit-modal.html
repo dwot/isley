@@ -1,0 +1,32 @@
+{{ define "modals/measurement-edit-modal.html" }}
+<!-- Measurement Edit Modal -->
+<div class="modal fade" id="editMeasurementModal" tabindex="-1" aria-labelledby="editMeasurementModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editMeasurementModalLabel">{{ .lcl.edit_measurement }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editMeasurementForm">
+                    <input type="hidden" id="measurementId">
+                    <div class="mb-3">
+                        <label for="editMeasurementDate" class="form-label">{{ .lcl.title_date }}</label>
+                        <input type="datetime-local" class="form-control" id="editMeasurementDate" required value="{{ now | formatDateTimeLocal }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editMeasurementValue" class="form-label">{{ .lcl.title_value }}</label>
+                        <input type="number" class="form-control" id="editMeasurementValue" step="any" required>
+                    </div>
+                    {{ if .loggedIn }}
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
+                    <button type="button" class="btn btn-danger" id="deleteMeasurement"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_measurement }}</button>
+                    {{ end }}
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/measurement-edit-modal.js"></script>
+{{ end }}

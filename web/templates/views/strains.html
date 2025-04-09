@@ -1,0 +1,247 @@
+{{ define "views/strains.html"}}
+<!--index.html-->
+
+<!--Embed the header.html template at this location-->
+{{ template "common/header.html" .}}
+{{ template "common/header2.html" .}}
+
+
+<header class="masthead text-center">
+    <div class="overlay"></div>
+    <div class="container">
+        <!-- View Selector and Actions -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <!-- View Selector -->
+            <div>
+                <button class="btn btn-outline-primary view-button active" data-view="in-stock">{{ .lcl.in_stock }}</button>
+                <button class="btn btn-outline-secondary view-button" data-view="out-of-stock">{{ .lcl.out_stock }}</button>
+            </div>
+
+            <!-- Search Bar and Add Strain Button -->
+            <div class="d-flex align-items-center">
+                <div class="input-group w-75">
+                    <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
+                    <input type="text" class="form-control" id="searchStrains" placeholder="{{ .lcl.search_strains }}...">
+                </div>
+                {{ if .loggedIn }}
+                <button class="btn btn-success ms-3" data-bs-toggle="modal" data-bs-target="#addStrainModal">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
+                {{ end }}
+            </div>
+        </div>
+
+        <!-- Strains Table -->
+        <div id="strainsContainer">
+            <!-- Table dynamically populated by JavaScript -->
+        </div>
+    </div>
+
+</header>
+
+{{ template "modals/add-strain-modal.html" .}}
+{{ template "modals/edit-strain-modal.html" .}}
+
+<script>
+
+
+
+    document.addEventListener("DOMContentLoaded", () => {
+        // Listen for when any modal is hidden
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('hidden.bs.modal', () => {
+                // Remove lingering modal-backdrop elements
+                document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+
+                // Ensure the body class does not remain disabled
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+            });
+        });
+    });
+
+</script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const strainsContainer = document.getElementById("strainsContainer");
+        const searchInput = document.getElementById("searchStrains");
+        const viewButtons = document.querySelectorAll(".view-button");
+
+        let currentView = "in-stock";
+        let strains = []; // Will hold all strains fetched from the backend
+
+        // Function to load strains from the backend
+        async function fetchStrains(view) {
+            const response = await fetch(`/strains/${view}`);
+            const data = await response.json();
+            //console.log("Fetched strains:", data); // Debug output
+            strains = data;
+            renderStrainsTable(strains);
+        }
+
+        let currentSort = { key: null, isAscending: true }; // Track current sort state
+
+        function renderStrainsTable(data) {
+            const editStrainModal = new bootstrap.Modal(document.getElementById("editStrainModal"));
+            let filteredData = filterStrains(data, searchInput.value);
+
+            //If filteredData is null, reset with empty map object
+            if (filteredData == null) {
+                strainsContainer.innerHTML = `
+        <table class="table table-striped table-bordered table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th scope="col" data-key="name" data-type="text" class="sortable ${currentSort.key === "name" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.title_strain }} <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="breeder" data-type="text" class="sortable ${currentSort.key === "breeder" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.breeder }} <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="short_desc" data-type="text" class="sortable ${currentSort.key === "short_desc" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.description_txt }} <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="seed_count" data-type="numeric" class="sortable ${currentSort.key === "seed_count" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.seed_count }} <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" colspan="2"> </th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+                `;
+            } else {
+                strainsContainer.innerHTML = `
+        <table class="table table-striped table-bordered table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th scope="col" data-key="name" data-type="text" class="sortable ${currentSort.key === "name" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.title_strain }} <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="breeder" data-type="text" class="sortable ${currentSort.key === "breeder" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.breeder }} <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="short_desc" data-type="text" class="sortable ${currentSort.key === "short_desc" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.description_txt }} <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" data-key="seed_count" data-type="numeric" class="sortable ${currentSort.key === "seed_count" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.seed_count }} <i class="fa-solid fa-sort"></i></th>
+                    <th scope="col" colspan="2"> </th>
+                </tr>
+            </thead>
+            <tbody>
+                ${filteredData.map(strain => `
+                    <tr >
+                        <td><a href="strain/${strain.id}">${strain.name || "N/A"}</a></td>
+                        <td>${strain.breeder || "N/A"}</td>
+                        <td>${strain.short_desc || "&nbsp;"}</td>
+                        <td>${strain.seed_count || 0}</td>
+                        <td>
+                        ${strain.url ? `<a href="${strain.url}" target="_blank"><i class="fa-solid fa-link"></i></a>` : "&nbsp;"}
+                        </td>
+                        <td class="clickable-row"
+                        data-id="${strain.id}"
+                        data-strain="${encodeURIComponent(JSON.stringify(strain))}"><i class="fa-solid fa-pen-to-square"></i></td>
+                    </tr>
+                `).join("")}
+            </tbody>
+        </table>
+    `;
+            }
+
+
+
+
+            // Add click listeners for sorting
+            document.querySelectorAll(".sortable").forEach(header => {
+                header.addEventListener("click", () => {
+                    const key = header.dataset.key;
+                    const type = header.dataset.type;
+
+                    // Determine the current sort order and toggle it
+                    const isAscending = currentSort.key === key ? !currentSort.isAscending : true;
+                    currentSort = { key, isAscending };
+
+                    // Sort the data
+                    const sortedData = [...strains].sort((a, b) => {
+                        if (type === "numeric") {
+                            return isAscending ? a[key] - b[key] : b[key] - a[key];
+                        } else if (type === "text") {
+                            return isAscending
+                                ? a[key].localeCompare(b[key], undefined, { sensitivity: "base" })
+                                : b[key].localeCompare(a[key], undefined, { sensitivity: "base" });
+                        }
+                        return 0;
+                    });
+
+                    // Re-render the table with sorted data
+                    renderStrainsTable(sortedData);
+                });
+            });
+
+            // Populate modal fields when editing
+            document.querySelectorAll(".clickable-row").forEach(row => {
+                row.addEventListener("click", () => {
+                    const strainData = JSON.parse(decodeURIComponent(row.getAttribute("data-strain")));
+
+                    // Populate form fields
+                    document.getElementById("editStrainId").value = strainData.id;
+                    document.getElementById("editStrainName").value = strainData.name;
+                    editBreederSelect.value = strainData.breeder_id || "new";
+
+                    if (strainData.breeder_id) {
+                        editNewBreederInput.classList.add("d-none");
+                        document.getElementById("editNewBreederName").value = "";
+                    } else {
+                        editNewBreederInput.classList.remove("d-none");
+                        document.getElementById("editNewBreederName").value = strainData.new_breeder || "";
+                    }
+
+                    document.getElementById("editIndicaSativaSlider").value = strainData.indica;
+                    editIndicaLabel.textContent = `Indica: ${strainData.indica}%`;
+                    editSativaLabel.textContent = `Sativa: ${100 - strainData.indica}%`;
+                    if (strainData.autoflower === "true" || strainData.autoflower === true || strainData.autoflower === 1) {
+                        document.getElementById("editAutoflower").value = "true";
+                    } else {
+                        document.getElementById("editAutoflower").value = "false";
+                    }
+                    document.getElementById("editAutoflower").value = strainData.autoflower;
+                    document.getElementById("editSeedCount").value = strainData.seed_count;
+                    document.getElementById("editStrainDescription").value = strainData.description;
+                    document.getElementById("editCycleTime").value = strainData.cycle_time;
+                    document.getElementById("editUrl").value = strainData.url;
+                    document.getElementById("editStrainShortDescription").value = strainData.short_desc;
+
+                    // Show the modal
+                    editStrainModal.show();
+                });
+            });
+        }
+
+
+
+        // Function to filter strains based on search
+        function filterStrains(data, query) {
+            if (!query) return data;
+            const lowerCaseQuery = query.toLowerCase();
+            return data.filter(strain =>
+                strain.name.toLowerCase().includes(lowerCaseQuery) || // Match strain name
+                strain.breeder.toLowerCase().includes(lowerCaseQuery) // Match breeder name
+            );
+        }
+
+        // Event listener for search input
+        searchInput.addEventListener("input", () => {
+            renderStrainsTable(strains); // Re-render table based on updated search query
+        });
+
+        // Event listener for view buttons
+        viewButtons.forEach(button => {
+            button.addEventListener("click", () => {
+                currentView = button.dataset.view;
+
+                // Update button states
+                viewButtons.forEach(btn => btn.classList.remove("active"));
+                button.classList.add("active");
+
+                // Fetch and render strains
+                fetchStrains(currentView);
+            });
+        });
+
+        // Initial load
+        fetchStrains(currentView);
+    });
+</script>
+
+
+<!--Embed the footer.html template at this location-->
+{{ template "common/footer.html" .}}
+
+{{ end }}

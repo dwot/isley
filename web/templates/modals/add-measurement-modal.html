@@ -1,0 +1,42 @@
+{{ define "modals/add-measurement-modal.html" }}
+<!-- Add Measurement Modal -->
+<div class="modal fade" id="addMeasurementModal" tabindex="-1" aria-labelledby="addMeasurementModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addMeasurementModalLabel">{{ .lcl.add_measurement }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addMeasurementForm">
+                    <!-- Metric Name Dropdown -->
+                    <div class="mb-3">
+                        <label for="measurementName" class="form-label">{{ .lcl.measurement_name }}</label>
+                        <select class="form-select" id="measurementName" required>
+                            {{ range .measurements }}
+                            <option value="{{ .ID }}">{{ .Name }}</option>
+                            {{ end }}
+                        </select>
+                    </div>
+                    <!-- Metric Value Input -->
+                    <div class="mb-3">
+                        <label for="measurementValue" class="form-label">{{ .lcl.measurement_value }}</label>
+                        <input type="number" class="form-control" id="measurementValue" step="any" required>
+                    </div>
+
+                    <!-- Date Picker -->
+                    <div class="mb-3">
+                        <label for="measureDate" class="form-label">{{ .lcl.title_date }}</label>
+                        <input type="datetime-local" class="form-control" id="measureDate" required value="{{ now | formatDateTimeLocal }}">
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-primary">{{ .lcl.add_measurement }}</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/add-measurement-modal.js"></script>
+{{ end }}

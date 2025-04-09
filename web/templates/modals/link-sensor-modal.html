@@ -1,0 +1,52 @@
+{{ define "modals/link-sensor-modal.html" }}
+<!-- Link Sensor Modal -->
+<div class="modal fade" id="linkSensorModal" tabindex="-1" aria-labelledby="linkSensorModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="linkSensorModalLabel">{{ .lcl.link_sensors }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
+            </div>
+            <div class="modal-body">
+                <form id="linkSensorForm">
+                    <table class="table table-bordered table-striped table-hover">
+                        <thead class="table-dark">
+                        <tr>
+                            <th>{{ .lcl.title_select }}</th>
+                            <th>{{ .lcl.sensor_name }}</th>
+                            <th>{{ .lcl.title_source }}</th>
+                            <th>{{ .lcl.title_device }}</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {{ range .sensors }}
+                        <tr>
+                            <td>
+                                <input
+                                        type="checkbox"
+                                        class="form-check-input"
+                                        name="sensorIds"
+                                        value="{{ index . "id" }}"
+                                {{ $sensorId := index . "id" }}
+                                {{ range $.plant.Sensors }}
+                                {{ if eq (toInt $sensorId) .ID }}checked{{ end }}
+                                {{ end }}
+                                >
+                            </td>
+                            <td>{{ index . "name" }}</td>
+                            <td>{{ index . "source" }}</td>
+                            <td>{{ index . "device" }}</td>
+                        </tr>
+                        {{ end }}
+
+                        </tbody>
+                    </table>
+                    <button type="submit" class="btn btn-primary">{{ .lcl.link_sensors }}</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/link-sensor-modal.js"></script>
+{{ end }}

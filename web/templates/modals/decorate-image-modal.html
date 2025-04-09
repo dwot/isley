@@ -1,0 +1,96 @@
+{{ define "modals/decorate-image-modal.html" }}
+<!-- Updated Image Modal -->
+<div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="imageModalLabel">{{ .lcl.image_details }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center">
+                    <img id="modalImage" src="" class="img-fluid" alt="Full-size image">
+                </div>
+                <div class="d-none">
+                    <img id="originalImageSrc" id="originalImageSrc">
+                </div>
+                <input type="hidden" id="imageId" >
+                <input type="hidden" id="modalDate" >
+                <input type="hidden" id="modalStartDate" value="{{ .plant.StartDT | formatDateISO }}" >
+                <input type="hidden" id="modalPlantName" value="{{ .plant.Name }}" >
+                <div class="mt-3">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="fontDropdown">{{ .lcl.select_font }}</label>
+                            <select id="fontDropdown" class="form-select">
+                            </select>
+                            <p id="fontPreview" class="mt-2">{{ .lcl.font_preview_text }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="logoDropdown">{{ .lcl.select_logo }}</label>
+                            <select id="logoDropdown" class="form-select">
+                                <option value="">{{ .lcl.title_none }}</option>
+                            </select>
+                            <img id="logoPreview" src="" class="img-thumbnail mt-2" style="max-width: 100px; display: none;" />
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <!-- Text Customization -->
+                        <div class="col-md-6">
+                            <label for="text1">{{ .lcl.top_text }}</label>
+                            <select id="text1Dropdown" class="form-select">
+
+                            </select>
+                            <input type="text" id="text1" class="form-control mt-2" placeholder="{{ .lcl.custom_text }}" disabled>
+                            <label for="text1Corner" class="mt-2">{{ .lcl.title_placement }}</label>
+                            <select id="text1Corner" class="form-select">
+                                <option selected value="top-left">{{ .lcl.top_left }}</option>
+                                <option value="top-right">{{ .lcl.top_right }}</option>
+                                <option value="bottom-left">{{ .lcl.bottom_left }}</option>
+                                <option value="bottom-right">{{ .lcl.bottom_right }}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="text2">{{ .lcl.bottom_text }}</label>
+                            <select id="text2Dropdown" class="form-select">
+
+                            </select>
+                            <input type="text" id="text2" class="form-control mt-2" placeholder="Custom text" disabled>
+                            <label for="text2Corner" class="mt-2">{{ .lcl.title_placement }}</label>
+                            <select id="text2Corner" class="form-select">
+                                <option value="top-left">{{ .lcl.top_left }}</option>
+                                <option value="top-right">{{ .lcl.top_right }}</option>
+                                <option value="bottom-left">{{ .lcl.bottom_left }}</option>
+                                <option selected value="bottom-right">{{ .lcl.bottom_right }}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <label for="textColor">{{ .lcl.text_color }}</label>
+                            <input type="color" id="textColor" class="form-control form-control-color" value="#FFFFFF">
+                        </div>
+                    </div>
+                </div>
+                <div class="text-center mt-4">
+                    <button id="decorateImage" class="btn btn-primary">
+                        <i class="fa fa-magic"></i> {{ .lcl.decorate_image }}
+                    </button>
+                </div>
+                <div class="d-flex justify-content-between mt-3">
+                    <button id="prevImage" class="btn btn-secondary">{{ .lcl.title_previous }}</button>
+                    <button id="nextImage" class="btn btn-secondary">{{ .lcl.title_next }}</button>
+                </div>
+                {{ if .loggedIn }}
+                <button class="btn btn-danger btn-sm position-absolute top-0 end-0 m-1"
+                        onclick="confirmDeleteImage()">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+                {{ end }}
+            </div>
+        </div>
+    </div>
+</div>
+<script src="/static/js/decorate-image-modal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.min.js"></script>
+{{ end }}
