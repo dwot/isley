@@ -1,0 +1,42 @@
+{{ define "modals/add-activity-modal.html" }}
+<!-- Add Activity Modal -->
+<div class="modal fade" id="addActivityModal" tabindex="-1" aria-labelledby="addActivityModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addActivityModalLabel">{{ .lcl.add_activity }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addActivityForm">
+                    <!-- Activity Name Dropdown -->
+                    <div class="mb-3">
+                        <label for="activityName" class="form-label">{{ .lcl.activity_name }}</label>
+                        <select class="form-select" id="activityName" required>
+                            {{ range .activities }}
+                            <option value="{{ .ID }}">{{ .Name }}</option>
+                            {{ end }}
+                        </select>
+                    </div>
+                    <!-- Activity Note Input -->
+                    <div class="mb-3">
+                        <label for="activityNote" class="form-label">{{ .lcl.activity_note }}</label>
+                        <textarea class="form-control" id="activityNote" rows="3"></textarea>
+                    </div>
+
+                    <!-- Date Picker -->
+                    <div class="mb-3">
+                        <label for="activityDate" class="form-label">{{ .lcl.title_date }}</label>
+                        <input type="datetime-local" class="form-control" id="activityDate" required value="{{ now | formatDateTimeLocal }}">
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-primary">{{ .lcl.add_activity }}</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/add-activity-modal.js"></script>
+{{ end }}

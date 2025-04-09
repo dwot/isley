@@ -1,16 +1,6 @@
 {{ define "views/login.html" }}
 <!--Embed the header.html template at this location-->
-{{ template "layouts/header.html" .}}
-<style>
-    .container {
-        max-width: 400px;
-        margin-top: 50px;
-    }
-    .card {
-        padding: 20px;
-    }
-</style>
-
+{{ template "common/header.html" .}}
 </head>
 
 <body>
@@ -36,6 +26,6 @@
 </div>
 
 <!--Embed the footer.html template at this location-->
-{{ template "layouts/footer.html" .}}
+{{ template "common/footer.html" .}}
 
 {{ end }}

@@ -1,0 +1,28 @@
+{{ define "modals/status-history-edit-modal.html" }}
+<!-- Status History Edit Modal -->
+<div class="modal fade" id="editStatusModal" tabindex="-1" aria-labelledby="editStatusModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editStatusModalLabel">{{ .lcl.edit_status }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editStatusForm">
+                    <input type="hidden" id="statusId">
+                    <div class="mb-3">
+                        <label for="editStatusDate" class="form-label">{{ .lcl.title_date }}</label>
+                        <input type="datetime-local" class="form-control" id="editStatusDate" required>
+                    </div>
+                    {{ if .loggedIn }}
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
+                    <button type="button" class="btn btn-danger" id="deleteStatus"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_status }}</button>
+                    {{ end }}
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/status-history-edit-modal.js"></script>
+{{ end }}

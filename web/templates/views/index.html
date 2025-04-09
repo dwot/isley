@@ -1,0 +1,60 @@
+{{ define "views/index.html"}}
+<!--index.html-->
+
+<!--Embed the header.html template at this location-->
+{{ template "common/header.html" .}}
+<meta http-equiv="refresh" content="300">
+<script src="https://cdn.jsdelivr.net/npm/video.js@8.21.0/dist/video.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/video.js@8.21.0/dist/video-js.min.css">
+
+<script src="/static/js/main.js"></script>
+{{ template "common/header2.html" .}}
+
+<header class="masthead text-center">
+    <div class="container">
+        <div id="sensorsOverview">
+            <!-- Sensors dynamically loaded here -->
+        </div>
+
+           <!-- Plants Table Section -->
+        <div class="my-5">
+            <h3 class="text-secondary mb-4">{{ .lcl.plants_overview }}</h3>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                    <tr>
+                        <th>{{ .lcl.title_plant }}</th>
+                        <th>{{ .lcl.title_strain }}</th>
+                        <th>{{ .lcl.title_status }}</th>
+                        <th>{{ .lcl.title_start }}</th>
+                        <th>{{ .lcl.title_last_water }}</th>
+                        <th>{{ .lcl.title_last_feed }}</th>
+                        <th>{{ .lcl.title_days_flower }}</th>
+                        <th>{{ .lcl.title_week }}</th>
+                        <th>{{ .lcl.title_day }}</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {{ range .plants }}
+                    <tr class="clickable-row" data-id="{{ .ID }}">
+                        <td>{{ .Name }}</td>
+                        <td>{{ .StrainName }}</td>
+                        <td>{{ .Status }}</td>
+                        <td>{{ formatStringDate .StartDT }}</td>
+                        <td>{{ .DaysSinceLastWatering }}</td>
+                        <td>{{ .DaysSinceLastFeeding }}</td>
+                        <td>{{ if .FloweringDays }}{{ .FloweringDays }}{{ else }} {{ .lcl.na }} {{ end }}</td>
+                        <td>{{ .CurrentWeek }}</td>
+                        <td>{{ .CurrentDay }}</td>
+                    </tr>
+                    {{ end }}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</header>
+<!--Embed the footer.html template at this location-->
+{{ template "common/footer.html" .}}
+
+{{ end }}

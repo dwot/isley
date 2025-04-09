@@ -1,0 +1,60 @@
+{{ define "views/graph.html" }}
+<!--index.html-->
+
+<!--Embed the header.html template at this location-->
+{{ template "common/header.html" . }}
+<meta http-equiv="refresh" content="300">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+<script src="https://cdn.jsdelivr.net/npm/luxon"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+
+<script src="/static/js/graph.js"></script>
+{{ template "common/header2.html" . }}
+
+<div class="container">
+    <!-- Sensor Names -->
+    <h2 class="text-light mb-3">{{ .lcl.title_sensors }}: <span id="sensorName"></span></h2>
+
+    <!-- Controls -->
+    <div class="controls mb-4">
+        <div class="dropdown">
+            <button class="dropdown-button" id="timePickerButton">
+                {{ .lcl.title_time_range }}
+                <i class="fa fa-caret-down"></i>
+            </button>
+            <div class="dropdown-menu" id="timeRangeMenu">
+                <ul class="list-unstyled mb-3">
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="60">{{ .lcl.time_range_60 }}</button></li>
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="360">{{ .lcl.time_range_360 }}</button></li>
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="1440">{{ .lcl.time_range_1440 }}</button></li>
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="2880">{{ .lcl.time_range_2880 }}</button></li>
+                    <li><button class="btn btn-outline-primary btn-block time-range-btn" data-value="10080">{{ .lcl.time_range_10080 }}</button></li>
+                </ul>
+                <div class="date-picker-container">
+                    <label for="startDate">{{ .lcl.start_date }}:</label>
+                    <input type="date" id="startDate" class="form-control">
+                    <label for="endDate">{{ .lcl.end_date }}:</label>
+                    <input type="date" id="endDate" class="form-control">
+                    <button id="applyDateRange" class="btn btn-primary btn-block mt-2">{{ .lcl.apply }}</button>
+                </div>
+            </div>
+        </div>
+        <button id="resetZoom" class="btn btn-secondary">{{ .lcl.reset_zoom }}</button>
+    </div>
+
+    <!-- Hidden Sensor IDs -->
+    <input type="hidden" id="sensorID" value="{{ .SensorID }}">
+
+    <!-- Graph Display -->
+    <div class="card">
+        <div class="card-body graph-container">
+            <canvas id="chart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!--Embed the footer.html template at this location-->
+{{ template "common/footer.html" . }}
+
+{{ end }}

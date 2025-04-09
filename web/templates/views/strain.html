@@ -1,0 +1,67 @@
+{{ define "views/strain.html"}}
+<!--index.html-->
+
+<!--Embed the header.html template at this location-->
+{{ template "common/header.html" .}}
+{{ template "common/header2.html" .}}
+<div class="container">
+    <!-- Page Title -->
+    <div class="text-center mb-5">
+        <h1 class="display-4 text-primary">{{ .strain.Name }}</h1>
+        <h2 class="text-secondary">by {{ .strain.Breeder }}</h2>
+        <p class="text-muted">{{ .strain.ShortDescription }}</p>
+        {{ if .strain.Autoflower }}
+        <i class="fas fa-bolt"></i>
+        {{ else }}
+        <i class="fas fa-photo-film"></i>
+        {{ end }}
+        {{ if .strain.Url }}
+        <a href="{{ .strain.Url }}" class="btn btn-secondary" target="_blank">
+            <i class="fas fa-external-link-alt"></i>
+        </a>
+        {{ end }}
+        {{ if .loggedIn }}
+        <button class="btn btn-primary"
+                data-bs-toggle="modal"
+                data-bs-target="#editStrainModal"
+                data-id="{{ .strain.ID }}"
+                data-strain="{{ .strain | jsonify }}">
+            {{ .lcl.edit_strain }}
+        </button>
+        {{ end }}
+
+    </div>
+
+    <!-- Strain Details -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <!-- Render Description from Markdown -->
+            <div class="markdown-body">
+                {{ .strain.Description | markdownify }}
+            </div>
+        </div>
+    </div>
+</div>
+
+{{ template "modals/edit-strain-modal.html" .}}
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        // Listen for when any modal is hidden
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('hidden.bs.modal', () => {
+                // Remove lingering modal-backdrop elements
+                document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+
+                // Ensure the body class does not remain disabled
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+            });
+        });
+    });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.min.js"></script>
+<!--Embed the footer.html template at this location-->
+{{ template "common/footer.html" .}}
+
+{{ end }}
