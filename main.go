@@ -208,6 +208,9 @@ func main() {
 
 	// Initialize session store
 	store := cookie.NewStore([]byte("secret"))
+	store.Options(sessions.Options{
+		Path: "/",
+	})
 	r.Use(sessions.Sessions("isley_session", store))
 
 	// Public routes
