@@ -309,8 +309,13 @@ func handleLogin(c *gin.Context) {
 	forcePasswordChange, _ := handlers.GetSetting("force_password_change")
 
 	if username != storedUsername || !utils.CheckPasswordHash(password, storedPasswordHash) {
+		lang := utils.GetLanguage(c)
+		translations := utils.TranslationService.GetTranslations(lang)
 		c.HTML(http.StatusUnauthorized, "views/login.html", gin.H{
-			"Error": "Invalid username or password",
+			"Error":           "Invalid username or password",
+			"lcl":             translations,
+			"languages":       utils.AvailableLanguages,
+			"currentLanguage": lang,
 		})
 		return
 	}
@@ -340,8 +345,13 @@ func handleChangePassword(c *gin.Context) {
 	confirmPassword := c.PostForm("confirm_password")
 
 	if newPassword != confirmPassword {
+		lang := utils.GetLanguage(c)
+		translations := utils.TranslationService.GetTranslations(lang)
 		c.HTML(http.StatusBadRequest, "views/change-password.html", gin.H{
-			"Error": "Passwords do not match",
+			"Error":           "Passwords do not match",
+			"lcl":             translations,
+			"languages":       utils.AvailableLanguages,
+			"currentLanguage": lang,
 		})
 		return
 	}
