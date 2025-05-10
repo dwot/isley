@@ -13,8 +13,10 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	r.GET("/", func(c *gin.Context) {
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
+		currentPath, _ := c.Get("currentPath")
 		c.HTML(http.StatusOK, "views/index.html", gin.H{
 			"title":           "Dashboard",
+			"currentPath":     currentPath,
 			"version":         version,
 			"plants":          handlers.GetLivingPlants(),
 			"activities":      config.Activities,
@@ -28,8 +30,10 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	r.GET("/plants", func(c *gin.Context) {
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
+		currentPath, _ := c.Get("currentPath")
 		c.HTML(http.StatusOK, "views/plants.html", gin.H{
 			"title":           "Plants",
+			"currentPath":     currentPath,
 			"version":         version,
 			"zones":           config.Zones,
 			"strains":         config.Strains,
@@ -47,8 +51,10 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	r.GET("/strains", func(c *gin.Context) {
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
+		currentPath, _ := c.Get("currentPath")
 		c.HTML(http.StatusOK, "views/strains.html", gin.H{
 			"title":           "Strains",
+			"currentPath":     currentPath,
 			"version":         version,
 			"strains":         config.Strains,
 			"breeders":        config.Breeders,
@@ -64,8 +70,10 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	r.GET("/graph/:id", func(c *gin.Context) {
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
+		currentPath, _ := c.Get("currentPath")
 		c.HTML(http.StatusOK, "views/graph.html", gin.H{
 			"title":           "Sensor Graphs",
+			"currentPath":     currentPath,
 			"version":         version,
 			"SensorID":        c.Param("id"),
 			"plants":          handlers.GetLivingPlants(),
@@ -80,8 +88,10 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	r.GET("/plant/:id", func(c *gin.Context) {
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
+		currentPath, _ := c.Get("currentPath")
 		c.HTML(http.StatusOK, "views/plant.html", gin.H{
 			"title":           "Plant Details",
+			"currentPath":     currentPath,
 			"version":         version,
 			"plant":           handlers.GetPlant(c.Param("id")),
 			"zones":           config.Zones,
@@ -102,8 +112,10 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	r.GET("/strain/:id", func(c *gin.Context) {
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
+		currentPath, _ := c.Get("currentPath")
 		c.HTML(http.StatusOK, "views/strain.html", gin.H{
 			"title":           "Strain Details",
+			"currentPath":     currentPath,
 			"version":         version,
 			"strain":          handlers.GetStrain(c.Param("id")),
 			"breeders":        config.Breeders,
@@ -188,8 +200,10 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 	r.GET("/settings", func(c *gin.Context) {
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
+		currentPath, _ := c.Get("currentPath")
 		c.HTML(http.StatusOK, "views/settings.html", gin.H{
 			"title":           "Settings",
+			"currentPath":     currentPath,
 			"version":         version,
 			"settings":        handlers.GetSettings(),
 			"zones":           config.Zones,
@@ -208,8 +222,10 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 	r.GET("/sensors", func(c *gin.Context) {
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
+		currentPath, _ := c.Get("currentPath")
 		c.HTML(http.StatusOK, "views/sensors.html", gin.H{
 			"title":           "Sensors",
+			"currentPath":     currentPath,
 			"version":         version,
 			"settings":        handlers.GetSettings(),
 			"sensors":         handlers.GetSensors(),
