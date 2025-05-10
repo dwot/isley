@@ -1,3 +1,16 @@
+/* Bootstrap Overrides */
+header {
+    .nav-item {
+        width:40px;
+        height: 38px;
+        margin-right: 10px;
+    }
+
+    .nav-link {
+        padding: 7px 12px;
+    }
+}
+
 /* Dark Mode Styling */
 body {
     background-color: #121212;
