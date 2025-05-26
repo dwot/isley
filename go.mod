@@ -6,8 +6,8 @@ toolchain go1.24.1
 
 require (
 	github.com/fogleman/gg v1.3.0
-	github.com/gin-contrib/sessions v1.0.3
-	github.com/gin-gonic/gin v1.10.0
+	github.com/gin-contrib/sessions v1.0.4
+	github.com/gin-gonic/gin v1.10.1
 	github.com/golang-migrate/migrate/v4 v4.18.3
 	github.com/lib/pq v1.10.9
 	github.com/microcosm-cc/bluemonday v1.0.27
