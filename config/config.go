@@ -21,4 +21,5 @@ var (
 	GuestMode          = 0  // Default guest mode
 	StreamGrabEnabled  = 0
 	StreamGrabInterval = 60
+	APIKey             = ""
 )

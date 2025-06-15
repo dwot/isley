@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"io"
@@ -16,12 +18,40 @@ import (
 	"time"
 )
 
+func GenerateAPIKey() string {
+	// Generate a random 32-character hex string
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(bytes)
+}
+
 func SaveSettings(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "SaveSettings")
 	var settings types.Settings
 	if err := c.ShouldBindJSON(&settings); err != nil {
 		fieldLogger.WithError(err).Error("Failed to save settings")
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Generate new API key if requested
+	if settings.APIKey == "generate" {
+		settings.APIKey = GenerateAPIKey()
+
+		// Save the new API key to the database
+		err := UpdateSetting("api_key", settings.APIKey)
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to save API key")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save API key"})
+			return
+		} else {
+			config.APIKey = settings.APIKey
+		}
+
+		// Return the new API key in the response
+		c.JSON(http.StatusOK, gin.H{"message": "API key generated successfully", "api_key": settings.APIKey})
 		return
 	}
 
@@ -119,6 +149,15 @@ func SaveSettings(c *gin.Context) {
 		return
 	} else {
 		config.StreamGrabInterval, _ = strconv.Atoi(settings.StreamGrabInterval)
+	}
+
+	err = UpdateSetting("api_key", settings.APIKey)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to save API key")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save API key"})
+		return
+	} else {
+		config.APIKey = settings.APIKey
 	}
 
 	//Load Settings
@@ -225,6 +264,10 @@ func GetSettings() types.SettingsData {
 				iValue = 3000
 			}
 			settingsData.StreamGrabInterval = iValue
+		case "api_key":
+			settingsData.APIKey = value
+		default:
+			fieldLogger.WithField("name", name).Warn("Unknown setting found")
 		}
 	}
 
@@ -802,6 +845,8 @@ func ExistsSetting(s string) (bool, error) {
 
 // Helper functions
 func LoadSettings() {
+	fieldLogger := logger.Log.WithField("func", "LoadSettings")
+
 	strPollingInterval, err := GetSetting("polling_interval")
 	if err == nil {
 		if iPollingInterval, err := strconv.Atoi(strPollingInterval); err == nil {
@@ -852,6 +897,17 @@ func LoadSettings() {
 		if iStreamGrabInterval, err := strconv.Atoi(strStreamGrabInterval); err == nil {
 			config.StreamGrabInterval = iStreamGrabInterval
 		}
+	}
+
+	strAPIKey, err := GetSetting("api_key")
+	if err == nil {
+		// Log out API key setting
+		fieldLogger.WithField("api_key", strAPIKey).Debug("API key setting")
+
+		config.APIKey = strAPIKey
+	} else {
+		// Log out error
+		fieldLogger.WithError(err).Error("Failed to get API key setting")
 	}
 
 	config.Activities = GetActivities()

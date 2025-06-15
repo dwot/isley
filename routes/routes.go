@@ -154,6 +154,7 @@ func AddProtectedApiRoutes(r *gin.RouterGroup) {
 	r.POST("/sensors/scanEC", handlers.ScanEcoWittSensors)
 	r.POST("/sensors/edit", handlers.EditSensor)
 	r.DELETE("/sensors/delete/:id", handlers.DeleteSensor)
+	r.POST("/sensors/ingest", handlers.IngestSensorData)
 
 	r.POST("/strains", handlers.AddStrainHandler)
 
