@@ -2,7 +2,7 @@
 
 </head>
 
-<body>
+<body class="dark-mode" data-bs-theme="dark">
 <header class="d-flex flex-wrap justify-content-between align-items-center py-3 mb-4 border-bottom container">
     <!-- Logo and Title -->
     <a href="/" class="d-flex align-items-center text-decoration-none link-body-emphasis">
@@ -53,22 +53,28 @@
         </li>
         {{ end }}
 
-        <!-- Language Selector -->
-        <div class="dropdown">
-            <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="languageDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="fa fa-globe"></i> <span id="currentLanguage">{{ .currentLanguage | default "en" | upper }}</span>
+        <!-- Grouped Language Selector and Dark/Light Mode Toggle -->
+        <div class="btn-group ms-2" role="group" aria-label="Language and Theme">
+            <!-- Language Selector -->
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="languageDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fa fa-globe"></i> <span id="currentLanguage">{{ .currentLanguage | default "en" | upper }}</span>
+                </button>
+                <ul class="dropdown-menu" id="languageMenu" aria-labelledby="languageDropdown">
+                    {{ range .languages }}
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center lang-select" href="#" data-lang="{{ . }}">
+                            <i class="fa fa-flag me-2"></i> {{ . | upper }}
+                        </a>
+                    </li>
+                    {{ end }}
+                </ul>
+            </div>
+            <!-- Dark/Light Mode Toggle -->
+            <button id="themeToggle" class="btn btn-outline-secondary" title="Toggle dark/light mode" aria-label="Toggle dark/light mode">
+                <i id="themeToggleIcon" class="fa fa-moon"></i>
             </button>
-            <ul class="dropdown-menu" id="languageMenu" aria-labelledby="languageDropdown">
-                {{ range .languages }}
-                <li>
-                    <a class="dropdown-item d-flex align-items-center lang-select" href="#" data-lang="{{ . }}">
-                        <i class="fa fa-flag me-2"></i> {{ . | upper }}
-                    </a>
-                </li>
-                {{ end }}
-            </ul>
         </div>
-
     </ul>
 </header>
 

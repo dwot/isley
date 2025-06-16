@@ -74,9 +74,8 @@
         // Function to load strains from the backend
         async function fetchStrains(view) {
             const response = await fetch(`/strains/${view}`);
-            const data = await response.json();
             //console.log("Fetched strains:", data); // Debug output
-            strains = data;
+            strains = await response.json();
             renderStrainsTable(strains);
         }
 
@@ -85,12 +84,14 @@
         function renderStrainsTable(data) {
             const editStrainModal = new bootstrap.Modal(document.getElementById("editStrainModal"));
             let filteredData = filterStrains(data, searchInput.value);
+            const theme = localStorage.getItem("isley-theme") || "dark";
+            const themeTableClass = theme === "dark" ? "table-dark" : "table-light";
 
             //If filteredData is null, reset with empty map object
             if (filteredData == null) {
                 strainsContainer.innerHTML = `
         <table class="table table-striped table-bordered table-hover">
-            <thead class="table-dark">
+            <thead class="${themeTableClass}">
                 <tr>
                     <th scope="col" data-key="name" data-type="text" class="sortable ${currentSort.key === "name" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.title_strain }} <i class="fa-solid fa-sort"></i></th>
                     <th scope="col" data-key="breeder" data-type="text" class="sortable ${currentSort.key === "breeder" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.breeder }} <i class="fa-solid fa-sort"></i></th>
@@ -106,7 +107,7 @@
             } else {
                 strainsContainer.innerHTML = `
         <table class="table table-striped table-bordered table-hover">
-            <thead class="table-dark">
+            <thead class="${themeTableClass}">
                 <tr>
                     <th scope="col" data-key="name" data-type="text" class="sortable ${currentSort.key === "name" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.title_strain }} <i class="fa-solid fa-sort"></i></th>
                     <th scope="col" data-key="breeder" data-type="text" class="sortable ${currentSort.key === "breeder" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.breeder }} <i class="fa-solid fa-sort"></i></th>
@@ -134,9 +135,6 @@
         </table>
     `;
             }
-
-
-
 
             // Add click listeners for sorting
             document.querySelectorAll(".sortable").forEach(header => {
@@ -204,8 +202,6 @@
             });
         }
 
-
-
         // Function to filter strains based on search
         function filterStrains(data, query) {
             if (!query) return data;
@@ -239,7 +235,6 @@
         fetchStrains(currentView);
     });
 </script>
-
 
 <!--Embed the footer.html template at this location-->
 {{ template "common/footer.html" .}}
