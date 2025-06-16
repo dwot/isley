@@ -300,9 +300,9 @@ To use API endpoints, an **API Key** is required.
 
 ### 🌐 Ingest Endpoint
 
-The `/sensors/ingest` endpoint allows ingestion of environmental, sensor, or activity data into your grow journal.
+The `/api/sensors/ingest` endpoint allows ingestion of environmental, sensor, or activity data into your grow journal.
 
-- **Endpoint:** `/sensors/ingest`
+- **Endpoint:** `/api/sensors/ingest`
 - **Method:** `POST`
 - **Authentication:** Add your API Key to the header as `X-API-KEY`.
 

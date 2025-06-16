@@ -166,7 +166,6 @@ func AddProtectedApiRoutes(r *gin.RouterGroup) {
 	r.POST("/sensors/scanEC", handlers.ScanEcoWittSensors)
 	r.POST("/sensors/edit", handlers.EditSensor)
 	r.DELETE("/sensors/delete/:id", handlers.DeleteSensor)
-	r.POST("/sensors/ingest", handlers.IngestSensorData)
 
 	r.POST("/strains", handlers.AddStrainHandler)
 
@@ -195,6 +194,11 @@ func AddProtectedApiRoutes(r *gin.RouterGroup) {
 	r.POST("/settings/upload-logo", handlers.UploadLogo)
 	r.POST("/record-multi-activity", handlers.RecordMultiPlantActivity)
 	r.POST("/settings", handlers.SaveSettings)
+}
+
+// AddExternalApiRoutes External API endpoints
+func AddExternalApiRoutes(r *gin.RouterGroup) {
+	r.POST("/api/sensors/ingest", handlers.IngestSensorData)
 }
 
 func AddProtectedRotues(r *gin.RouterGroup, version string) {

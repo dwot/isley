@@ -296,6 +296,7 @@ func main() {
 	apiProtected.Use(AuthMiddlewareApi())
 	{
 		routes.AddProtectedApiRoutes(apiProtected)
+		routes.AddExternalApiRoutes(apiProtected)
 	}
 
 	// Start the server
