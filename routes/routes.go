@@ -196,6 +196,11 @@ func AddProtectedApiRoutes(r *gin.RouterGroup) {
 	r.POST("/settings", handlers.SaveSettings)
 }
 
+// AddExternalApiRoutes External API endpoints
+func AddExternalApiRoutes(r *gin.RouterGroup) {
+	r.POST("/api/sensors/ingest", handlers.IngestSensorData)
+}
+
 func AddProtectedRotues(r *gin.RouterGroup, version string) {
 	r.GET("/settings", func(c *gin.Context) {
 		lang := utils.GetLanguage(c)

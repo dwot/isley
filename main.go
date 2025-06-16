@@ -178,6 +178,10 @@ func main() {
 			}
 			return template.HTML(a)
 		},
+		"linebreaks": func(s string) template.HTML {
+			// Replace newlines with <br> tags and mark as safe HTML
+			return template.HTML(strings.ReplaceAll(template.HTMLEscapeString(s), "\n", "<br>"))
+		},
 	}
 
 	// Attach FuncMap and ParseFS
@@ -292,6 +296,7 @@ func main() {
 	apiProtected.Use(AuthMiddlewareApi())
 	{
 		routes.AddProtectedApiRoutes(apiProtected)
+		routes.AddExternalApiRoutes(apiProtected)
 	}
 
 	// Start the server
@@ -376,12 +381,44 @@ func handleChangePassword(c *gin.Context) {
 
 func AuthMiddlewareApi() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		apiKey := c.GetHeader("X-API-KEY")
 		session := sessions.Default(c)
 		loggedIn := session.Get("logged_in")
 
-		if loggedIn == nil || !loggedIn.(bool) {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-			c.Abort()
+		if apiKey != "" {
+			// Get API key from settings
+			db, err := model.GetDB()
+			if err != nil {
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+					"error": "Database error",
+				})
+				return
+			}
+
+			var storedAPIKey string
+			err = db.QueryRow("SELECT value FROM settings WHERE name = 'api_key'").Scan(&storedAPIKey)
+			if err != nil {
+				// Log error
+				logger.Log.WithError(err).Error("Error retrieving API key from database")
+
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+					"error": "Could not validate API key",
+				})
+				return
+			}
+
+			if apiKey != storedAPIKey {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+					"error": "Invalid API key",
+				})
+				return
+			}
+
+		} else if loggedIn == nil || !loggedIn.(bool) {
+			// If no API key is provided, check session for logged_in status
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "API key or session required",
+			})
 			return
 		}
 

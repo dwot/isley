@@ -278,3 +278,45 @@ For production:
 - 🛠️ Use volume mounts for persistence and scheduled backups.
 
 🌐 For more details, screenshots, and the latest updates, visit: [https://isley.dwot.io](https://isley.dwot.io).
+
+---
+
+## 🛡️ API Access and Integrations
+
+Isley now supports programmatic data ingestion via a simple **HTTP API**, secured with API Keys. This allows you to automate sensor readings, integrate with home automation, and more.
+
+### 🔑 API Key Management
+
+To use API endpoints, an **API Key** is required.
+
+**Generating an API Key:**
+
+1. Log in as an admin.
+2. Navigate to **Settings** → **API Settings**.
+3. Click **Generate New Key**.
+4. Copy and store the generated API Key securely.
+
+- Treat your API Key as secret; anyone with the key can push data to your Isley instance.
+
+### 🌐 Ingest Endpoint
+
+The `/api/sensors/ingest` endpoint allows ingestion of environmental, sensor, or activity data into your grow journal.
+
+- **Endpoint:** `/api/sensors/ingest`
+- **Method:** `POST`
+- **Authentication:** Add your API Key to the header as `X-API-KEY`.
+
+**Payload Example:**
+```json
+{
+  "source": "custom",
+  "device": "Arduino Sensor",
+  "type": "temperature",
+  "value": 25.5,
+  "name": "Temperature Sensor 1",
+  "new_zone": "Zone Name",
+  "unit": "°C"
+}
+```
+
+> **Tip:** Use this for IoT, custom automations, or integrating off-the-shelf sensors not already supported by Isley.

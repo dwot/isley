@@ -72,7 +72,7 @@ func Init(defaultLang string) {
 }
 
 func (i *I18nManager) GetTranslations(lang string) map[string]string {
-	localizer := i18n.NewLocalizer(i.bundle, lang)
+	localizer := i18n.NewLocalizer(i.bundle, lang, "en")
 
 	// Predefine the keys for translation
 	keys := []string{
@@ -357,21 +357,26 @@ func (i *I18nManager) GetTranslations(lang string) map[string]string {
 		"short_description_txt",
 		"short_description_placeholder",
 		"description_txt_desc",
+		"generate_new_key",
+		"api_key_desc",
+		"generate_new_key_confirm",
+		"api_key_placeholder",
+		"toggle_visibility",
+		"copy",
 	}
 
-	translations := make(map[string]string)
-
-	// Fetch translations for predefined keys
+	out := make(map[string]string)
 	for _, key := range keys {
-		translated, err := localizer.Localize(&i18n.LocalizeConfig{MessageID: key})
-		if err != nil {
-			translations[key] = key // Fallback to the key itself
-		} else {
-			translations[key] = translated
+		translation, err := localizer.Localize(&i18n.LocalizeConfig{MessageID: key})
+		if err != nil || translation == "" {
+			// fallback explicitly if needed
+			translation, _ = i18n.NewLocalizer(i.bundle, "en").Localize(&i18n.LocalizeConfig{MessageID: key})
 		}
 
+		out[key] = translation
 	}
-	return translations
+
+	return out
 }
 
 func GetLanguage(c *gin.Context) string {
