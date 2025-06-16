@@ -14,40 +14,40 @@
     <ul class="nav nav-pills">
         {{ if .loggedIn }}
         <li class="nav-item">
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMultiPlantActivityModal">
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addMultiPlantActivityModal">
                 <i class="fa fa-plus"></i>
             </button>
         </li>
         {{ end }}
         <li class="nav-item">
-            <a href="/plants" class="nav-link" aria-label="{{ .lcl.title_plants }}">
+            <a href="/plants" class="text-center nav-link{{ if hasPrefix .currentPath "/plants" }} active{{ end }}" aria-label="{{ .lcl.title_plants }}">
                 <i class="fa fa-cannabis" title="{{ .lcl.title_plants }}"></i>
             </a>
         </li>
         <li class="nav-item">
-            <a href="/strains" class="nav-link" aria-label="{{ .lcl.title_strains }}">
+            <a href="/strains" class="text-center nav-link{{ if hasPrefix .currentPath "/strains" }} active{{ end }}" aria-label="{{ .lcl.title_strains }}">
                 <i class="fa fa-dna" title="{{ .lcl.title_strains }}"></i>
             </a>
         </li>
         {{ if .loggedIn }}
         <li class="nav-item">
-            <a href="/sensors" class="nav-link" aria-label="{{ .lcl.title_sensors }}">
+            <a href="/sensors" class="text-center nav-link{{ if hasPrefix .currentPath "/sensors" }} active{{ end }}" aria-label="{{ .lcl.title_sensors }}">
                 <i class="fa fa-thermometer-half" title="{{ .lcl.title_sensors }}"></i>
             </a>
         </li>
         <li class="nav-item">
-            <a href="/settings" class="nav-link" aria-label="{{ .lcl.title_settings }}">
+            <a href="/settings" class="text-center nav-link{{ if hasPrefix .currentPath "/settings" }} active{{ end }}" aria-label="{{ .lcl.title_settings }}">
                 <i class="fa fa-cog" title="{{ .lcl.title_settings }}"></i>
             </a>
         </li>
         <li class="nav-item">
-            <a href="/logout" class="nav-link" aria-label="{{ .lcl.title_logout }}">
+            <a href="/logout" class="text-center nav-link" aria-label="{{ .lcl.title_logout }}">
                 <i class="fa fa-sign-out" title="{{ .lcl.title_logout }}"></i>
             </a>
         </li>
         {{ else }}
         <li class="nav-item">
-            <a href="/login" class="nav-link" aria-label="{{ .lcl.title_login }}">
+            <a href="/login" class="text-center nav-link" aria-label="{{ .lcl.title_login }}">
                 <i class="fa fa-sign-in" title="{{ .lcl.title_login }}"></i>
             </a>
         </li>

@@ -70,8 +70,15 @@ func main() {
 	// Set up Gin router
 	r := gin.Default()
 
+	// inject currentPath into the context
+	r.Use(func(c *gin.Context) {
+		c.Set("currentPath", c.Request.URL.Path)
+		c.Next()
+	})
+
 	funcMap := template.FuncMap{
-		"upper": strings.ToUpper, // Define the 'upper' function
+		"upper":     strings.ToUpper, // Define the 'upper' function
+		"hasPrefix": strings.HasPrefix,
 		"default": func(val interface{}, def string) string {
 			if str, ok := val.(string); ok && str != "" {
 				return str
@@ -300,7 +307,6 @@ func handleHealth(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status": "ok",
 	})
-	c.String(http.StatusOK, "Isley is running")
 	logger.Log.Info("Health check passed")
 }
 
