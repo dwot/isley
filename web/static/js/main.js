@@ -17,14 +17,19 @@ document.addEventListener("DOMContentLoaded", () => {
 Dynamic loading of sensor data and video streams
  */
 document.addEventListener("DOMContentLoaded", async () => {
+    // Get the current Theme from storage
+    const theme = localStorage.getItem("isley-theme") || "dark";
+    const themeTextClass = theme === "dark" ? "text-light" : "text-dark";
+    const themeBgClass = theme === "dark" ? "bg-dark" : "bg-light";
+
     const sensorsOverview = document.getElementById("sensorsOverview");
 
     // Define titles for each group
     const groupTitles = {
         Other:"Environment Sensors",
-    ACIP: "AC Infinity Devices" ,
-    Soil: "EcoWitt Soil Sensors",
-};
+        ACIP: "AC Infinity Devices" ,
+        Soil: "EcoWitt Soil Sensors",
+    };
 
     // Create spinner element
     const spinner = document.createElement("div");
@@ -32,7 +37,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     spinner.setAttribute("role", "status");
     spinner.innerHTML = `<span class="visually-hidden">Loading ...</span>`;
     sensorsOverview.appendChild(spinner);
-
 
     try {
         // Fetch sensor and stream data concurrently
@@ -140,11 +144,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             Object.keys(sensorGroups).forEach((group) => {
                 if (sensorGroups[group].length > 0) {
                     const groupSensorIds = sensorGroups[group].map(sensor => sensor.id).join(",");
-                    const groupHeaderLink = `<a href='/graph/${groupSensorIds}' class='text-light'>${groupTitles[group] || group}</a>`;
+                    const groupHeaderLink = `<a href='/graph/${groupSensorIds}' class='${themeTextClass}'>${groupTitles[group] || group}</a>`;
 
                     const card = `
                         <div class="col-12 col-md-4">
-                            <div class="card h-100 bg-dark text-light">
+                            <div class="card h-100 ${themeTextClass} ${themeBgClass}">
                                 <div class="card-header text-uppercase">
                                     ${groupHeaderLink}
                                 </div>
