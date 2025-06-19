@@ -405,7 +405,7 @@ color: #0d6efd; /* Primary color */
                         <label for="activityName" class="form-label">{{ .lcl.activity_name }}</label>
                         <input type="text" class="form-control" id="activityName" step="any" required>
                     </div>
-                    
+
                     <!-- Submit Button -->
                     <button type="submit" class="btn btn-primary">{{ .lcl.add_activity }}</button>
                 </form>
@@ -429,13 +429,13 @@ color: #0d6efd; /* Primary color */
                         <label for="metricName" class="form-label">{{ .lcl.metric_name }}</label>
                         <input type="text" class="form-control" id="metricName" step="any" required>
                     </div>
-                    
+
                     <!-- Metric Unit Input -->
                     <div class="mb-3">
                         <label for="metricUnit" class="form-label">{{ .lcl.metric_unit }}</label>
                         <input type="text" class="form-control" id="metricUnit" step="any" required>
                     </div>
-                    
+
                     <!-- Submit Button -->
                     <button type="submit" class="btn btn-primary">{{ .lcl.add_metric }}</button>
                 </form>
@@ -1262,6 +1262,30 @@ color: #0d6efd; /* Primary color */
             }
         });
     });
+
+    document.addEventListener("DOMContentLoaded", function () {
+        // Select all tab buttons.
+        const tabButtons = document.querySelectorAll('#settingsTabs [data-bs-toggle="tab"]');
+
+        // Restore active tab from localStorage
+        const activeTab = localStorage.getItem('activeSettingsTab');
+        if (activeTab) {
+            const activeTabEl = document.querySelector(`#settingsTabs [data-bs-target="${activeTab}"]`);
+            if (activeTabEl) {
+                const tabInstance = bootstrap.Tab.getOrCreateInstance(activeTabEl);
+                tabInstance.show();
+            }
+        }
+
+        // Listen to tab change events and store the active tab
+        tabButtons.forEach(function (tabButton) {
+            tabButton.addEventListener('shown.bs.tab', function (event) {
+                const selector = event.target.getAttribute('data-bs-target');
+                localStorage.setItem('activeSettingsTab', selector);
+            });
+        });
+    });
+
 </script>
 
 <!--Embed the footer.html template at this location-->
