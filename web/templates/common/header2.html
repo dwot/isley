@@ -20,12 +20,12 @@
         </li>
         {{ end }}
         <li class="nav-item">
-            <a href="/plants" class="text-center nav-link{{ if hasPrefix .currentPath "/plants" }} active{{ end }}" aria-label="{{ .lcl.title_plants }}">
+            <a href="/plants" class="text-center nav-link{{ if hasPrefix .currentPath "/plant" }} active{{ end }}" aria-label="{{ .lcl.title_plants }}">
                 <i class="fa fa-cannabis" title="{{ .lcl.title_plants }}"></i>
             </a>
         </li>
         <li class="nav-item">
-            <a href="/strains" class="text-center nav-link{{ if hasPrefix .currentPath "/strains" }} active{{ end }}" aria-label="{{ .lcl.title_strains }}">
+            <a href="/strains" class="text-center nav-link{{ if hasPrefix .currentPath "/strain" }} active{{ end }}" aria-label="{{ .lcl.title_strains }}">
                 <i class="fa fa-dna" title="{{ .lcl.title_strains }}"></i>
             </a>
         </li>

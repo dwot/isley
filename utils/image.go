@@ -339,7 +339,7 @@ func ListFontsHandler(c *gin.Context) {
 }
 
 func ListLogosHandler(c *gin.Context) {
-	logos := []string{}
+	var logos []string
 	//Load all file names in the local filesystem on path ./uploads/logos/ to the slice  NOT EMBEDDED
 	err := filepath.Walk("./uploads/logos/", func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -354,8 +354,9 @@ func ListLogosHandler(c *gin.Context) {
 	if err != nil {
 		logger.Log.WithError(err).Error("Failed to list logos")
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Unable to list logos"})
+	} else {
+		c.JSON(http.StatusOK, gin.H{"success": true, "logos": logos})
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "logos": logos})
 }
 
 func GrabWebcamImage(url string, outputPath string) error {
