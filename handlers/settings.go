@@ -408,6 +408,10 @@ func UpdateMetricHandler(c *gin.Context) {
 		}
 
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Editing this metric is not allowed, only unit changed."})
+
+		// Reload Config
+		config.Metrics = GetMetrics()
+
 		return
 	}
 
