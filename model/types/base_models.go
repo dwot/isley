@@ -148,6 +148,7 @@ type Settings struct {
 	GuestMode          bool   `json:"guest_mode"`
 	StreamGrabEnabled  bool   `json:"stream_grab_enabled"`
 	StreamGrabInterval string `json:"stream_grab_interval"`
+	APIKey             string `json:"api_key"`
 }
 
 type ACInfinitySettings struct {
@@ -166,6 +167,7 @@ type SettingsData struct {
 	GuestMode          bool               `json:"guest_mode"`
 	StreamGrabEnabled  bool               `json:"stream_grab_enabled"`
 	StreamGrabInterval int                `json:"stream_grab_interval"`
+	APIKey             string             `json:"api_key"`
 }
 
 type Status struct {

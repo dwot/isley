@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"io"
@@ -95,7 +96,7 @@ func ScanACInfinitySensors(c *gin.Context) {
 		return
 	}
 	if input.ZoneID == nil && input.NewZone != "" {
-		// Insert new zone into the database
+		// Insert a new zone into the database
 		zoneID, err := CreateNewZone(input.NewZone)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
@@ -225,7 +226,7 @@ func ScanEcoWittSensors(c *gin.Context) {
 		return
 	}
 	if input.ZoneID == nil && input.NewZone != "" {
-		// Insert new zone into the database
+		// Insert a new zone into the database
 		zoneID, err := CreateNewZone(input.NewZone)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
@@ -323,7 +324,7 @@ func checkInsertSensor(db *sql.DB, source string, device string, sensorType stri
 	sensorid := 0
 	err := db.QueryRow("SELECT id FROM sensors WHERE source = $1 and device = $2 and type = $3", source, device, sensorType).Scan(&sensorid)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			//fmt.Println("No rows found")
 		} else {
 			fieldLogger.WithError(err).Error("Error querying for sensor")
@@ -627,4 +628,120 @@ func ValidateServerAddress(address string) bool {
 	// Check if it's a valid hostname (local hostnames only)
 	validHostname := regexp.MustCompile(`^([a-zA-Z0-9_-]+\.)*[a-zA-Z0-9_-]+$`).MatchString
 	return validHostname(address)
+}
+
+// SensorDataPayload represents the expected structure of incoming sensor data
+type SensorDataPayload struct {
+	Source  string  `json:"source" binding:"required"`
+	Device  string  `json:"device" binding:"required"`
+	Type    string  `json:"type" binding:"required"`
+	Value   float64 `json:"value" binding:"required"`
+	Name    string  `json:"name"`
+	Unit    string  `json:"unit"`
+	ZoneID  *int    `json:"zone_id"`
+	NewZone string  `json:"new_zone"`
+}
+
+// IngestSensorData handles the ingestion of sensor data from external sources
+func IngestSensorData(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "IngestSensorData")
+
+	var payload SensorDataPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		fieldLogger.WithError(err).Error("Invalid payload")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload: " + err.Error()})
+		return
+	}
+
+	// If no name is provided, generate one
+	if payload.Name == "" {
+		payload.Name = fmt.Sprintf("%s (%s) %s", payload.Source, payload.Device, payload.Type)
+	}
+
+	// Handle new zone creation if specified
+	if payload.ZoneID == nil && payload.NewZone != "" {
+		// Try to find an existing zone with the given new_zone name first
+		existingZoneID, err := GetZoneIDByName(payload.NewZone)
+
+		if err == nil && existingZoneID != 0 {
+			// If an existing zone is found, use its ID
+			payload.ZoneID = &existingZoneID
+		} else {
+			zoneID, err := CreateNewZone(payload.NewZone)
+			if err != nil {
+				fieldLogger.WithError(err).Error("Failed to create new zone")
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create new zone"})
+				return
+			}
+			payload.ZoneID = &zoneID
+		}
+	}
+
+	db, err := model.GetDB()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Error opening database")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		return
+	}
+
+	// First ensure the sensor exists
+	var sensorID int
+	err = db.QueryRow(`
+        SELECT id FROM sensors
+        WHERE source = $1 AND device = $2 AND type = $3`,
+		payload.Source, payload.Device, payload.Type).Scan(&sensorID)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		// Create a new sensor if it doesn't exist
+		err = db.QueryRow(`
+            INSERT INTO sensors (name, source, device, type, zone_id, unit, show)
+            VALUES ($1, $2, $3, $4, $5, $6, true)
+            RETURNING id`,
+			payload.Name, payload.Source, payload.Device, payload.Type, payload.ZoneID, payload.Unit).Scan(&sensorID)
+
+		if err != nil {
+			fieldLogger.WithError(err).Error("Error creating sensor")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create sensor"})
+			return
+		}
+	} else if err != nil {
+		fieldLogger.WithError(err).Error("Error querying sensor")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		return
+	}
+
+	// Insert the sensor reading
+	_, err = db.Exec("INSERT INTO sensor_data (sensor_id, value) VALUES ($1, $2)",
+		sensorID, payload.Value)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Error inserting sensor data")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save sensor data"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":   "Sensor data ingested successfully",
+		"sensor_id": sensorID,
+	})
+}
+
+func GetZoneIDByName(zoneName string) (int, error) {
+	fieldLogger := logger.Log.WithField("func", "GetZoneIDByName")
+	db, err := model.GetDB()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Error opening database")
+		return 0, err
+	}
+
+	var zoneID int
+	err = db.QueryRow("SELECT id FROM zones WHERE name = $1", zoneName).Scan(&zoneID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, nil // No zone found
+		}
+		fieldLogger.WithError(err).Error("Error querying zone ID")
+		return 0, err
+	}
+
+	return zoneID, nil
 }

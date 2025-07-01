@@ -144,7 +144,6 @@ color: #0d6efd; /* Primary color */
                             pollingValue.textContent = `${pollingSlider.value} seconds`;
                         });
 
-
                         const streamGrabSlider = document.getElementById("streamGrabInterval");
                         const streamGrabValue = document.getElementById("streamGrabIntervalValue");
 
@@ -160,6 +159,33 @@ color: #0d6efd; /* Primary color */
                         streamGrabSlider.setAttribute('data-seconds', streamGrabSlider.value * 60);
                     });
                 </script>
+
+                <!-- API Settings -->
+                <div class="card mb-4 shadow-sm">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="card-title mb-0">
+                            <i class="fa fa-key me-2"></i>API {{ .lcl.title_settings }}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <label for="apiKey" class="form-label">API Key</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="apiKey" name="api_key" value="{{ .settings.APIKey }}" placeholder="{{ .lcl.api_key_placeholder }}">
+                            <button class="btn btn-outline-secondary" type="button" onclick="toggleAPIKeyVisibility()" aria-label="{{ .lcl.toggle_visibility }}">
+                                <i class="fa fa-eye"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" type="button" onclick="copyAPIKey()" aria-label="{{ .lcl.copy }}">
+                                <i class="fa fa-clipboard"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" type="button" onclick="generateNewAPIKey()" aria-label="{{ .lcl.generate_new_key }}">
+                                <i class="fa fa-sync"></i> {{ .lcl.generate_new_key }}
+                            </button>
+                        </div>
+                        <small class="text-muted d-block mt-2">
+                            {{ linebreaks .lcl.api_key_desc }}
+                        </small>
+                    </div>
+                </div>
 
                 <!-- Save Button -->
                 <div class="text-end">
@@ -794,9 +820,7 @@ color: #0d6efd; /* Primary color */
             }
         });
     });
-</script>
 
-<script>
     document.addEventListener("DOMContentLoaded", () => {
         const aciLoginForm = document.getElementById("aciLoginForm");
 
@@ -833,7 +857,6 @@ color: #0d6efd; /* Primary color */
         });
     });
 
-
     document.addEventListener("DOMContentLoaded", () => {
         const form = document.getElementById("settingsForm");
 
@@ -855,6 +878,7 @@ color: #0d6efd; /* Primary color */
                 guest_mode: document.getElementById("guestMode").checked,
                 stream_grab_enabled: document.getElementById("streamGrabEnabled").checked,
                 stream_grab_interval: streamGrabInterval.toString(),
+                api_key: document.getElementById("apiKey").value,
             };
 
             // Send POST request to save settings
@@ -878,9 +902,6 @@ color: #0d6efd; /* Primary color */
         });
     });
 
-</script>
-
-<script>
     document.addEventListener("DOMContentLoaded", () => {
         const form = document.getElementById("addActivityForm");
         const addActivityModal = document.getElementById("addActivityModal");
@@ -1021,10 +1042,7 @@ color: #0d6efd; /* Primary color */
             }
         });
     });
-</script>
 
-
-<script>
     document.addEventListener("DOMContentLoaded", () => {
         const form = document.getElementById("addMetricForm");
         const addMetricModal = document.getElementById("addMetricModal");
@@ -1118,10 +1136,7 @@ color: #0d6efd; /* Primary color */
             }
         });
     });
-</script>
 
-
-<script>
     document.addEventListener("DOMContentLoaded", () => {
         const form = document.getElementById("addBreederForm");
         const addBreederModal = document.getElementById("addBreederModal");
@@ -1211,9 +1226,7 @@ color: #0d6efd; /* Primary color */
             }
         });
     });
-</script>
 
-<script>
     document.addEventListener("DOMContentLoaded", () => {
         const dropArea = document.getElementById("dropArea");
         const logoInput = document.getElementById("logoInput");
@@ -1263,6 +1276,39 @@ color: #0d6efd; /* Primary color */
         });
     });
 
+    // Function to generate a new API key
+    function generateNewAPIKey() {
+        if (confirm('{{ .lcl.generate_new_key_confirm }}')) {
+            // Send request to generate new API key
+            fetch('/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    api_key: 'generate'
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.api_key) {
+                        document.getElementById('apiKey').value = data.api_key;
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+    }
+
+    function toggleAPIKeyVisibility() {
+        const apiKeyInput = document.getElementById('apiKey');
+        apiKeyInput.type = apiKeyInput.type === 'password' ? 'text' : 'password';
+    }
+
+    function copyAPIKey() {
+        const apiKeyInput = document.getElementById('apiKey');
+        apiKeyInput.select();
+        navigator.clipboard.writeText(apiKeyInput.value);
+    }
     document.addEventListener("DOMContentLoaded", function () {
         // Select all tab buttons.
         const tabButtons = document.querySelectorAll('#settingsTabs [data-bs-toggle="tab"]');
@@ -1285,6 +1331,7 @@ color: #0d6efd; /* Primary color */
             });
         });
     });
+
 
 </script>
 

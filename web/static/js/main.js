@@ -163,7 +163,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                                         >
                                             <span>${sensor.name}</span>
                                             <div class="text-end">
-                                                <strong>${sensor.value} ${sensor.unit}</strong>
+                                                <strong>${Number(sensor.value).toFixed(2)} ${sensor.unit}</strong>
                                                 <i class="fa ${
                                 sensor.trend === "up"
                                     ? "fa-arrow-up text-success"
