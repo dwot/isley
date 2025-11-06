@@ -1057,27 +1057,26 @@ SELECT
     p.id, p.name, p.description, p.clone, 
     s.name AS strain_name, b.name AS breeder_name, z.name AS zone_name,
     p.start_dt,
-    ((EXTRACT(DAY FROM CURRENT_DATE - p.start_dt)::int) / 7 + 1) AS current_week,
-    (EXTRACT(DAY FROM CURRENT_DATE - p.start_dt)::int + 1) AS current_day,
-    COALESCE((
-        SELECT EXTRACT(DAY FROM CURRENT_DATE - MAX(pa.date))::int
-        FROM plant_activity pa 
-        JOIN activity a ON pa.activity_id = a.id
-        WHERE pa.plant_id = p.id AND a.name = 'Water'
-    ), 0) AS days_since_last_watering,
-    COALESCE((
-        SELECT EXTRACT(DAY FROM CURRENT_DATE - MAX(pa.date))::int
-        FROM plant_activity pa 
-        JOIN activity a ON pa.activity_id = a.id
-        WHERE pa.plant_id = p.id AND a.name = 'Feed'
-    ), 0) AS days_since_last_feeding,
-    COALESCE((
-        SELECT EXTRACT(DAY FROM CURRENT_DATE - MAX(date))::int
-        FROM plant_status_log 
-        WHERE plant_id = p.id AND status_id = (
-            SELECT id FROM plant_status WHERE status = 'Flower'
-        )
-    ), 0) AS flowering_days,
+    (((CURRENT_DATE - p.start_dt::date)) / 7 + 1) AS current_week,
+	((CURRENT_DATE - p.start_dt::date) + 1) AS current_day,
+	COALESCE((
+		SELECT (CURRENT_DATE - MAX(pa.date)::date)
+		FROM plant_activity pa
+		JOIN activity a ON pa.activity_id = a.id
+		WHERE pa.plant_id = p.id AND a.name = 'Water'
+	), 0) AS days_since_last_watering,
+	COALESCE((
+		SELECT (CURRENT_DATE - MAX(pa.date)::date)
+		FROM plant_activity pa
+		JOIN activity a ON pa.activity_id = a.id
+		WHERE pa.plant_id = p.id AND a.name = 'Feed'
+	), 0) AS days_since_last_feeding,
+	COALESCE((
+		SELECT (CURRENT_DATE - MAX(date)::date)
+		FROM plant_status_log
+		WHERE plant_id = p.id
+		  AND status_id = (SELECT id FROM plant_status WHERE status = 'Flower')
+	), 0) AS flowering_days,
     p.harvest_weight, ps.status, psl.date as status_date,
     COALESCE(s.cycle_time, 0), 
     COALESCE(s.url, '') AS strain_url, 
