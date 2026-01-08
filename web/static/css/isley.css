@@ -231,12 +231,27 @@ th, td {
 /* MISC */
 .sortable {
     cursor: pointer;
+    white-space: nowrap;
 }
-.sortable.asc::after {
-    content: " ▲";
+.sortable .fa-sort,
+.sortable .fa-sort-up,
+.sortable .fa-sort-down {
+    margin-left: 0.35rem;
+    vertical-align: middle;
 }
-.sortable.desc::after {
-    content: " ▼";
+.sortable .fa-sort-up,
+.sortable .fa-sort-down {
+    display: none;
+}
+.sortable.asc .fa-sort,
+.sortable.desc .fa-sort {
+    display: none;
+}
+.sortable.asc .fa-sort-up {
+    display: inline-block;
+}
+.sortable.desc .fa-sort-down {
+    display: inline-block;
 }
 .thumbnail-img {
     cursor: pointer;
