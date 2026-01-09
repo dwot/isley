@@ -46,6 +46,9 @@
                         <th scope="col" data-sort="start_date" data-type="date" class="sortable">{{ .lcl.start_date }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
                         <th scope="col" id="dynamicHeader1" class="sortable">{{ .lcl.current_week }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
                         <th scope="col" id="dynamicHeader2" class="sortable">{{ .lcl.current_day }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
+                        {{ if .loggedIn }}
+                        <th scope="col"></th>
+                        {{ end }}
                     </tr>
                     </thead>
                     <tbody id="plantsTableBody">
@@ -60,6 +63,115 @@
 <!-- Add Plant Modal -->
 {{ template "modals/add-plant-modal.html" .}}
 
+{{ if .loggedIn }}
+<div class="modal fade" id="quickStatusModal" tabindex="-1" aria-labelledby="quickStatusModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="quickStatusModalLabel">{{ .lcl.change_status }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
+            </div>
+            <div class="modal-body">
+                <form id="quickStatusForm">
+                    <input type="hidden" id="quickStatusPlantId">
+                    <div class="mb-3">
+                        <label for="quickStatusPlantName" class="form-label">{{ .lcl.plant_name }}</label>
+                        <input type="text" class="form-control" id="quickStatusPlantName" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="quickStatusSelect" class="form-label">{{ .lcl.title_status }}</label>
+                        <select class="form-select" id="quickStatusSelect" required>
+                            {{ range .statuses }}
+                            <option value="{{ .ID }}">{{ .Status }}</option>
+                            {{ end }}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="quickStatusDate" class="form-label">{{ .lcl.effective_date }}</label>
+                        <input type="datetime-local" class="form-control" id="quickStatusDate" required value="{{ now | formatDateTimeLocal }}">
+                    </div>
+                    <button type="submit" class="btn btn-primary">{{ .lcl.change_status }}</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="quickMeasurementModal" tabindex="-1" aria-labelledby="quickMeasurementModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="quickMeasurementModalLabel">{{ .lcl.add_measurement }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
+            </div>
+            <div class="modal-body">
+                <form id="quickMeasurementForm">
+                    <input type="hidden" id="quickMeasurementPlantId">
+                    <div class="mb-3">
+                        <label for="quickMeasurementPlantName" class="form-label">{{ .lcl.plant_name }}</label>
+                        <input type="text" class="form-control" id="quickMeasurementPlantName" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="quickMeasurementMetric" class="form-label">{{ .lcl.measurement_name }}</label>
+                        <select class="form-select" id="quickMeasurementMetric" required>
+                            {{ range .measurements }}
+                            <option value="{{ .ID }}">{{ .Name }}</option>
+                            {{ end }}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="quickMeasurementValue" class="form-label">{{ .lcl.measurement_value }}</label>
+                        <input type="number" class="form-control" id="quickMeasurementValue" step="any" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="quickMeasurementDate" class="form-label">{{ .lcl.title_date }}</label>
+                        <input type="datetime-local" class="form-control" id="quickMeasurementDate" required value="{{ now | formatDateTimeLocal }}">
+                    </div>
+                    <button type="submit" class="btn btn-primary">{{ .lcl.add_measurement }}</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="quickActivityModal" tabindex="-1" aria-labelledby="quickActivityModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="quickActivityModalLabel">{{ .lcl.add_activity }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
+            </div>
+            <div class="modal-body">
+                <form id="quickActivityForm">
+                    <input type="hidden" id="quickActivityPlantId">
+                    <div class="mb-3">
+                        <label for="quickActivityPlantName" class="form-label">{{ .lcl.plant_name }}</label>
+                        <input type="text" class="form-control" id="quickActivityPlantName" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="quickActivityName" class="form-label">{{ .lcl.activity_name }}</label>
+                        <select class="form-select" id="quickActivityName" required>
+                            {{ range .activities }}
+                            <option value="{{ .ID }}">{{ .Name }}</option>
+                            {{ end }}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="quickActivityNote" class="form-label">{{ .lcl.activity_note }}</label>
+                        <textarea class="form-control" id="quickActivityNote" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="quickActivityDate" class="form-label">{{ .lcl.title_date }}</label>
+                        <input type="datetime-local" class="form-control" id="quickActivityDate" required value="{{ now | formatDateTimeLocal }}">
+                    </div>
+                    <button type="submit" class="btn btn-primary">{{ .lcl.add_activity }}</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{{ end }}
+
 <script>
     document.addEventListener("DOMContentLoaded", () => {
         const plantsTableBody = document.getElementById("plantsTableBody");
@@ -67,6 +179,45 @@
         const viewButtons = document.querySelectorAll(".view-button");
         const headerDynamic1 = document.getElementById("dynamicHeader1");
         const headerDynamic2 = document.getElementById("dynamicHeader2");
+        const statusOptionsRaw = {{ json .statuses }};
+        const parsedStatusOptions = typeof statusOptionsRaw === "string"
+            ? JSON.parse(statusOptionsRaw || "[]")
+            : statusOptionsRaw;
+        const statusOptions = Array.isArray(parsedStatusOptions) ? parsedStatusOptions : [];
+        const canEditStatus = {{ if .loggedIn }}true{{ else }}false{{ end }};
+        const statusIdByName = new Map(statusOptions.map(status => [status.status, status.id]));
+        const statusUpdateError = "{{ .lcl.failed_to_change_status }}";
+        const measurementAddError = "{{ .lcl.failed_to_add_measurement }}";
+        const activityAddError = "{{ .lcl.failed_to_add_activity }}";
+        const quickStatusModalElement = document.getElementById("quickStatusModal");
+        const quickStatusForm = document.getElementById("quickStatusForm");
+        const quickStatusPlantIdInput = document.getElementById("quickStatusPlantId");
+        const quickStatusPlantNameInput = document.getElementById("quickStatusPlantName");
+        const quickStatusSelect = document.getElementById("quickStatusSelect");
+        const quickStatusDate = document.getElementById("quickStatusDate");
+        const quickStatusModal = quickStatusModalElement && window.bootstrap
+            ? new bootstrap.Modal(quickStatusModalElement)
+            : null;
+        const quickMeasurementModalElement = document.getElementById("quickMeasurementModal");
+        const quickMeasurementForm = document.getElementById("quickMeasurementForm");
+        const quickMeasurementPlantIdInput = document.getElementById("quickMeasurementPlantId");
+        const quickMeasurementPlantNameInput = document.getElementById("quickMeasurementPlantName");
+        const quickMeasurementMetric = document.getElementById("quickMeasurementMetric");
+        const quickMeasurementValue = document.getElementById("quickMeasurementValue");
+        const quickMeasurementDate = document.getElementById("quickMeasurementDate");
+        const quickMeasurementModal = quickMeasurementModalElement && window.bootstrap
+            ? new bootstrap.Modal(quickMeasurementModalElement)
+            : null;
+        const quickActivityModalElement = document.getElementById("quickActivityModal");
+        const quickActivityForm = document.getElementById("quickActivityForm");
+        const quickActivityPlantIdInput = document.getElementById("quickActivityPlantId");
+        const quickActivityPlantNameInput = document.getElementById("quickActivityPlantName");
+        const quickActivityName = document.getElementById("quickActivityName");
+        const quickActivityNote = document.getElementById("quickActivityNote");
+        const quickActivityDate = document.getElementById("quickActivityDate");
+        const quickActivityModal = quickActivityModalElement && window.bootstrap
+            ? new bootstrap.Modal(quickActivityModalElement)
+            : null;
         let currentView = "living";
         let plantsData = [];
         let sortColumn = null;
@@ -128,6 +279,234 @@
             }
         };
 
+        const formatDateTimeLocal = (date) => {
+            const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+            return offsetDate.toISOString().slice(0, 16);
+        };
+
+        const initTooltips = () => {
+            if (!window.bootstrap || !bootstrap.Tooltip) {
+                return;
+            }
+            document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((element) => {
+                bootstrap.Tooltip.getOrCreateInstance(element);
+            });
+        };
+
+        const renderQuickActionsCell = (plant) => {
+            if (!canEditStatus) {
+                return "";
+            }
+            const statusId = statusIdByName.get(plant.status) || "";
+            const encodedName = encodeURIComponent(plant.name || "");
+            return `
+                    <td>
+                        <div class="d-inline-flex gap-1">
+                            <button type="button" class="btn btn-sm btn-outline-secondary plant-status-edit" data-id="${plant.id}" data-status-id="${statusId}" data-name="${encodedName}" data-bs-toggle="tooltip" data-bs-title="{{ .lcl.change_status }}" aria-label="{{ .lcl.change_status }}">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary plant-measurement-add" data-id="${plant.id}" data-name="${encodedName}" data-bs-toggle="tooltip" data-bs-title="{{ .lcl.add_measurement }}" aria-label="{{ .lcl.add_measurement }}">
+                                <i class="fa-solid fa-ruler-combined"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-success plant-activity-add" data-id="${plant.id}" data-name="${encodedName}" data-bs-toggle="tooltip" data-bs-title="{{ .lcl.add_activity }}" aria-label="{{ .lcl.add_activity }}">
+                                <i class="fa-solid fa-clipboard-list"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+        };
+
+        const attachQuickActionHandlers = () => {
+            if (!canEditStatus) {
+                return;
+            }
+
+            document.querySelectorAll(".plant-status-edit").forEach(button => {
+                button.addEventListener("click", (event) => {
+                    event.stopPropagation();
+                    const plantId = Number(button.dataset.id);
+                    const statusId = button.dataset.statusId ? Number(button.dataset.statusId) : null;
+                    const plantName = decodeURIComponent(button.dataset.name || "");
+                    if (!quickStatusModal) {
+                        return;
+                    }
+
+                    quickStatusPlantIdInput.value = plantId ? String(plantId) : "";
+                    quickStatusPlantNameInput.value = plantName;
+                    if (statusId) {
+                        quickStatusSelect.value = String(statusId);
+                    }
+                    quickStatusDate.value = formatDateTimeLocal(new Date());
+                    quickStatusModal.show();
+                });
+            });
+
+            document.querySelectorAll(".plant-measurement-add").forEach(button => {
+                button.addEventListener("click", (event) => {
+                    event.stopPropagation();
+                    const plantId = Number(button.dataset.id);
+                    const plantName = decodeURIComponent(button.dataset.name || "");
+                    if (!quickMeasurementModal || !plantId) {
+                        return;
+                    }
+                    quickMeasurementPlantIdInput.value = String(plantId);
+                    quickMeasurementPlantNameInput.value = plantName;
+                    quickMeasurementValue.value = "";
+                    quickMeasurementDate.value = formatDateTimeLocal(new Date());
+                    quickMeasurementModal.show();
+                });
+            });
+
+            document.querySelectorAll(".plant-activity-add").forEach(button => {
+                button.addEventListener("click", (event) => {
+                    event.stopPropagation();
+                    const plantId = Number(button.dataset.id);
+                    const plantName = decodeURIComponent(button.dataset.name || "");
+                    if (!quickActivityModal || !plantId) {
+                        return;
+                    }
+                    quickActivityPlantIdInput.value = String(plantId);
+                    quickActivityPlantNameInput.value = plantName;
+                    quickActivityNote.value = "";
+                    quickActivityDate.value = formatDateTimeLocal(new Date());
+                    quickActivityModal.show();
+                });
+            });
+        };
+
+        if (canEditStatus && quickStatusForm) {
+            quickStatusForm.addEventListener("submit", (event) => {
+                event.preventDefault();
+                const plantId = Number(quickStatusPlantIdInput.value);
+                const statusId = Number(quickStatusSelect.value);
+                const date = quickStatusDate.value;
+
+                if (!plantId || !statusId) {
+                    return;
+                }
+
+                const payload = {
+                    plant_id: plantId,
+                    status_id: statusId,
+                    date: date || formatDateTimeLocal(new Date()),
+                };
+
+                fetch("/plant/status", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(payload),
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(statusUpdateError);
+                        }
+                        return response.json();
+                    })
+                    .then(() => {
+                        if (quickStatusModal) {
+                            quickStatusModal.hide();
+                        }
+                        fetchPlants(currentView);
+                    })
+                    .catch(err => {
+                        console.error("Error updating status:", err);
+                        alert(statusUpdateError);
+                    });
+            });
+        }
+
+        if (canEditStatus && quickMeasurementForm) {
+            quickMeasurementForm.addEventListener("submit", (event) => {
+                event.preventDefault();
+                const plantId = Number(quickMeasurementPlantIdInput.value);
+                const metricId = Number(quickMeasurementMetric.value);
+                const value = Number(quickMeasurementValue.value);
+                const date = quickMeasurementDate.value;
+
+                if (!plantId || !metricId || Number.isNaN(value)) {
+                    return;
+                }
+
+                const payload = {
+                    plant_id: plantId,
+                    metric_id: metricId,
+                    value: value,
+                    date: date || formatDateTimeLocal(new Date()),
+                };
+
+                fetch("/plantMeasurement", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(payload),
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(measurementAddError);
+                        }
+                        return response.json();
+                    })
+                    .then(() => {
+                        if (quickMeasurementModal) {
+                            quickMeasurementModal.hide();
+                        }
+                        fetchPlants(currentView);
+                    })
+                    .catch(err => {
+                        console.error("Error adding measurement:", err);
+                        alert(measurementAddError);
+                    });
+            });
+        }
+
+        if (canEditStatus && quickActivityForm) {
+            quickActivityForm.addEventListener("submit", (event) => {
+                event.preventDefault();
+                const plantId = Number(quickActivityPlantIdInput.value);
+                const activityId = Number(quickActivityName.value);
+                const note = quickActivityNote.value;
+                const date = quickActivityDate.value;
+
+                if (!plantId || !activityId) {
+                    return;
+                }
+
+                const payload = {
+                    plant_id: plantId,
+                    activity_id: activityId,
+                    note: note,
+                    date: date || formatDateTimeLocal(new Date()),
+                };
+
+                fetch("/plantActivity", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(payload),
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(activityAddError);
+                        }
+                        return response.json();
+                    })
+                    .then(() => {
+                        if (quickActivityModal) {
+                            quickActivityModal.hide();
+                        }
+                        fetchPlants(currentView);
+                    })
+                    .catch(err => {
+                        console.error("Error adding activity:", err);
+                        alert(activityAddError);
+                    });
+            });
+        }
+
         const updateTable = () => {
             const searchTerm = searchPlants.value.toLowerCase();
             let filteredPlants = plantsData.filter(plant =>
@@ -179,11 +558,18 @@
 
             // Add click events for rows
             document.querySelectorAll(".clickable-row").forEach(row => {
-                row.addEventListener("click", () => {
+                row.addEventListener("click", (event) => {
+                    if (event.target.closest(".plant-status-edit") ||
+                        event.target.closest(".plant-measurement-add") ||
+                        event.target.closest(".plant-activity-add")) {
+                        return;
+                    }
                     const plantId = row.getAttribute("data-id");
                     if (plantId) window.location.href = `/plant/${plantId}`;
                 });
             });
+            attachQuickActionHandlers();
+            initTooltips();
         };
 
         // Handle view button click
