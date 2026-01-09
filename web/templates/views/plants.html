@@ -552,6 +552,7 @@
                     <td>${plant.start_dt ? new Date(plant.start_dt).toLocaleDateString() : "-"}</td>
                     <td>${column1}</td>
                     <td>${column2}</td>
+                    ${renderQuickActionsCell(plant)}
                 </tr>
             `;
             }).join("");
