@@ -38,6 +38,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"zones":           config.Zones,
 			"strains":         config.Strains,
 			"statuses":        config.Statuses,
+			"measurements":    config.Metrics,
 			"breeders":        config.Breeders,
 			"plants":          handlers.GetLivingPlants(),
 			"activities":      config.Activities,
@@ -149,6 +150,7 @@ func AddProtectedApiRoutes(r *gin.RouterGroup) {
 	// API endpoints
 	r.POST("/plants", handlers.AddPlant)
 	r.POST("/plant", func(c *gin.Context) { handlers.UpdatePlant(c) })
+	r.POST("/plant/status", handlers.UpdatePlantStatus)
 	r.DELETE("/plant/delete/:id", handlers.DeletePlant)
 	r.POST("/plant/link-sensors", handlers.LinkSensorsToPlant)
 	r.POST("/plantStatus/edit", handlers.EditStatus)

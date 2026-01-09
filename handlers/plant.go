@@ -1012,20 +1012,12 @@ func UpdatePlant(c *gin.Context) {
 	}
 
 	//Update the Plant Status Log
-	//Check the current status and do not update if it's unchanged
-	var currentStatus int
-	err = db.QueryRow("SELECT status_id FROM plant_status_log WHERE plant_id = $1 ORDER BY date DESC LIMIT 1", input.PlantID).Scan(&currentStatus)
+	updated, err := updatePlantStatusLog(db, input.PlantID, input.StatusID, input.Date)
 	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to get current status")
+		fieldLogger.WithError(err).Error("Failed to update plant status")
 		return
 	}
-	if currentStatus != input.StatusID {
-		_, err = db.Exec("INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, $3)", input.PlantID, input.StatusID, input.Date)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to update plant status")
-			return
-		}
-	} else {
+	if !updated {
 		fieldLogger.Info("Plant status unchanged")
 	}
 	c.JSON(http.StatusCreated, input)
