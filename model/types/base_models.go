@@ -149,6 +149,8 @@ type Settings struct {
 	StreamGrabEnabled  bool   `json:"stream_grab_enabled"`
 	StreamGrabInterval string `json:"stream_grab_interval"`
 	APIKey             string `json:"api_key"`
+	// New: allow disabling API ingest from settings form
+	DisableAPIIngest bool `json:"disable_api_ingest"`
 }
 
 type ACInfinitySettings struct {
@@ -168,6 +170,8 @@ type SettingsData struct {
 	StreamGrabEnabled  bool               `json:"stream_grab_enabled"`
 	StreamGrabInterval int                `json:"stream_grab_interval"`
 	APIKey             string             `json:"api_key"`
+	// New: reflect whether API ingest is enabled (true) or disabled (false)
+	APIIngestEnabled bool `json:"api_ingest_enabled"`
 }
 
 type Status struct {

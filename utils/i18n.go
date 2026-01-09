@@ -373,6 +373,8 @@ func (i *I18nManager) GetTranslations(lang string) map[string]string {
 		"toggle_visibility",
 		"copy",
 		"remember_me",
+		"disable_api_ingest",
+		"disable_api_ingest_desc",
 	}
 
 	out := make(map[string]string)

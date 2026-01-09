@@ -184,6 +184,15 @@ color: #0d6efd; /* Primary color */
                         <small class="text-muted d-block mt-2">
                             {{ linebreaks .lcl.api_key_desc }}
                         </small>
+
+                        <!-- New: Disable API Ingest -->
+                        <div class="form-check form-switch mt-3">
+                            <input class="form-check-input" type="checkbox" id="disableApiIngest" name="disable_api_ingest" {{ if .settings.APIIngestEnabled }}{{ else }}checked{{ end }}>
+                            <label class="form-check-label" for="disableApiIngest">{{ .lcl.disable_api_ingest }}</label>
+                        </div>
+                        <small class="text-muted d-block mt-2">
+                            {{ .lcl.disable_api_ingest_desc }}
+                        </small>
                     </div>
                 </div>
 
@@ -879,6 +888,7 @@ color: #0d6efd; /* Primary color */
                 stream_grab_enabled: document.getElementById("streamGrabEnabled").checked,
                 stream_grab_interval: streamGrabInterval.toString(),
                 api_key: document.getElementById("apiKey").value,
+                disable_api_ingest: document.getElementById("disableApiIngest").checked,
             };
 
             // Send POST request to save settings

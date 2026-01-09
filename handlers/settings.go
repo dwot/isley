@@ -152,6 +152,24 @@ func SaveSettings(c *gin.Context) {
 		config.StreamGrabInterval, _ = strconv.Atoi(settings.StreamGrabInterval)
 	}
 
+	// New: handle disable_api_ingest flag. We store api_ingest_enabled in DB (1 = enabled)
+	apiIngestEnabled := "1"
+	if settings.DisableAPIIngest {
+		apiIngestEnabled = "0"
+	}
+	err = UpdateSetting("api_ingest_enabled", apiIngestEnabled)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to save api ingest setting")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+		return
+	} else {
+		if apiIngestEnabled == "1" {
+			config.APIIngestEnabled = 1
+		} else {
+			config.APIIngestEnabled = 0
+		}
+	}
+
 	err = UpdateSetting("api_key", settings.APIKey)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to save API key")
@@ -267,6 +285,8 @@ func GetSettings() types.SettingsData {
 			settingsData.StreamGrabInterval = iValue
 		case "api_key":
 			settingsData.APIKey = value
+		case "api_ingest_enabled":
+			settingsData.APIIngestEnabled = value == "1"
 		default:
 			fieldLogger.WithField("name", name).Warn("Unknown setting found")
 		}

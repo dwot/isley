@@ -646,6 +646,13 @@ type SensorDataPayload struct {
 func IngestSensorData(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "IngestSensorData")
 
+	// Check whether API ingest is enabled in config
+	if config.APIIngestEnabled == 0 {
+		fieldLogger.Warn("API ingest is disabled via settings")
+		c.JSON(http.StatusForbidden, gin.H{"error": "API ingest is disabled"})
+		return
+	}
+
 	var payload SensorDataPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		fieldLogger.WithError(err).Error("Invalid payload")
