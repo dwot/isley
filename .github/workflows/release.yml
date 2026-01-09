@@ -16,6 +16,9 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          # fetch full history and tags so git describe and tag pushes work correctly
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -25,8 +28,14 @@ jobs:
       - name: Set Version
         id: version
         run: |
+          # On main use the VERSION file (fail if missing); on other branches, use 'dev'
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "version=$(cat VERSION)" >> $GITHUB_ENV
+            if [ -f VERSION ]; then
+              echo "version=$(cat VERSION)" >> $GITHUB_ENV
+            else
+              echo "VERSION file is missing on main branch" >&2
+              exit 1
+            fi
           else
             echo "version=dev" >> $GITHUB_ENV
           fi
@@ -46,6 +55,17 @@ jobs:
         run: |
           docker build -t isley:${{ env.version }} .
 
+      - name: Push Docker Image (Dev Branch Only)
+        if: github.ref == 'refs/heads/dev'
+        run: |
+          # Push a stable dev tag and a short-sha specific dev tag so testers can pick the desired image
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+          SHORT_SHA=${GITHUB_SHA::8}
+          docker tag isley:${{ env.version }} dwot/isley:dev
+          docker tag isley:${{ env.version }} dwot/isley:dev-${SHORT_SHA}
+          docker push dwot/isley:dev
+          docker push dwot/isley:dev-${SHORT_SHA}
+
       - name: Push Docker Image (Main Branch Only)
         if: github.ref == 'refs/heads/main'
         run: |
@@ -61,24 +81,36 @@ jobs:
           # Get the current date
           release_date=$(date -u +"%Y-%m-%d")
           echo "Release Date: $release_date" > release_notes.md
-          
-          # Determine the commit range
-          if git describe --tags --abbrev=0 > /dev/null 2>&1; then
-            # If tags exist, get commits since the last tag
-            commit_range="$(git describe --tags --abbrev=0 @^)..@"
+
+          # Determine a sensible commit range. Use commits since last tag if there is a tag, otherwise HEAD
+          if git describe --tags --abbrev=0 >/dev/null 2>&1; then
+            last_tag=$(git describe --tags --abbrev=0)
+            commit_range="$last_tag..HEAD"
           else
-            # If no tags exist, get all commits
             commit_range="HEAD"
           fi
-          
+
           # Add commit messages
           echo -e "\n### Commits:\n" >> release_notes.md
           git log --pretty=format:"- %s (%h)" $commit_range >> release_notes.md
-          
+
           # Escape multiline release notes for GITHUB_ENV
           escaped_notes=$(awk '{printf "%s\\n", $0}' release_notes.md)
           echo "release_notes=${escaped_notes}" >> $GITHUB_ENV
-      
+
+      - name: Create and push tag (Main Branch Only)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          TAG="v${{ env.version }}"
+          # If tag exists, skip creating it. Otherwise create annotated tag and push.
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
+          fi
 
       - name: Release Artifacts (Main Branch Only)
         if: github.ref == 'refs/heads/main'
