@@ -300,3 +300,4 @@ generate_new_key_confirm: "Are you sure? This will invalidate the existing API k
 api_key_placeholder: "Click generate new API key"
 toggle_visibility: "Show/Hide API Key"
 copy: "Copy"
+remember_me: "Remember Me"

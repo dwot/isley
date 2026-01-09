@@ -4,12 +4,6 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-contrib/sessions/cookie"
-	"github.com/gin-gonic/gin"
-	"github.com/microcosm-cc/bluemonday"
-	"github.com/russross/blackfriday/v2"
-	"github.com/sirupsen/logrus"
 	"html/template"
 	"isley/config"
 	"isley/handlers"
@@ -23,6 +17,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
+	"github.com/gin-gonic/gin"
+	"github.com/microcosm-cc/bluemonday"
+	"github.com/russross/blackfriday/v2"
+	"github.com/sirupsen/logrus"
 )
 
 //go:embed model/migrations/sqlite/*.sql model/migrations/postgres/*.sql web/templates/**/*.html web/static/**/* utils/fonts/* VERSION
@@ -314,6 +315,7 @@ func handleHealth(c *gin.Context) {
 func handleLogin(c *gin.Context) {
 	username := c.PostForm("username")
 	password := c.PostForm("password")
+	remember := c.PostForm("remember")
 
 	storedUsername, _ := handlers.GetSetting("auth_username")
 	storedPasswordHash, _ := handlers.GetSetting("auth_password")
@@ -332,6 +334,14 @@ func handleLogin(c *gin.Context) {
 	}
 
 	session := sessions.Default(c)
+	// If the user checked 'remember', set session MaxAge to 14 days (in seconds)
+	if remember == "on" || remember == "true" {
+		session.Options(sessions.Options{
+			Path:   "/",
+			MaxAge: 14 * 24 * 60 * 60, // 14 days
+		})
+	}
+
 	session.Set("logged_in", true)
 	session.Set("force_password_change", forcePasswordChange == "true")
 	session.Save()
