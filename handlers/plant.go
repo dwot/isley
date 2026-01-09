@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"html"
 	"isley/config"
 	"isley/logger"
@@ -14,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 func GetBreeders() []types.Breeder {
@@ -273,7 +274,6 @@ func CreateNewStrain(newStrain *struct {
 	// Check if a new breeder needs to be added
 	if newStrain.BreederId == 0 && newStrain.NewBreeder != "" {
 		// Insert the new breeder into the `breeder` table
-		var breederId int
 		err := db.QueryRow("INSERT INTO breeder (name) VALUES ($1) RETURNING id", newStrain.NewBreeder).Scan(&breederId)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to insert new breeder")
@@ -288,10 +288,12 @@ func CreateNewStrain(newStrain *struct {
 
 	// Insert the new strain into the `strain` table
 	var id int
+	// Use numeric autoflower flag to be consistent with other handlers
+	autoflowerInt := 1 // default true
 	err = db.QueryRow(
 		`INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
-		 VALUES ($1, $2, 50, 50, 'true', '', 0) RETURNING id`,
-		newStrain.Name, breederId).Scan(&id)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+		newStrain.Name, breederId, 50, 50, autoflowerInt, "", 0).Scan(&id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert new strain")
 		return 0, fmt.Errorf("failed to insert new strain: %w", err)
