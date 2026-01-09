@@ -3,6 +3,7 @@
 
 <!--Embed the header.html template at this location-->
 {{ template "common/header.html" .}}
+<script src="/static/js/growth-history.js"></script>
 {{ template "common/header2.html" .}}
 <div class="container">
     <!-- Page Title -->
@@ -135,6 +136,11 @@
             </button>
         </li>
         <li class="nav-item" role="presentation">
+            <button class="nav-link" id="growthHistory-tab" data-bs-toggle="tab" data-bs-target="#growthHistory" type="button" role="tab" aria-controls="growthHistory" aria-selected="false">
+                {{ .lcl.growth_history }}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
             <button class="nav-link" id="statusHistoryTab-tab" data-bs-toggle="tab" data-bs-target="#statusHistoryTab" type="button" role="tab" aria-controls="statusHistoryTab" aria-selected="false">
                 {{ .lcl.status_history }}
             </button>
@@ -177,6 +183,51 @@
                     </a>
                 </div>
                 {{ end }}
+            </div>
+        </div>
+
+        <!-- Growth History Tab -->
+        <div class="tab-pane fade" id="growthHistory" role="tabpanel" aria-labelledby="growthHistory-tab">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3 class="text-secondary">{{ .lcl.growth_history }}</h3>
+            </div>
+            <div class="growth-history-card" id="growthHistorySection"
+                 data-current-stage="{{ .plant.Status }}"
+                 data-days-label="{{ .lcl.title_days }}"
+                 data-empty-label="{{ .lcl.growth_history_empty }}">
+                <script type="application/json" id="growthHistoryData">{{ jsonify .plant.StatusHistory }}</script>
+                <div class="row g-4 growth-history-grid" id="growthHistoryGrid">
+                    <div class="col-12 col-lg-6">
+                        <div class="card h-100 growth-history-panel">
+                            <div class="card-body">
+                                <div class="growth-section">
+                                    <div class="growth-section-title">{{ .lcl.current_growth_stage }}</div>
+                                    <div class="growth-current-value" id="growthCurrentStage">-</div>
+                                    <div class="growth-current-meta"><span id="growthCurrentDays">0</span> {{ .lcl.days_in_stage }}</div>
+                                </div>
+                                <div class="growth-section">
+                                    <div class="growth-section-title">{{ .lcl.days_in_each_growth_stage }}</div>
+                                    <div class="growth-stage-list" id="growthStageList"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <div class="card h-100 growth-history-panel">
+                            <div class="card-body">
+                                <div class="growth-timeline-header">
+                                    <div class="growth-section-title">{{ .lcl.growth_stage_timeline }}</div>
+                                    <div class="growth-total-pill">
+                                        <span>{{ .lcl.total_days }}</span>
+                                        <strong id="growthTotalDays">0</strong>
+                                    </div>
+                                </div>
+                                <div class="growth-timeline" id="growthTimeline" aria-label="{{ .lcl.growth_stage_timeline }}"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="growth-history-empty d-none" id="growthHistoryEmpty">{{ .lcl.growth_history_empty }}</div>
             </div>
         </div>
 
