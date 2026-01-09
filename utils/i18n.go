@@ -2,15 +2,16 @@ package utils
 
 import (
 	"embed"
+	"isley/logger"
+	"path/filepath"
+	"strings"
+	"sync"
+
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
 	"gopkg.in/yaml.v3"
-	"isley/logger"
-	"path/filepath"
-	"strings"
-	"sync"
 )
 
 //go:embed locales/*.yaml
@@ -371,6 +372,7 @@ func (i *I18nManager) GetTranslations(lang string) map[string]string {
 		"api_key_placeholder",
 		"toggle_visibility",
 		"copy",
+		"remember_me",
 	}
 
 	out := make(map[string]string)
