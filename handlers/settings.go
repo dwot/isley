@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"isley/config"
 	"isley/logger"
@@ -16,6 +15,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 func GenerateAPIKey() string {
@@ -319,11 +320,12 @@ func AddMetricHandler(c *gin.Context) {
 	}
 
 	// metric name of "Height" is reserved
-	if metric.Name == "Height" {
-		fieldLogger.Error("Failed to add metric")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "This metric name is reserved and can't be added."})
-		return
-	}
+	// if metric.Name == "Height" {
+	// 	fieldLogger.Error("Failed to add metric")
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "This metric name is reserved and can't be added."})
+	// 	return
+	// }
+	// No reserved metric names; treat like other metrics
 
 	// Add metric to database
 	db, err := model.GetDB()
@@ -442,20 +444,8 @@ func UpdateMetricHandler(c *gin.Context) {
 		return
 	}
 	if lock {
-		//Update the unit only
-		_, err = db.Exec("UPDATE metric SET unit = $1 WHERE id = $2", metric.Unit, id)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to update metric")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update metric"})
-			return
-		}
-
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Editing this metric is not allowed, only unit changed."})
-
-		// Reload Config
-		config.Metrics = GetMetrics()
-
-		return
+		// Previously edits were blocked when lock==true; allow update but warn in logs.
+		fieldLogger.WithField("metricID", id).Warn("Metric is locked but update will be allowed")
 	}
 
 	// Update metric in database
@@ -491,21 +481,16 @@ func UpdateActivityHandler(c *gin.Context) {
 		return
 	}
 
-	// Check if activity exists and lock = TRUE
+	// Check lock but do not block updates; log a warning if locked
 	var lock bool
 	err = db.QueryRow("SELECT lock FROM activity WHERE id = $1", id).Scan(&lock)
 	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to update activity")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update activity"})
-		return
-	}
-	if lock {
-		fieldLogger.Error("Failed to update activity")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Editing this activity is not allowed."})
-		return
+		fieldLogger.WithError(err).Warn("Failed to check activity lock; proceeding with update")
+	} else if lock {
+		fieldLogger.WithField("activityID", id).Warn("Activity is locked but update will be allowed")
 	}
 
-	// Update activity in database
+	// Perform the update
 	_, err = db.Exec("UPDATE activity SET name = $1 WHERE id = $2", activity.Name, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update activity")
@@ -666,21 +651,17 @@ func DeleteActivityHandler(c *gin.Context) {
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete activity")
-		return
-	}
-
-	// Check if activity exists and lock = TRUE
-	var lock bool
-	err = db.QueryRow("SELECT lock FROM activity WHERE id = $1", id).Scan(&lock)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete activity")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete activity"})
 		return
 	}
-	if lock {
-		fieldLogger.Error("Failed to delete activity")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Deleting this activity is not allowed."})
-		return
+
+	// Check lock but do not block deletion; log a warning if locked
+	var lock bool
+	err = db.QueryRow("SELECT lock FROM activity WHERE id = $1", id).Scan(&lock)
+	if err != nil {
+		fieldLogger.WithError(err).Warn("Failed to check activity lock; proceeding with deletion")
+	} else if lock {
+		fieldLogger.WithField("activityID", id).Warn("Activity is locked but deletion will be allowed")
 	}
 
 	// Delete any plant_activities associated with this activity

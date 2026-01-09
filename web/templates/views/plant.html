@@ -85,11 +85,6 @@
                             <li><strong>{{ .lcl.title_week }}:</strong> {{ .plant.CurrentWeek }}</li>
                             {{ end }}
 
-                            <!-- Optional: Height -->
-                            {{ if ne (formatDate .plant.HeightDate) "01/01/1970" }}
-                            <li><strong>{{ .lcl.title_height }}:</strong> {{ .plant.CurrentHeight }}" - {{ formatDate .plant.HeightDate }}</li>
-                            {{ end }}
-
                             <!-- Optional: Last Watered or Fed -->
                             {{ if or (ne (formatDateTime .plant.LastWaterDate) "01/01/1970") (ne (formatDateTime .plant.LastFeedDate) "01/01/1970") }}
                             <li><strong>{{ .lcl.last_watered_or_fed }}:</strong>

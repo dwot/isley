@@ -578,23 +578,12 @@ func GetPlant(id string) types.Plant {
 			images = append(images, types.PlantImage{ID: id, PlantID: plant.ID, ImagePath: image_path, ImageDescription: image_description, ImageOrder: image_order, ImageDate: image_date, CreatedAt: time.Now().In(time.Local), UpdatedAt: time.Now().In(time.Local)})
 		}
 
-		iCurrentHeight := 0
 		//initialize the height date to a time in the past Jan 1, 1970
 		heightDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.Local)
 		lastWaterDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.Local)
 		lastFeedDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.Local)
 		harvestDate := time.Now().In(time.Local)
 		estHarvestDate := time.Now().In(time.Local)
-
-		//iterate measurements to find the last height
-		for _, measurement := range measurements {
-			if measurement.Name == "Height" {
-				if measurement.Date.After(heightDate) {
-					heightDate = measurement.Date
-					iCurrentHeight = int(measurement.Value)
-				}
-			}
-		}
 
 		//iterate activities to find the last water and feed dates
 		for _, activity := range activities {
@@ -638,7 +627,7 @@ func GetPlant(id string) types.Plant {
 		estHarvestDate = start_dt.AddDate(0, 0, cycle_time)
 
 		//Convert int and dates to strings
-		strCurrentHeight := strconv.Itoa(iCurrentHeight)
+		strCurrentHeight := strconv.Itoa(0)
 
 		plant = types.Plant{id, name, description, status, statusID, strain_name, strain_id, breeder_name, zone_name, zoneID, iCurrentDay, iCurrentWeek, strCurrentHeight, heightDate, lastWaterDate, lastFeedDate, measurements, activities, statusHistory, sensorList, latestImage, images, isClone, start_dt, harvest_weight, harvestDate, cycle_time, strain_url, estHarvestDate, autoflower, parent_id, parent_name}
 	}
