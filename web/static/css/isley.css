@@ -301,23 +301,11 @@ th, td {
 .growth-history-card {
     --growth-accent: var(--color-accent);
     --growth-accent-soft: rgba(0, 123, 255, 0.25);
-    --growth-row-bg: rgba(0, 0, 0, 0.03);
-    --growth-row-bg-hover: rgba(0, 0, 0, 0.06);
-    background: var(--color-card);
-    border: 1px solid var(--color-card-border);
-    border-radius: 14px;
-    padding: 24px;
-}
-.growth-history-grid {
-    display: grid;
-    grid-template-columns: minmax(260px, 1.1fr) minmax(300px, 1fr);
-    gap: 20px;
+    --growth-row-bg: var(--color-bg);
+    --growth-row-bg-hover: var(--color-row-hover);
 }
 .growth-history-panel {
-    border-radius: 14px;
-    padding: 18px;
-    border: 1px solid var(--color-border);
-    background: var(--color-bg);
+    height: 100%;
 }
 .growth-section + .growth-section {
     margin-top: 20px;
@@ -351,7 +339,7 @@ th, td {
     padding: 10px 12px;
     border-radius: 10px;
     background: var(--growth-row-bg);
-    border: 1px solid transparent;
+    border: 1px solid var(--color-card-border);
 }
 .growth-stage-row.is-current {
     border-color: var(--color-accent);
@@ -363,8 +351,8 @@ th, td {
 .growth-stage-pill {
     padding: 4px 12px;
     border-radius: 999px;
-    border: 1px solid rgba(0, 123, 255, 0.4);
-    background: rgba(0, 123, 255, 0.12);
+    border: 1px solid rgba(0, 123, 255, 0.35);
+    background: var(--growth-accent-soft);
     color: var(--growth-accent);
     font-size: 0.75rem;
     font-weight: 600;
@@ -484,7 +472,7 @@ th, td {
 
 body.dark-mode .growth-history-card {
     --growth-accent-soft: rgba(79, 125, 255, 0.25);
-    --growth-row-bg: rgba(255, 255, 255, 0.05);
+    --growth-row-bg: rgba(255, 255, 255, 0.04);
     --growth-row-bg-hover: rgba(255, 255, 255, 0.08);
 }
 body.dark-mode .growth-total-pill {

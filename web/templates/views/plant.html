@@ -196,27 +196,35 @@
                  data-days-label="{{ .lcl.title_days }}"
                  data-empty-label="{{ .lcl.growth_history_empty }}">
                 <script type="application/json" id="growthHistoryData">{{ jsonify .plant.StatusHistory }}</script>
-                <div class="growth-history-grid" id="growthHistoryGrid">
-                    <div class="growth-history-panel">
-                        <div class="growth-section">
-                            <div class="growth-section-title">{{ .lcl.current_growth_stage }}</div>
-                            <div class="growth-current-value" id="growthCurrentStage">-</div>
-                            <div class="growth-current-meta"><span id="growthCurrentDays">0</span> {{ .lcl.days_in_stage }}</div>
-                        </div>
-                        <div class="growth-section">
-                            <div class="growth-section-title">{{ .lcl.days_in_each_growth_stage }}</div>
-                            <div class="growth-stage-list" id="growthStageList"></div>
-                        </div>
-                    </div>
-                    <div class="growth-history-panel">
-                        <div class="growth-timeline-header">
-                            <div class="growth-section-title">{{ .lcl.growth_stage_timeline }}</div>
-                            <div class="growth-total-pill">
-                                <span>{{ .lcl.total_days }}</span>
-                                <strong id="growthTotalDays">0</strong>
+                <div class="row g-4 growth-history-grid" id="growthHistoryGrid">
+                    <div class="col-12 col-lg-6">
+                        <div class="card h-100 growth-history-panel">
+                            <div class="card-body">
+                                <div class="growth-section">
+                                    <div class="growth-section-title">{{ .lcl.current_growth_stage }}</div>
+                                    <div class="growth-current-value" id="growthCurrentStage">-</div>
+                                    <div class="growth-current-meta"><span id="growthCurrentDays">0</span> {{ .lcl.days_in_stage }}</div>
+                                </div>
+                                <div class="growth-section">
+                                    <div class="growth-section-title">{{ .lcl.days_in_each_growth_stage }}</div>
+                                    <div class="growth-stage-list" id="growthStageList"></div>
+                                </div>
                             </div>
                         </div>
-                        <div class="growth-timeline" id="growthTimeline" aria-label="{{ .lcl.growth_stage_timeline }}"></div>
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <div class="card h-100 growth-history-panel">
+                            <div class="card-body">
+                                <div class="growth-timeline-header">
+                                    <div class="growth-section-title">{{ .lcl.growth_stage_timeline }}</div>
+                                    <div class="growth-total-pill">
+                                        <span>{{ .lcl.total_days }}</span>
+                                        <strong id="growthTotalDays">0</strong>
+                                    </div>
+                                </div>
+                                <div class="growth-timeline" id="growthTimeline" aria-label="{{ .lcl.growth_stage_timeline }}"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="growth-history-empty d-none" id="growthHistoryEmpty">{{ .lcl.growth_history_empty }}</div>
