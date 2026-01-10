@@ -169,6 +169,9 @@ func AddProtectedApiRoutes(r *gin.RouterGroup) {
 	r.POST("/sensors/edit", handlers.EditSensor)
 	r.DELETE("/sensors/delete/:id", handlers.DeleteSensor)
 
+	// Debug endpoint to dump raw AC Infinity API response
+	r.GET("/sensors/dumpACI", handlers.DumpACInfinityJSON)
+
 	r.POST("/strains", handlers.AddStrainHandler)
 
 	r.PUT("/strains/:id", handlers.UpdateStrainHandler)

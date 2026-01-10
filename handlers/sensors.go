@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"isley/config"
 	"isley/logger"
@@ -15,8 +14,11 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 var (
@@ -210,6 +212,129 @@ func ScanACInfinitySensors(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "AC Infinity sensors scanned and added"})
+}
+
+// New handler: DumpACInfinityJSON
+func DumpACInfinityJSON(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "DumpACInfinityJSON")
+	fieldLogger.Info("Dumping raw AC Infinity JSON response")
+
+	// Determine whether to redact sensitive fields (default: true)
+	redact := true
+	if v := c.Query("redact"); v != "" {
+		if strings.ToLower(v) == "false" || v == "0" {
+			redact = false
+		}
+	}
+
+	if config.ACIToken == "" {
+		fieldLogger.Error("ACIToken is not configured")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ACIToken is not configured"})
+		return
+	}
+
+	url := "http://www.acinfinityserver.com/api/user/devInfoListAll?userId=" + config.ACIToken
+	reqBody := bytes.NewBuffer([]byte(""))
+
+	req, err := http.NewRequest("POST", url, reqBody)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Error creating request")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error creating request"})
+		return
+	}
+
+	req.Header.Add("token", config.ACIToken)
+	req.Header.Add("Host", "www.acinfinityserver.com")
+	req.Header.Add("User-Agent", "okhttp/3.10.0")
+	req.Header.Add("Content-Encoding", "gzip")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Error sending request")
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Error sending request to AC Infinity"})
+		return
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Error reading response body")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error reading response body"})
+		return
+	}
+
+	// Attempt to unmarshal and redact if requested
+	if redact {
+		var data interface{}
+		if err := json.Unmarshal(respBody, &data); err != nil {
+			// Not valid JSON: fall back to returning raw body
+			fieldLogger.WithError(err).Warn("Response is not valid JSON; returning raw body without redaction")
+			c.Data(http.StatusOK, "application/json; charset=utf-8", respBody)
+			return
+		}
+
+		// Keys to redact
+		redactKeys := map[string]struct{}{
+			"devId":       {},
+			"devCode":     {},
+			"devMacAddr":  {},
+			"appEmail":    {},
+			"devTimeZone": {},
+			"zoneId":      {},
+			"wifiName":    {},
+		}
+
+		// recursive redaction
+		var redactFunc func(interface{})
+		redactFunc = func(v interface{}) {
+			switch t := v.(type) {
+			case map[string]interface{}:
+				for k, val := range t {
+					if _, ok := redactKeys[k]; ok {
+						// Replace with a standard string marker
+						t[k] = "[REDACTED]"
+						continue
+					}
+					// Recurse into nested values
+					switch val.(type) {
+					case map[string]interface{}, []interface{}:
+						redactFunc(val)
+					}
+				}
+			case []interface{}:
+				for _, item := range t {
+					switch item.(type) {
+					case map[string]interface{}, []interface{}:
+						redactFunc(item)
+					}
+				}
+			}
+		}
+
+		redactFunc(data)
+
+		prettyBytes, err := json.MarshalIndent(data, "", "  ")
+		if err != nil {
+			fieldLogger.WithError(err).Warn("Failed to marshal redacted JSON; returning raw body")
+			c.Data(http.StatusOK, "application/json; charset=utf-8", respBody)
+			return
+		}
+
+		c.Data(http.StatusOK, "application/json; charset=utf-8", prettyBytes)
+		return
+	}
+
+	// If not redacting, try to pretty-print JSON; if it fails return raw body
+	var pretty bytes.Buffer
+	err = json.Indent(&pretty, respBody, "", "  ")
+	if err != nil {
+		fieldLogger.WithError(err).Warn("Response is not valid JSON or could not be indented; returning raw body")
+		c.Data(http.StatusOK, "application/json; charset=utf-8", respBody)
+		return
+	}
+
+	c.Data(http.StatusOK, "application/json; charset=utf-8", pretty.Bytes())
 }
 
 func ScanEcoWittSensors(c *gin.Context) {

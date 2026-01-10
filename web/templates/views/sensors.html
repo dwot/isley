@@ -12,6 +12,10 @@
         <button class="btn btn-primary me-2" id="scanACI">
             <i class="fa-solid fa-search"></i> {{ .lcl.aci_scan_add }}
         </button>
+        <!-- Dump ACI JSON button -->
+        <button class="btn btn-outline-secondary me-2" id="dumpACI">
+            <i class="fa-solid fa-file-code"></i> {{ .lcl.aci_dump_json }}
+        </button>
         {{ end }}
 
         {{ if .settings.EC.Enabled }}
@@ -194,6 +198,30 @@
 </div>
 
 
+<!-- Modal to display raw AC Infinity JSON -->
+<div class="modal fade" id="dumpACIModal" tabindex="-1" aria-labelledby="dumpACIModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="dumpACIModalLabel">{{ .lcl.aci_dump_json }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="dumpACIStatus" class="mb-2"></div>
+                <p class="small text-muted">{{ .lcl.aci_dump_json_desc }}</p>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" value="1" id="dumpACIRedact" checked>
+                    <label class="form-check-label" for="dumpACIRedact">
+                        {{ .lcl.aci_redact_label }}
+                    </label>
+                </div>
+                <p class="small text-muted text-warning">{{ .lcl.aci_dump_json_caution }}</p>
+                 <pre id="dumpACIContent" style="max-height:60vh; overflow:auto; padding:1rem; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Segoe UI Mono', monospace; background: inherit; color: inherit; border: 1px solid rgba(0,0,0,0.08); border-radius: .25rem;"></pre>
+             </div>
+        </div>
+    </div>
+</div>
+
 <script>
     document.addEventListener("DOMContentLoaded", () => {
         let currentScanEndpoint = "";
@@ -366,6 +394,32 @@
                     console.error("Error:", error);
                     alert("{{ .lcl.failed_sensor_scan }}");
                 });
+        });
+
+        // Dump ACI JSON button handler
+        document.getElementById("dumpACI")?.addEventListener("click", async () => {
+            const statusEl = document.getElementById('dumpACIStatus');
+            const contentEl = document.getElementById('dumpACIContent');
+            statusEl.innerHTML = 'Fetching...';
+            contentEl.textContent = '';
+            const redactCheckbox = document.getElementById('dumpACIRedact');
+            const redact = redactCheckbox && redactCheckbox.checked ? 'true' : 'false';
+
+             try {
+                const resp = await fetch('/sensors/dumpACI?redact=' + redact, { method: 'GET' });
+                if (!resp.ok) {
+                    throw new Error('Failed to fetch AC Infinity JSON');
+                }
+                const text = await resp.text();
+                // Put the response into the pre tag
+                contentEl.textContent = text;
+                statusEl.innerHTML = '';
+                const modal = new bootstrap.Modal(document.getElementById('dumpACIModal'));
+                modal.show();
+            } catch (err) {
+                statusEl.innerHTML = '<div class="text-danger">Error fetching AC Infinity JSON</div>';
+                console.error(err);
+            }
         });
     });
 
