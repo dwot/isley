@@ -70,9 +70,11 @@
                             <li><strong>{{ .lcl.title_zone }}:</strong> {{ .plant.ZoneName }}</li>
                             <li><strong>{{ .lcl.start_date }}:</strong> {{ formatDateTime .plant.StartDT }}</li>
 
-                            <!-- Conditional: If Plant is an Autoflower and not Harvested and not Dead -->
-                            {{ if and (eq .plant.Autoflower true) (ne .plant.Status "Success") (ne .plant.Status "Drying") (ne .plant.Status "Curing") (ne .plant.Status "Dead") }}
-                            <li><strong>{{ .lcl.est_harvest_date }}:</strong> {{ formatDate .plant.EstHarvestDate }}</li>
+                            <!-- Conditional: If Plant is an Autoflower and not Harvested and not Dead OR if an estimated harvest date exists -->
+                            {{ if and (ne .plant.Status "Success") (ne .plant.Status "Drying") (ne .plant.Status "Curing") (ne .plant.Status "Dead") }}
+                                {{ if or (eq .plant.Autoflower true) (ne (formatDate .plant.EstHarvestDate) "01/01/1970") }}
+                                    <li><strong>{{ .lcl.est_harvest_date }}:</strong> {{ formatDate .plant.EstHarvestDate }}</li>
+                                {{ end }}
                             {{ end }}
 
 

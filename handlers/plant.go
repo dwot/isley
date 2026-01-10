@@ -583,7 +583,7 @@ func GetPlant(id string) types.Plant {
 		lastWaterDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.Local)
 		lastFeedDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.Local)
 		harvestDate := time.Now().In(time.Local)
-		estHarvestDate := time.Now().In(time.Local)
+		estHarvestDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.Local)
 
 		//iterate activities to find the last water and feed dates
 		for _, activity := range activities {
@@ -624,7 +624,28 @@ func GetPlant(id string) types.Plant {
 		}
 
 		//calculate estimated harvest date
-		estHarvestDate = start_dt.AddDate(0, 0, cycle_time)
+		// For Autoflower strains estimate from start date; for photosensitive strains estimate from the earliest Flower date (if available).
+		if cycle_time > 0 {
+			if autoflower {
+				// Autoflower: start date + cycle_time
+				estHarvestDate = start_dt.AddDate(0, 0, cycle_time)
+			} else {
+				// Photosensitive: find earliest "Flower" status and add cycle_time
+				var flowerDate time.Time
+				foundFlower := false
+				for _, st := range statusHistory {
+					if st.Status == "Flower" {
+						if !foundFlower || st.Date.Before(flowerDate) {
+							flowerDate = st.Date
+							foundFlower = true
+						}
+					}
+				}
+				if foundFlower {
+					estHarvestDate = flowerDate.AddDate(0, 0, cycle_time)
+				}
+			}
+		}
 
 		//Convert int and dates to strings
 		strCurrentHeight := strconv.Itoa(0)
