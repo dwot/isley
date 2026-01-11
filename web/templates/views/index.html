@@ -39,7 +39,7 @@
                     <tr class="clickable-row" data-id="{{ .ID }}">
                         <td>{{ .Name }}</td>
                         <td>{{ .StrainName }}</td>
-                        <td>{{ .Status }}</td>
+                        <td>{{ with $lbl := index $.lcl (print (lower .Status) "_label") }}{{ $lbl }}{{ else }}{{ .Status }}{{ end }}</td>
                         <td>{{ formatStringDate .StartDT }}</td>
                         <td>{{ .DaysSinceLastWatering }}</td>
                         <td>{{ .DaysSinceLastFeeding }}</td>

@@ -59,6 +59,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Hydrate UI state for each step
     steps.forEach((el, idx) => {
+        // Helper: derive a localized label for a given raw status string.
+        function localizeStatus(raw) {
+            if (!raw) return raw;
+            const key = `${raw.toLowerCase()}_label`;
+            // Prefer server-rendered label in the DOM if present
+            const nameEl = el.querySelector('.status-name');
+            if (nameEl && nameEl.textContent && nameEl.textContent.trim() !== raw) return nameEl.textContent.trim();
+            if (window.uiMessages && typeof window.uiMessages.t === 'function') {
+                try {
+                    const t = window.uiMessages.t(key);
+                    if (t && t !== key) return t;
+                } catch (e) {
+                    // ignore
+                }
+            }
+            return raw;
+        }
+
         const sid = parseInt(el.dataset.statusId, 10);
         const dateEl = el.querySelector('.status-date');
         const iconEl = el.querySelector('.status-icon i');
@@ -162,7 +180,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const isTerminal = /dead|success/i.test(targetName);
             // Only prompt for terminal statuses (e.g., 'dead', 'success'). For normal advances, proceed directly.
             if (isTerminal) {
-                const confirmMsg = uiMessages.t('confirm_set_status_to') ? uiMessages.t('confirm_set_status_to').replace('{status}', targetName) : `Are you sure you want to set status to ${targetName}?`;
+                const displayLabelForConfirm = localizeStatus(targetName);
+                const confirmMsg = (window.uiMessages && typeof uiMessages.t === 'function' && uiMessages.t('confirm_set_status_to')) ? uiMessages.t('confirm_set_status_to').replace('{status}', displayLabelForConfirm) : `Are you sure you want to set status to ${displayLabelForConfirm}?`;
                 const confirmed = await uiMessages.showConfirm(confirmMsg);
                 if (!confirmed) return;
             }
@@ -170,7 +189,9 @@ document.addEventListener("DOMContentLoaded", () => {
             const payload = { plant_id: plantId, status_id: sid };
             // Optimistic UI: update status text and step classes immediately
             const plantStatusTextEl = document.getElementById('plantStatusText');
-            if (plantStatusTextEl) plantStatusTextEl.textContent = el.dataset.statusName || targetName;
+            // Use localized label for display while keeping raw status for DB payload
+            const displayLabel = el.querySelector('.status-name')?.textContent?.trim() || localizeStatus(el.dataset.statusName || targetName);
+            if (plantStatusTextEl) plantStatusTextEl.textContent = displayLabel;
             steps.forEach((sEl, sIdx) => {
                 sEl.classList.remove('status-past', 'status-current', 'status-future');
                 if (sIdx <= idx) {

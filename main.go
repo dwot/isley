@@ -79,6 +79,7 @@ func main() {
 
 	funcMap := template.FuncMap{
 		"upper":     strings.ToUpper, // Define the 'upper' function
+		"lower":     strings.ToLower, // Define the 'lower' function for templates
 		"hasPrefix": strings.HasPrefix,
 		"default": func(val interface{}, def string) string {
 			if str, ok := val.(string); ok && str != "" {
