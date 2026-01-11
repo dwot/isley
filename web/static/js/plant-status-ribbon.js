@@ -160,10 +160,13 @@ document.addEventListener("DOMContentLoaded", () => {
             // Future: advance
             const targetName = el.dataset.statusName || '';
             const isTerminal = /dead|success/i.test(targetName);
-            const confirmMsg = isTerminal ? uiMessages.t('confirm_set_status_to') ? uiMessages.t('confirm_set_status_to').replace('{status}', targetName) : `Are you sure you want to set status to ${targetName}?` : uiMessages.t('confirm_advance_to') ? uiMessages.t('confirm_advance_to').replace('{status}', targetName) : `Advance plant to ${targetName}?`;
-            const confirmed = await uiMessages.showConfirm(confirmMsg);
-            if (!confirmed) return;
-
+            // Only prompt for terminal statuses (e.g., 'dead', 'success'). For normal advances, proceed directly.
+            if (isTerminal) {
+                const confirmMsg = uiMessages.t('confirm_set_status_to') ? uiMessages.t('confirm_set_status_to').replace('{status}', targetName) : `Are you sure you want to set status to ${targetName}?`;
+                const confirmed = await uiMessages.showConfirm(confirmMsg);
+                if (!confirmed) return;
+            }
+            
             const payload = { plant_id: plantId, status_id: sid };
             // Optimistic UI: update status text and step classes immediately
             const plantStatusTextEl = document.getElementById('plantStatusText');
