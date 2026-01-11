@@ -412,7 +412,7 @@
                     })
                     .catch(err => {
                         console.error("Error updating status:", err);
-                        alert(statusUpdateError);
+                        uiMessages.showToast(statusUpdateError || uiMessages.t('failed_to_update_status') || 'Failed to update status', 'danger');
                     });
             });
         }
@@ -457,7 +457,7 @@
                     })
                     .catch(err => {
                         console.error("Error adding measurement:", err);
-                        alert(measurementAddError);
+                        uiMessages.showToast(measurementAddError || uiMessages.t('failed_to_add_measurement') || 'Failed to add measurement', 'danger');
                     });
             });
         }
@@ -502,7 +502,7 @@
                     })
                     .catch(err => {
                         console.error("Error adding activity:", err);
-                        alert(activityAddError);
+                        uiMessages.showToast(activityAddError || uiMessages.t('failed_to_add_activity') || 'Failed to add activity', 'danger');
                     });
             });
         }

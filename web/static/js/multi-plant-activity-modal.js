@@ -45,7 +45,7 @@ document.addEventListener("DOMContentLoaded", () => {
             })
             .catch(error => {
                 console.error("Error:", error);
-                alert("Error recording activity. Please try again.");
+                uiMessages.showToast(uiMessages.t('error_recording_activity') || 'Error recording activity. Please try again.', 'danger');
             });
     });
 });

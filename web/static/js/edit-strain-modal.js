@@ -152,14 +152,15 @@ document.addEventListener("DOMContentLoaded", () => {
             })
             .catch(error => {
                 console.error("{{ .lcl.strain_update_error }}", error);
-                alert("{{ .lcl.update_error }}");
+                uiMessages.showToast(uiMessages.t('update_error') || 'Update failed', 'danger');
             });
     });
 
     deleteStrainButton.addEventListener("click", () => {
         const strainId = document.getElementById("editStrainId").value;
 
-        if (confirm("Are you sure you want to delete this strain?")) {
+        uiMessages.showConfirm(uiMessages.t('confirm_delete_strain') || 'Are you sure you want to delete this strain?').then(confirmed => {
+            if (!confirmed) return;
             fetch(`/strains/${strainId}`, { method: "DELETE" })
                 .then(response => {
                     if (!response.ok) throw new Error("{{ .lcl.delete_fail }}");
@@ -169,8 +170,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 })
                 .catch(error => {
                     console.error("Error deleting strain:", error);
-                    alert("{{ .lcl.delete_error }}");
+                    uiMessages.showToast(uiMessages.t('delete_error') || 'Delete failed', 'danger');
                 });
-        }
+        });
     });
 });

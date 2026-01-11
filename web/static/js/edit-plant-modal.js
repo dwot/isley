@@ -84,7 +84,7 @@ document.addEventListener("DOMContentLoaded", () => {
             })
             .catch(error => {
                 console.error("Error:", error);
-                alert("{{ .lcl.failed_to_change_status }}");
+                uiMessages.showToast(uiMessages.t('failed_to_change_status') || '{{ .lcl.failed_to_change_status }}', 'danger');
             });
     });
 });

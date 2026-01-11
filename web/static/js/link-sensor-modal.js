@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
             })
             .catch(error => {
                 console.error("Error:", error);
-                alert("{{ .lcl.failed_to_link_sensors }}");
+                uiMessages.showToast(uiMessages.t('failed_to_link_sensors') || '{{ .lcl.failed_to_link_sensors }}', 'danger');
             });
     });
 });

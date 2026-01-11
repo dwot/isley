@@ -334,7 +334,7 @@
             };
 
             if (!currentScanEndpoint) {
-                alert("No scan endpoint defined.");
+                uiMessages.showToast('No scan endpoint defined.', 'warning');
                 return;
             }
 
@@ -357,7 +357,7 @@
                 })
                 .catch((error) => {
                     console.error("Error:", error);
-                    alert("{{ .lcl.failed_sensor_scan }}");
+                    uiMessages.showToast(uiMessages.t('failed_sensor_scan') || '{{ .lcl.failed_sensor_scan }}', 'danger');
                 });
         });
 
@@ -377,7 +377,7 @@
             };
 
             if (!currentScanEndpoint) {
-                alert("{{ .lcl.no_scan_endppoint }}");
+                uiMessages.showToast(uiMessages.t('no_scan_endppoint') || '{{ .lcl.no_scan_endppoint }}', 'warning');
                 return;
             }
 
@@ -400,7 +400,7 @@
                 })
                 .catch((error) => {
                     console.error("Error:", error);
-                    alert("{{ .lcl.failed_sensor_scan }}");
+                    uiMessages.showToast(uiMessages.t('failed_sensor_scan') || '{{ .lcl.failed_sensor_scan }}', 'danger');
                 });
         });
 
@@ -542,18 +542,19 @@
                     return response.json();
                 })
                 .then(data => {
-                    //alert("Sensor updated successfully!");
+                    //uiMessages.showToast(uiMessages.t('sensor_updated_successfully') || 'Sensor updated successfully!', 'success');
                     window.location.reload();
                 })
                 .catch(error => {
                     console.error("Error:", error);
-                    alert("{{ .lcl.failed_update_sensor }}");
+                    uiMessages.showToast(uiMessages.t('failed_update_sensor') || '{{ .lcl.failed_update_sensor }}', 'danger');
                 });
         });
 
         // Delete sensor
         deleteButton.addEventListener("click", () => {
-            if (confirm("{{ .lcl.confirm_delete_sensor }}")) {
+            uiMessages.showConfirm(uiMessages.t('confirm_delete_sensor') || '{{ .lcl.confirm_delete_sensor }}').then(confirmed => {
+                if (!confirmed) return;
                 // Show spinner and disable buttons so user knows deletion is in progress
                 const spinner = document.getElementById('deleteSpinner');
                 const saveBtn = sensorForm.querySelector('button[type="submit"]');
@@ -564,7 +565,7 @@
                 fetch(`/sensors/delete/${currentSensor.id}`, { method: "DELETE" })
                     .then(response => {
                         if (!response.ok) throw new Error("{{ .lcl.failed_delete_sensor }}");
-                        //alert("Sensor deleted successfully!");
+                        //uiMessages.showToast(uiMessages.t('sensor_deleted_successfully') || 'Sensor deleted successfully!', 'success');
                         window.location.reload();
                     })
                     .catch(error => {
@@ -573,9 +574,9 @@
                         if (spinner) spinner.classList.add('d-none');
                         deleteButton.disabled = false;
                         if (saveBtn) saveBtn.disabled = false;
-                        alert("{{ .lcl.failed_delete_sensor }}");
+                        uiMessages.showToast(uiMessages.t('failed_delete_sensor') || '{{ .lcl.failed_delete_sensor }}', 'danger');
                     });
-            }
+            });
         });
     });
 </script>

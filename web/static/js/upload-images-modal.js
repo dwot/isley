@@ -43,7 +43,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function handleFiles(files) {
         files.forEach((file) => {
             if (!file.type.startsWith("image/")) {
-                alert("{{ .lcl.only_image_files }}");
+                uiMessages.showToast(uiMessages.t('only_image_files') || '{{ .lcl.only_image_files }}', 'warning');
                 return;
             }
 
@@ -137,12 +137,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 return response.json();
             })
             .then((data) => {
-                //alert("Images uploaded successfully!");
+                //uiMessages.showToast(uiMessages.t('images_uploaded_successfully') || 'Images uploaded successfully!', 'success');
                 location.reload();
             })
             .catch((error) => {
                 console.error("Error uploading images:", error);
-                alert("An error occurred while uploading images.");
+                uiMessages.showToast(uiMessages.t('error_uploading_images') || 'An error occurred while uploading images.', 'danger');
             });
     });
 

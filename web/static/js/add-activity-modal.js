@@ -51,7 +51,7 @@ document.addEventListener("DOMContentLoaded", () => {
             })
             .catch((error) => {
                 console.error("Error:", error);
-                alert("{{ .lcl.failed_to_add_activity }}");
+                uiMessages.showToast(uiMessages.t('failed_to_add_activity') || '{{ .lcl.failed_to_add_activity }}', 'danger');
             });
     });
 });

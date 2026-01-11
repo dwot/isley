@@ -27,6 +27,13 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 		})
 	})
 
+	// Translations API - returns JSON map of translations for the requested language
+	r.GET("/api/translations", func(c *gin.Context) {
+		lang := utils.GetLanguage(c)
+		translations := utils.TranslationService.GetTranslations(lang)
+		c.JSON(http.StatusOK, translations)
+	})
+
 	r.GET("/plants", func(c *gin.Context) {
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)

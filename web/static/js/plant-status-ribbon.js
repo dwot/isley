@@ -152,7 +152,7 @@ document.addEventListener("DOMContentLoaded", () => {
                      return;
                  } catch (err) {
                     console.error('Failed to create placeholder status', err);
-                     alert('Failed to create placeholder status');
+                     uiMessages.showToast(uiMessages.t('failed_to_create_placeholder_status') || 'Failed to create placeholder status', 'danger');
                      return;
                  }
             }
@@ -160,8 +160,9 @@ document.addEventListener("DOMContentLoaded", () => {
             // Future: advance
             const targetName = el.dataset.statusName || '';
             const isTerminal = /dead|success/i.test(targetName);
-            const confirmMsg = isTerminal ? `Are you sure you want to set status to ${targetName}?` : `Advance plant to ${targetName}?`;
-            if (!confirm(confirmMsg)) return;
+            const confirmMsg = isTerminal ? uiMessages.t('confirm_set_status_to') ? uiMessages.t('confirm_set_status_to').replace('{status}', targetName) : `Are you sure you want to set status to ${targetName}?` : uiMessages.t('confirm_advance_to') ? uiMessages.t('confirm_advance_to').replace('{status}', targetName) : `Advance plant to ${targetName}?`;
+            const confirmed = await uiMessages.showConfirm(confirmMsg);
+            if (!confirmed) return;
 
             const payload = { plant_id: plantId, status_id: sid };
             // Optimistic UI: update status text and step classes immediately
@@ -181,17 +182,17 @@ document.addEventListener("DOMContentLoaded", () => {
             fetch('/plant/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
                 .then(resp => { if (!resp.ok) throw new Error('Failed'); return resp.json(); })
                 .then(() => { location.reload(); })
-                .catch(err => { console.error(err); alert('Failed to advance status'); el.classList.remove('status-pending'); });
+                .catch(err => { console.error(err); uiMessages.showToast(uiMessages.t('failed_to_advance_status') || 'Failed to advance status', 'danger'); el.classList.remove('status-pending'); });
         });
     });
 
     function openEditStatusModal(statusObj) {
         try {
             const editModalEl = document.getElementById('editStatusModal');
-            if (!editModalEl) { alert('Edit modal not found'); return; }
+            if (!editModalEl) { uiMessages.showToast(uiMessages.t('edit_modal_not_found') || 'Edit modal not found', 'danger'); return; }
             const statusIdInput = document.getElementById('statusId');
             const editDateInput = document.getElementById('editStatusDate');
-            if (!statusIdInput || !editDateInput) { alert('Edit modal inputs not found'); return; }
+            if (!statusIdInput || !editDateInput) { uiMessages.showToast(uiMessages.t('edit_modal_inputs_not_found') || 'Edit modal inputs not found', 'danger'); return; }
             statusIdInput.value = statusObj.id || statusObj.ID;
             const d = new Date(statusObj.date || statusObj.Date);
             editDateInput.value = d.toISOString().slice(0,19);

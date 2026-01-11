@@ -31,17 +31,18 @@ document.addEventListener("DOMContentLoaded", () => {
         })
             .then(response => response.json())
             .then(() => location.reload())
-            .catch(() => alert("{{ .lcl.failed_to_update_status }}"));
+            .catch(() => uiMessages.showToast(uiMessages.t('failed_to_update_status'), 'danger'));
     });
 
     deleteStatusButton.addEventListener("click", () => {
         const statusId = document.getElementById("statusId").value;
 
-        if (confirm("{{ .lcl.confirm_delete_status }}")) {
+        uiMessages.showConfirm(uiMessages.t('confirm_delete_status')).then(confirmed => {
+            if (!confirmed) return;
             fetch(`/plantStatus/delete/${statusId}`, { method: "DELETE" })
                 .then(response => response.json())
                 .then(() => location.reload())
-                .catch(() => alert("{{ .lcl.failed_to_delete_status }}"));
-        }
+                .catch(() => uiMessages.showToast(uiMessages.t('failed_to_delete_status'), 'danger'));
+        });
     });
 });

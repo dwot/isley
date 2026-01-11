@@ -108,7 +108,7 @@ document.addEventListener("DOMContentLoaded", () => {
             })
             .catch((error) => {
                 console.error("Error:", error);
-                alert("{{ .lcl.strain_add_error }}");
+                uiMessages.showToast(uiMessages.t('strain_add_error') || '{{ .lcl.strain_add_error }}', 'danger');
             });
     });
 });

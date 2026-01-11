@@ -734,7 +734,7 @@ color: #0d6efd; /* Primary color */
                 })
                 .catch((error) => {
                     console.error("Error:", error);
-                    alert("Failed to add stream");
+                    uiMessages.showToast(uiMessages.t('failed_to_add_stream') || 'Failed to add stream', 'danger');
                 });
 
         })
@@ -755,8 +755,6 @@ color: #0d6efd; /* Primary color */
             const payload = {
                 zone_name: zoneName,
             };
-
-            //alert(JSON.stringify(payload));
 
             // Send POST request to /plantMeasurement
             fetch("/zones", {
@@ -780,7 +778,7 @@ color: #0d6efd; /* Primary color */
                 })
                 .catch((error) => {
                     console.error("Error:", error);
-                    alert("{{ .lcl.failed_to_add_zone }}");
+                    uiMessages.showToast(uiMessages.t('failed_to_add_zone'), 'danger');
                 });
         });
     });
@@ -815,18 +813,19 @@ color: #0d6efd; /* Primary color */
             })
                 .then(response => response.json())
                 .then(() => location.reload())
-                .catch(err => alert("{{ .lcl.failed_to_update_zone }}"));
+                .catch(err => uiMessages.showToast(uiMessages.t('failed_to_update_zone'), 'danger'));
         });
 
         deleteZoneButton.addEventListener("click", () => {
             const zoneId = document.getElementById("zoneId").value;
 
-            if (confirm("{{ .lcl.delete_zone_confirm }}")) {
+            uiMessages.showConfirm(uiMessages.t('delete_zone_confirm')).then(confirmed => {
+                if (!confirmed) return;
                 fetch(`/zones/${zoneId}`, { method: "DELETE" })
                     .then(response => response.json())
                     .then(() => location.reload())
-                    .catch(err => alert("{{ .lcl.failed_to_delete_zone }}"));
-            }
+                    .catch(err => uiMessages.showToast(uiMessages.t('failed_to_delete_zone'), 'danger'));
+            });
         });
     });
 
@@ -854,14 +853,13 @@ color: #0d6efd; /* Primary color */
                         document.getElementById("tokenSetBadge").textContent = "{{ .lcl.token_set }}";
                         document.getElementById("tokenSetBadge").classList.remove("bg-danger");
                         document.getElementById("tokenSetBadge").classList.add("bg-success");
-                        //alert("Token fetched successfully!");
                     } else {
-                        alert("{{ .lcl.failed_to_fetch_token }}: " + data.message);
+                        uiMessages.showToast(uiMessages.t('failed_to_fetch_token') + ': ' + data.message, 'danger');
                     }
                 })
                 .catch((error) => {
                     console.error("{{ .lcl.error_fetching_token }}", error);
-                    alert("{{ .lcl.generic_error }}");
+                    uiMessages.showToast(uiMessages.t('generic_error'), 'danger');
                 });
         });
     });
@@ -903,11 +901,11 @@ color: #0d6efd; /* Primary color */
                     if (!response.ok) {
                         throw new Error("{{ .lcl.failed_to_save_settings }}");
                     }
-                    alert("Settings saved successfully!");
+                    uiMessages.showToast(uiMessages.t('save_settings') || 'Settings saved', 'success');
                 })
                 .catch((error) => {
                     console.error("Error:", error);
-                    alert("{{ .lcl.failed_to_save_settings }}");
+                    uiMessages.showToast(uiMessages.t('failed_to_save_settings'), 'danger');
                 });
         });
     });
@@ -927,8 +925,6 @@ color: #0d6efd; /* Primary color */
             const payload = {
                 activity_name: activityName,
             };
-
-            //alert(JSON.stringify(payload));
 
             // Send POST request to /plantMeasurement
             fetch("/activities", {
@@ -952,7 +948,7 @@ color: #0d6efd; /* Primary color */
                 })
                 .catch((error) => {
                     console.error("Error:", error);
-                    alert("{{ .lcl.failed_to_add_activity }}");
+                    uiMessages.showToast(uiMessages.t('failed_to_add_activity'), 'danger');
                 });
         });
     });
@@ -987,18 +983,19 @@ color: #0d6efd; /* Primary color */
             })
                 .then(response => response.json())
                 .then(() => location.reload())
-                .catch(err => alert("{{ .lcl.failed_to_update_activity }}"));
+                .catch(err => uiMessages.showToast(uiMessages.t('failed_to_update_activity'), 'danger'));
         });
 
         deleteActivityButton.addEventListener("click", () => {
             const activityId = document.getElementById("activityId").value;
 
-            if (confirm("{{ .lcl.delete_activity_confirm }}")) {
+            uiMessages.showConfirm(uiMessages.t('delete_activity_confirm')).then(confirmed => {
+                if (!confirmed) return;
                 fetch(`/activities/${activityId}`, { method: "DELETE" })
                     .then(response => response.json())
                     .then(() => location.reload())
-                    .catch(err => alert("{{ .lcl.failed_to_delete_activity }}"));
-            }
+                    .catch(err => uiMessages.showToast(uiMessages.t('failed_to_delete_activity'), 'danger'));
+            });
         });
     });
 
@@ -1038,18 +1035,19 @@ color: #0d6efd; /* Primary color */
             })
                 .then(response => response.json())
                 .then(() => location.reload())
-                .catch(err => alert("{{ .lcl.failed_to_update_stream }}"));
+                .catch(err => uiMessages.showToast(uiMessages.t('failed_to_update_stream'), 'danger'));
         });
 
         deleteStreamButton.addEventListener("click", () => {
             const streamId = document.getElementById("streamId").value;
 
-            if (confirm("{{ .lcl.delete_stream_confirm }}")) {
+            uiMessages.showConfirm(uiMessages.t('delete_stream_confirm')).then(confirmed => {
+                if (!confirmed) return;
                 fetch(`/streams/${streamId}`, { method: "DELETE" })
                     .then(response => response.json())
                     .then(() => location.reload())
-                    .catch(err => alert("{{ .lcl.failed_to_delete_stream }}"));
-            }
+                    .catch(err => uiMessages.showToast(uiMessages.t('failed_to_delete_stream'), 'danger'));
+            });
         });
     });
 
@@ -1070,8 +1068,6 @@ color: #0d6efd; /* Primary color */
                 metric_name: metricName,
                 metric_unit: metricUnit,
             };
-
-            //alert(JSON.stringify(payload));
 
             // Send POST request to /plantMeasurement
             fetch("/metrics", {
@@ -1095,7 +1091,7 @@ color: #0d6efd; /* Primary color */
                 })
                 .catch((error) => {
                     console.error("Error:", error);
-                    alert("{{ .lcl.failed_to_add_metric }}");
+                    uiMessages.showToast(uiMessages.t('failed_to_add_metric'), 'danger');
                 });
         });
     });
@@ -1132,18 +1128,19 @@ color: #0d6efd; /* Primary color */
             })
                 .then(response => response.json())
                 .then(() => location.reload())
-                .catch(err => alert("{{ .lcl.failed_to_update_metric }}"));
+                .catch(err => uiMessages.showToast(uiMessages.t('failed_to_update_metric'), 'danger'));
         });
 
         deleteMetricButton.addEventListener("click", () => {
             const metricId = document.getElementById("metricId").value;
 
-            if (confirm("{{ .lcl.delete_metric_confirm }}")) {
+            uiMessages.showConfirm(uiMessages.t('delete_metric_confirm')).then(confirmed => {
+                if (!confirmed) return;
                 fetch(`/metrics/${metricId}`, { method: "DELETE" })
                     .then(response => response.json())
                     .then(() => location.reload())
-                    .catch(err => alert("{{ .lcl.failed_to_delete_metric }}"));
-            }
+                    .catch(err => uiMessages.showToast(uiMessages.t('failed_to_delete_metric'), 'danger'));
+            });
         });
     });
 
@@ -1162,8 +1159,6 @@ color: #0d6efd; /* Primary color */
             const payload = {
                 breeder_name: breederName,
             };
-
-            //alert(JSON.stringify(payload));
 
             // Send POST request to /plantMeasurement
             fetch("/breeders", {
@@ -1187,7 +1182,7 @@ color: #0d6efd; /* Primary color */
                 })
                 .catch((error) => {
                     console.error("Error:", error);
-                    alert("{{ .lcl.failed_to_add_breeder }}");
+                    uiMessages.showToast(uiMessages.t('failed_to_add_breeder'), 'danger');
                 });
         });
     });
@@ -1222,18 +1217,19 @@ color: #0d6efd; /* Primary color */
             })
                 .then(response => response.json())
                 .then(() => location.reload())
-                .catch(err => alert("{{ .lcl.failed_to_update_breeder }}"));
+                .catch(err => uiMessages.showToast(uiMessages.t('failed_to_update_breeder'), 'danger'));
         });
 
         deleteBreederButton.addEventListener("click", () => {
             const breederId = document.getElementById("breederId").value;
 
-            if (confirm("{{ .lcl.delete_breeder_confirm }}")) {
+            uiMessages.showConfirm(uiMessages.t('delete_breeder_confirm')).then(confirmed => {
+                if (!confirmed) return;
                 fetch(`/breeders/${breederId}`, { method: "DELETE" })
                     .then(response => response.json())
                     .then(() => location.reload())
-                    .catch(err => alert("{{ .lcl.failed_to_delete_breeder }}"));
-            }
+                    .catch(err => uiMessages.showToast(uiMessages.t('failed_to_delete_breeder'), 'danger'));
+            });
         });
     });
 
@@ -1270,25 +1266,26 @@ color: #0d6efd; /* Primary color */
                 })
                     .then((response) => {
                         if (response.ok) {
-                            alert("{{ .lcl.logo_uploaded_successfully }}");
+                            uiMessages.showToast(uiMessages.t('logo_uploaded_successfully') || 'Logo uploaded', 'success');
                             location.reload();
                         } else {
-                            alert("{{ .lcl.error_uploading_logo }}");
+                            uiMessages.showToast(uiMessages.t('error_uploading_logo') || 'Error uploading logo', 'danger');
                         }
                     })
                     .catch((error) => {
                         console.error("Error:", error);
-                        alert("{{ .lcl.error_uploading_logo }}");
+                        uiMessages.showToast(uiMessages.t('error_uploading_logo') || 'Error uploading logo', 'danger');
                     });
             } else {
-                alert("{{ .lcl.select_logo_image }}");
+                uiMessages.showToast(uiMessages.t('select_logo_image') || 'Select a logo image', 'warning');
             }
         });
     });
 
     // Function to generate a new API key
     function generateNewAPIKey() {
-        if (confirm('{{ .lcl.generate_new_key_confirm }}')) {
+        uiMessages.showConfirm(uiMessages.t('generate_new_key_confirm')).then(confirmed => {
+            if (!confirmed) return;
             // Send request to generate new API key
             fetch('/settings', {
                 method: 'POST',
@@ -1306,7 +1303,7 @@ color: #0d6efd; /* Primary color */
                     }
                 })
                 .catch(error => console.error('Error:', error));
-        }
+        });
     }
 
     function toggleAPIKeyVisibility() {
