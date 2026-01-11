@@ -12,9 +12,9 @@ import (
 	model "isley/model"
 )
 
-const statusDateTimeLayout = "2006-01-02T15:04"
+const statusDateTimeLayout = "2006-01-02T15:04:05"
 
-func updatePlantStatusLog(db *sql.DB, plantID int, statusID int, date string) (bool, error) {
+func updatePlantStatusLog(db *sql.DB, plantID int, statusID int, date string) (bool, int, error) {
 	if date == "" {
 		date = time.Now().Format(statusDateTimeLayout)
 	}
@@ -22,17 +22,33 @@ func updatePlantStatusLog(db *sql.DB, plantID int, statusID int, date string) (b
 	var currentStatus int
 	err := db.QueryRow("SELECT status_id FROM plant_status_log WHERE plant_id = $1 ORDER BY date DESC LIMIT 1", plantID).Scan(&currentStatus)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return false, err
+		return false, 0, err
 	}
 	if err == nil && currentStatus == statusID {
-		return false, nil
+		return false, 0, nil
 	}
 
-	_, err = db.Exec("INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, $3)", plantID, statusID, date)
-	if err != nil {
-		return false, err
+	// Insert and return new id in a driver-specific way
+	if model.IsPostgres() {
+		var newID int
+		err = db.QueryRow("INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, $3) RETURNING id", plantID, statusID, date).Scan(&newID)
+		if err != nil {
+			return false, 0, err
+		}
+		return true, newID, nil
+	} else {
+		// SQLite (or other) - use Exec and LastInsertId
+		res, err := db.Exec("INSERT INTO plant_status_log (plant_id, status_id, date) VALUES (?, ?, ?)", plantID, statusID, date)
+		if err != nil {
+			return false, 0, err
+		}
+		lastId, err := res.LastInsertId()
+		if err != nil {
+			// Insert succeeded but couldn't get id; return updated=true with zero id
+			return true, 0, nil
+		}
+		return true, int(lastId), nil
 	}
-	return true, nil
 }
 
 func UpdatePlantStatus(c *gin.Context) {
@@ -70,12 +86,12 @@ func UpdatePlantStatus(c *gin.Context) {
 		return
 	}
 
-	updated, err := updatePlantStatusLog(db, input.PlantID, input.StatusID, input.Date)
+	updated, newID, err := updatePlantStatusLog(db, input.PlantID, input.StatusID, input.Date)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update plant status")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update plant status"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"updated": updated})
+	c.JSON(http.StatusOK, gin.H{"updated": updated, "id": newID})
 }

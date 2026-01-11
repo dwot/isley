@@ -531,7 +531,7 @@ func GetPlant(id string) types.Plant {
 		}
 
 		//Load status history
-		rows5, err := db.Query("SELECT psl.id, ps.status, psl.date FROM plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id WHERE psl.plant_id = $1 ORDER BY date desc", id)
+		rows5, err := db.Query("SELECT psl.id, ps.status, psl.date, psl.status_id FROM plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id WHERE psl.plant_id = $1 ORDER BY date desc", id)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to query status history")
 		}
@@ -540,11 +540,12 @@ func GetPlant(id string) types.Plant {
 			var id uint
 			var status string
 			var date time.Time
-			err = rows5.Scan(&id, &status, &date)
+			var statusID int
+			err = rows5.Scan(&id, &status, &date, &statusID)
 			if err != nil {
 				fieldLogger.WithError(err).Error("Failed to scan status history")
 			}
-			statusHistory = append(statusHistory, types.Status{id, status, date})
+			statusHistory = append(statusHistory, types.Status{id, status, date, statusID})
 		}
 
 		//Load latest image
@@ -1023,14 +1024,16 @@ func UpdatePlant(c *gin.Context) {
 		return
 	}
 
-	//Update the Plant Status Log
-	updated, err := updatePlantStatusLog(db, input.PlantID, input.StatusID, input.Date)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to update plant status")
-		return
-	}
-	if !updated {
-		fieldLogger.Info("Plant status unchanged")
+	// Only update the Plant Status Log if a status was provided in the request
+	if input.StatusID != 0 {
+		updated, _, err := updatePlantStatusLog(db, input.PlantID, input.StatusID, input.Date)
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to update plant status")
+			return
+		}
+		if !updated {
+			fieldLogger.Info("Plant status unchanged")
+		}
 	}
 	c.JSON(http.StatusCreated, input)
 }

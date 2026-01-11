@@ -49,7 +49,7 @@
                         <input type="hidden" id="currentWeek" value="{{ .plant.CurrentWeek }}">
 
                         <ul class="list-unstyled">
-                            <li><strong>{{ .lcl.title_status }}:</strong> {{ .plant.Status }}</li>
+                            <li><strong>{{ .lcl.title_status }}:</strong> <span id="plantStatusText">{{ .plant.Status }}</span></li>
                             <li><strong>{{ .lcl.title_strain }}:</strong>
                                 {{ if ne .plant.StrainUrl "" }}
                                     <a href="{{ .plant.StrainUrl }}" target="_blank">{{ .plant.StrainName }}</a> (by {{ .plant.BreederName }})
@@ -123,6 +123,30 @@
 
         </div>
     </div>
+
+    <!-- Plant Status Ribbon -->
+    <!-- Renders a horizontal timeline of statuses; JS will hydrate dates and click behavior -->
+    <div id="plantStatusRibbonContainer" class="mb-4" 
+         data-plant-id="{{ .plant.ID }}" 
+         data-current-status-id="{{ .plant.StatusID }}"
+         data-status-history='{{ jsonify .plant.StatusHistory }}'>
+        <div class="card">
+            <div class="card-body">
+                <div class="plant-status-ribbon d-flex justify-content-between align-items-center" role="navigation" aria-label="{{ .lcl.growth_stage_timeline }}">
+                    {{ range $idx, $s := .statuses }}
+                    <div class="status-step text-center" data-status-id="{{ $s.ID }}" data-status-name="{{ $s.Status }}" data-status-index="{{ $idx }}">
+                        <button class="btn status-icon" aria-label="{{ $s.Status }}">
+                            <i class="fa-solid fa-seedling fa-2x"></i>
+                        </button>
+                        <div class="status-name small text-muted">{{ $s.Status }}</div>
+                        <div class="status-date small text-muted mt-1"></div>
+                    </div>
+                    {{ end }}
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="/static/js/plant-status-ribbon.js"></script>
 
 
     <!-- Tabs Navigation -->

@@ -175,9 +175,10 @@ type SettingsData struct {
 }
 
 type Status struct {
-	ID     uint      `json:"id"`
-	Status string    `json:"status"`
-	Date   time.Time `json:"date"`
+	ID       uint      `json:"id"`
+	Status   string    `json:"status"`
+	Date     time.Time `json:"date"`
+	StatusID int       `json:"status_id"`
 }
 
 type Strain struct {

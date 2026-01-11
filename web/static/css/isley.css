@@ -503,3 +503,75 @@ body.dark-mode .growth-timeline-duration {
     background: rgba(122, 168, 255, 0.2);
     color: #cfe0ff;
 }
+
+/* Plant status ribbon */
+.plant-status-ribbon {
+    gap: 12px;
+    padding: 6px 4px;
+}
+.plant-status-ribbon .status-step {
+    flex: 1 1 0;
+    position: relative;
+    min-width: 72px;
+}
+.plant-status-ribbon .status-step .status-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 999px;
+    border: 2px solid var(--color-border);
+    background: transparent;
+    color: var(--color-muted);
+}
+.plant-status-ribbon .status-step .status-icon:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0,123,255,0.15);
+}
+.plant-status-ribbon .status-step.status-past .status-icon {
+    background: var(--color-accent);
+    color: #fff;
+    border-color: var(--color-accent);
+}
+.plant-status-ribbon .status-step.status-current .status-icon {
+    background: var(--color-accent-hover);
+    color: #fff;
+    border-color: var(--color-accent-hover);
+}
+.plant-status-ribbon .status-step.status-future .status-icon {
+    opacity: 0.45;
+}
+.plant-status-ribbon .status-step .status-name {
+    margin-top: 6px;
+    font-weight: 600;
+}
+.plant-status-ribbon .status-step .status-date {
+    margin-top: 4px;
+    font-size: 0.75rem;
+    color: var(--color-muted);
+}
+/* Connector line */
+.plant-status-ribbon::before {
+    content: '';
+    position: absolute;
+    left: 60px;
+    right: 60px;
+    height: 2px;
+    top: 36px;
+    background: var(--color-border);
+    z-index: 0;
+}
+.plant-status-ribbon .status-step { z-index: 1; }
+.plant-status-ribbon .status-step.status-pending .status-icon {
+    opacity: 0.7;
+    border-style: dashed;
+}
+@media (max-width: 768px) {
+    .plant-status-ribbon {
+        flex-direction: row;
+        overflow-x: auto;
+        padding-bottom: 8px;
+    }
+    .plant-status-ribbon::before { left: 16px; right: 16px; }
+}

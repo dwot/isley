@@ -1,5 +1,5 @@
 {{ define "modals/edit-plant-modal.html" }}
-<!-- Change Status Modal -->
+<!-- Change Status / Edit Plant Modal (status fields removed, kept for core plant attributes) -->
 <div class="modal fade" id="changeStatusModal" tabindex="-1" aria-labelledby="changeStatusModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -9,24 +9,6 @@
             </div>
             <div class="modal-body">
                 <form id="changeStatusForm">
-                    <!-- Status Dropdown -->
-                    <div class="mb-3">
-                        <label for="status" class="form-label">{{ .lcl.title_status }}</label>
-                        <select class="form-select" id="status" required>
-                            {{ range .statuses }}
-                            <option
-                                    {{ if eq .ID $.plant.StatusID }}selected{{ end }}
-                                    value="{{ .ID }}">{{ .Status }}</option>
-                            {{ end }}
-                        </select>
-                    </div>
-
-                    <!-- Date Picker -->
-                    <div class="mb-3">
-                        <label for="statusDate" class="form-label">{{ .lcl.effective_date }}</label>
-                        <input type="datetime-local" class="form-control" id="statusDate" required value="{{ now | formatDateTimeLocal }}">
-                    </div>
-
                     <!-- Plant Name -->
                     <div class="mb-3">
                         <label for="plantName" class="form-label">{{ .lcl.plant_name }}</label>
@@ -120,7 +102,7 @@
 
                     <!-- Submit Button -->
                     {{ if .loggedIn }}
-                    <button type="submit" class="btn btn-primary">{{ .lcl.change_status }}</button>
+                    <button type="submit" class="btn btn-primary">{{ .lcl.save_changes }}</button>
                     {{ end }}
                 </form>
             </div>

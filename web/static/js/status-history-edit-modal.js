@@ -1,4 +1,3 @@
-
 document.addEventListener("DOMContentLoaded", () => {
     const editStatusModal = new bootstrap.Modal(document.getElementById("editStatusModal"));
     const statusForm = document.getElementById("editStatusForm");
@@ -9,11 +8,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const statusData = JSON.parse(row.getAttribute("data-status"));
 
             document.getElementById("statusId").value = statusData.id;
-            console.log(statusData.date);
-
             const date = new Date(statusData.date);
-            const formattedDate = date.toISOString().slice(0, 16); // Removes seconds and 'Z'
-            document.getElementById("editStatusDate").value = formattedDate;
+            document.getElementById("editStatusDate").value = date.toISOString().slice(0, 19);
 
 
             editStatusModal.show();
@@ -35,7 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
         })
             .then(response => response.json())
             .then(() => location.reload())
-            .catch(err => alert("{{ .lcl.failed_to_update_status }}"));
+            .catch(() => alert("{{ .lcl.failed_to_update_status }}"));
     });
 
     deleteStatusButton.addEventListener("click", () => {
@@ -45,7 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
             fetch(`/plantStatus/delete/${statusId}`, { method: "DELETE" })
                 .then(response => response.json())
                 .then(() => location.reload())
-                .catch(err => alert("{{ .lcl.failed_to_delete_status }}"));
+                .catch(() => alert("{{ .lcl.failed_to_delete_status }}"));
         }
     });
 });

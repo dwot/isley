@@ -99,10 +99,10 @@ func main() {
 			if err != nil {
 				return "" // Return empty if parsing fails
 			}
-			return parsedTime.Format("2006-01-02T15:04")
+			return parsedTime.Format("2006-01-02T15:04:05")
 		},
 		"formatDateTimeLocal": func(t time.Time) string {
-			return t.Format("2006-01-02T15:04")
+			return t.Format("2006-01-02T15:04:05")
 		},
 		"toLocalTimeString": func(t time.Time) string {
 			if err != nil {
