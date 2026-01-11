@@ -82,14 +82,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Icon heuristics
         const sname = (el.dataset.statusName || '').toLowerCase();
-        let iconClass = 'fa-seedling';
-        if (sname.includes('germ')) iconClass = 'fa-sprout';
-        else if (sname.includes('plant') && !sname.includes('ing')) iconClass = 'fa-tree';
+        let iconClass = 'fa-lemon';
+        if (sname.includes('germ')) iconClass = 'fa-lemon';
+        else if (sname.includes('plant') && !sname.includes('ing')) iconClass = 'fa-bucket';
         else if (sname.includes('seedling')) iconClass = 'fa-seedling';
-        else if (sname.includes('veg')) iconClass = 'fa-leaf';
-        else if (sname.includes('flower')) iconClass = 'fa-rose';
-        else if (sname.includes('dry')) iconClass = 'fa-cannabis';
-        else if (sname.includes('cur')) iconClass = 'fa-hands-bound';
+        else if (sname.includes('veg')) iconClass = 'fa-plant-wilt';
+        else if (sname.includes('flower')) iconClass = 'fa-cannabis';
+        else if (sname.includes('dry')) iconClass = 'fa-sun';
+        else if (sname.includes('cur')) iconClass = 'fa-jar';
         else if (sname.includes('success')) iconClass = 'fa-award';
         else if (sname.includes('dead')) iconClass = 'fa-skull-crossbones';
         if (iconEl) iconEl.className = `fa-solid ${iconClass} fa-2x`;
