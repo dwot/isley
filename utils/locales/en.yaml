@@ -307,3 +307,7 @@ copy: "Copy"
 remember_me: "Remember Me"
 disable_api_ingest: "Disable API ingest"
 disable_api_ingest_desc: "Prevent external systems from submitting sensor data to the /api/sensors/ingest endpoint. Use this to temporarily block outside data ingestion without removing API keys."
+
+# New API labels
+api: "API"
+api_key_label: "API Key"

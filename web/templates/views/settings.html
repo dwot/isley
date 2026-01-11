@@ -164,11 +164,11 @@ color: #0d6efd; /* Primary color */
                 <div class="card mb-4 shadow-sm">
                     <div class="card-header bg-warning text-dark">
                         <h5 class="card-title mb-0">
-                            <i class="fa fa-key me-2"></i>API {{ .lcl.title_settings }}
+                            <i class="fa fa-key me-2"></i>{{ .lcl.api }} {{ .lcl.title_settings }}
                         </h5>
                     </div>
                     <div class="card-body">
-                        <label for="apiKey" class="form-label">API Key</label>
+                        <label for="apiKey" class="form-label">{{ .lcl.api_key_label }}</label>
                         <div class="input-group">
                             <input type="password" class="form-control" id="apiKey" name="api_key" value="{{ .settings.APIKey }}" placeholder="{{ .lcl.api_key_placeholder }}">
                             <button class="btn btn-outline-secondary" type="button" onclick="toggleAPIKeyVisibility()" aria-label="{{ .lcl.toggle_visibility }}">

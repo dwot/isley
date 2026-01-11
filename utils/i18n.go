@@ -379,6 +379,9 @@ func (i *I18nManager) GetTranslations(lang string) map[string]string {
 		"remember_me",
 		"disable_api_ingest",
 		"disable_api_ingest_desc",
+		// New keys for API settings labels
+		"api",
+		"api_key_label",
 	}
 
 	out := make(map[string]string)
