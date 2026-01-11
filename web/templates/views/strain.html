@@ -25,7 +25,7 @@
                 data-bs-toggle="modal"
                 data-bs-target="#editStrainModal"
                 data-id="{{ .strain.ID }}"
-                data-strain="{{ .strain | jsonify }}">
+                data-strain='{{ .strain | jsonify }}'>
             {{ .lcl.edit_strain }}
         </button>
         {{ end }}
