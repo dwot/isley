@@ -189,7 +189,10 @@
                     <!-- Buttons -->
                     <div class="d-flex justify-content-between">
                         <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
-                        <button type="button" class="btn btn-danger" id="deleteSensor"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_sensor }}</button>
+                        <button type="button" class="btn btn-danger" id="deleteSensor">
+                            <span id="deleteSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                            <i class="fa-solid fa-trash"></i> {{ .lcl.delete_sensor }}
+                        </button>
                     </div>
                 </form>
             </div>
@@ -551,6 +554,13 @@
         // Delete sensor
         deleteButton.addEventListener("click", () => {
             if (confirm("{{ .lcl.confirm_delete_sensor }}")) {
+                // Show spinner and disable buttons so user knows deletion is in progress
+                const spinner = document.getElementById('deleteSpinner');
+                const saveBtn = sensorForm.querySelector('button[type="submit"]');
+                deleteButton.disabled = true;
+                if (saveBtn) saveBtn.disabled = true;
+                if (spinner) spinner.classList.remove('d-none');
+
                 fetch(`/sensors/delete/${currentSensor.id}`, { method: "DELETE" })
                     .then(response => {
                         if (!response.ok) throw new Error("{{ .lcl.failed_delete_sensor }}");
@@ -559,6 +569,10 @@
                     })
                     .catch(error => {
                         console.error("Error:", error);
+                        // Re-enable controls and hide spinner on error
+                        if (spinner) spinner.classList.add('d-none');
+                        deleteButton.disabled = false;
+                        if (saveBtn) saveBtn.disabled = false;
                         alert("{{ .lcl.failed_delete_sensor }}");
                     });
             }
