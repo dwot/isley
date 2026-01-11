@@ -14,6 +14,8 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -214,6 +216,103 @@ func ScanACInfinitySensors(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "AC Infinity sensors scanned and added"})
 }
 
+// prettyMarshalSorted marshals an unmarshaled JSON structure (interface{}) into
+// a pretty-printed JSON byte slice where object keys are sorted alphabetically.
+// It expects numbers to be json.Number when possible to preserve original formatting.
+func prettyMarshalSorted(v interface{}, indent string) ([]byte, error) {
+	var buf bytes.Buffer
+	// recursive writer
+	var writeValue func(interface{}, int) error
+	writeIndent := func(level int) {
+		for i := 0; i < level; i++ {
+			buf.WriteString(indent)
+		}
+	}
+
+	writeValue = func(val interface{}, level int) error {
+		switch t := val.(type) {
+		case map[string]interface{}:
+			// sort keys
+			keys := make([]string, 0, len(t))
+			for k := range t {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			buf.WriteString("{")
+			if len(keys) > 0 {
+				buf.WriteString("\n")
+			}
+			for i, k := range keys {
+				writeIndent(level + 1)
+				// write key
+				kb, _ := json.Marshal(k)
+				buf.Write(kb)
+				buf.WriteString(": ")
+				if err := writeValue(t[k], level+1); err != nil {
+					return err
+				}
+				if i != len(keys)-1 {
+					buf.WriteString(",")
+				}
+				buf.WriteString("\n")
+			}
+			if len(keys) > 0 {
+				writeIndent(level)
+			}
+			buf.WriteString("}")
+		case []interface{}:
+			buf.WriteString("[")
+			if len(t) > 0 {
+				buf.WriteString("\n")
+			}
+			for i, item := range t {
+				writeIndent(level + 1)
+				if err := writeValue(item, level+1); err != nil {
+					return err
+				}
+				if i != len(t)-1 {
+					buf.WriteString(",")
+				}
+				buf.WriteString("\n")
+			}
+			if len(t) > 0 {
+				writeIndent(level)
+			}
+			buf.WriteString("]")
+		case string:
+			b, _ := json.Marshal(t)
+			buf.Write(b)
+		case json.Number:
+			buf.WriteString(t.String())
+		case float64:
+			// fallback for plain float64 values
+			buf.WriteString(strconv.FormatFloat(t, 'f', -1, 64))
+		case bool:
+			if t {
+				buf.WriteString("true")
+			} else {
+				buf.WriteString("false")
+			}
+		case nil:
+			buf.WriteString("null")
+		default:
+			// final fallback: use json.Marshal
+			b, err := json.Marshal(t)
+			if err != nil {
+				return err
+			}
+			buf.Write(b)
+		}
+		return nil
+	}
+
+	if err := writeValue(v, 0); err != nil {
+		return nil, err
+	}
+	buf.WriteByte('\n')
+	return buf.Bytes(), nil
+}
+
 // New handler: DumpACInfinityJSON
 func DumpACInfinityJSON(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "DumpACInfinityJSON")
@@ -264,57 +363,58 @@ func DumpACInfinityJSON(c *gin.Context) {
 		return
 	}
 
-	// Attempt to unmarshal and redact if requested
-	if redact {
-		var data interface{}
-		if err := json.Unmarshal(respBody, &data); err != nil {
-			// Not valid JSON: fall back to returning raw body
-			fieldLogger.WithError(err).Warn("Response is not valid JSON; returning raw body without redaction")
-			c.Data(http.StatusOK, "application/json; charset=utf-8", respBody)
-			return
-		}
+	// Try to unmarshal into a generic structure using UseNumber so we preserve numeric formatting.
+	var data interface{}
+	decoder := json.NewDecoder(bytes.NewReader(respBody))
+	decoder.UseNumber()
+	if err := decoder.Decode(&data); err != nil {
+		// Not valid JSON: fall back to returning raw body
+		fieldLogger.WithError(err).Warn("Response is not valid JSON; returning raw body")
+		c.Data(http.StatusOK, "application/json; charset=utf-8", respBody)
+		return
+	}
 
-		// Keys to redact
-		redactKeys := map[string]struct{}{
-			"devId":       {},
-			"devCode":     {},
-			"devMacAddr":  {},
-			"appEmail":    {},
-			"devTimeZone": {},
-			"zoneId":      {},
-			"wifiName":    {},
-		}
+	// Keys to redact
+	redactKeys := map[string]struct{}{
+		"devId":       {},
+		"devCode":     {},
+		"devMacAddr":  {},
+		"appEmail":    {},
+		"devTimeZone": {},
+		"zoneId":      {},
+		"wifiName":    {},
+	}
 
-		// recursive redaction
-		var redactFunc func(interface{})
-		redactFunc = func(v interface{}) {
-			switch t := v.(type) {
-			case map[string]interface{}:
-				for k, val := range t {
-					if _, ok := redactKeys[k]; ok {
-						// Replace with a standard string marker
-						t[k] = "[REDACTED]"
-						continue
-					}
-					// Recurse into nested values
-					switch val.(type) {
-					case map[string]interface{}, []interface{}:
-						redactFunc(val)
-					}
+	// recursive redaction
+	var redactFunc func(interface{})
+	redactFunc = func(v interface{}) {
+		switch t := v.(type) {
+		case map[string]interface{}:
+			for k, val := range t {
+				if _, ok := redactKeys[k]; ok {
+					// Replace with a standard string marker
+					t[k] = "[REDACTED]"
+					continue
 				}
-			case []interface{}:
-				for _, item := range t {
-					switch item.(type) {
-					case map[string]interface{}, []interface{}:
-						redactFunc(item)
-					}
+				// Recurse into nested values
+				switch val.(type) {
+				case map[string]interface{}, []interface{}:
+					redactFunc(val)
+				}
+			}
+		case []interface{}:
+			for _, item := range t {
+				switch item.(type) {
+				case map[string]interface{}, []interface{}:
+					redactFunc(item)
 				}
 			}
 		}
+	}
 
+	if redact {
 		redactFunc(data)
-
-		prettyBytes, err := json.MarshalIndent(data, "", "  ")
+		prettyBytes, err := prettyMarshalSorted(data, "  ")
 		if err != nil {
 			fieldLogger.WithError(err).Warn("Failed to marshal redacted JSON; returning raw body")
 			c.Data(http.StatusOK, "application/json; charset=utf-8", respBody)
@@ -325,16 +425,15 @@ func DumpACInfinityJSON(c *gin.Context) {
 		return
 	}
 
-	// If not redacting, try to pretty-print JSON; if it fails return raw body
-	var pretty bytes.Buffer
-	err = json.Indent(&pretty, respBody, "", "  ")
+	// Non-redacted: pretty print with sorted keys for consistent ordering
+	prettyBytes, err := prettyMarshalSorted(data, "  ")
 	if err != nil {
-		fieldLogger.WithError(err).Warn("Response is not valid JSON or could not be indented; returning raw body")
+		fieldLogger.WithError(err).Warn("Failed to marshal pretty JSON; returning raw body")
 		c.Data(http.StatusOK, "application/json; charset=utf-8", respBody)
 		return
 	}
 
-	c.Data(http.StatusOK, "application/json; charset=utf-8", pretty.Bytes())
+	c.Data(http.StatusOK, "application/json; charset=utf-8", prettyBytes)
 }
 
 func ScanEcoWittSensors(c *gin.Context) {

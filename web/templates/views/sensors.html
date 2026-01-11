@@ -204,6 +204,11 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="dumpACIModalLabel">{{ .lcl.aci_dump_json }}</h5>
+                <!-- Added Refresh and Copy buttons for convenience -->
+                <div class="btn-group ms-2" role="group" aria-label="ACI dump actions">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="dumpACIRefresh" title="Refresh JSON"><i class="fa-solid fa-arrows-rotate"></i></button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="dumpACICopy" title="Copy JSON"><i class="fa-regular fa-copy"></i></button>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -396,31 +401,84 @@
                 });
         });
 
-        // Dump ACI JSON button handler
-        document.getElementById("dumpACI")?.addEventListener("click", async () => {
+        // Utility: fetch the ACI dump and update UI. If `showModal` is true, show the modal after fetching.
+        const fetchDumpACI = async (showModal = false) => {
             const statusEl = document.getElementById('dumpACIStatus');
             const contentEl = document.getElementById('dumpACIContent');
-            statusEl.innerHTML = 'Fetching...';
-            contentEl.textContent = '';
             const redactCheckbox = document.getElementById('dumpACIRedact');
             const redact = redactCheckbox && redactCheckbox.checked ? 'true' : 'false';
 
-             try {
+            statusEl.innerHTML = 'Fetching...';
+            contentEl.textContent = '';
+
+            try {
                 const resp = await fetch('/sensors/dumpACI?redact=' + redact, { method: 'GET' });
                 if (!resp.ok) {
                     throw new Error('Failed to fetch AC Infinity JSON');
                 }
                 const text = await resp.text();
-                // Put the response into the pre tag
                 contentEl.textContent = text;
                 statusEl.innerHTML = '';
-                const modal = new bootstrap.Modal(document.getElementById('dumpACIModal'));
-                modal.show();
+                if (showModal) {
+                    const modal = new bootstrap.Modal(document.getElementById('dumpACIModal'));
+                    modal.show();
+                }
             } catch (err) {
                 statusEl.innerHTML = '<div class="text-danger">Error fetching AC Infinity JSON</div>';
                 console.error(err);
             }
+        };
+
+        // Dump ACI JSON button handler (initial fetch then show modal)
+        document.getElementById("dumpACI")?.addEventListener("click", async () => {
+            await fetchDumpACI(true);
         });
+
+        // Refresh button inside the modal
+        document.getElementById("dumpACIRefresh")?.addEventListener("click", async () => {
+            await fetchDumpACI(false);
+        });
+
+        // When redact checkbox toggled, refresh the JSON if the modal is currently open
+        document.getElementById('dumpACIRedact')?.addEventListener('change', async (e) => {
+            const modalEl = document.getElementById('dumpACIModal');
+            if (modalEl.classList.contains('show')) {
+                await fetchDumpACI(false);
+            }
+        });
+
+        // Copy button: copy pre content to clipboard and show temporary status
+        document.getElementById('dumpACICopy')?.addEventListener('click', async () => {
+            const contentEl = document.getElementById('dumpACIContent');
+            const statusEl = document.getElementById('dumpACIStatus');
+            const text = contentEl.textContent || '';
+            if (!text) {
+                statusEl.innerHTML = '<div class="text-muted">Nothing to copy</div>';
+                setTimeout(() => statusEl.innerHTML = '', 1500);
+                return;
+            }
+
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(text);
+                } else {
+                    // Fallback for older browsers
+                    const textarea = document.createElement('textarea');
+                    textarea.value = text;
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    textarea.remove();
+                }
+                statusEl.innerHTML = '<div class="text-success">Copied to clipboard</div>';
+                setTimeout(() => statusEl.innerHTML = '', 1500);
+            } catch (err) {
+                console.error('Copy failed', err);
+                statusEl.innerHTML = '<div class="text-danger">Failed to copy</div>';
+                setTimeout(() => statusEl.innerHTML = '', 2000);
+            }
+        });
+
     });
 
 
