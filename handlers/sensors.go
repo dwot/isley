@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -179,7 +180,7 @@ func ScanACInfinitySensors(c *gin.Context) {
 				switch sensor.SensorType {
 				case 0: //Inside Temp
 					name := "ACI (" + device + ") inside temp"
-					unit := "°F"
+					unit := "\u00b0F"
 					checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
 				case 2: //Inside Humidity
 					name := "ACI (" + device + ") inside humidity"
@@ -191,7 +192,7 @@ func ScanACInfinitySensors(c *gin.Context) {
 					checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
 				case 4: //Outside Temp
 					name := "ACI (" + device + ") outside temp"
-					unit := "°F"
+					unit := "\u00b0F"
 					checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
 				case 6: //Outside Humidity
 					name := "ACI (" + device + ") outside humidity"
@@ -200,6 +201,30 @@ func ScanACInfinitySensors(c *gin.Context) {
 				case 7: //Outside VPD
 					name := "ACI (" + device + ") outside VPD"
 					unit := "kPa"
+					checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
+				default:
+					// Unknown sensorType: create a generic sensor so users can see and rename it.
+					// Determine a reasonable default unit:
+					unit := ""
+					// If device-level unit is present: 0 = °F, 1 = °C
+					switch deviceData.DeviceInfo.Unit {
+					case 0:
+						// Fahrenheit default for temperature-like types
+						if sensor.SensorType == 1 || sensor.SensorType == 4 || sensor.SensorType == 5 {
+							unit = "\u00b0F"
+						}
+					case 1:
+						if sensor.SensorType == 1 || sensor.SensorType == 4 || sensor.SensorType == 5 {
+							unit = "\u00b0C"
+						}
+					}
+					// Known percent/humidity-like types
+					if sensor.SensorType == 2 || sensor.SensorType == 6 {
+						unit = "%"
+					}
+					name := fmt.Sprintf("ACI (%s) sensor %d.%d", device, sensor.AccessPort, sensor.SensorType)
+					// Log for analytics so we can update mappings later
+					logger.Log.WithFields(logrus.Fields{"device": device, "accessPort": sensor.AccessPort, "sensorType": sensor.SensorType, "sensorUnit": sensor.SensorUnit}).Info("Discovered unknown ACI sensor type - inserting generic sensor")
 					checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
 				}
 			}
