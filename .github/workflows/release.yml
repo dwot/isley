@@ -94,10 +94,10 @@ jobs:
           echo -e "\n### Commits:\n" >> release_notes.md
           git log --pretty=format:"- %s (%h)" $commit_range >> release_notes.md
 
-          # Preserve multiline release notes into GITHUB_ENV using heredoc (keeps real newlines)
-          echo "release_notes<<EOF" >> $GITHUB_ENV
-          cat release_notes.md >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          # Preserve multiline release notes into the step outputs using GITHUB_OUTPUT (keeps real newlines)
+          echo "release_notes<<EOF" >> $GITHUB_OUTPUT
+          cat release_notes.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create and push tag (Main Branch Only)
         if: github.ref == 'refs/heads/main'
@@ -119,7 +119,7 @@ jobs:
         with:
           tag_name: v${{ env.version }}
           name: Release v${{ env.version }}
-          body: ${{ env.release_notes }}
+          body: ${{ steps.release_notes.outputs.release_notes }}
           files: |
             isley-linux
             isley.exe
