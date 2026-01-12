@@ -102,11 +102,9 @@ jobs:
           git log --pretty=format:"- %s (%h)" $commit_range >> release_notes.md || true
 
           # Export the release notes into GITHUB_ENV as a multiline variable so newlines are preserved
-          # Generate a unique delimiter to avoid accidental matches inside the content
-          DELIM="RELEASE_NOTES_$(date +%s)"
-          echo "release_notes<<${DELIM}" >> $GITHUB_ENV
+          echo "release_notes<<EOF" >> $GITHUB_ENV
           cat release_notes.md >> $GITHUB_ENV
-          echo "${DELIM}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
       - name: Create and push tag (Main Branch Only)
         if: github.ref == 'refs/heads/main'
