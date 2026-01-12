@@ -12,7 +12,7 @@
                     <input type="hidden" id="statusId">
                     <div class="mb-3">
                         <label for="editStatusDate" class="form-label">{{ .lcl.title_date }}</label>
-                        <input type="datetime-local" class="form-control" id="editStatusDate" required>
+                        <input type="datetime-local" step="1" class="form-control" id="editStatusDate" required>
                     </div>
                     {{ if .loggedIn }}
                     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
