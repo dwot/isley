@@ -94,10 +94,9 @@ jobs:
           echo -e "\n### Commits:\n" >> release_notes.md
           git log --pretty=format:"- %s (%h)" $commit_range >> release_notes.md
 
-          # Preserve multiline release notes into GITHUB_ENV using heredoc (keeps real newlines)
-          echo "release_notes<<EOF" >> $GITHUB_ENV
-          cat release_notes.md >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          # Escape multiline release notes for GITHUB_ENV
+          escaped_notes=$(awk '{printf "%s\\n", $0}' release_notes.md)
+          echo "release_notes=${escaped_notes}" >> $GITHUB_ENV
 
       - name: Create and push tag (Main Branch Only)
         if: github.ref == 'refs/heads/main'
