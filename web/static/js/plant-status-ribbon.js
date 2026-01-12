@@ -39,6 +39,28 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    // Build a map of server-rendered formatted date strings for each status id.
+    // This ensures the ribbon uses the same human-readable format the server/template uses
+    // (avoids client-side timezone/locale conversions like toLocaleString producing different times).
+    const serverFormattedDateByStatusId = {};
+    try {
+        document.querySelectorAll('.status-row').forEach(row => {
+            try {
+                const raw = row.getAttribute('data-status');
+                if (!raw) return;
+                const parsed = JSON.parse(raw);
+                const sid = parsed.status_id || parsed.StatusID || parsed.statusId || parsed.StatusId || parsed.id || parsed.ID || parsed.Status_id;
+                const td = row.querySelector('td');
+                const text = td ? td.textContent.trim() : null;
+                if (sid && text) serverFormattedDateByStatusId[sid] = text;
+            } catch (e) {
+                // ignore malformed rows
+            }
+        });
+    } catch (e) {
+        // if table not present, just ignore and fallback to existing behavior
+    }
+
     const steps = Array.from(container.querySelectorAll('.status-step'));
     if (!steps.length) return;
 
@@ -89,7 +111,13 @@ document.addEventListener("DOMContentLoaded", () => {
             const hist = reachedByStatusId[sid];
             if (hist) {
                 const d = new Date(hist.date || hist.Date);
-                if (!isNaN(d.getTime())) dateEl.textContent = d.toLocaleString();
+                // Prefer server-rendered formatted date when available to avoid timezone shifts
+                const serverDate = serverFormattedDateByStatusId[sid];
+                if (serverDate) {
+                    dateEl.textContent = serverDate;
+                } else {
+                    if (!isNaN(d.getTime())) dateEl.textContent = d.toLocaleString();
+                }
             }
             el.classList.remove('text-muted');
         } else {
