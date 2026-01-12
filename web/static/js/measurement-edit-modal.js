@@ -32,17 +32,18 @@ document.addEventListener("DOMContentLoaded", () => {
         })
             .then(response => response.json())
             .then(() => location.reload())
-            .catch(err => alert("{{ .lcl.failed_to_update_measurement }}"));
+            .catch(err => uiMessages.showToast(uiMessages.t('failed_to_update_measurement'), 'danger'));
     });
 
     deleteMeasurementButton.addEventListener("click", () => {
         const measurementId = document.getElementById("measurementId").value;
 
-        if (confirm("{{ .lcl.confirm_delete_measurement }}")) {
+        uiMessages.showConfirm(uiMessages.t('confirm_delete_measurement')).then(confirmed => {
+            if (!confirmed) return;
             fetch(`/plantMeasurement/delete/${measurementId}`, { method: "DELETE" })
                 .then(response => response.json())
                 .then(() => location.reload())
-                .catch(err => alert("{{ .lcl.failed_to_delete_measurement }}"));
-        }
+                .catch(err => uiMessages.showToast(uiMessages.t('failed_to_delete_measurement'), 'danger'));
+        });
     });
 });

@@ -34,28 +34,30 @@ document.addEventListener("DOMContentLoaded", () => {
         })
             .then(response => response.json())
             .then(() => location.reload())
-            .catch(err => alert("{{ .lcl.failed_to_update_activity }}"));
+            .catch(err => uiMessages.showToast(uiMessages.t('failed_to_update_activity'), 'danger'));
     });
 
     deleteActivityButton.addEventListener("click", () => {
         const activityId = document.getElementById("activityId").value;
 
-        if (confirm("{{ .lcl.confirm_delete_activity }}")) {
+        uiMessages.showConfirm(uiMessages.t('confirm_delete_activity')).then(confirmed => {
+            if (!confirmed) return;
             fetch(`/plantActivity/delete/${activityId}`, { method: "DELETE" })
                 .then(response => response.json())
                 .then(() => location.reload())
-                .catch(err => alert("{{ .lcl.failed_to_delete_activity }}"));
-        }
+                .catch(err => uiMessages.showToast(uiMessages.t('failed_to_delete_activity'), 'danger'));
+        });
     });
 
     deletePlantButton.addEventListener("click", () => {
         const plantId = document.getElementById("plantId").value;
 
-        if (confirm("Are you sure you want to delete this plant?")) {
+        uiMessages.showConfirm(uiMessages.t('confirm_delete_plant') || 'Are you sure you want to delete this plant?').then(confirmed => {
+            if (!confirmed) return;
             fetch(`/plant/delete/${plantId}`, { method: "DELETE" })
                 .then(response => response.json())
                 .then(() => location.href = "/plants")
-                .catch(err => alert("Failed to delete plant"));
-        }
+                .catch(err => uiMessages.showToast(uiMessages.t('failed_to_delete_plant') || 'Failed to delete plant', 'danger'));
+        });
     })
 });

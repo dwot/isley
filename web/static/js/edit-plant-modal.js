@@ -1,6 +1,4 @@
 document.addEventListener("DOMContentLoaded", () => {
-    const changeStatusModal = document.getElementById("changeStatusModal");
-    const statusDateInput = document.getElementById("statusDate");
     const zoneSelect = document.getElementById("zoneSelect");
     const newZoneInput = document.getElementById("newZoneInput");
     const strainSelect = document.getElementById("strainSelect");
@@ -11,38 +9,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const newStrainName = document.getElementById("newStrainName");
     const newBreederName = document.getElementById("newBreederName");
     const harvestWeight = document.getElementById("harvestWeight");
-
-    // Set default date to today
-    //const setDefaultDate = () => {
-    //    const today = new Date().toISOString().split("T")[0];
-    //    statusDateInput.value = today;
-    //};
-
-    // Reset Zone Selection
-    const resetZoneSelection = () => {
-        zoneSelect.disabled = false;
-        zoneSelect.value = "";
-        newZoneInput.classList.add("d-none");
-    };
-
-    // Reset Strain Selection
-    const resetStrainSelection = () => {
-        strainSelect.value = "";
-        newStrainInputs.classList.add("d-none");
-        resetBreederSelection();
-    };
-
-    // Reset Breeder Selection
-    const resetBreederSelection = () => {
-        breederSelect.value = "";
-        newBreederInput.classList.add("d-none");
-    };
-
-
-    // Set default date when the modal is shown
-    //changeStatusModal.addEventListener("show.bs.modal", () => {
-    //    setDefaultDate();
-    //});
 
     // Show/Hide New Zone Input
     zoneSelect.addEventListener("change", () => {
@@ -78,20 +44,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Gather form data
         const plantId = document.getElementById("plantId").value;
-        const status = document.getElementById("status").value;
-        const date = statusDateInput.value;
         const startDate = document.getElementById("startDate").value;
+
+        const zoneVal = zoneSelect.value;
+        const strainVal = strainSelect.value;
 
         const payload = {
             plant_id: parseInt(plantId, 10),
             plant_name: document.getElementById("plantName").value,
             plant_description: document.getElementById("plantDescription").value,
-            status_id: parseInt(status, 10),
-            date: date,
-            zone_id: parseInt(zoneSelect.value, 10),
-            new_zone: newZoneName.value,
-            strain_id: parseInt(strainSelect.value, 10),
-            new_strain: strainSelect.value === "new" ? {
+            zone_id: zoneVal && zoneVal !== 'new' ? parseInt(zoneVal, 10) : null,
+            new_zone: zoneVal === 'new' ? newZoneName.value : '',
+            strain_id: strainVal && strainVal !== 'new' ? parseInt(strainVal, 10) : null,
+            new_strain: strainVal === 'new' ? {
                 name: newStrainName.value,
                 breeder_id: breederSelect.value === "new" ? null : parseInt(breederSelect.value, 10),
                 new_breeder: breederSelect.value === "new" ? newBreederName.value : null
@@ -101,9 +66,6 @@ document.addEventListener("DOMContentLoaded", () => {
             harvest_weight: parseFloat(harvestWeight.value),
         };
 
-        //alert(JSON.stringify(payload));
-
-        // Send POST request to change status
         fetch("/plant", {
             method: "POST",
             headers: {
@@ -117,13 +79,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
                 return response.json();
             })
-            .then(data => {
-                //alert("Status changed successfully!");
+            .then(() => {
                 location.reload(); // Reload the page to reflect changes
             })
             .catch(error => {
                 console.error("Error:", error);
-                alert("{{ .lcl.failed_to_change_status }}");
+                uiMessages.showToast(uiMessages.t('failed_to_change_status') || '{{ .lcl.failed_to_change_status }}', 'danger');
             });
     });
 });

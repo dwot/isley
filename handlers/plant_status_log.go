@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"database/sql"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"isley/logger"
@@ -60,6 +62,37 @@ func DeleteStatus(c *gin.Context) {
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to connect to database")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		return
+	}
+
+	// Find the plant_id for this status entry
+	var plantID int
+	err = db.QueryRow(`SELECT plant_id FROM plant_status_log WHERE id = $1`, id).Scan(&plantID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			fieldLogger.WithError(err).Warn("Status id not found")
+			c.JSON(http.StatusNotFound, gin.H{"error": "Status not found"})
+			return
+		}
+		fieldLogger.WithError(err).Error("Failed to lookup status")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		return
+	}
+
+	// Count how many status entries exist for this plant
+	var count int
+	err = db.QueryRow(`SELECT COUNT(*) FROM plant_status_log WHERE plant_id = $1`, plantID).Scan(&count)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to count status entries for plant")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		return
+	}
+
+	if count <= 1 {
+		// Prevent deletion of the last remaining status
+		msg := fmt.Sprintf("Cannot delete the last status entry for plant %d", plantID)
+		fieldLogger.Warn(msg)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete the last status entry for a plant"})
 		return
 	}
 

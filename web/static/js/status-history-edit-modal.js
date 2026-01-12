@@ -1,4 +1,3 @@
-
 document.addEventListener("DOMContentLoaded", () => {
     const editStatusModal = new bootstrap.Modal(document.getElementById("editStatusModal"));
     const statusForm = document.getElementById("editStatusForm");
@@ -9,12 +8,18 @@ document.addEventListener("DOMContentLoaded", () => {
             const statusData = JSON.parse(row.getAttribute("data-status"));
 
             document.getElementById("statusId").value = statusData.id;
-            console.log(statusData.date);
-
             const date = new Date(statusData.date);
-            const formattedDate = date.toISOString().slice(0, 16); // Removes seconds and 'Z'
-            document.getElementById("editStatusDate").value = formattedDate;
+            document.getElementById("editStatusDate").value = date.toISOString().slice(0, 19);
 
+            // Disable delete if this is the only status for the plant
+            const totalStatuses = document.querySelectorAll('.status-row').length;
+            if (totalStatuses <= 1) {
+                deleteStatusButton.disabled = true;
+                deleteStatusButton.title = uiMessages.t('cannot_delete_last_status') || 'Cannot delete the last status entry for this plant';
+            } else {
+                deleteStatusButton.disabled = false;
+                deleteStatusButton.title = '';
+            }
 
             editStatusModal.show();
         });
@@ -35,17 +40,30 @@ document.addEventListener("DOMContentLoaded", () => {
         })
             .then(response => response.json())
             .then(() => location.reload())
-            .catch(err => alert("{{ .lcl.failed_to_update_status }}"));
+            .catch(() => uiMessages.showToast(uiMessages.t('failed_to_update_status'), 'danger'));
     });
 
     deleteStatusButton.addEventListener("click", () => {
+        if (deleteStatusButton.disabled) {
+            uiMessages.showToast(uiMessages.t('cannot_delete_last_status') || 'Cannot delete the last status entry for this plant', 'warning');
+            return;
+        }
+
         const statusId = document.getElementById("statusId").value;
 
-        if (confirm("{{ .lcl.confirm_delete_status }}")) {
+        uiMessages.showConfirm(uiMessages.t('confirm_delete_status')).then(confirmed => {
+            if (!confirmed) return;
             fetch(`/plantStatus/delete/${statusId}`, { method: "DELETE" })
-                .then(response => response.json())
-                .then(() => location.reload())
-                .catch(err => alert("{{ .lcl.failed_to_delete_status }}"));
-        }
+                .then(async response => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        const msg = data.error || uiMessages.t('failed_to_delete_status') || 'Failed to delete status';
+                        uiMessages.showToast(msg, 'danger');
+                        return;
+                    }
+                    location.reload();
+                })
+                .catch(() => uiMessages.showToast(uiMessages.t('failed_to_delete_status'), 'danger'));
+        });
     });
 });

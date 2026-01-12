@@ -15,6 +15,7 @@ type ACIDeviceInfo struct {
 	Humidity     int         `json:"humidity"`
 	Ports        []ACIPort   `json:"ports"`
 	Sensors      []ACISensor `json:"sensors"`
+	Unit         int         `json:"unit"` // 0 = °F, 1 = °C (added to allow unit-aware defaults)
 }
 
 type ACIPort struct {
@@ -29,4 +30,5 @@ type ACISensor struct {
 	SensorType int `json:"sensorType"`
 	AccessPort int `json:"accessPort"`
 	SensorData int `json:"sensorData"`
+	SensorUnit int `json:"sensorUnit"` // optional: unit reported per sensor
 }

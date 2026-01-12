@@ -79,6 +79,7 @@ func main() {
 
 	funcMap := template.FuncMap{
 		"upper":     strings.ToUpper, // Define the 'upper' function
+		"lower":     strings.ToLower, // Define the 'lower' function for templates
 		"hasPrefix": strings.HasPrefix,
 		"default": func(val interface{}, def string) string {
 			if str, ok := val.(string); ok && str != "" {
@@ -99,10 +100,10 @@ func main() {
 			if err != nil {
 				return "" // Return empty if parsing fails
 			}
-			return parsedTime.Format("2006-01-02T15:04")
+			return parsedTime.Format("2006-01-02T15:04:05")
 		},
 		"formatDateTimeLocal": func(t time.Time) string {
-			return t.Format("2006-01-02T15:04")
+			return t.Format("2006-01-02T15:04:05")
 		},
 		"toLocalTimeString": func(t time.Time) string {
 			if err != nil {

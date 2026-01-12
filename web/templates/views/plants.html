@@ -82,7 +82,8 @@
                         <label for="quickStatusSelect" class="form-label">{{ .lcl.title_status }}</label>
                         <select class="form-select" id="quickStatusSelect" required>
                             {{ range .statuses }}
-                            <option value="{{ .ID }}">{{ .Status }}</option>
+                            {{ $lbl := index $.lcl (print (lower .Status) "_label") }}
+                            <option value="{{ .ID }}">{{ if $lbl }}{{ $lbl }}{{ else }}{{ .Status }}{{ end }}</option>
                             {{ end }}
                         </select>
                     </div>
@@ -281,7 +282,7 @@
 
         const formatDateTimeLocal = (date) => {
             const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-            return offsetDate.toISOString().slice(0, 16);
+            return offsetDate.toISOString().slice(0, 19);
         };
 
         const initTooltips = () => {
@@ -412,7 +413,7 @@
                     })
                     .catch(err => {
                         console.error("Error updating status:", err);
-                        alert(statusUpdateError);
+                        uiMessages.showToast(statusUpdateError || uiMessages.t('failed_to_update_status') || 'Failed to update status', 'danger');
                     });
             });
         }
@@ -457,7 +458,7 @@
                     })
                     .catch(err => {
                         console.error("Error adding measurement:", err);
-                        alert(measurementAddError);
+                        uiMessages.showToast(measurementAddError || uiMessages.t('failed_to_add_measurement') || 'Failed to add measurement', 'danger');
                     });
             });
         }
@@ -502,7 +503,7 @@
                     })
                     .catch(err => {
                         console.error("Error adding activity:", err);
-                        alert(activityAddError);
+                        uiMessages.showToast(activityAddError || uiMessages.t('failed_to_add_activity') || 'Failed to add activity', 'danger');
                     });
             });
         }

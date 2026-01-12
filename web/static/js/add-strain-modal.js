@@ -62,12 +62,53 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
                 return response.json();
             })
-            .then((data) => {
-                location.reload(); // Reload the page to show the new strain
+            .then(() => {
+                // Reset the form fields to their initial defaults so the modal isn't prepopulated next time
+                try {
+                    addStrainForm.reset();
+
+                    // Reset slider and labels
+                    if (indicaSativaSlider) {
+                        indicaSativaSlider.value = 50;
+                        if (indicaLabel) indicaLabel.textContent = `Indica: 50%`;
+                        if (sativaLabel) sativaLabel.textContent = `Sativa: 50%`;
+                    }
+
+                    // Reset breeder select and new breeder input
+                    if (breederSelect) {
+                        breederSelect.selectedIndex = 0;
+                    }
+                    if (newBreederInput) {
+                        newBreederInput.classList.add("d-none");
+                        const newBreederName = document.getElementById("newBreederName");
+                        if (newBreederName) newBreederName.value = "";
+                    }
+
+                    // Reset cycle time to default (56) and clear url
+                    if (cycleTime) cycleTime.value = 56;
+                    if (url) url.value = "";
+
+                    // Reset autoflower to default false
+                    const autoflower = document.getElementById("autoflower");
+                    if (autoflower) autoflower.value = "false";
+
+                    // Hide the modal (Bootstrap)
+                    const addStrainModalEl = document.getElementById("addStrainModal");
+                    if (addStrainModalEl) {
+                        const addStrainModal = bootstrap.Modal.getOrCreateInstance(addStrainModalEl);
+                        addStrainModal.hide();
+                    }
+                } catch (resetErr) {
+                    // If anything goes wrong resetting, log to console but continue
+                    console.warn("Failed to reset add strain form:", resetErr);
+                }
+
+                // Reload the page to show the newly added strain (keeps behavior consistent)
+                location.reload();
             })
             .catch((error) => {
                 console.error("Error:", error);
-                alert("{{ .lcl.strain_add_error }}");
+                uiMessages.showToast(uiMessages.t('strain_add_error') || '{{ .lcl.strain_add_error }}', 'danger');
             });
     });
 });

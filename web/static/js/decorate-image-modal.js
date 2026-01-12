@@ -235,7 +235,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (data.success) {
                     modalImage.src = "../" + data.outputPath + "?" + new Date().getTime();
                 } else {
-                    alert("Failed to decorate image: " + data.error);
+                    uiMessages.showToast(uiMessages.t('failed_to_decorate_image') || ('Failed to decorate image: ' + data.error), 'danger');
                 }
             })
             .catch((error) => console.error("Error decorating image:", error))
@@ -247,7 +247,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function confirmDeleteImage() {
     const imageId = document.getElementById("imageId").value;
-    if (confirm("Are you sure you want to delete this image?")) {
+    uiMessages.showConfirm(uiMessages.t('confirm_delete_image') || 'Are you sure you want to delete this image?').then(confirmed => {
+        if (!confirmed) return;
         fetch(`/plant/images/${imageId}/delete`, {
             method: "DELETE",
             headers: {
@@ -261,13 +262,13 @@ function confirmDeleteImage() {
                 return response.json();
             })
             .then((data) => {
-                alert("Image deleted successfully!");
+                uiMessages.showToast(uiMessages.t('image_deleted_successfully') || 'Image deleted successfully!', 'success');
                 // Reload the page to reflect changes
                 location.reload();
             })
             .catch((error) => {
                 console.error("Error deleting image:", error);
-                alert("An error occurred while deleting the image.");
+                uiMessages.showToast(uiMessages.t('error_deleting_image') || 'An error occurred while deleting the image.', 'danger');
             });
-    }
+    });
 }

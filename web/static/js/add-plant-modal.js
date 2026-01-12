@@ -135,6 +135,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (!response.ok) throw new Error("Failed to add plant");
                 location.reload();
             })
-            .catch(error => alert("Failed to add plant. Try again."));
+            .catch(error => uiMessages.showToast(uiMessages.t('failed_to_add_plant') || 'Failed to add plant. Try again.', 'danger'));
     });
 });
