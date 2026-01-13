@@ -407,7 +407,7 @@ th, td {
 .growth-timeline::before {
     content: "";
     position: absolute;
-    left: 12px;
+    left: 13px;
     top: 6px;
     bottom: 6px;
     width: 2px;
@@ -655,6 +655,9 @@ body.dark-mode .growth-timeline-duration {
     border-color: var(--color-accent-hover);
 }
 .plant-status-ribbon .status-step.status-future .status-icon {
+    background-color: var(--color-card);
+}
+.plant-status-ribbon .status-step.status-future .status-icon svg {
     opacity: 0.45;
 }
 .plant-status-ribbon .status-step.status-pending .status-icon {

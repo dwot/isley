@@ -127,8 +127,8 @@
 
     <!-- Plant Status Ribbon -->
     <!-- Renders a horizontal timeline of statuses; JS will hydrate dates and click behavior -->
-    <div id="plantStatusRibbonContainer" class="mb-4" 
-         data-plant-id="{{ .plant.ID }}" 
+    <div id="plantStatusRibbonContainer" class="mb-4"
+         data-plant-id="{{ .plant.ID }}"
          data-current-status-id="{{ .plant.StatusID }}"
          data-status-history='{{ jsonify .plant.StatusHistory }}'>
         <div class="card">

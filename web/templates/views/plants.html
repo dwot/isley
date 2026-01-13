@@ -301,20 +301,20 @@
             const statusId = statusIdByName.get(plant.status) || "";
             const encodedName = encodeURIComponent(plant.name || "");
             return `
-                    <td>
-                        <div class="d-inline-flex gap-1">
-                            <button type="button" class="btn btn-sm btn-outline-secondary plant-status-edit" data-id="${plant.id}" data-status-id="${statusId}" data-name="${encodedName}" data-bs-toggle="tooltip" data-bs-title="{{ .lcl.change_status }}" aria-label="{{ .lcl.change_status }}">
-                                <i class="fa-solid fa-pen-to-square"></i>
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-primary plant-measurement-add" data-id="${plant.id}" data-name="${encodedName}" data-bs-toggle="tooltip" data-bs-title="{{ .lcl.add_measurement }}" aria-label="{{ .lcl.add_measurement }}">
-                                <i class="fa-solid fa-ruler-combined"></i>
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-success plant-activity-add" data-id="${plant.id}" data-name="${encodedName}" data-bs-toggle="tooltip" data-bs-title="{{ .lcl.add_activity }}" aria-label="{{ .lcl.add_activity }}">
-                                <i class="fa-solid fa-clipboard-list"></i>
-                            </button>
-                        </div>
-                    </td>
-                `;
+                <td>
+                    <div class="d-inline-flex gap-1">
+                        <button type="button" class="btn btn-sm btn-outline-secondary plant-status-edit" data-id="${plant.id}" data-status-id="${statusId}" data-name="${encodedName}" data-bs-toggle="tooltip" data-bs-title="{{ .lcl.change_status }}" aria-label="{{ .lcl.change_status }}">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-primary plant-measurement-add" data-id="${plant.id}" data-name="${encodedName}" data-bs-toggle="tooltip" data-bs-title="{{ .lcl.add_measurement }}" aria-label="{{ .lcl.add_measurement }}">
+                            <i class="fa-solid fa-ruler-combined"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-success plant-activity-add" data-id="${plant.id}" data-name="${encodedName}" data-bs-toggle="tooltip" data-bs-title="{{ .lcl.add_activity }}" aria-label="{{ .lcl.add_activity }}">
+                            <i class="fa-solid fa-clipboard-list"></i>
+                        </button>
+                    </div>
+                </td>
+            `;
         };
 
         const attachQuickActionHandlers = () => {
@@ -547,7 +547,10 @@
                 return `
                 <tr class="clickable-row" data-id="${plant.id}">
                     <th scope="row">${plant.name}</th>
-                    <td>${plant.strain_name}</td>
+                    <td>
+                        ${plant.strain_name}
+                        ${plant.strain_url ? `<a href="${plant.strain_url}" target="_blank" class="strain-url"><i class="fa-solid fa-link"></i></a>` : "&nbsp;"}
+                    </td>
                     <td>${plant.breeder_name}</td>
                     <td>${plant.status}</td>
                     <td>${plant.start_dt ? new Date(plant.start_dt).toLocaleDateString() : "-"}</td>
@@ -561,11 +564,13 @@
             // Add click events for rows
             document.querySelectorAll(".clickable-row").forEach(row => {
                 row.addEventListener("click", (event) => {
-                    if (event.target.closest(".plant-status-edit") ||
+                    if (event.target.closest(".strain-url") ||
+                        event.target.closest(".plant-status-edit") ||
                         event.target.closest(".plant-measurement-add") ||
                         event.target.closest(".plant-activity-add")) {
                         return;
                     }
+
                     const plantId = row.getAttribute("data-id");
                     if (plantId) window.location.href = `/plant/${plantId}`;
                 });
