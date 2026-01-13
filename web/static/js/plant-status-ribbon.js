@@ -61,6 +61,60 @@ document.addEventListener("DOMContentLoaded", () => {
         // if table not present, just ignore and fallback to existing behavior
     }
 
+    // Helpers to split and populate date/time into separate DOM spans
+    function splitServerDateTime(text) {
+        if (!text) return { day: '', time: '' };
+        // Try to find a time-like token (e.g., 3:04, 03:04, 3:04 PM)
+        const timeRe = /(\d{1,2}:\d{2}(?::\d{2})?(?:\s?[APMapm]{2})?)/;
+        const m = text.match(timeRe);
+        if (m) {
+            const time = m[0];
+            const day = text.replace(time, '').replace(/[,\u202F\u00A0]+$/,'').trim();
+            return { day: day, time: time };
+        }
+        // fallback: split on last comma or — or at midpoint
+        const parts = text.split(/,|\u2014| - /);
+        if (parts.length > 1) {
+            const time = parts.pop().trim();
+            const day = parts.join(',').trim();
+            return { day, time };
+        }
+        return { day: text, time: '' };
+    }
+
+    function populateDateTimeSpans(dateEl, serverDateStr, dateObj) {
+        const daySpan = dateEl.querySelector('.status-date-day');
+        const timeSpan = dateEl.querySelector('.status-date-time');
+        if (!daySpan || !timeSpan) return;
+        if (serverDateStr) {
+            const split = splitServerDateTime(serverDateStr);
+            // If parsing left the day empty (server string might only include a time),
+            // show the full server string on the day line so something is visible.
+            if ((!split.day || split.day.trim() === '') && split.time) {
+                daySpan.textContent = serverDateStr;
+                timeSpan.textContent = '';
+            } else {
+                daySpan.textContent = split.day || '';
+                timeSpan.textContent = split.time || '';
+            }
+            return;
+        }
+        if (dateObj && !isNaN(dateObj.getTime())) {
+            // Use locale methods to keep user timezone and formatting
+            try {
+                daySpan.textContent = dateObj.toLocaleDateString();
+                // Show hours:minutes with AM/PM if applicable
+                timeSpan.textContent = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } catch (e) {
+                daySpan.textContent = dateObj.toLocaleString();
+                timeSpan.textContent = '';
+            }
+            return;
+        }
+        daySpan.textContent = '';
+        timeSpan.textContent = '';
+    }
+
     const steps = Array.from(container.querySelectorAll('.status-step'));
     if (!steps.length) return;
 
@@ -77,6 +131,67 @@ document.addEventListener("DOMContentLoaded", () => {
             const sid = parseInt(el.dataset.statusId, 10);
             if (reachedByStatusId[sid]) currentIndex = Math.max(currentIndex, idx);
         });
+    }
+
+    // Helper to compute and set progress overlay width and connector bounds
+    function computeAndSetProgress() {
+        try {
+            const ribbon = container.querySelector('.plant-status-ribbon');
+            if (!ribbon) return;
+
+            const allIcons = steps.map(s => s.querySelector('.status-icon')).filter(Boolean);
+            if (!allIcons.length) {
+                ribbon.style.setProperty('--p-ribbon-progress', '0px');
+                return;
+            }
+
+            const ribbonRect = ribbon.getBoundingClientRect();
+
+            // find center X of first and last icons
+            const firstRect = allIcons[0].getBoundingClientRect();
+            const lastRect = allIcons[allIcons.length - 1].getBoundingClientRect();
+            const firstCenter = (firstRect.left + firstRect.right) / 2;
+            const lastCenter = (lastRect.left + lastRect.right) / 2;
+            const halfIcon = Math.round(firstRect.width / 2);
+
+            // compute left offset relative to ribbon left (start at right edge of first icon), and total width (between icon edges)
+            const leftPx = Math.round(Math.max(0, firstCenter - ribbonRect.left + halfIcon));
+            const totalWidthPx = Math.round(Math.max(0, (lastCenter - halfIcon) - (firstCenter + halfIcon)));
+
+            // compute center of current index and subtract halfIcon so overlay ends at icon edge
+            if (currentIndex < 0) {
+                // no progress
+                ribbon.style.setProperty('--p-ribbon-left', `${leftPx}px`);
+                ribbon.style.setProperty('--p-ribbon-total-width', `${totalWidthPx}px`);
+                ribbon.style.setProperty('--p-ribbon-progress', `${leftPx}px`);
+                ribbon.style.setProperty('--p-ribbon-top', `50%`);
+                return;
+            }
+
+            const curIdx = Math.min(currentIndex, steps.length - 1);
+            const curIcon = steps[curIdx].querySelector('.status-icon');
+            if (!curIcon) {
+                ribbon.style.setProperty('--p-ribbon-left', `${leftPx}px`);
+                ribbon.style.setProperty('--p-ribbon-total-width', `${totalWidthPx}px`);
+                ribbon.style.setProperty('--p-ribbon-progress', `${leftPx}px`);
+                ribbon.style.setProperty('--p-ribbon-top', `50%`);
+                return;
+            }
+            const curRect = curIcon.getBoundingClientRect();
+            const curCenter = (curRect.left + curRect.right) / 2;
+            const curCenterY = (curRect.top + curRect.bottom) / 2;
+            const centerYRelative = Math.round(curCenterY - ribbonRect.top);
+            // progress to the RIGHT EDGE of current icon (so overlay doesn't cover icon center)
+            const progressPx = Math.round(Math.max(leftPx, (curCenter - ribbonRect.left) + halfIcon));
+
+            // Set CSS variables (vertical position uses pixel value)
+            ribbon.style.setProperty('--p-ribbon-left', `${leftPx}px`);
+            ribbon.style.setProperty('--p-ribbon-total-width', `${totalWidthPx}px`);
+            ribbon.style.setProperty('--p-ribbon-progress', `${progressPx}px`);
+            ribbon.style.setProperty('--p-ribbon-top', `${centerYRelative}px`);
+        } catch (e) {
+            console.error('Failed to compute ribbon progress', e);
+        }
     }
 
     // Hydrate UI state for each step
@@ -114,16 +229,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 // Prefer server-rendered formatted date when available to avoid timezone shifts
                 const serverDate = serverFormattedDateByStatusId[sid];
                 if (serverDate) {
-                    dateEl.textContent = serverDate;
+                    populateDateTimeSpans(dateEl, serverDate, null);
                 } else {
-                    if (!isNaN(d.getTime())) dateEl.textContent = d.toLocaleString();
+                    if (!isNaN(d.getTime())) populateDateTimeSpans(dateEl, null, d);
                 }
             }
             el.classList.remove('text-muted');
         } else {
             // Future
             el.classList.add('status-future', 'text-muted');
-            dateEl.textContent = '';
+            populateDateTimeSpans(dateEl, null, null);
         }
 
         // Icon heuristics
@@ -139,6 +254,10 @@ document.addEventListener("DOMContentLoaded", () => {
         else if (sname.includes('success')) iconClass = 'fa-award';
         else if (sname.includes('dead')) iconClass = 'fa-skull-crossbones';
         if (iconEl) iconEl.className = `fa-solid ${iconClass} fa-2x`;
+
+        // Determine if this status should be considered 'dead' (for styling)
+        const isDeadStatus = /dead/i.test(el.dataset.statusName || '');
+        if (isDeadStatus) el.classList.add('status-dead');
 
         // Click handler
         const btn = el.querySelector('.status-icon');
@@ -190,9 +309,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
                      // Update UI: show date and mark as past
                      const d = new Date(placeholderDate);
-                     if (!isNaN(d.getTime())) dateEl.textContent = d.toLocaleString();
+                     if (!isNaN(d.getTime())) populateDateTimeSpans(dateEl, null, d);
                      el.classList.add('status-past');
                      el.classList.remove('status-future', 'text-muted');
+
+                     // Recompute progress because we added a past step
+                     currentIndex = Math.max(currentIndex, idx);
+                     computeAndSetProgress();
 
                      // Don't auto-open modal — user can click again to edit the placeholder
                      return;
@@ -229,8 +352,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 } else {
                     sEl.classList.add('status-future', 'text-muted');
                 }
+                // Update status-dead class in case classes changed
+                if (/dead/i.test(sEl.dataset.statusName || '')) sEl.classList.add('status-dead'); else sEl.classList.remove('status-dead');
             });
             el.classList.add('status-pending');
+
+            // update currentIndex and recompute progress optimistically
+            currentIndex = idx;
+            computeAndSetProgress();
+
             fetch('/plant/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
                 .then(resp => { if (!resp.ok) throw new Error('Failed'); return resp.json(); })
                 .then(() => { location.reload(); })
@@ -253,5 +383,13 @@ document.addEventListener("DOMContentLoaded", () => {
             console.error('Failed to open edit status modal', e);
         }
     }
+
+    // compute initial progress and attach resize handler
+    computeAndSetProgress();
+    window.addEventListener('resize', () => {
+        // debounce resize
+        if (window.__isleyRibbonResizeTimeout) clearTimeout(window.__isleyRibbonResizeTimeout);
+        window.__isleyRibbonResizeTimeout = setTimeout(() => { computeAndSetProgress(); }, 80);
+    });
 
 });

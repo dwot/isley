@@ -94,11 +94,11 @@ document.addEventListener("DOMContentLoaded", () => {
             <img src="${src}" class="card-img-top" alt="Preview">
             <div class="card-body">
                 <div class="mb-3">
-                    <label class="form-label">{{ .lcl.title_description }}</label>
-                    <input type="text" class="form-control description" placeholder="Enter description">
+                    <label class="form-label">${uiMessages.t('description_txt') || '{{ .lcl.title_description }}'}</label>
+                    <input type="text" class="form-control description" placeholder="${uiMessages.t('short_description_placeholder') || 'Enter description'}">
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">{{ .lcl.title_date }}</label>
+                    <label class="form-label">${uiMessages.t('title_date') || '{{ .lcl.title_date }}'}</label>
                     <input type="date" class="form-control image-date" value="${imageDate}">
                 </div>
             </div>
