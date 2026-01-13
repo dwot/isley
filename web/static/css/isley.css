@@ -4,6 +4,7 @@
     --color-fg: #212529;
     --color-accent: #007bff;
     --color-accent-hover: #0056b3;
+    --color-danger: #dc3545;
     --color-border: #ced4da;
     --color-card: #fff;
     --color-card-border: #dee2e6;
@@ -42,6 +43,7 @@ body.dark-mode {
     --color-fg: #ffffff;
     --color-accent: #007bff;
     --color-accent-hover: #63a4d4;
+    --color-danger: #ff6b6b;
     --color-border: #333;
     --color-card: #212529;
     --color-card-border: #333;
@@ -508,33 +510,146 @@ body.dark-mode .growth-timeline-duration {
 .plant-status-ribbon {
     gap: 12px;
     padding: 6px 4px;
+    overflow-x: auto; /* ensure horizontal scrolling when needed */
+    -webkit-overflow-scrolling: touch;
+    position: relative; /* positioning context for connector */
+    align-items: center; /* ensure vertical centering of steps */
+    /* defaults for connector variables (safe fallbacks before JS runs) */
+    --p-ribbon-left: 0px;
+    --p-ribbon-total-width: 100%;
+    --p-ribbon-progress: 0px;
+    --p-ribbon-top: 50%;
 }
 .plant-status-ribbon .status-step {
-    flex: 1 1 0;
+    /* make each step a fixed-size column when possible but still allow overflow */
+    flex: 0 0 auto;
     position: relative;
     min-width: 72px;
+    /* Use grid to keep icon, name and date in fixed row positions so steps stay aligned */
+    display: grid;
+    grid-template-rows: auto 1.2rem auto;
+    align-items: center;
+    justify-items: center;
+    width: 110px;
+    min-height: 110px;
+    padding: 0.5rem;
+    box-sizing: border-box;
+    z-index: 2; /* above connector */
 }
-.plant-status-ribbon .status-step .status-icon {
-    display: inline-flex;
+.plant-status-ribbon .status-step .status-icon,
+.plant-status-ribbon .status-icon {
+    display: flex;
     align-items: center;
     justify-content: center;
     width: 56px;
     height: 56px;
-    border-radius: 999px;
+    border-radius: 50%;
     border: 2px solid var(--color-border);
-    background: transparent;
+    background: var(--color-card);
     color: var(--color-muted);
+    position: relative;
+    z-index: 3; /* icon should be above any progress bar */
 }
 .plant-status-ribbon .status-step .status-icon:focus {
     outline: none;
     box-shadow: 0 0 0 3px rgba(0,123,255,0.15);
 }
-.plant-status-ribbon .status-step.status-past .status-icon {
+.plant-status-ribbon .status-step .status-icon i,
+.plant-status-ribbon .status-icon i {
+    font-size: 24px !important;
+    line-height: 1;
+}
+.plant-status-ribbon .status-step .status-name,
+.plant-status-ribbon .status-name {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    height: 1.2rem; /* reserve space */
+    margin-top: 0.5rem;
+    font-weight: 600;
+}
+.plant-status-ribbon .status-step .status-date,
+.plant-status-ribbon .status-date {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    margin-top: 0.25rem;
+    min-height: 2.2rem; /* allow date block to size for two stacked lines */
+}
+.plant-status-ribbon .status-date .status-date-day {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+    width: 100%;
+    font-size: 0.85rem;
+    line-height: 1.1rem;
+}
+.plant-status-ribbon .status-date .status-date-time {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    display: block;
+    width: 100%;
+}
+/* Ensure buttons don't stretch */
+.plant-status-ribbon .status-step .btn.status-icon {
+    padding: 0;
+}
+/* Responsive: reduce width on small screens */
+@media (max-width: 576px) {
+    .plant-status-ribbon .status-step { width: 90px; min-height: 100px; }
+    .plant-status-ribbon .status-icon { width: 48px; height: 48px; }
+    .plant-status-ribbon .status-icon i { font-size: 20px !important; }
+}
+
+/* Connector baseline (grey) and progress overlay (accent) - controlled via CSS vars set by JS */
+.plant-status-ribbon::before,
+.plant-status-ribbon::after {
+    content: '';
+    position: absolute;
+    left: var(--p-ribbon-left, 0px);
+    height: 3px;
+    top: var(--p-ribbon-top, 50%);
+    transform: translateY(-50%);
+    border-radius: 999px;
+    z-index: 0; /* behind steps */
+}
+/* grey baseline spanning from first to last step centers */
+.plant-status-ribbon::before {
+    width: var(--p-ribbon-total-width, 100%);
+    background: var(--color-border);
+    opacity: 1;
+}
+/* colored overlay: width set by JS via --p-ribbon-progress (px) measured from container left; subtract left to get overlay width */
+.plant-status-ribbon::after {
+    left: var(--p-ribbon-left, 0px);
+    width: calc(var(--p-ribbon-progress, 0px) - var(--p-ribbon-left, 0px));
+    background: linear-gradient(90deg, var(--color-accent), var(--color-accent-hover));
+    pointer-events: none;
+    z-index: 1; /* above baseline, below steps */
+}
+
+/* Ensure overlay doesn't render a negative width */
+.plant-status-ribbon[style*="--p-ribbon-progress: 0px"]::after {
+    width: 0px !important;
+}
+
+/* State styles (placed after Bootstrap to ensure cascade applies) */
+.plant-status-ribbon .status-step.status-past .status-icon,
+.plant-status-ribbon .status-step.status-past .btn.status-icon {
     background: var(--color-accent);
     color: #fff;
     border-color: var(--color-accent);
 }
-.plant-status-ribbon .status-step.status-current .status-icon {
+.plant-status-ribbon .status-step.status-current .status-icon,
+.plant-status-ribbon .status-step.status-current .btn.status-icon {
     background: var(--color-accent-hover);
     color: #fff;
     border-color: var(--color-accent-hover);
@@ -542,31 +657,19 @@ body.dark-mode .growth-timeline-duration {
 .plant-status-ribbon .status-step.status-future .status-icon {
     opacity: 0.45;
 }
-.plant-status-ribbon .status-step .status-name {
-    margin-top: 6px;
-    font-weight: 600;
-}
-.plant-status-ribbon .status-step .status-date {
-    margin-top: 4px;
-    font-size: 0.75rem;
-    color: var(--color-muted);
-}
-/* Connector line */
-.plant-status-ribbon::before {
-    content: '';
-    position: absolute;
-    left: 60px;
-    right: 60px;
-    height: 2px;
-    top: 36px;
-    background: var(--color-border);
-    z-index: 0;
-}
-.plant-status-ribbon .status-step { z-index: 1; }
 .plant-status-ribbon .status-step.status-pending .status-icon {
     opacity: 0.7;
     border-style: dashed;
 }
+
+/* Dead status color when active/current */
+.plant-status-ribbon .status-step.status-current.status-dead .status-icon,
+.plant-status-ribbon .status-step.status-current.status-dead .btn.status-icon {
+    background: var(--color-danger);
+    color: #fff;
+    border-color: var(--color-danger);
+}
+
 @media (max-width: 768px) {
     .plant-status-ribbon {
         flex-direction: row;
