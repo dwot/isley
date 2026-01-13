@@ -12,14 +12,14 @@
         <!-- View Selector and Actions -->
         <div class="d-flex justify-content-between align-items-center mb-4">
             <!-- View Selector -->
-            <div>
+            <div class="btn-group" role="group">
                 <button class="btn btn-outline-primary view-button active" data-view="in-stock">{{ .lcl.in_stock }}</button>
                 <button class="btn btn-outline-secondary view-button" data-view="out-of-stock">{{ .lcl.out_stock }}</button>
             </div>
 
             <!-- Search Bar and Add Strain Button -->
             <div class="d-flex align-items-center">
-                <div class="input-group w-75">
+                <div class="input-group">
                     <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
                     <input type="text" class="form-control" id="searchStrains" placeholder="{{ .lcl.search_strains }}...">
                 </div>
