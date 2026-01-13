@@ -527,6 +527,12 @@
                 });
             }
 
+            if (currentView === "dead") {
+                headerDynamic2.style.display = "none";
+            } else {
+                headerDynamic2.style.display = "table-cell";
+            }
+
             // Generate table rows
             plantsTableBody.innerHTML = filteredPlants.map(plant => {
                 let column1 = "";
@@ -538,7 +544,6 @@
                     column2 = plant.harvest_date ? new Date(plant.harvest_date).toLocaleDateString() + " (" + Math.floor((new Date(plant.harvest_date) - new Date(plant.start_dt)) / (1000 * 60 * 60 * 24) +1) + " days)" : "-";
                 } else if (currentView === "dead") {
                     column1 = plant.harvest_date ? new Date(plant.harvest_date).toLocaleDateString()  + " (" + Math.floor((new Date(plant.harvest_date) - new Date(plant.start_dt)) / (1000 * 60 * 60 * 24) +1) + " days)" : "-";
-                    column2 = ""; // No second column for dead plants
                 } else {
                     column1 = plant.current_week || "-";
                     column2 = plant.current_day || "-";
@@ -555,7 +560,7 @@
                     <td>${plant.status}</td>
                     <td>${plant.start_dt ? new Date(plant.start_dt).toLocaleDateString() : "-"}</td>
                     <td>${column1}</td>
-                    <td>${column2}</td>
+                    <td${currentView === 'dead' ? ' style="display: none;"' : ''}>${column2}</td>
                     ${renderQuickActionsCell(plant)}
                 </tr>
             `;
