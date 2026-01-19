@@ -228,6 +228,13 @@ func main() {
 
 	// Public routes
 	r.GET("/login", func(c *gin.Context) {
+		session := sessions.Default(c)
+		loggedIn := session.Get("logged_in")
+		if loggedIn != nil && loggedIn.(bool) {
+			c.Redirect(http.StatusFound, "/")
+			return
+		}
+
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
 		c.HTML(http.StatusOK, "views/login.html", gin.H{
