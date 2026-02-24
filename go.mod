@@ -13,7 +13,7 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/nicksnyder/go-i18n/v2 v2.6.1
 	github.com/russross/blackfriday/v2 v2.1.0
-	github.com/sirupsen/logrus v1.9.3
+	github.com/sirupsen/logrus v1.9.4
 	golang.org/x/crypto v0.47.0
 	golang.org/x/image v0.32.0
 	golang.org/x/text v0.33.0
