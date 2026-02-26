@@ -53,7 +53,7 @@ SELECT
 FROM plant p
 JOIN plant_status_log psl ON p.id = psl.plant_id
 JOIN plant_status ps ON psl.status_id = ps.id
-WHERE ps.active = true
+WHERE ps.active = 1
   AND psl.date = (SELECT MAX(date) FROM plant_status_log WHERE plant_id = p.id)
   AND p.sensors IS NOT NULL
   AND p.sensors != '[]'
