@@ -38,11 +38,30 @@ func GetPlantMoistureReadings() []PlantMoistureReading {
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error opening database")
-		return nil
+		return []PlantMoistureReading{}
 	}
 
-	// Query living plants that have sensors linked
-	rows, err := db.Query(`
+	var plantQuery string
+	if model.IsPostgres() {
+		plantQuery = `
+SELECT
+    p.id,
+    p.name,
+    p.sensors,
+    ((CURRENT_DATE - p.start_dt::date) / 7 + 1) AS current_week,
+    ((CURRENT_DATE - p.start_dt::date) + 1) AS current_day
+FROM plant p
+JOIN plant_status_log psl ON p.id = psl.plant_id
+JOIN plant_status ps ON psl.status_id = ps.id
+WHERE ps.active = true
+  AND psl.date = (SELECT MAX(date) FROM plant_status_log WHERE plant_id = p.id)
+  AND p.sensors IS NOT NULL
+  AND p.sensors != '[]'
+  AND p.sensors != ''
+ORDER BY p.name
+`
+	} else {
+		plantQuery = `
 SELECT
     p.id,
     p.name,
@@ -58,14 +77,17 @@ WHERE ps.active = 1
   AND p.sensors != '[]'
   AND p.sensors != ''
 ORDER BY p.name
-`)
+`
+	}
+
+	rows, err := db.Query(plantQuery)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error querying plants")
-		return nil
+		return []PlantMoistureReading{}
 	}
 	defer rows.Close()
 
-	var results []PlantMoistureReading
+	results := []PlantMoistureReading{}
 
 	for rows.Next() {
 		var plantID, currentWeek, currentDay int
@@ -82,11 +104,26 @@ ORDER BY p.name
 			continue
 		}
 
-		for _, sensorID := range sensorIDs {
-			var sensorName, unit, trend string
-			var value float64
-
-			err := db.QueryRow(`
+		var sensorQuery string
+		if model.IsPostgres() {
+			sensorQuery = `
+SELECT
+    s.name,
+    s.unit,
+    sd.value,
+    CASE
+        WHEN sd.value > ra.avg_value THEN 'up'
+        WHEN sd.value < ra.avg_value THEN 'down'
+        ELSE 'flat'
+    END AS trend
+FROM sensors s
+JOIN sensor_data sd ON s.id = sd.sensor_id
+LEFT JOIN rolling_averages ra ON ra.sensor_id = s.id AND ra.create_dt = sd.create_dt
+WHERE s.id = $1
+  AND sd.id = (SELECT MAX(id) FROM sensor_data WHERE sensor_id = s.id)
+`
+		} else {
+			sensorQuery = `
 SELECT
     s.name,
     s.unit,
@@ -101,7 +138,14 @@ JOIN sensor_data sd ON s.id = sd.sensor_id
 LEFT JOIN rolling_averages ra ON ra.sensor_id = s.id AND ra.create_dt = sd.create_dt
 WHERE s.id = ?
   AND sd.id = (SELECT MAX(id) FROM sensor_data WHERE sensor_id = s.id)
-`, sensorID).Scan(&sensorName, &unit, &value, &trend)
+`
+		}
+
+		for _, sensorID := range sensorIDs {
+			var sensorName, unit, trend string
+			var value float64
+
+			err := db.QueryRow(sensorQuery, sensorID).Scan(&sensorName, &unit, &value, &trend)
 			if err != nil {
 				fieldLogger.WithError(err).WithField("sensor_id", sensorID).Error("Error querying sensor reading")
 				continue
