@@ -4,112 +4,58 @@ import (
 	"encoding/json"
 	"isley/logger"
 	"isley/model"
+	"isley/model/types"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
-// GetOverlayData returns a JSON snapshot of living plants and sensor readings
-// suitable for use in a live stream overlay. Requires API key authentication.
+// GetOverlayData returns a JSON snapshot of living plants (with linked sensor
+// readings embedded) and grouped sensor data, suitable for a live stream overlay.
+// Requires API key authentication.
 func GetOverlayData(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"plants":   GetLivingPlants(),
-		"sensors":  GetGroupedSensorsWithLatestReading(),
-		"moisture": GetPlantMoistureReadings(),
+		"plants":  GetOverlayPlants(),
+		"sensors": GetGroupedSensorsWithLatestReading(),
 	})
 }
 
-// PlantMoistureReading represents a single sensor reading linked to a plant.
-type PlantMoistureReading struct {
-	PlantName  string  `json:"plant_name"`
-	PlantDay   int     `json:"plant_day"`
-	PlantWeek  int     `json:"plant_week"`
-	SensorName string  `json:"sensor_name"`
-	Value      float64 `json:"value"`
-	Unit       string  `json:"unit"`
-	Trend      string  `json:"trend"`
+// OverlayLinkedSensor is a sensor reading attached to a plant in the overlay response.
+type OverlayLinkedSensor struct {
+	Name   string  `json:"name"`
+	Value  float64 `json:"value"`
+	Unit   string  `json:"unit"`
+	Trend  string  `json:"trend"`
+	Source string  `json:"source"`
+	Type   string  `json:"type"`
 }
 
-// GetPlantMoistureReadings returns the latest sensor readings for all sensors
-// linked to living plants, along with plant name and age.
-func GetPlantMoistureReadings() []PlantMoistureReading {
-	fieldLogger := logger.Log.WithField("func", "GetPlantMoistureReadings")
+// OverlayPlantResponse wraps PlantListResponse and adds linked sensor readings.
+type OverlayPlantResponse struct {
+	types.PlantListResponse
+	LinkedSensors []OverlayLinkedSensor `json:"linked_sensors"`
+}
+
+// GetOverlayPlants returns living plants with their linked sensor readings embedded.
+func GetOverlayPlants() []OverlayPlantResponse {
+	fieldLogger := logger.Log.WithField("func", "GetOverlayPlants")
+
+	living := GetLivingPlants()
 
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error opening database")
-		return []PlantMoistureReading{}
+		return buildOverlayPlants(living, nil, fieldLogger)
 	}
 
-	var plantQuery string
-	if model.IsPostgres() {
-		plantQuery = `
-SELECT
-    p.id,
-    p.name,
-    p.sensors,
-    ((CURRENT_DATE - p.start_dt::date) / 7 + 1) AS current_week,
-    ((CURRENT_DATE - p.start_dt::date) + 1) AS current_day
-FROM plant p
-JOIN plant_status_log psl ON p.id = psl.plant_id
-JOIN plant_status ps ON psl.status_id = ps.id
-WHERE ps.active = 1
-  AND psl.date = (SELECT MAX(date) FROM plant_status_log WHERE plant_id = p.id)
-  AND p.sensors IS NOT NULL
-  AND p.sensors != '[]'
-  AND p.sensors != ''
-ORDER BY p.name
-`
-	} else {
-		plantQuery = `
-SELECT
-    p.id,
-    p.name,
-    p.sensors,
-    CAST((julianday('now', 'localtime') - julianday(p.start_dt)) / 7 + 1 AS INT) AS current_week,
-    CAST((julianday('now', 'localtime') - julianday(p.start_dt)) + 1 AS INT) AS current_day
-FROM plant p
-JOIN plant_status_log psl ON p.id = psl.plant_id
-JOIN plant_status ps ON psl.status_id = ps.id
-WHERE ps.active = 1
-  AND psl.date = (SELECT MAX(date) FROM plant_status_log WHERE plant_id = p.id)
-  AND p.sensors IS NOT NULL
-  AND p.sensors != '[]'
-  AND p.sensors != ''
-ORDER BY p.name
-`
-	}
-
-	rows, err := db.Query(plantQuery)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error querying plants")
-		return []PlantMoistureReading{}
-	}
-	defer rows.Close()
-
-	results := []PlantMoistureReading{}
-
-	for rows.Next() {
-		var plantID, currentWeek, currentDay int
-		var plantName, sensorsJSON string
-
-		if err := rows.Scan(&plantID, &plantName, &sensorsJSON, &currentWeek, &currentDay); err != nil {
-			fieldLogger.WithError(err).Error("Error scanning plant row")
-			continue
-		}
-
-		var sensorIDs []int
-		if err := json.Unmarshal([]byte(sensorsJSON), &sensorIDs); err != nil {
-			fieldLogger.WithError(err).WithField("plant_id", plantID).Error("Error parsing sensor IDs")
-			continue
-		}
-
-		var sensorQuery string
-		if model.IsPostgres() {
-			sensorQuery = `
+	// Query to fetch latest reading + trend + source + type for a single sensor.
+	// $1 placeholder works for both SQLite and PostgreSQL in this codebase.
+	const sensorQuery = `
 SELECT
     s.name,
     s.unit,
+    s.device,
+    s.type,
     sd.value,
     CASE
         WHEN sd.value > ra.avg_value THEN 'up'
@@ -122,46 +68,44 @@ LEFT JOIN rolling_averages ra ON ra.sensor_id = s.id AND ra.create_dt = sd.creat
 WHERE s.id = $1
   AND sd.id = (SELECT MAX(id) FROM sensor_data WHERE sensor_id = s.id)
 `
-		} else {
-			sensorQuery = `
-SELECT
-    s.name,
-    s.unit,
-    sd.value,
-    CASE
-        WHEN sd.value > ra.avg_value THEN 'up'
-        WHEN sd.value < ra.avg_value THEN 'down'
-        ELSE 'flat'
-    END AS trend
-FROM sensors s
-JOIN sensor_data sd ON s.id = sd.sensor_id
-LEFT JOIN rolling_averages ra ON ra.sensor_id = s.id AND ra.create_dt = sd.create_dt
-WHERE s.id = ?
-  AND sd.id = (SELECT MAX(id) FROM sensor_data WHERE sensor_id = s.id)
-`
+	return buildOverlayPlants(living, func(plantID int) []OverlayLinkedSensor {
+		var sensorsJSON string
+		if err := db.QueryRow("SELECT sensors FROM plant WHERE id = $1", plantID).Scan(&sensorsJSON); err != nil {
+			fieldLogger.WithError(err).WithField("plant_id", plantID).Error("Error fetching sensor IDs")
+			return []OverlayLinkedSensor{}
 		}
 
-		for _, sensorID := range sensorIDs {
-			var sensorName, unit, trend string
-			var value float64
+		var sensorIDs []int
+		if err := json.Unmarshal([]byte(sensorsJSON), &sensorIDs); err != nil {
+			fieldLogger.WithError(err).WithField("plant_id", plantID).Error("Error parsing sensor IDs")
+			return []OverlayLinkedSensor{}
+		}
 
-			err := db.QueryRow(sensorQuery, sensorID).Scan(&sensorName, &unit, &value, &trend)
+		sensors := []OverlayLinkedSensor{}
+		for _, sid := range sensorIDs {
+			var s OverlayLinkedSensor
+			err := db.QueryRow(sensorQuery, sid).Scan(&s.Name, &s.Unit, &s.Source, &s.Type, &s.Value, &s.Trend)
 			if err != nil {
-				fieldLogger.WithError(err).WithField("sensor_id", sensorID).Error("Error querying sensor reading")
+				fieldLogger.WithError(err).WithField("sensor_id", sid).Error("Error querying sensor reading")
 				continue
 			}
-
-			results = append(results, PlantMoistureReading{
-				PlantName:  plantName,
-				PlantDay:   currentDay,
-				PlantWeek:  currentWeek,
-				SensorName: sensorName,
-				Value:      value,
-				Unit:       unit,
-				Trend:      trend,
-			})
+			sensors = append(sensors, s)
 		}
-	}
+		return sensors
+	}, fieldLogger)
+}
 
-	return results
+func buildOverlayPlants(living []types.PlantListResponse, fetchSensors func(int) []OverlayLinkedSensor, _ interface{}) []OverlayPlantResponse {
+	result := make([]OverlayPlantResponse, 0, len(living))
+	for _, p := range living {
+		linked := []OverlayLinkedSensor{}
+		if fetchSensors != nil {
+			linked = fetchSensors(p.ID)
+		}
+		result = append(result, OverlayPlantResponse{
+			PlantListResponse: p,
+			LinkedSensors:     linked,
+		})
+	}
+	return result
 }
