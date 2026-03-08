@@ -56,9 +56,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             const showZoneHeader = Object.keys(sensorData).length > 0;
             if (showZoneHeader) {
-                zoneContainer.innerHTML = `
-                    <h4 class="text-secondary mb-3">${zone}</h4>
-                `;
+                const zoneHeader = document.createElement('h4');
+                zoneHeader.className = 'text-secondary mb-3';
+                zoneHeader.textContent = zone;
+                zoneContainer.appendChild(zoneHeader);
             }
 
             // --- Add Video Feeds ---
@@ -86,16 +87,19 @@ document.addEventListener("DOMContentLoaded", async () => {
                     const videoId = `${zone.replace(/\s+/g, '-')}-video-${index}`;
                     const imageUrl = `/uploads/streams/stream_${stream.id}_latest.jpg`;
 
-                    const streamHTML = `
-    <div class="${classItem}">
-        <div id="${videoId}-container">
-            <img id="${videoId}-img" src="${imageUrl}" alt="Screengrab of ${stream.name}"
-                 class="img-fluid rounded shadow-sm" style="cursor: pointer;" />
-        </div>
-    </div>
-`;
-
-                    videoContainer.insertAdjacentHTML("beforeend", streamHTML);
+                    const divOuter = document.createElement('div');
+                    divOuter.className = classItem;
+                    const divInner = document.createElement('div');
+                    divInner.id = `${videoId}-container`;
+                    const img = document.createElement('img');
+                    img.id = `${videoId}-img`;
+                    img.src = imageUrl;
+                    img.alt = `Screengrab of ${stream.name}`;
+                    img.className = 'img-fluid rounded shadow-sm';
+                    img.style.cursor = 'pointer';
+                    divInner.appendChild(img);
+                    divOuter.appendChild(divInner);
+                    videoContainer.appendChild(divOuter);
 
                     // Attach event listener AFTER ensuring the element is rendered
                     setTimeout(() => {
@@ -104,11 +108,19 @@ document.addEventListener("DOMContentLoaded", async () => {
                             if (imageElement) { // Check if the element exists
                                 imageElement.addEventListener("click", () => {
                                     const container = document.getElementById(`${videoId}-container`);
-                                    container.innerHTML = `
-                    <video id="${videoId}-player" class="video-js vjs-default-skin" controls preload="auto" width="480" height="270">
-                        <source src="${stream.url}" type="application/vnd.apple.mpegurl" />
-                    </video>
-                `;
+                                    const video = document.createElement('video');
+                                    video.id = `${videoId}-player`;
+                                    video.className = 'video-js vjs-default-skin';
+                                    video.controls = true;
+                                    video.preload = 'auto';
+                                    video.width = 480;
+                                    video.height = 270;
+                                    const source = document.createElement('source');
+                                    source.setAttribute('src', stream.url);
+                                    source.setAttribute('type', 'application/vnd.apple.mpegurl');
+                                    video.appendChild(source);
+                                    container.innerHTML = '';
+                                    container.appendChild(video);
                                     videojs(`${videoId}-player`, { fluid: true, liveui: true }).ready(function() {
                                         this.play();
                                     });
@@ -144,43 +156,59 @@ document.addEventListener("DOMContentLoaded", async () => {
             Object.keys(sensorGroups).forEach((group) => {
                 if (sensorGroups[group].length > 0) {
                     const groupSensorIds = sensorGroups[group].map(sensor => sensor.id).join(",");
-                    const groupHeaderLink = `<a href='/graph/${groupSensorIds}' class='${themeTextClass}'>${groupTitles[group] || group}</a>`;
 
-                    const card = `
-                        <div class="col-12 col-md-4">
-                            <div class="card h-100 ${themeTextClass} ${themeBgClass}">
-                                <div class="card-header text-uppercase">
-                                    ${groupHeaderLink}
-                                </div>
-                                <div class="card-body">
-                                    ${sensorGroups[group]
-                        .map(
-                            (sensor) => `
-                                        <div
-                                            class="d-flex justify-content-between align-items-center sensor-row"
-                                            data-id="${sensor.id}"
-                                            style="cursor: pointer;"
-                                        >
-                                            <span>${sensor.name}</span>
-                                            <div class="text-end">
-                                                <strong>${Number(sensor.value).toFixed(2)} ${sensor.unit}</strong>
-                                                <i class="fa ${
-                                sensor.trend === "up"
-                                    ? "fa-arrow-up text-success"
-                                    : sensor.trend === "down"
-                                        ? "fa-arrow-down text-danger"
-                                        : "fa-minus text-muted"
-                            }"></i>
-                                            </div>
-                                        </div>
-                                    `
-                        )
-                        .join("")}
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    cardRow.innerHTML += card;
+                    const colDiv = document.createElement('div');
+                    colDiv.className = 'col-12 col-md-4';
+
+                    const cardDiv = document.createElement('div');
+                    cardDiv.className = `card h-100 ${themeTextClass} ${themeBgClass}`;
+
+                    const cardHeader = document.createElement('div');
+                    cardHeader.className = 'card-header text-uppercase';
+                    const headerLink = document.createElement('a');
+                    headerLink.href = `/graph/${groupSensorIds}`;
+                    headerLink.className = themeTextClass;
+                    headerLink.textContent = groupTitles[group] || group;
+                    cardHeader.appendChild(headerLink);
+
+                    const cardBody = document.createElement('div');
+                    cardBody.className = 'card-body';
+
+                    sensorGroups[group].forEach((sensor) => {
+                        const sensorRow = document.createElement('div');
+                        sensorRow.className = 'd-flex justify-content-between align-items-center sensor-row';
+                        sensorRow.dataset.id = sensor.id;
+                        sensorRow.style.cursor = 'pointer';
+
+                        const nameSpan = document.createElement('span');
+                        nameSpan.textContent = sensor.name;
+
+                        const valueDiv = document.createElement('div');
+                        valueDiv.className = 'text-end';
+
+                        const strong = document.createElement('strong');
+                        strong.textContent = `${Number(sensor.value).toFixed(2)} `;
+                        const unitText = document.createTextNode(sensor.unit);
+                        strong.appendChild(unitText);
+
+                        const icon = document.createElement('i');
+                        icon.className = `fa ${
+                            sensor.trend === "up" ? "fa-arrow-up text-success" :
+                            sensor.trend === "down" ? "fa-arrow-down text-danger" :
+                            "fa-minus text-muted"
+                        }`;
+
+                        valueDiv.appendChild(strong);
+                        valueDiv.appendChild(icon);
+                        sensorRow.appendChild(nameSpan);
+                        sensorRow.appendChild(valueDiv);
+                        cardBody.appendChild(sensorRow);
+                    });
+
+                    cardDiv.appendChild(cardHeader);
+                    cardDiv.appendChild(cardBody);
+                    colDiv.appendChild(cardDiv);
+                    cardRow.appendChild(colDiv);
                 }
             });
 

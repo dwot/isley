@@ -120,20 +120,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 const selectedFont = fontDropdown.value;
                 if (selectedFont) {
                     const fontName = selectedFont.split("/").pop().replace(".ttf", "");
+                    const safeFontName = fontName.replace(/[^a-zA-Z0-9\-_]/g, '_');
                     const fontUrl = `/${selectedFont}`;
 
                     // Add @font-face rule dynamically
                     const style = document.createElement("style");
-                    style.innerHTML = `
-                @font-face {
-                    font-family: '${fontName}';
-                    src: url('${fontUrl}');
-                }
-            `;
+                    style.textContent = `@font-face { font-family: '${safeFontName}'; src: url('${fontUrl}'); }`;
                     document.head.appendChild(style);
 
                     // Apply the new font to the preview
-                    fontPreview.style.fontFamily = fontName;
+                    fontPreview.style.fontFamily = safeFontName;
                 }
 
             }
@@ -158,20 +154,16 @@ document.addEventListener("DOMContentLoaded", () => {
         const selectedFont = fontDropdown.value;
         if (selectedFont) {
             const fontName = selectedFont.split("/").pop().replace(".ttf", "");
+            const safeFontName = fontName.replace(/[^a-zA-Z0-9\-_]/g, '_');
             const fontUrl = `/${selectedFont}`;
 
             // Add @font-face rule dynamically
             const style = document.createElement("style");
-            style.innerHTML = `
-                @font-face {
-                    font-family: '${fontName}';
-                    src: url('${fontUrl}');
-                }
-            `;
+            style.textContent = `@font-face { font-family: '${safeFontName}'; src: url('${fontUrl}'); }`;
             document.head.appendChild(style);
 
             // Apply the new font to the preview
-            fontPreview.style.fontFamily = fontName;
+            fontPreview.style.fontFamily = safeFontName;
         }
     });
 

@@ -416,9 +416,14 @@ func GetLanguage(c *gin.Context) string {
 		lang = sessionLang.(string)
 	}
 	if queryLang != "" {
-		lang = queryLang
-		sessions.Default(c).Set("lang", lang)
-		sessions.Default(c).Save()
+		for _, supported := range AvailableLanguages {
+			if supported == queryLang {
+				lang = queryLang
+				sessions.Default(c).Set("lang", lang)
+				sessions.Default(c).Save()
+				break
+			}
+		}
 	}
 	return lang
 }

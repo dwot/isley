@@ -62,6 +62,22 @@ func UploadPlantImages(c *gin.Context) {
 		}
 		defer file.Close()
 
+		// Validate MIME type
+		sniff := make([]byte, 512)
+		n, _ := file.Read(sniff)
+		mimeType := http.DetectContentType(sniff[:n])
+		allowed := map[string]bool{"image/jpeg": true, "image/png": true, "image/gif": true, "image/webp": true}
+		if !allowed[mimeType] {
+			fileLogger.WithField("mimeType", mimeType).Warn("Rejected upload with disallowed MIME type")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid file type; only JPEG, PNG, GIF, and WebP are allowed"})
+			return
+		}
+		if _, err = file.Seek(0, io.SeekStart); err != nil {
+			fileLogger.WithError(err).Error("Failed to seek uploaded file")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process file"})
+			return
+		}
+
 		// Generate a unique file path
 		timestamp := time.Now().In(time.Local).UnixNano()
 		fileName := fmt.Sprintf("plant_%d_image_%d_%d%s", plantID, index, timestamp, filepath.Ext(fileHeader.Filename))

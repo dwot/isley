@@ -755,6 +755,22 @@ func UploadLogo(c *gin.Context) {
 	}
 	defer file.Close()
 
+	// Validate MIME type
+	sniff := make([]byte, 512)
+	n, _ := file.Read(sniff)
+	mimeType := http.DetectContentType(sniff[:n])
+	allowedMIME := map[string]bool{"image/jpeg": true, "image/png": true, "image/gif": true, "image/webp": true}
+	if !allowedMIME[mimeType] {
+		fieldLogger.WithField("mimeType", mimeType).Warn("Rejected logo upload with disallowed MIME type")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid file type; only JPEG, PNG, GIF, and WebP are allowed"})
+		return
+	}
+	if _, err = file.Seek(0, io.SeekStart); err != nil {
+		fieldLogger.WithError(err).Error("Failed to seek logo file")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process file"})
+		return
+	}
+
 	// Generate a unique file path
 	timestamp := time.Now().In(time.Local).UnixNano()
 	fileName := fmt.Sprintf("logo_image_%d%s", timestamp, filepath.Ext(fileHeader.Filename))
@@ -906,8 +922,7 @@ func LoadSettings() {
 
 	strAPIKey, err := GetSetting("api_key")
 	if err == nil {
-		// Log out API key setting
-		fieldLogger.WithField("api_key", strAPIKey).Debug("API key setting")
+		fieldLogger.Debug("API key setting loaded")
 
 		config.APIKey = strAPIKey
 	} else {

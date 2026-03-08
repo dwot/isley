@@ -37,13 +37,18 @@ func InitDB() {
 	switch driver {
 	case "postgres":
 		logger.Log.Info("Using Postgres driver")
+		pgSSLMode := os.Getenv("ISLEY_DB_SSLMODE")
+		if pgSSLMode == "" {
+			pgSSLMode = "require"
+		}
 		dsn = fmt.Sprintf(
-			"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 			os.Getenv("ISLEY_DB_HOST"),
 			os.Getenv("ISLEY_DB_PORT"),
 			os.Getenv("ISLEY_DB_USER"),
 			os.Getenv("ISLEY_DB_PASSWORD"),
 			os.Getenv("ISLEY_DB_NAME"),
+			pgSSLMode,
 		)
 	case "sqlite", "":
 		logger.Log.Info("Using Sqlite driver")
@@ -130,13 +135,18 @@ func MigrateDB() {
 	dsn := ""
 	switch driver {
 	case "postgres":
+		pgSSLMode2 := os.Getenv("ISLEY_DB_SSLMODE")
+		if pgSSLMode2 == "" {
+			pgSSLMode2 = "require"
+		}
 		dsn = fmt.Sprintf(
-			"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 			os.Getenv("ISLEY_DB_HOST"),
 			os.Getenv("ISLEY_DB_PORT"),
 			os.Getenv("ISLEY_DB_USER"),
 			os.Getenv("ISLEY_DB_PASSWORD"),
 			os.Getenv("ISLEY_DB_NAME"),
+			pgSSLMode2,
 		)
 	case "sqlite":
 		dsn = DbPath()

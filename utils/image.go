@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"github.com/fogleman/gg"
@@ -14,11 +15,13 @@ import (
 	"isley/logger"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Embed the fonts directory
@@ -359,15 +362,28 @@ func ListLogosHandler(c *gin.Context) {
 	}
 }
 
-func GrabWebcamImage(url string, outputPath string) error {
+func GrabWebcamImage(rawURL string, outputPath string) error {
 	logger.Log.WithFields(logrus.Fields{
-		"url":        url,
+		"url":        rawURL,
 		"outputPath": outputPath,
 	}).Info("Capturing image from webcam")
 
-	// Use ffmpeg to capture an image
-	cmd := exec.Command(
-		"ffmpeg", "-y", "-i", url, "-vframes", "1", "-q:v", "2", outputPath,
+	// Validate URL before passing to ffmpeg
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil || parsedURL.Host == "" {
+		return fmt.Errorf("invalid webcam URL")
+	}
+	scheme := strings.ToLower(parsedURL.Scheme)
+	allowedSchemes := map[string]bool{"http": true, "https": true, "rtsp": true, "rtmp": true}
+	if !allowedSchemes[scheme] {
+		return fmt.Errorf("disallowed URL scheme: %s", scheme)
+	}
+
+	// Use ffmpeg with a timeout to capture an image
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(
+		ctx, "ffmpeg", "-y", "-i", rawURL, "-vframes", "1", "-q:v", "2", outputPath,
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

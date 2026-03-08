@@ -41,7 +41,7 @@ func updateEcoWittSensorData(server string) {
 		return
 	}
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		logger.Log.WithError(err).Error("Error sending EcoWitt request")
@@ -96,7 +96,7 @@ func updateACISensorData(token string) {
 	req.Header.Add("User-Agent", "okhttp/3.10.0")
 	req.Header.Add("Content-Encoding", "gzip")
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		logger.Log.WithError(err).Error("Error sending ACI request")

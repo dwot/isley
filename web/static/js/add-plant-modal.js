@@ -69,7 +69,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 .then(plants => {
                     parentPlantSelect.innerHTML = '<option value="0">{{ .lcl.title_none }}</option>';
                     plants.forEach(plant => {
-                        parentPlantSelect.innerHTML += `<option value="${plant.id}">${plant.name}</option>`;
+                        const opt = document.createElement('option');
+                        opt.value = plant.id;
+                        opt.textContent = plant.name;
+                        parentPlantSelect.appendChild(opt);
                     });
                     //parentPlantDropdown.classList.remove("d-none");
                 });

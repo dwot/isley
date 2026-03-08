@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"crypto/subtle"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -16,6 +18,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-contrib/sessions"
@@ -28,6 +31,28 @@ import (
 
 //go:embed model/migrations/sqlite/*.sql model/migrations/postgres/*.sql web/templates/**/*.html web/static/**/* utils/fonts/* VERSION
 var embeddedFiles embed.FS
+
+var (
+	loginAttempts   = make(map[string][]time.Time)
+	loginAttemptsMu sync.Mutex
+)
+
+func isLoginRateLimited(ip string) bool {
+	loginAttemptsMu.Lock()
+	defer loginAttemptsMu.Unlock()
+	now := time.Now()
+	cutoff := now.Add(-time.Minute)
+	attempts := loginAttempts[ip]
+	var recent []time.Time
+	for _, t := range attempts {
+		if t.After(cutoff) {
+			recent = append(recent, t)
+		}
+	}
+	recent = append(recent, now)
+	loginAttempts[ip] = recent
+	return len(recent) > 5
+}
 
 func main() {
 	// Initialize logger
@@ -70,6 +95,15 @@ func main() {
 
 	// Set up Gin router
 	r := gin.Default()
+
+	// Security headers
+	r.Use(func(c *gin.Context) {
+		c.Header("X-Frame-Options", "DENY")
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("X-XSS-Protection", "1; mode=block")
+		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+		c.Next()
+	})
 
 	// inject currentPath into the context
 	r.Use(func(c *gin.Context) {
@@ -220,9 +254,21 @@ func main() {
 	})
 
 	// Initialize session store
-	store := cookie.NewStore([]byte("secret"))
+	sessionSecret := os.Getenv("ISLEY_SESSION_SECRET")
+	if sessionSecret == "" {
+		logger.Log.Warn("ISLEY_SESSION_SECRET not set; generating a random session key (sessions will not survive restart)")
+		randomBytes := make([]byte, 32)
+		if _, err := rand.Read(randomBytes); err != nil {
+			logger.Log.WithError(err).Fatal("Failed to generate random session key")
+		}
+		sessionSecret = string(randomBytes)
+	}
+	store := cookie.NewStore([]byte(sessionSecret))
 	store.Options(sessions.Options{
-		Path: "/",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
 	})
 	r.Use(sessions.Sessions("isley_session", store))
 
@@ -245,6 +291,10 @@ func main() {
 	})
 
 	r.POST("/login", func(c *gin.Context) {
+		if isLoginRateLimited(c.ClientIP()) {
+			c.AbortWithStatus(http.StatusTooManyRequests)
+			return
+		}
 		handleLogin(c)
 	})
 
@@ -345,8 +395,11 @@ func handleLogin(c *gin.Context) {
 	// If the user checked 'remember', set session MaxAge to 14 days (in seconds)
 	if remember == "on" || remember == "true" {
 		session.Options(sessions.Options{
-			Path:   "/",
-			MaxAge: 14 * 24 * 60 * 60, // 14 days
+			Path:     "/",
+			MaxAge:   14 * 24 * 60 * 60, // 14 days
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteLaxMode,
 		})
 	}
 
@@ -425,7 +478,7 @@ func AuthMiddlewareApi() gin.HandlerFunc {
 				return
 			}
 
-			if apiKey != storedAPIKey {
+			if subtle.ConstantTimeCompare([]byte(apiKey), []byte(storedAPIKey)) != 1 {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 					"error": "Invalid API key",
 				})
