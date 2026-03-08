@@ -79,7 +79,7 @@ func UploadPlantImages(c *gin.Context) {
 		}
 
 		// Generate a unique file path
-		timestamp := time.Now().In(time.Local).UnixNano()
+		timestamp := time.Now().UnixNano()
 		fileName := fmt.Sprintf("plant_%d_image_%d_%d%s", plantID, index, timestamp, filepath.Ext(fileHeader.Filename))
 		savePath := filepath.Join("uploads", "plants", fileName)
 		fileLogger = fileLogger.WithField("savePath", savePath)
@@ -112,7 +112,7 @@ func UploadPlantImages(c *gin.Context) {
 		if index < len(descriptions) {
 			description = descriptions[index]
 		}
-		imageDate := time.Now().In(time.Local)
+		imageDate := time.Now()
 		if index < len(dates) {
 			parsedDate, err := time.Parse("2006-01-02", dates[index])
 			if err == nil {

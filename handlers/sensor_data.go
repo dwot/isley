@@ -7,6 +7,7 @@ import (
 	"isley/logger"
 	"isley/model"
 	"isley/model/types"
+	"isley/utils"
 	"net/http"
 	"strconv"
 	"sync"
@@ -196,24 +197,14 @@ func querySensorHistoryByDateRange(sensor string, startDate string, endDate stri
 }
 
 func timeConversion(date string) (string, error) {
-	// If date does not contain time, append 00:00:00
 	if len(date) == 10 {
-		date = date + " 00:00:00"
+		date += " 00:00:00"
 	}
-
-	// Convert the date string to time.Time
-	time, err := time.Parse("2006-01-02 15:04:05", date)
+	t, err := time.Parse(utils.LayoutDB, date)
 	if err != nil {
-		return "", err
+		return date, err
 	}
-
-	// Convert the time.Time to UTC
-	time = time.UTC()
-
-	// Convert the time.Time back to string
-	date = time.Format("2006-01-02 15:04:05")
-
-	return date, nil
+	return t.UTC().Format(utils.LayoutDB), nil
 }
 
 // Filter sensor data density based on the time range

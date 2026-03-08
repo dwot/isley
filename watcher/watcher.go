@@ -31,7 +31,7 @@ func Watch() {
 }
 
 func updateEcoWittSensorData(server string) {
-	currentDate := time.Now().In(time.Local)
+	currentDate := time.Now()
 	logger.Log.WithField("timestamp", currentDate).Info("Updating EC sensor data")
 
 	url := "http://" + server + "/get_livedata_info"
@@ -81,7 +81,7 @@ func updateEcoWittSensorData(server string) {
 }
 
 func updateACISensorData(token string) {
-	currentDate := time.Now().In(time.Local)
+	currentDate := time.Now()
 	logger.Log.WithField("timestamp", currentDate).Info("Updating ACI sensor data")
 
 	url := "http://www.acinfinityserver.com/api/user/devInfoListAll?userId=" + token

@@ -9,6 +9,7 @@ import (
 	"isley/logger"
 	model "isley/model"
 	"isley/model/types"
+	"isley/utils"
 	"net/http"
 	"strconv"
 	"strings"
@@ -441,7 +442,7 @@ func GetPlant(id string) types.Plant {
 			return plant
 		}
 		// Calculate current day and week
-		currentTime := time.Now().In(time.Local)
+		currentTime := time.Now()
 		//Calculate the # of hours difference between the current timezone and UTC
 		diff := currentTime.Sub(start_dt)
 		iCurrentDay := int(diff.Hours()/24) + 1
@@ -553,7 +554,7 @@ func GetPlant(id string) types.Plant {
 		err = db.QueryRow("SELECT id, image_path, image_description, image_order, image_date FROM plant_images WHERE plant_id = $1 ORDER BY image_date DESC LIMIT 1", id).Scan(&latestImage.ID, &latestImage.ImagePath, &latestImage.ImageDescription, &latestImage.ImageOrder, &latestImage.ImageDate)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to query latest image")
-			latestImage = types.PlantImage{ID: 0, PlantID: plant.ID, ImagePath: "/static/img/winston.hat.jpg", ImageDescription: "Placeholder", ImageOrder: 100, ImageDate: time.Now().In(time.Local), CreatedAt: time.Now().In(time.Local), UpdatedAt: time.Now().In(time.Local)}
+			latestImage = types.PlantImage{ID: 0, PlantID: plant.ID, ImagePath: "/static/img/winston.hat.jpg", ImageDescription: "Placeholder", ImageOrder: 100, ImageDate: time.Now(), CreatedAt: time.Now(), UpdatedAt: time.Now()}
 		} else {
 			latestImage.ImagePath = "/" + strings.Replace(latestImage.ImagePath, "\\", "/", -1)
 		}
@@ -576,15 +577,15 @@ func GetPlant(id string) types.Plant {
 			}
 			//Convert any \ in image_path to /
 			image_path = "/" + strings.Replace(image_path, "\\", "/", -1)
-			images = append(images, types.PlantImage{ID: id, PlantID: plant.ID, ImagePath: image_path, ImageDescription: image_description, ImageOrder: image_order, ImageDate: image_date, CreatedAt: time.Now().In(time.Local), UpdatedAt: time.Now().In(time.Local)})
+			images = append(images, types.PlantImage{ID: id, PlantID: plant.ID, ImagePath: image_path, ImageDescription: image_description, ImageOrder: image_order, ImageDate: image_date, CreatedAt: time.Now(), UpdatedAt: time.Now()})
 		}
 
-		//initialize the height date to a time in the past Jan 1, 1970
-		heightDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.Local)
-		lastWaterDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.Local)
-		lastFeedDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.Local)
-		harvestDate := time.Now().In(time.Local)
-		estHarvestDate := time.Date(1970, 1, 1, 0, 0, 0, 0, time.Local)
+		//initialize the height date and other sentinel dates to zero value
+		heightDate := time.Time{}
+		lastWaterDate := time.Time{}
+		lastFeedDate := time.Time{}
+		harvestDate := time.Now()
+		estHarvestDate := time.Time{}
 
 		//iterate activities to find the last water and feed dates
 		for _, activity := range activities {
@@ -1197,7 +1198,7 @@ ORDER BY p.start_dt, p.name;
 		// calculate the estimated harvest date
 		startDate := plant.StartDT
 		//convert start date to a time.Time (has timezone data)
-		startTime, err := time.Parse("2006-01-02T15:04:05Z", startDate)
+		startTime, err := time.ParseInLocation(utils.LayoutDateTimeLocal, startDate, time.Local)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to parse start date")
 		} else {

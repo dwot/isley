@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"errors"
+	"isley/utils"
 	"net/http"
 	"time"
 
@@ -12,11 +13,9 @@ import (
 	model "isley/model"
 )
 
-const statusDateTimeLayout = "2006-01-02T15:04:05"
-
 func updatePlantStatusLog(db *sql.DB, plantID int, statusID int, date string) (bool, int, error) {
 	if date == "" {
-		date = time.Now().Format(statusDateTimeLayout)
+		date = time.Now().Format(utils.LayoutDateTimeLocal)
 	}
 
 	var currentStatus int

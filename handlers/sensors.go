@@ -715,7 +715,7 @@ ORDER BY z.name, s.device, s.type;
 
 	// Update the global cache and timestamp
 	sensorCache = newCache
-	cacheLastUpdatedTime = time.Now().In(time.Local)
+	cacheLastUpdatedTime = time.Now()
 
 	return sensorCache
 }

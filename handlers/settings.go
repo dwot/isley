@@ -772,7 +772,7 @@ func UploadLogo(c *gin.Context) {
 	}
 
 	// Generate a unique file path
-	timestamp := time.Now().In(time.Local).UnixNano()
+	timestamp := time.Now().UnixNano()
 	fileName := fmt.Sprintf("logo_image_%d%s", timestamp, filepath.Ext(fileHeader.Filename))
 	savePath := filepath.Join("uploads", "logos", fileName)
 

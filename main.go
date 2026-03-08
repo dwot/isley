@@ -129,39 +129,18 @@ func main() {
 			}
 			return string(a)
 		},
-		"formatStringDateTimeLocal": func(t string) string {
-			parsedTime, err := time.Parse(time.RFC3339, t)
-			if err != nil {
-				return "" // Return empty if parsing fails
-			}
-			return parsedTime.Format("2006-01-02T15:04:05")
-		},
 		"formatDateTimeLocal": func(t time.Time) string {
-			return t.Format("2006-01-02T15:04:05")
-		},
-		"toLocalTimeString": func(t time.Time) string {
-			if err != nil {
-				return "" // Fallback to the original string if parsing fails
-			}
-			return t.In(time.Local).Format("01/02/2006 03:04 PM")
+			return t.Format(utils.LayoutDateTimeLocal)
 		},
 		"formatDate": func(t time.Time) string {
-			return t.Format("01/02/2006")
+			return t.Format(utils.LayoutDate)
 		},
-		"formatDateTime": func(t time.Time) string { return t.Format("01/02/2006 03:04 PM") },
+		"formatDateTime": func(t time.Time) string { return t.Format(utils.LayoutDateTime) },
 		"formatDateISO": func(t time.Time) string {
-			return t.Format("2006-01-02")
+			return t.Format(utils.LayoutDate)
 		},
-		"formatStringDate": func(t string) string {
-			tm, err := time.Parse(time.RFC3339, t)
-			if err != nil {
-				logger.Log.WithFields(logrus.Fields{
-					"input": t,
-					"error": err,
-				}).Error("Error parsing date")
-				return t
-			}
-			return tm.Format("01/02/2006")
+		"isZeroDate": func(t time.Time) bool {
+			return utils.IsZeroDate(t)
 		},
 		"div": func(a, b int) int {
 			return a / b
@@ -240,7 +219,7 @@ func main() {
 			c.Status(http.StatusNotFound)
 			return
 		}
-		http.ServeContent(c.Writer, c.Request, filePath, time.Now().In(time.Local), strings.NewReader(string(data)))
+		http.ServeContent(c.Writer, c.Request, filePath, time.Now(), strings.NewReader(string(data)))
 	})
 
 	r.GET("/fonts/*filepath", func(c *gin.Context) {
@@ -250,7 +229,7 @@ func main() {
 			c.Status(http.StatusNotFound)
 			return
 		}
-		http.ServeContent(c.Writer, c.Request, filePath, time.Now().In(time.Local), strings.NewReader(string(data)))
+		http.ServeContent(c.Writer, c.Request, filePath, time.Now(), strings.NewReader(string(data)))
 	})
 
 	// Initialize session store

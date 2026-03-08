@@ -73,7 +73,7 @@
 
                             <!-- Conditional: If Plant is an Autoflower and not Harvested and not Dead OR if an estimated harvest date exists -->
                             {{ if and (ne .plant.Status "Success") (ne .plant.Status "Drying") (ne .plant.Status "Curing") (ne .plant.Status "Dead") }}
-                                {{ if or (eq .plant.Autoflower true) (ne (formatDate .plant.EstHarvestDate) "01/01/1970") }}
+                                {{ if or (eq .plant.Autoflower true) (not (isZeroDate .plant.EstHarvestDate)) }}
                                     <li><strong>{{ .lcl.est_harvest_date }}:</strong> {{ formatDate .plant.EstHarvestDate }}</li>
                                 {{ end }}
                             {{ end }}
@@ -89,7 +89,7 @@
                             {{ end }}
 
                             <!-- Optional: Last Watered or Fed -->
-                            {{ if or (ne (formatDateTime .plant.LastWaterDate) "01/01/1970") (ne (formatDateTime .plant.LastFeedDate) "01/01/1970") }}
+                            {{ if or (not (isZeroDate .plant.LastWaterDate)) (not (isZeroDate .plant.LastFeedDate)) }}
                             <li><strong>{{ .lcl.last_watered_or_fed }}:</strong>
                                 {{ if gt (formatDateTime .plant.LastWaterDate) (formatDateTime .plant.LastFeedDate) }}
                                 {{ formatDateTime .plant.LastWaterDate }} ({{ .lcl.title_watered }})
