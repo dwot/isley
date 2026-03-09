@@ -1,0 +1,18 @@
+stages:
+  - build
+
+build-dev:
+  stage: build
+  image: docker:26
+  services:
+    - docker:26-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+  script:
+    - docker build -t "$CI_REGISTRY_IMAGE:dev" -t "$CI_REGISTRY_IMAGE:dev-$CI_COMMIT_SHORT_SHA" .
+    - docker push "$CI_REGISTRY_IMAGE:dev"
+    - docker push "$CI_REGISTRY_IMAGE:dev-$CI_COMMIT_SHORT_SHA"
