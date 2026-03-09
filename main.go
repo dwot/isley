@@ -107,7 +107,9 @@ func main() {
 	}
 
 	// Set up Gin router
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Recovery())
+	r.Use(gin.LoggerWithWriter(logger.AccessWriter))
 
 	// Security headers
 	r.Use(func(c *gin.Context) {

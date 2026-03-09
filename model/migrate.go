@@ -39,7 +39,7 @@ func InitDB() {
 		logger.Log.Info("Using Postgres driver")
 		pgSSLMode := os.Getenv("ISLEY_DB_SSLMODE")
 		if pgSSLMode == "" {
-			pgSSLMode = "require"
+			pgSSLMode = "disable"
 		}
 		dsn = fmt.Sprintf(
 			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
@@ -137,7 +137,7 @@ func MigrateDB() {
 	case "postgres":
 		pgSSLMode2 := os.Getenv("ISLEY_DB_SSLMODE")
 		if pgSSLMode2 == "" {
-			pgSSLMode2 = "require"
+			pgSSLMode2 = "disable"
 		}
 		dsn = fmt.Sprintf(
 			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",

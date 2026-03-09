@@ -11,6 +11,7 @@ import (
 )
 
 var Log *logrus.Logger
+var AccessWriter io.Writer
 
 func InitLogger() {
 	// Create logs directory if it doesn't exist
@@ -43,6 +44,15 @@ func InitLogger() {
 
 	// Set log level
 	Log.SetLevel(logrus.InfoLevel)
+
+	// Access log (Gin HTTP requests) — file only, not stdout
+	AccessWriter = &lumberjack.Logger{
+		Filename:   "logs/access.log",
+		MaxSize:    10,
+		MaxBackups: 5,
+		MaxAge:     30,
+		Compress:   true,
+	}
 }
 
 func SetLevel(level string) {
