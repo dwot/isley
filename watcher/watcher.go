@@ -198,9 +198,10 @@ func addSensorData(source string, device string, key string, value string) {
 }
 
 func PruneSensorData() error {
+	logger.Log.Info("Pruning old sensor data")
 	days := config.SensorRetention
 	if days <= 0 {
-		logger.Log.Debug("Sensor data pruning is disabled")
+		logger.Log.Info("Sensor data pruning is disabled (sensor_retention_days = 0)")
 		return nil
 	}
 

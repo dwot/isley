@@ -89,8 +89,15 @@ func main() {
 		}
 	}
 
-	// Start the sensor watcher
-	watcher.PruneSensorData()
+	// Load settings before pruning so config.SensorRetention is populated
+	handlers.LoadSettings()
+
+	// Start the PruneSensorData and wait for it to complete before starting the main watcher Watch function. This ensures that old sensor data is pruned before we start grabbing new data.
+	if err := watcher.PruneSensorData(); err != nil {
+		logger.Log.WithError(err).Error("Initial sensor data prune failed")
+	} else {
+		logger.Log.Info("Initial sensor data prune completed")
+	}
 	go watcher.Watch()
 
 	// Set up Gin router
