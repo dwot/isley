@@ -1,57 +1,75 @@
-# 🌱 Isley - Self-Hosted Cannabis Grow Journal
+<div align="center">
 
-Isley is a self-hosted cannabis grow journal designed to help homegrowers 🌿 track and monitor their plants. With a clean interface and integrations with popular grow equipment, Isley makes managing your grow simple and effective.
+# 🌱 Isley
 
-I created Isley because it was the tool I wanted but couldn't find. Existing options were limited to phone apps and websites that either didn’t work how I hoped or didn’t work at all. I wanted a single, self-hosted solution to replace:
-- 🌡️ Vendor apps for sensor data and graphs.
-- 📝 Spreadsheets for seed, harvest, and progress tracking.
-- 🗒️ Notepads and memory for feeding/watering history and notes.
+### Self-Hosted Cannabis Grow Journal
 
-Isley doesn't aim to revolutionize your grow. It centralizes your tools into one convenient interface, helping you **track, trend, and elevate your grow**.
+*Track, trend, and elevate your grow — all in one place.*
+
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/dwot/isley)
+[![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go&logoColor=white)](https://golang.org)
+[![License](https://img.shields.io/github/license/dwot/isley)](LICENSE)
+[![Issues](https://img.shields.io/github/issues/dwot/isley)](https://github.com/dwot/isley/issues)
+
+[🌐 Official Site](https://isley.dwot.io) · [🐛 Report a Bug](https://github.com/dwot/isley/issues) · [💡 Request a Feature](https://github.com/dwot/isley/issues)
+
+---
 
 ![Isley Dashboard](https://isley.dwot.io/images/dashboard.png?raw=true)
 
-For full details, screenshots, and feature highlights, visit our official site 🌐 at [https://isley.dwot.io](https://isley.dwot.io).
+</div>
+
+---
+
+## Why Isley?
+
+I built Isley because the tool I wanted didn't exist. Every existing option was either a phone app with a bad UX, a cloud service I didn't trust, or a spreadsheet held together with duct tape. I wanted **one self-hosted solution** to replace all three:
+
+| Before Isley | With Isley |
+|---|---|
+| 🌡️ Vendor apps for sensor graphs | Unified environmental dashboard |
+| 📝 Spreadsheets for seeds & harvests | Structured grow journal with charts |
+| 🗒️ Notepads for feeding & watering history | Timestamped activity logs per plant |
+
+Isley doesn't try to revolutionize your grow — it centralizes your tools so you can focus on what matters.
 
 ---
 
 ## 🚀 Key Features
 
-- **📒 Grow Logs**: Track plant growth, watering, and feeding schedules with custom activity types.
-- **🌡️ Environmental Monitoring**: Real-time sensor data from AC Infinity and EcoWitt devices, plus custom ingest via HTTP API.
-- **📸 Image Uploads**: Attach photos to plants with captions; supports text overlays and watermarks.
-- **📷 Webcam Integration**: Capture periodic snapshots from camera streams via FFmpeg.
-- **🌱 Seed Inventory**: Manage strains, breeders, and seed stock with Indica/Sativa and autoflower tracking.
-- **📊 Harvest Tracking**: Record harvest dates, yields, and cycle times.
-- **📈 Graphs and Charts**: Visualize sensor data over time with configurable retention.
-- **⚙️ Customizable Settings**: Define custom zones, activities, metrics, and streams.
-- **🌍 Internationalization**: Available in English, German, Spanish, and French.
-- **🔓 Guest Mode**: Optional read-only access for unauthenticated visitors.
-- **📱 Mobile-Friendly**: Responsive layout for desktop and mobile.
+| | Feature | Description |
+|---|---|---|
+| 📒 | **Grow Logs** | Track plant growth, watering, and feeding with custom activity types |
+| 🌡️ | **Environmental Monitoring** | Real-time sensor data from AC Infinity and EcoWitt, plus custom HTTP ingest |
+| 📸 | **Image Uploads** | Attach photos with captions; add text overlays and watermarks |
+| 📷 | **Webcam Integration** | Capture periodic snapshots from camera streams via FFmpeg |
+| 🌱 | **Seed Inventory** | Manage strains, breeders, and seed stock with Indica/Sativa and autoflower tracking |
+| 📊 | **Harvest Tracking** | Record harvest dates, yields, and full cycle times |
+| 📈 | **Graphs and Charts** | Visualize sensor data over time with configurable retention windows |
+| ⚙️ | **Customizable Settings** | Define custom zones, activities, metrics, and camera streams |
+| 🌍 | **Internationalization** | Available in English, German, Spanish, and French |
+| 🔓 | **Guest Mode** | Optional read-only access for unauthenticated visitors |
+| 📱 | **Mobile-Friendly** | Responsive layout for desktop and mobile |
 
 ---
 
-## 🛠️ Features on the Roadmap
+## 🛠️ Coming Soon
 
-- **🔔 Alerts and Notifications**: Set custom alerts for environmental conditions.
-- **📦 Export and Backup**: Download your grow data for offline storage.
-
---- 
-## 🚀 Quick Start
-
-Isley runs in **Docker** 🐳. SQLite was ideal for early development and lightweight single-container deployments. However, it introduces write contention issues under production loads. **PostgreSQL is now the recommended database backend** for all production deployments.
-
-If you don’t already have Docker, follow the [Docker installation instructions](https://docs.docker.com/get-docker/). For `docker-compose`, you can install it [here](https://docs.docker.com/compose/install/).
+- **🔔 Alerts and Notifications** — Set custom thresholds and get notified when conditions go out of range.
+- **📦 Export and Backup** — Download your full grow history for offline archiving.
 
 ---
 
-### 🐳 Option 1: Docker with PostgreSQL (Recommended)
+## ⚡ Quick Start
 
-Use the `docker-compose.postgres.yml` file to deploy Isley with a PostgreSQL backend:
+Isley runs in **Docker** and is up in minutes. PostgreSQL is recommended for production; SQLite works great for local testing.
 
-1. **Create `docker-compose.postgres.yml`** (or use the provided one):
+> **Prerequisites:** [Docker](https://docs.docker.com/get-docker/) and [docker-compose](https://docs.docker.com/compose/install/)
+
+### 🐳 Option 1: PostgreSQL (Recommended)
 
 ```yaml
+# docker-compose.postgres.yml
 version: '3.8'
 
 services:
@@ -67,6 +85,7 @@ services:
       - ISLEY_DB_USER=isley
       - ISLEY_DB_PASSWORD=supersecret
       - ISLEY_DB_NAME=isleydb
+      - ISLEY_SESSION_SECRET=change-me-to-a-long-random-string
     depends_on:
       - postgres
     volumes:
@@ -86,89 +105,20 @@ services:
 volumes:
   postgres-data:
   isley-uploads:
-
 ```
 
-2. **Start the container**:
 ```bash
 docker-compose -f docker-compose.postgres.yml up -d
 ```
 
-3. **Access Isley**:
-- Open your browser:
-    - `http://localhost:8080` if running locally.
-    - `http://<server-ip>:8080` if running remotely.
-- **Default Username**: `admin`  
-  **Default Password**: `isley`
-
-You will be prompted to change your password on first login.
+Then open `http://localhost:8080` — default login is `admin` / `isley`. You'll be prompted to change your password on first login.
 
 ---
 
-### 🔄 Optional: Migrate from SQLite to PostgreSQL
-
-If you're upgrading from an existing SQLite-based deployment to PostgreSQL, use the provided `docker-compose.migration.yml` file. This configuration mounts both the existing SQLite volume and the new PostgreSQL data volume into the container.
-
-On startup, **Isley will automatically check**:
-
-- If an existing SQLite database is present in `/app/data/`.
-- If the target PostgreSQL instance has no user data.
-
-If both conditions are met, **Isley will import your data from SQLite into PostgreSQL automatically**.
-
-#### 📄 `docker-compose.migration.yml`
+### ⚪ Option 2: SQLite (Lightweight / Local)
 
 ```yaml
-version: '3.8'
-
-services:
-  isley:
-    image: dwot/isley:latest
-    ports:
-      - "8080:8080"
-    environment:
-      - ISLEY_PORT=8080
-      - ISLEY_DB_DRIVER=postgres
-      - ISLEY_DB_HOST=postgres
-      - ISLEY_DB_PORT=5432
-      - ISLEY_DB_USER=isley
-      - ISLEY_DB_PASSWORD=supersecret
-      - ISLEY_DB_NAME=isleydb
-    depends_on:
-      - postgres
-    volumes:
-      - isley-db:/app/data
-      - isley-uploads:/app/uploads
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:16
-    environment:
-      - POSTGRES_DB=isleydb
-      - POSTGRES_USER=isley
-      - POSTGRES_PASSWORD=supersecret
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    restart: unless-stopped
-
-volumes:
-  isley-db:
-  postgres-data:
-  isley-uploads:
-
-```
-
-After migration, you can switch to `docker-compose.postgres.yml` for your regular production deployment. Be sure to back up your SQLite volume (`isley-db`) before running the migration just in case.
-
----
-
-### ⚪ Option 2: Docker with SQLite (Legacy)
-
-This method is still available for testing or lightweight local deployments.
-
-1. **Use `docker-compose.sqlite.yml`**:
-
-```yaml
+# docker-compose.sqlite.yml
 version: '3.8'
 
 services:
@@ -189,123 +139,108 @@ volumes:
   isley-uploads:
 ```
 
-2. **Start the container**:
 ```bash
 docker-compose -f docker-compose.sqlite.yml up -d
 ```
 
-3. **Access Isley**:
-- Open your browser:
-    - `http://localhost:8080` if running locally.
-    - `http://<server-ip>:8080` if running remotely.
-- **Default Username**: `admin`  
-  **Default Password**: `isley`
+> **Note:** SQLite is not recommended for production due to write contention under concurrent load.
 
-4. **Data Storage**:
-- `/data`: SQLite database storage.
-- `/uploads`: Image uploads.
+---
 
-These are mapped via Docker volumes. Add them to your **backup process** to prevent data loss.
+### 🔄 Migrating from SQLite to PostgreSQL
 
-> **Note:** This setup is not recommended for production use due to SQLite's limitations with concurrent writes.
+Already running Isley with SQLite? Isley handles the migration automatically.
+
+Use `docker-compose.migration.yml` — it mounts both your existing SQLite volume and the new PostgreSQL instance. On startup, **if Isley finds existing SQLite data and an empty PostgreSQL instance, it will import everything automatically**.
+
+```yaml
+# docker-compose.migration.yml
+version: '3.8'
+
+services:
+  isley:
+    image: dwot/isley:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - ISLEY_PORT=8080
+      - ISLEY_DB_DRIVER=postgres
+      - ISLEY_DB_HOST=postgres
+      - ISLEY_DB_PORT=5432
+      - ISLEY_DB_USER=isley
+      - ISLEY_DB_PASSWORD=supersecret
+      - ISLEY_DB_NAME=isleydb
+    depends_on:
+      - postgres
+    volumes:
+      - isley-db:/app/data
+      - isley-uploads:/app/uploads
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    environment:
+      - POSTGRES_DB=isleydb
+      - POSTGRES_USER=isley
+      - POSTGRES_PASSWORD=supersecret
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  isley-db:
+  postgres-data:
+  isley-uploads:
+```
+
+> **Tip:** Back up your `isley-db` volume before running migration, just in case.
+
+After migration completes, switch back to `docker-compose.postgres.yml` for your regular deployment.
 
 ---
 
 ## ⚙️ Configuration
 
-All settings can be configured via the **Settings icon** in the app. You can:
+Most settings are managed through the **Settings** panel in the app — enable integrations, set device IPs, scan for sensors, and more.
 
-- 🔧 Enable/disable integrations (e.g., AC Infinity, Ecowitt).
-- 🔑 Set API keys or device IPs.
-- 🔍 Scan for devices and start data collection.
+For environment-level configuration, the full reference is below:
 
-To override the default port:
-```bash
-ISLEY_PORT=8080
-```
+### General
 
-Environment variables for Postgres:
-```bash
-ISLEY_DB_DRIVER=postgres
-ISLEY_DB_HOST=postgres
-ISLEY_DB_PORT=5432
-ISLEY_DB_USER=isley
-ISLEY_DB_PASSWORD=supersecret
-ISLEY_DB_NAME=isleydb
-```
+| Variable | Default | Description |
+|---|---|---|
+| `ISLEY_PORT` | `8080` | Port Isley listens on |
+| `ISLEY_SESSION_SECRET` | *(random)* | Session encryption key — **set this in production** |
 
-For SQLite:
-```bash
-ISLEY_DB_DRIVER=sqlite
-```
+### Database
 
-Additional options:
-```bash
-ISLEY_DB_FILE=data/isley.db        # SQLite database path
-ISLEY_DB_SSLMODE=require           # PostgreSQL SSL mode (require, disable, verify-full, etc.)
-ISLEY_SESSION_SECRET=your-secret   # Session encryption key (random per-restart if unset — set this in production)
-```
+| Variable | Default | Description |
+|---|---|---|
+| `ISLEY_DB_DRIVER` | `sqlite` | Database backend: `sqlite` or `postgres` |
+| `ISLEY_DB_FILE` | `data/isley.db` | SQLite database path |
+| `ISLEY_DB_HOST` | — | PostgreSQL host |
+| `ISLEY_DB_PORT` | `5432` | PostgreSQL port |
+| `ISLEY_DB_USER` | — | PostgreSQL username |
+| `ISLEY_DB_PASSWORD` | — | PostgreSQL password |
+| `ISLEY_DB_NAME` | — | PostgreSQL database name |
+| `ISLEY_DB_SSLMODE` | `require` | PostgreSQL SSL mode (`require`, `disable`, `verify-full`, etc.) |
 
 ---
 
-## 📝 Notes
+## 🔌 API & Integrations
 
-- Isley is in **active development** 🚧. Breaking changes may occasionally occur.
-- Found a bug or have a suggestion? Open an issue on the [GitHub repository](https://github.com/dwot/isley/issues).
+Isley exposes an HTTP API for pushing sensor data from custom devices, IoT hardware, or home automation systems.
 
----
+### Generating an API Key
 
-## 🛡️ Recommendations
+1. Log in as an admin and go to **Settings → API Settings**.
+2. Click **Generate New Key** and copy it somewhere safe.
+3. Include the key as an `X-API-KEY` header on all API requests.
 
-For production:
+### Ingest Endpoint
 
-- 🐳 Use **Docker with PostgreSQL** and a reverse proxy (e.g., Nginx, Traefik) to handle TLS and external access.
-- 💾 **Backup Directories/Volumes**:
-    - `postgres-data` for PostgreSQL
-    - `/uploads` for user content
-- ❌ Avoid using SQLite in production.
-- 🛠️ Use volume mounts for persistence and scheduled backups.
+**`POST /api/sensors/ingest`**
 
-🌐 For more details, screenshots, and the latest updates, visit: [https://isley.dwot.io](https://isley.dwot.io).
-
----
-
-## 🔒 Security
-
-- **Login rate limiting**: Login attempts are capped at 5 per minute per IP to prevent brute-force attacks.
-- **Session encryption**: Sessions are encrypted using `ISLEY_SESSION_SECRET`. Set this to a long, random string in production — without it, sessions are invalidated on every restart.
-- **Security headers**: All responses include `X-Frame-Options`, `X-Content-Type-Options`, `X-XSS-Protection`, and `Referrer-Policy` headers.
-- **PostgreSQL SSL**: Defaults to `require`; adjust with `ISLEY_DB_SSLMODE`.
-- **API keys**: The ingest endpoint requires an `X-API-KEY` header — generate keys from Settings → API Settings.
-
----
-
-## 🛡️ API Access and Integrations
-
-Isley now supports programmatic data ingestion via a simple **HTTP API**, secured with API Keys. This allows you to automate sensor readings, integrate with home automation, and more.
-
-### 🔑 API Key Management
-
-To use API endpoints, an **API Key** is required.
-
-**Generating an API Key:**
-
-1. Log in as an admin.
-2. Navigate to **Settings** → **API Settings**.
-3. Click **Generate New Key**.
-4. Copy and store the generated API Key securely.
-
-- Treat your API Key as secret; anyone with the key can push data to your Isley instance.
-
-### 🌐 Ingest Endpoint
-
-The `/api/sensors/ingest` endpoint allows ingestion of environmental, sensor, or activity data into your grow journal.
-
-- **Endpoint:** `/api/sensors/ingest`
-- **Method:** `POST`
-- **Authentication:** Add your API Key to the header as `X-API-KEY`.
-
-**Payload Example:**
 ```json
 {
   "source": "custom",
@@ -313,9 +248,28 @@ The `/api/sensors/ingest` endpoint allows ingestion of environmental, sensor, or
   "type": "temperature",
   "value": 25.5,
   "name": "Temperature Sensor 1",
-  "new_zone": "Zone Name",
+  "new_zone": "Tent 1",
   "unit": "°C"
 }
 ```
 
-> **Tip:** Use this for IoT, custom automations, or integrating off-the-shelf sensors not already supported by Isley.
+> **Use this for:** Arduino/ESP32 sensors, Home Assistant, Node-RED, or any off-the-shelf sensor not natively supported by Isley.
+
+---
+
+## 🛡️ Production Recommendations
+
+- Use **Docker with PostgreSQL** behind a reverse proxy (Nginx, Traefik) for TLS termination and clean URL routing.
+- Back up these volumes on a regular schedule:
+  - `postgres-data` — database
+  - `isley-uploads` — plant photos and images
+- Set `ISLEY_SESSION_SECRET` to keep sessions valid across container restarts.
+
+---
+
+## 📝 Notes
+
+- Isley is in **active development** 🚧 — breaking changes may occasionally occur between releases.
+- Found a bug or have a feature request? [Open an issue](https://github.com/dwot/isley/issues) — contributions welcome.
+
+🌐 For screenshots, feature highlights, and the latest news: [isley.dwot.io](https://isley.dwot.io)
