@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -179,6 +180,15 @@ func SaveSettings(c *gin.Context) {
 		config.APIKey = settings.APIKey
 	}
 
+	err = UpdateSetting("sensor_retention_days", settings.SensorRetentionDays)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to save sensor retention setting")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+		return
+	} else {
+		config.SensorRetention, _ = strconv.Atoi(settings.SensorRetentionDays)
+	}
+
 	//Load Settings
 	LoadSettings()
 
@@ -287,6 +297,8 @@ func GetSettings() types.SettingsData {
 			settingsData.APIKey = value
 		case "api_ingest_enabled":
 			settingsData.APIIngestEnabled = value == "1"
+		case "sensor_retention_days":
+			settingsData.SensorRetentionDays, _ = strconv.Atoi(value)
 		default:
 			fieldLogger.WithField("name", name).Warn("Unknown setting found")
 		}
@@ -930,6 +942,13 @@ func LoadSettings() {
 		fieldLogger.WithError(err).Error("Failed to get API key setting")
 	}
 
+	strSensorRetention, err := GetSetting("sensor_retention_days")
+	if err == nil {
+		if iSensorRetention, err := strconv.Atoi(strSensorRetention); err == nil {
+			config.SensorRetention = iSensorRetention
+		}
+	}
+
 	config.Activities = GetActivities()
 	config.Metrics = GetMetrics()
 	config.Statuses = GetStatuses()
@@ -1233,6 +1252,51 @@ func GetStreamsByZoneHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, streamsByZone)
+}
+
+func GetLogs(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "GetLogs")
+
+	linesParam := c.DefaultQuery("lines", "200")
+	n, err := strconv.Atoi(linesParam)
+	if err != nil || n < 1 {
+		n = 200
+	}
+	if n > 2000 {
+		n = 2000
+	}
+
+	data, err := os.ReadFile("logs/app.log")
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to read log file")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read log file"})
+		return
+	}
+
+	lines := strings.Split(string(data), "\n")
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"lines": strings.Join(lines, "\n"),
+		"total": len(lines),
+	})
+}
+
+func DownloadLogs(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "DownloadLogs")
+
+	filePath := "logs/app.log"
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		fieldLogger.WithError(err).Error("Log file not found")
+		c.JSON(http.StatusNotFound, gin.H{"error": "Log file not found"})
+		return
+	}
+
+	c.Header("Content-Disposition", "attachment; filename=app.log")
+	c.Header("Content-Type", "text/plain")
+	c.File(filePath)
 }
 
 func DeleteStreamByID(id string) error {

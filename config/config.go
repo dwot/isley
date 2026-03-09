@@ -17,8 +17,8 @@ var (
 	Strains            []types.Strain
 	Breeders           []types.Breeder
 	Streams            []types.Stream
-	SensorRetention    = 90 // Default sensor retention in days
-	GuestMode          = 0  // Default guest mode
+	SensorRetention    = 0 // Default sensor retention in days (0 = disabled)
+	GuestMode          = 0 // Default guest mode
 	StreamGrabEnabled  = 0
 	StreamGrabInterval = 60
 	APIKey             = ""

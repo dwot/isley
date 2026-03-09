@@ -204,6 +204,8 @@ func AddProtectedApiRoutes(r *gin.RouterGroup) {
 	r.DELETE("/breeders/:id", handlers.DeleteBreederHandler)
 
 	r.POST("/settings/upload-logo", handlers.UploadLogo)
+	r.GET("/settings/logs", handlers.GetLogs)
+	r.GET("/settings/logs/download", handlers.DownloadLogs)
 	r.POST("/record-multi-activity", handlers.RecordMultiPlantActivity)
 	r.POST("/settings", handlers.SaveSettings)
 }

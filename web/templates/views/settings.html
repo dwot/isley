@@ -43,6 +43,11 @@ color: #0d6efd; /* Primary color */
                 &#128249; {{ .lcl.title_streams }}
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs-content" type="button" role="tab" aria-controls="logs-content" aria-selected="false">
+                &#128220; Logs
+            </button>
+        </li>
         <li class="nav-item ms-auto" role="presentation">
             <a class="btn btn-sm btn-outline-secondary" href="/change-password">&#128274; {{ .lcl.change_password }}</a>
         </li>
@@ -152,6 +157,22 @@ color: #0d6efd; /* Primary color */
                         </div>
                         <small class="text-muted d-block mt-2">
                             {{ .lcl.disable_api_ingest_desc }}
+                        </small>
+                    </div>
+                </div>
+
+                <!-- Data Retention -->
+                <div class="card mb-4 shadow-sm border-start border-4 border-warning">
+                    <div class="card-header bg-light text-dark">
+                        <h5 class="card-title mb-0"><i class="fa fa-database me-2"></i>Data Retention</h5>
+                    </div>
+                    <div class="card-body">
+                        <label for="sensorRetentionDays" class="form-label">Sensor data retention (days)</label>
+                        <input type="number" class="form-control" id="sensorRetentionDays" min="0" max="3650"
+                               value="{{ .settings.SensorRetentionDays }}" style="width:160px">
+                        <small class="text-muted d-block mt-2">
+                            How many days of sensor data and rolling averages to keep. Set to <strong>0</strong> to disable pruning (data kept forever).
+                            Pruning runs once every 24 hours while the app is running.
                         </small>
                     </div>
                 </div>
@@ -363,6 +384,32 @@ color: #0d6efd; /* Primary color */
                         {{ end }}
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Tab -->
+        <div class="tab-pane fade" id="logs-content" role="tabpanel" aria-labelledby="logs-tab">
+            <div class="card mb-4 shadow-sm mt-4">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0"><i class="fa fa-file-alt me-2"></i>&#128220; Application Logs</h5>
+                    <div class="d-flex gap-2 align-items-center">
+                        <select id="logLineCount" class="form-select form-select-sm" style="width:auto">
+                            <option value="100">Last 100 lines</option>
+                            <option value="200" selected>Last 200 lines</option>
+                            <option value="500">Last 500 lines</option>
+                            <option value="1000">Last 1000 lines</option>
+                        </select>
+                        <button class="btn btn-sm btn-outline-secondary" id="refreshLogsBtn">
+                            <i class="fa fa-sync"></i> Refresh
+                        </button>
+                        <a class="btn btn-sm btn-outline-primary" href="/settings/logs/download">
+                            <i class="fa fa-download"></i> Download
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <pre id="logOutput" class="mb-0 p-3" style="max-height:600px;overflow-y:auto;background:#1e1e1e;color:#d4d4d4;font-size:0.8rem;white-space:pre-wrap;word-break:break-all;">Loading...</pre>
                 </div>
             </div>
         </div>
@@ -929,6 +976,7 @@ color: #0d6efd; /* Primary color */
                 stream_grab_interval: streamGrabInterval.toString(),
                 api_key: document.getElementById("apiKey").value,
                 disable_api_ingest: document.getElementById("disableApiIngest").checked,
+                sensor_retention_days: document.getElementById("sensorRetentionDays").value,
             };
 
             // Send POST request to save settings
@@ -1362,6 +1410,31 @@ color: #0d6efd; /* Primary color */
     document.addEventListener("DOMContentLoaded", function () {
         // Clear any previously stored tab so the page always starts on the Settings tab
         localStorage.removeItem('activeSettingsTab');
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const logsTab = document.getElementById("logs-tab");
+        const refreshBtn = document.getElementById("refreshLogsBtn");
+        const logOutput = document.getElementById("logOutput");
+        const logLineCount = document.getElementById("logLineCount");
+
+        function loadLogs() {
+            const lines = logLineCount.value;
+            logOutput.textContent = "Loading...";
+            fetch(`/settings/logs?lines=${lines}`)
+                .then(r => r.json())
+                .then(data => {
+                    logOutput.textContent = data.lines || "(empty)";
+                    logOutput.scrollTop = logOutput.scrollHeight;
+                })
+                .catch(() => {
+                    logOutput.textContent = "Failed to load logs.";
+                });
+        }
+
+        logsTab.addEventListener("shown.bs.tab", loadLogs);
+        refreshBtn.addEventListener("click", loadLogs);
+        logLineCount.addEventListener("change", loadLogs);
     });
 
 </script>

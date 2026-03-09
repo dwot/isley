@@ -3,7 +3,6 @@ package watcher
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"io"
 	"isley/config"
 	"isley/logger"
@@ -12,10 +11,15 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 func Watch() {
 	logger.Log.Info("Started Sensor Watcher")
+
+	pruneTicker := time.NewTicker(24 * time.Hour)
+	defer pruneTicker.Stop()
 
 	for {
 		if config.ACIEnabled == 1 && config.ACIToken != "" {
@@ -26,6 +30,17 @@ func Watch() {
 				updateEcoWittSensorData(ecServer)
 			}
 		}
+
+		select {
+		case <-pruneTicker.C:
+			if err := PruneSensorData(); err != nil {
+				logger.Log.WithError(err).Error("Scheduled sensor data prune failed")
+			} else {
+				logger.Log.Info("Scheduled sensor data prune completed")
+			}
+		default:
+		}
+
 		time.Sleep(time.Duration(config.PollingInterval) * time.Second)
 	}
 }
@@ -183,17 +198,37 @@ func addSensorData(source string, device string, key string, value string) {
 }
 
 func PruneSensorData() error {
+	days := config.SensorRetention
+	if days <= 0 {
+		logger.Log.Debug("Sensor data pruning is disabled")
+		return nil
+	}
+
 	db, err := model.GetDB()
 	if err != nil {
 		logger.Log.WithError(err).Error("Failed to open database")
 		return err
 	}
 
-	_, err = db.Exec("DELETE FROM sensor_data WHERE create_dt < datetime(datetime('now', 'localtime'), '-90 day')")
+	var pruneQuery, pruneAvgQuery string
+	if model.IsPostgres() {
+		pruneQuery = fmt.Sprintf("DELETE FROM sensor_data WHERE create_dt < NOW() - INTERVAL '%d days'", days)
+		pruneAvgQuery = fmt.Sprintf("DELETE FROM rolling_averages WHERE create_dt < NOW() - INTERVAL '%d days'", days)
+	} else {
+		pruneQuery = fmt.Sprintf("DELETE FROM sensor_data WHERE create_dt < datetime('now', 'localtime', '-%d days')", days)
+		pruneAvgQuery = fmt.Sprintf("DELETE FROM rolling_averages WHERE create_dt < datetime('now', 'localtime', '-%d days')", days)
+	}
+	_, err = db.Exec(pruneQuery)
 	if err != nil {
 		logger.Log.WithError(err).Error("Error pruning sensor data")
 		return err
 	}
+	_, err = db.Exec(pruneAvgQuery)
+	if err != nil {
+		logger.Log.WithError(err).Error("Error pruning rolling averages")
+		return err
+	}
 
+	logger.Log.WithField("days", days).Info("Sensor data pruned")
 	return nil
 }
