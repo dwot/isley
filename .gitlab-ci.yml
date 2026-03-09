@@ -3,16 +3,19 @@ stages:
 
 build-dev:
   stage: build
-  image: docker:26
-  services:
-    - docker:26-dind
-  variables:
-    DOCKER_TLS_CERTDIR: "/certs"
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.0-debug
+    entrypoint: [""]
   rules:
     - if: '$CI_COMMIT_BRANCH == "dev"'
   before_script:
-    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+    - mkdir -p /kaniko/.docker
+    - |
+      echo "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(echo -n "$CI_REGISTRY_USER:$CI_REGISTRY_PASSWORD" | base64 | tr -d '\n')\"}}}" \
+        > /kaniko/.docker/config.json
   script:
-    - docker build -t "$CI_REGISTRY_IMAGE:dev" -t "$CI_REGISTRY_IMAGE:dev-$CI_COMMIT_SHORT_SHA" .
-    - docker push "$CI_REGISTRY_IMAGE:dev"
-    - docker push "$CI_REGISTRY_IMAGE:dev-$CI_COMMIT_SHORT_SHA"
+    - /kaniko/executor
+        --context "$CI_PROJECT_DIR"
+        --dockerfile "$CI_PROJECT_DIR/Dockerfile"
+        --destination "$CI_REGISTRY_IMAGE:dev"
+        --destination "$CI_REGISTRY_IMAGE:dev-$CI_COMMIT_SHORT_SHA"
