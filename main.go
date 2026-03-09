@@ -101,6 +101,11 @@ func main() {
 	}
 	go watcher.Watch()
 
+	// Default to release mode in production; override with GIN_MODE=debug
+	if os.Getenv("GIN_MODE") == "" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	// Set up Gin router
 	r := gin.Default()
 
