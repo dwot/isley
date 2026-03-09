@@ -251,6 +251,51 @@ func enforceWalMode() {
 	}
 }
 
+func RunStartupMaintenance() {
+	fieldLogger := logger.Log.WithField("func", "RunStartupMaintenance")
+	if !IsPostgres() {
+		return
+	}
+
+	var dbName string
+	if err := db.QueryRow("SELECT current_database()").Scan(&dbName); err != nil {
+		fieldLogger.WithError(err).Warn("Could not determine database name for maintenance")
+		return
+	}
+
+	// datcollversion was added in PG 15; skip gracefully on older versions
+	var beforeVersion sql.NullString
+	if err := db.QueryRow("SELECT datcollversion FROM pg_database WHERE datname = current_database()").Scan(&beforeVersion); err != nil {
+		fieldLogger.WithError(err).Debug("Could not read datcollversion (PostgreSQL < 15?), skipping maintenance")
+		return
+	}
+
+	// REFRESH COLLATION VERSION is fast and idempotent — safe to run every startup.
+	// dbName comes from current_database() — not user input, safe to interpolate.
+	if _, err := db.Exec("ALTER DATABASE " + dbName + " REFRESH COLLATION VERSION"); err != nil {
+		fieldLogger.WithError(err).Warn("Could not refresh collation version")
+		return
+	}
+
+	var afterVersion sql.NullString
+	if err := db.QueryRow("SELECT datcollversion FROM pg_database WHERE datname = current_database()").Scan(&afterVersion); err != nil {
+		fieldLogger.WithError(err).Warn("Could not read datcollversion after refresh")
+		return
+	}
+
+	if beforeVersion == afterVersion {
+		fieldLogger.Debug("PostgreSQL collation version is current, skipping REINDEX")
+		return
+	}
+
+	fieldLogger.Warn("PostgreSQL collation version was stale (likely after a Postgres or OS upgrade) — running REINDEX to rebuild indexes")
+	if _, err := db.Exec("REINDEX DATABASE " + dbName); err != nil {
+		fieldLogger.WithError(err).Error("REINDEX failed")
+		return
+	}
+	fieldLogger.Info("PostgreSQL REINDEX completed")
+}
+
 func BuildInClause(driver string, items []interface{}) (string, []interface{}) {
 	placeholders := make([]string, len(items))
 	args := make([]interface{}, len(items))

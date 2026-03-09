@@ -230,6 +230,16 @@ func PruneSensorData() error {
 		return err
 	}
 
+	if model.IsSQLite() {
+		if _, err := db.Exec("VACUUM"); err != nil {
+			logger.Log.WithError(err).Warn("SQLite VACUUM failed")
+		}
+		if _, err := db.Exec("PRAGMA optimize"); err != nil {
+			logger.Log.WithError(err).Warn("SQLite PRAGMA optimize failed")
+		}
+		logger.Log.Info("SQLite post-prune maintenance completed")
+	}
+
 	logger.Log.WithField("days", days).Info("Sensor data pruned")
 	return nil
 }

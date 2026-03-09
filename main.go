@@ -70,6 +70,7 @@ func main() {
 
 	model.MigrateDB()
 	model.InitDB()
+	model.RunStartupMaintenance()
 	dbDriver := model.GetDriver()
 	version = fmt.Sprintf("%s-%s", version, dbDriver)
 
