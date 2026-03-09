@@ -17,31 +17,29 @@ For full details, screenshots, and feature highlights, visit our official site �
 
 ## 🚀 Key Features
 
-- **📒 Grow Logs**: Track plant growth, watering, and feeding schedules.
-- **🌡️ Environmental Monitoring**: View real-time data from grow equipment (AC Infinity, Ecowitt).
-- **📸 Image Uploads**: Attach photos to your grow logs for visual tracking.
-- **🌱 Seed Inventory**: Manage your seed collection and strain library.
-- **📊 Harvest Tracking**: Record harvest details and yields.
-- **📈 Graphs and Charts**: Visualize environmental data and plant progress over time.
-- **⚙️ Customizable Settings**: Add custom activities and measurements for your grow.
-- **📱 Mobile-Friendly**: Works on desktop and mobile devices for convenience.
+- **📒 Grow Logs**: Track plant growth, watering, and feeding schedules with custom activity types.
+- **🌡️ Environmental Monitoring**: Real-time sensor data from AC Infinity and EcoWitt devices, plus custom ingest via HTTP API.
+- **📸 Image Uploads**: Attach photos to plants with captions; supports text overlays and watermarks.
+- **📷 Webcam Integration**: Capture periodic snapshots from camera streams via FFmpeg.
+- **🌱 Seed Inventory**: Manage strains, breeders, and seed stock with Indica/Sativa and autoflower tracking.
+- **📊 Harvest Tracking**: Record harvest dates, yields, and cycle times.
+- **📈 Graphs and Charts**: Visualize sensor data over time with configurable retention.
+- **⚙️ Customizable Settings**: Define custom zones, activities, metrics, and streams.
+- **🌍 Internationalization**: Available in English, German, Spanish, and French.
+- **🔓 Guest Mode**: Optional read-only access for unauthenticated visitors.
+- **📱 Mobile-Friendly**: Responsive layout for desktop and mobile.
 
 ---
 
 ## 🛠️ Features on the Roadmap
 
-- **🌍 Internationalization**: Support for multiple languages.
 - **🔔 Alerts and Notifications**: Set custom alerts for environmental conditions.
 - **📦 Export and Backup**: Download your grow data for offline storage.
-- **📷 Webcam Feeds**: Integrate live webcam feeds for visual monitoring.
-- **🗒️ Logging and Debugging**: Improved logging and debugging tools for troubleshooting.
 
 --- 
 ## 🚀 Quick Start
 
-Isley runs in **Docker** 🐳. Support for the **Windows Executable** 💻 has been deprecated and is no longer recommended for production use due to its reliance on SQLite and inability to scale.
-
-SQLite was ideal for early development and lightweight single-container deployments. However, it introduces write contention issues under production loads. **PostgreSQL is now the recommended database backend** for all production deployments.
+Isley runs in **Docker** 🐳. SQLite was ideal for early development and lightweight single-container deployments. However, it introduces write contention issues under production loads. **PostgreSQL is now the recommended database backend** for all production deployments.
 
 If you don’t already have Docker, follow the [Docker installation instructions](https://docs.docker.com/get-docker/). For `docker-compose`, you can install it [here](https://docs.docker.com/compose/install/).
 
@@ -213,22 +211,6 @@ These are mapped via Docker volumes. Add them to your **backup process** to prev
 
 ---
 
-### 💻 Deprecated: Windows Executable
-
-Running Isley on Windows via `isley.exe` is now **deprecated** and only supports SQLite. It is no longer recommended for active or production deployments.
-
-If you still wish to run the executable for testing:
-
-1. **Download** from the [Releases Page](https://github.com/dwot/isley/releases).
-2. **Run** via command prompt:
-```cmd
-set ISLEY_PORT=8080
-isley.exe
-```
-3. **Data** will be stored in `data/` and `uploads/` directories next to the executable.
-
----
-
 ## ⚙️ Configuration
 
 All settings can be configured via the **Settings icon** in the app. You can:
@@ -257,6 +239,13 @@ For SQLite:
 ISLEY_DB_DRIVER=sqlite
 ```
 
+Additional options:
+```bash
+ISLEY_DB_FILE=data/isley.db        # SQLite database path
+ISLEY_DB_SSLMODE=require           # PostgreSQL SSL mode (require, disable, verify-full, etc.)
+ISLEY_SESSION_SECRET=your-secret   # Session encryption key (random per-restart if unset — set this in production)
+```
+
 ---
 
 ## 📝 Notes
@@ -274,10 +263,20 @@ For production:
 - 💾 **Backup Directories/Volumes**:
     - `postgres-data` for PostgreSQL
     - `/uploads` for user content
-- ❌ Avoid using SQLite or the Windows executable in production.
+- ❌ Avoid using SQLite in production.
 - 🛠️ Use volume mounts for persistence and scheduled backups.
 
 🌐 For more details, screenshots, and the latest updates, visit: [https://isley.dwot.io](https://isley.dwot.io).
+
+---
+
+## 🔒 Security
+
+- **Login rate limiting**: Login attempts are capped at 5 per minute per IP to prevent brute-force attacks.
+- **Session encryption**: Sessions are encrypted using `ISLEY_SESSION_SECRET`. Set this to a long, random string in production — without it, sessions are invalidated on every restart.
+- **Security headers**: All responses include `X-Frame-Options`, `X-Content-Type-Options`, `X-XSS-Protection`, and `Referrer-Policy` headers.
+- **PostgreSQL SSL**: Defaults to `require`; adjust with `ISLEY_DB_SSLMODE`.
+- **API keys**: The ingest endpoint requires an `X-API-KEY` header — generate keys from Settings → API Settings.
 
 ---
 
