@@ -368,7 +368,6 @@ func main() {
 
 	// Start the server
 	logger.Log.Fatal(r.Run(":" + port))
-	logger.Log.Info("Server started on port", port)
 }
 
 func handleHealth(c *gin.Context) {

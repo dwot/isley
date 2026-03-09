@@ -22,5 +22,6 @@ var (
 	StreamGrabEnabled  = 0
 	StreamGrabInterval = 60
 	APIKey             = ""
-	APIIngestEnabled   = 1 // Default API ingest enabled
+	APIIngestEnabled   = 1      // Default API ingest enabled
+	LogLevel           = "info" // Default log level
 )

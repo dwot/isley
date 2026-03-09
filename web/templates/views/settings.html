@@ -122,6 +122,20 @@ color: #0d6efd; /* Primary color */
                         <small class="text-muted d-block mt-2">
                             {{ .lcl.polling_interval_desc }}
                         </small>
+
+                        <hr class="my-3">
+                        <label for="logLevel" class="form-label">Log Level</label>
+                        <select class="form-select" id="logLevel" style="width:160px">
+                            <option value="debug" {{ if eq .settings.LogLevel "debug" }}selected{{ end }}>Debug</option>
+                            <option value="info" {{ if or (eq .settings.LogLevel "info") (eq .settings.LogLevel "") }}selected{{ end }}>Info</option>
+                            <option value="warn" {{ if eq .settings.LogLevel "warn" }}selected{{ end }}>Warn</option>
+                            <option value="error" {{ if eq .settings.LogLevel "error" }}selected{{ end }}>Error</option>
+                        </select>
+                        <small class="text-muted d-block mt-2">
+                            Controls which log messages are written. <strong>Info</strong> is recommended for normal use.
+                            Use <strong>Debug</strong> to troubleshoot issues; use <strong>Warn</strong> or <strong>Error</strong> to reduce noise.
+                            Changes take effect immediately without restart.
+                        </small>
                     </div>
                 </div>
 
@@ -977,6 +991,7 @@ color: #0d6efd; /* Primary color */
                 api_key: document.getElementById("apiKey").value,
                 disable_api_ingest: document.getElementById("disableApiIngest").checked,
                 sensor_retention_days: document.getElementById("sensorRetentionDays").value,
+                log_level: document.getElementById("logLevel").value,
             };
 
             // Send POST request to save settings

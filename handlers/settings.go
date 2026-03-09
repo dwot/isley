@@ -189,6 +189,16 @@ func SaveSettings(c *gin.Context) {
 		config.SensorRetention, _ = strconv.Atoi(settings.SensorRetentionDays)
 	}
 
+	err = UpdateSetting("log_level", settings.LogLevel)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to save log level setting")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+		return
+	} else {
+		config.LogLevel = settings.LogLevel
+		logger.SetLevel(config.LogLevel)
+	}
+
 	//Load Settings
 	LoadSettings()
 
@@ -299,8 +309,10 @@ func GetSettings() types.SettingsData {
 			settingsData.APIIngestEnabled = value == "1"
 		case "sensor_retention_days":
 			settingsData.SensorRetentionDays, _ = strconv.Atoi(value)
+		case "log_level":
+			settingsData.LogLevel = value
 		default:
-			fieldLogger.WithField("name", name).Warn("Unknown setting found")
+			fieldLogger.WithField("name", name).Debug("Unrecognised setting skipped")
 		}
 	}
 
@@ -730,7 +742,7 @@ func GetSetting(name string) (string, error) {
 	err = db.QueryRow("SELECT value FROM settings WHERE name = $1", name).Scan(&value)
 	if err != nil {
 		if err.Error() == "sql: no rows in result set" {
-			fieldLogger.WithField("name", name).Warn("Setting not found")
+			fieldLogger.WithField("name", name).Debug("Setting not found")
 			return "", nil
 		} else {
 			fieldLogger.WithError(err).Error("Failed to read setting")
@@ -947,6 +959,12 @@ func LoadSettings() {
 		if iSensorRetention, err := strconv.Atoi(strSensorRetention); err == nil {
 			config.SensorRetention = iSensorRetention
 		}
+	}
+
+	strLogLevel, err := GetSetting("log_level")
+	if err == nil && strLogLevel != "" {
+		config.LogLevel = strLogLevel
+		logger.SetLevel(config.LogLevel)
 	}
 
 	config.Activities = GetActivities()

@@ -3,6 +3,7 @@ package logger
 import (
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -42,4 +43,17 @@ func InitLogger() {
 
 	// Set log level
 	Log.SetLevel(logrus.InfoLevel)
+}
+
+func SetLevel(level string) {
+	switch strings.ToLower(level) {
+	case "debug":
+		Log.SetLevel(logrus.DebugLevel)
+	case "warn", "warning":
+		Log.SetLevel(logrus.WarnLevel)
+	case "error":
+		Log.SetLevel(logrus.ErrorLevel)
+	default: // "info" or anything unrecognised
+		Log.SetLevel(logrus.InfoLevel)
+	}
 }

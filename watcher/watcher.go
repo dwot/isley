@@ -182,8 +182,7 @@ func addSensorData(source string, device string, key string, value string) {
 			"source": source,
 			"device": device,
 			"type":   key,
-			"error":  err,
-		}).Error("Error querying sensor ID")
+		}).Debug("Sensor not tracked, skipping")
 		return
 	}
 
