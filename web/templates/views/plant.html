@@ -199,7 +199,7 @@
                             <div class="card-body">
                                 <h5 class="card-title">{{ .Name }}</h5>
                                 <p class="display-6 fw-bold">{{ .Value }} {{ .Unit }}</p>
-                                <small class="text-muted">{{ toLocalTimeString .Date }}</small>
+                                <small class="text-muted">{{ formatDateTime .Date }}</small>
                             </div>
                         </div>
                     </a>

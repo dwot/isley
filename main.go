@@ -197,6 +197,14 @@ func main() {
 			// Replace newlines with <br> tags and mark as safe HTML
 			return template.HTML(strings.ReplaceAll(template.HTMLEscapeString(s), "\n", "<br>"))
 		},
+		"formatStringDate": func(s string) string {
+			for _, layout := range []string{utils.LayoutDB, utils.LayoutDateTimeLocal, utils.LayoutDate} {
+				if t, err := time.Parse(layout, s); err == nil {
+					return t.Format(utils.LayoutDateTime)
+				}
+			}
+			return s
+		},
 	}
 
 	// Attach FuncMap and ParseFS
