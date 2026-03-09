@@ -273,3 +273,11 @@ Isley exposes an HTTP API for pushing sensor data from custom devices, IoT hardw
 - Found a bug or have a feature request? [Open an issue](https://github.com/dwot/isley/issues) — contributions welcome.
 
 🌐 For screenshots, feature highlights, and the latest news: [isley.dwot.io](https://isley.dwot.io)
+
+---
+
+## ⭐ Star History
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/image?repos=dwot/isley&type=date&legend=top-left)](https://www.star-history.com/?repos=dwot%2Fisley&type=date&legend=top-left)
