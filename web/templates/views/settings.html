@@ -1,5 +1,5 @@
 {{ define "views/settings.html"}}
-<!--index.html-->
+<!--settings.html-->
 
 <!--Embed the header.html template at this location-->
 
@@ -14,33 +14,37 @@ border-color: #0d6efd #0d6efd #fff; /* Adjust border for seamless look */
 .nav-tabs .nav-link {
 color: #0d6efd; /* Primary color */
 }
+
+.border-start.border-4 { border-left-width: 4px !important; }
+.card-table .card-body { padding: 0; }
+.card-table .table { margin-bottom: 0; }
 </style>
 {{ template "common/header2.html" .}}
 <div class="container">
     <!-- Tabs Navigation -->
-    <ul class="nav nav-tabs" id="settingsTabs" role="tablist">
+    <ul class="nav nav-tabs d-flex align-items-center" id="settingsTabs" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active" id="settings-tab" data-bs-toggle="tab" data-bs-target="#settings-content" type="button" role="tab" aria-controls="settings-content" aria-selected="true">
-                {{ .lcl.title_settings }}
+                &#9881; {{ .lcl.title_settings }}
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="tables-tab" data-bs-toggle="tab" data-bs-target="#tables-content" type="button" role="tab" aria-controls="tables-content" aria-selected="false">
-                {{ .lcl.title_tables }}
+                &#128203; {{ .lcl.title_tables }}
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="logo-tab" data-bs-toggle="tab" data-bs-target="#logo-content" type="button" role="tab" aria-controls="logo-content" aria-selected="false">
-                {{ .lcl.set_logo_image }}
+                &#128444; {{ .lcl.set_logo_image }}
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="streams-tab" data-bs-toggle="tab" data-bs-target="#streams-content" type="button" role="tab" aria-controls="streams-content" aria-selected="false">
-                {{ .lcl.title_streams }}
+                &#128249; {{ .lcl.title_streams }}
             </button>
         </li>
-        <li class="nav-item" role="presentation">
-            <a class="nav-link" href="/change-password">{{ .lcl.change_password }}</a>
+        <li class="nav-item ms-auto" role="presentation">
+            <a class="btn btn-sm btn-outline-secondary" href="/change-password">&#128274; {{ .lcl.change_password }}</a>
         </li>
     </ul>
 
@@ -50,9 +54,9 @@ color: #0d6efd; /* Primary color */
         <div class="tab-pane fade show active" id="settings-content" role="tabpanel" aria-labelledby="settings-tab">
             <form id="settingsForm" class="mt-4">
                 <!-- AC Infinity Section -->
-                <div class="card mb-4 shadow-sm">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="card-title mb-0">AC Infinity</h5>
+                <div class="card mb-4 shadow-sm border-start border-4 border-primary">
+                    <div class="card-header bg-light text-dark">
+                        <h5 class="card-title mb-0"><i class="fa fa-microchip me-2"></i>AC Infinity</h5>
                     </div>
                     <div class="card-body">
                         <div class="form-check form-switch">
@@ -74,9 +78,9 @@ color: #0d6efd; /* Primary color */
                 </div>
 
                 <!-- EcoWitt Section -->
-                <div class="card mb-4 shadow-sm">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="card-title mb-0">EcoWitt</h5>
+                <div class="card mb-4 shadow-sm border-start border-4 border-success">
+                    <div class="card-header bg-light text-dark">
+                        <h5 class="card-title mb-0"><i class="fa fa-leaf me-2"></i>EcoWitt</h5>
                     </div>
                     <div class="card-body">
                         <div class="form-check form-switch">
@@ -89,10 +93,10 @@ color: #0d6efd; /* Primary color */
                     </div>
                 </div>
 
-                <!-- Settings -->
-                <div class="card mb-4 shadow-sm">
-                    <div class="card-header bg-info text-white">
-                        <h5 class="card-title mb-0">{{ .lcl.title_settings }}</h5>
+                <!-- General Settings -->
+                <div class="card mb-4 shadow-sm border-start border-4 border-info">
+                    <div class="card-header bg-light text-dark">
+                        <h5 class="card-title mb-0"><i class="fa fa-sliders me-2"></i>{{ .lcl.title_settings }}</h5>
                     </div>
                     <div class="card-body">
                         <div class="form-check form-switch">
@@ -102,8 +106,9 @@ color: #0d6efd; /* Primary color */
                         <small class="text-muted d-block mt-2">
                             {{ .lcl.guest_mode_desc }}
                         </small>
-                    </div>
-                    <div class="card-body">
+
+                        <hr class="my-3">
+
                         <label for="pollingInterval" class="form-label">{{ .lcl.polling_interval }}:
                             <span id="pollingValue" class="fw-bold">{{ .settings.PollingInterval }} {{ .lcl.time_seconds }}</span>
                         </label>
@@ -113,56 +118,11 @@ color: #0d6efd; /* Primary color */
                             {{ .lcl.polling_interval_desc }}
                         </small>
                     </div>
-                    <div class="card-body">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="streamGrabEnabled" {{ if .settings.StreamGrabEnabled }}checked{{ end }}>
-                            <label class="form-check-label" for="streamGrabEnabled">{{ .lcl.stream_grab_enabled }}</label>
-                        </div>
-                        <small class="text-muted d-block mt-2">
-                            {{ .lcl.stream_grab_enabled_desc }}
-                        </small>
-                    </div>
-                    <div class="card-body">
-                        <label for="streamGrabInterval" class="form-label">{{ .lcl.stream_grab_interval }}:
-                            <span id="streamGrabIntervalValue" class="fw-bold">{{ div .settings.StreamGrabInterval 60 }} {{ .lcl.time_minutes }}</span>
-                        </label>
-                        <input type="range" class="form-range" id="streamGrabInterval"
-                               min="5" max="60" step="5" value="{{ div .settings.StreamGrabInterval 60 }}">
-                        <small class="text-muted d-block mt-2">
-                            {{ .lcl.stream_grab_interval_desc }}
-                        </small>
-                    </div>
                 </div>
 
-                <script>
-                    document.addEventListener("DOMContentLoaded", () => {
-                        const pollingSlider = document.getElementById("pollingInterval");
-                        const pollingValue = document.getElementById("pollingValue");
-
-                        // Update display when slider is adjusted
-                        pollingSlider.addEventListener("input", () => {
-                            pollingValue.textContent = `${pollingSlider.value} seconds`;
-                        });
-
-                        const streamGrabSlider = document.getElementById("streamGrabInterval");
-                        const streamGrabValue = document.getElementById("streamGrabIntervalValue");
-
-                        // Update display when slider is adjusted
-                        streamGrabSlider.addEventListener("input", () => {
-                            const minutes = streamGrabSlider.value;
-                            const seconds = minutes * 60;
-                            streamGrabValue.textContent = `${minutes} {{ .lcl.time_minutes }}`;
-                            streamGrabSlider.setAttribute('data-seconds', seconds);
-                        });
-
-                        // Set initial value in seconds
-                        streamGrabSlider.setAttribute('data-seconds', streamGrabSlider.value * 60);
-                    });
-                </script>
-
                 <!-- API Settings -->
-                <div class="card mb-4 shadow-sm">
-                    <div class="card-header bg-warning text-dark">
+                <div class="card mb-4 shadow-sm border-start border-4 border-warning">
+                    <div class="card-header bg-light text-dark">
                         <h5 class="card-title mb-0">
                             <i class="fa fa-key me-2"></i>{{ .lcl.api }} {{ .lcl.title_settings }}
                         </h5>
@@ -185,7 +145,7 @@ color: #0d6efd; /* Primary color */
                             {{ linebreaks .lcl.api_key_desc }}
                         </small>
 
-                        <!-- New: Disable API Ingest -->
+                        <!-- Disable API Ingest -->
                         <div class="form-check form-switch mt-3">
                             <input class="form-check-input" type="checkbox" id="disableApiIngest" name="disable_api_ingest" {{ if .settings.APIIngestEnabled }}{{ else }}checked{{ end }}>
                             <label class="form-check-label" for="disableApiIngest">{{ .lcl.disable_api_ingest }}</label>
@@ -204,148 +164,206 @@ color: #0d6efd; /* Primary color */
         </div>
 
 
-        <!-- Tables Tab -->
+        <!-- Customization Tab -->
         <div class="tab-pane fade" id="tables-content" role="tabpanel" aria-labelledby="tables-tab">
-            <!-- Zones Table -->
-            <div class="mt-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h3 class="text-secondary">{{ .lcl.title_zones }}</h3>
-                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addZoneModal">
+            <!-- Zones -->
+            <div class="card mb-4 shadow-sm card-table mt-4">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">&#128205; {{ .lcl.title_zones }}</h5>
+                        <small class="text-muted">Growing areas or rooms. Used to group plants and streams.</small>
+                    </div>
+                    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addZoneModal">
                         <i class="fa-solid fa-plus"></i> {{ .lcl.add_zone }}
                     </button>
                 </div>
-                <table class="table table-striped table-bordered table-hover">
-                    <thead class="table-dark">
-                    <tr>
-                        <th>{{ .lcl.title_zone }}</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {{ range .zones }}
-                    <tr class="clickable-row zone-row" data-zone='{{ json . }}'>
-                        <td>{{ .Name }}</td>
-                    </tr>
-                    {{ end }}
-                    </tbody>
-                </table>
+                <div class="card-body">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                        <tr>
+                            <th>{{ .lcl.title_zone }}</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {{ range .zones }}
+                        <tr class="clickable-row zone-row" data-zone='{{ json . }}'>
+                            <td>{{ .Name }}</td>
+                        </tr>
+                        {{ end }}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            <!-- Activities Table -->
-            <div class="mt-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h3 class="text-secondary">{{ .lcl.title_activities }}</h3>
-                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addActivityModal">
+            <!-- Activities -->
+            <div class="card mb-4 shadow-sm card-table">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">&#9997; {{ .lcl.title_activities }}</h5>
+                        <small class="text-muted">Actions you can log against plants (e.g. watering, feeding, training).</small>
+                    </div>
+                    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addActivityModal">
                         <i class="fa-solid fa-plus"></i> {{ .lcl.add_activity }}
                     </button>
                 </div>
-                <table class="table table-striped table-bordered table-hover">
-                    <thead class="table-dark">
-                    <tr>
-                        <th>{{ .lcl.title_activity }}</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {{ range .activities }}
-                    <tr class="clickable-row activity-row" data-activity='{{ json . }}'>
-                        <td>{{ .Name }}</td>
-                    </tr>
-                    {{ end }}
-                    </tbody>
-                </table>
+                <div class="card-body">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                        <tr>
+                            <th>{{ .lcl.title_activity }}</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {{ range .activities }}
+                        <tr class="clickable-row activity-row" data-activity='{{ json . }}'>
+                            <td>{{ .Name }}</td>
+                        </tr>
+                        {{ end }}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            <!-- Metrics Table -->
-            <div class="mt-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h3 class="text-secondary">{{ .lcl.title_metrics }}</h3>
-                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMetricModal">
+            <!-- Metrics -->
+            <div class="card mb-4 shadow-sm card-table">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">&#128200; {{ .lcl.title_metrics }}</h5>
+                        <small class="text-muted">Custom measurements to track per plant (e.g. pH, height, EC).</small>
+                    </div>
+                    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addMetricModal">
                         <i class="fa-solid fa-plus"></i> {{ .lcl.add_metric }}
                     </button>
                 </div>
-                <table class="table table-striped table-bordered table-hover">
-                    <thead class="table-dark">
-                    <tr>
-                        <th>{{ .lcl.title_metric }}</th>
-                        <th>{{ .lcl.title_unit }}</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {{ range .metrics }}
-                    <tr class="clickable-row metric-row" data-metric='{{ json . }}'>
-                        <td>{{ .Name }}</td>
-                        <td>{{ .Unit }}</td>
-                    </tr>
-                    {{ end }}
-                    </tbody>
-                </table>
+                <div class="card-body">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                        <tr>
+                            <th>{{ .lcl.title_metric }}</th>
+                            <th>{{ .lcl.title_unit }}</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {{ range .metrics }}
+                        <tr class="clickable-row metric-row" data-metric='{{ json . }}'>
+                            <td>{{ .Name }}</td>
+                            <td>{{ .Unit }}</td>
+                        </tr>
+                        {{ end }}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            <!-- Breeders Table -->
-            <div class="mt-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h3 class="text-secondary">{{ .lcl.breeders }}</h3>
-                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addBreederModal">
+            <!-- Breeders -->
+            <div class="card mb-4 shadow-sm card-table">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">&#127807; {{ .lcl.breeders }}</h5>
+                        <small class="text-muted">Seed breeders and producers. Linked to strains and plants.</small>
+                    </div>
+                    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addBreederModal">
                         <i class="fa-solid fa-plus"></i> {{ .lcl.add_breeder }}
                     </button>
                 </div>
-                <table class="table table-striped table-bordered table-hover">
-                    <thead class="table-dark">
-                    <tr>
-                        <th>{{ .lcl.breeder }}</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {{ range .breeders }}
-                    <tr class="clickable-row breeder-row" data-breeder='{{ json . }}'>
-                        <td>{{ .Name }}</td>
-                    </tr>
-                    {{ end }}
-                    </tbody>
-                </table>
+                <div class="card-body">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                        <tr>
+                            <th>{{ .lcl.breeder }}</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {{ range .breeders }}
+                        <tr class="clickable-row breeder-row" data-breeder='{{ json . }}'>
+                            <td>{{ .Name }}</td>
+                        </tr>
+                        {{ end }}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
-        <!-- Set Logo Tab -->
+        <!-- Appearance Tab -->
         <div class="tab-pane fade" id="logo-content" role="tabpanel" aria-labelledby="logo-tab">
-            <div class="mt-4">
-                <small class="text-muted d-block mt-2">
-                    {{ .lcl.add_logo_info }}
-                    <p>{{ .lcl.add_logo_note }}</p>
-                </small>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadImagesModal">
-                    <i class="fa-solid fa-upload"></i> {{ .lcl.add_logo }}
-                </button>
+            <div class="card mb-4 shadow-sm mt-4">
+                <div class="card-header bg-light text-dark">
+                    <h5 class="card-title mb-0"><i class="fa fa-image me-2"></i>{{ .lcl.set_logo_image }}</h5>
+                </div>
+                <div class="card-body">
+                    <small class="text-muted d-block mb-3">
+                        {{ .lcl.add_logo_info }}
+                        <p class="mt-2">{{ .lcl.add_logo_note }}</p>
+                    </small>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadImagesModal">
+                        <i class="fa-solid fa-upload"></i> {{ .lcl.add_logo }}
+                    </button>
+                </div>
             </div>
         </div>
 
         <!-- Streams Tab -->
         <div class="tab-pane fade" id="streams-content" role="tabpanel" aria-labelledby="streams-tab">
+            <!-- Stream Capture Settings (inputs linked to settingsForm via form attribute) -->
+            <div class="card mb-4 shadow-sm border-start border-4 border-primary mt-4">
+                <div class="card-header bg-light text-dark">
+                    <h5 class="card-title mb-0"><i class="fa fa-camera me-2"></i>&#128249; Stream Capture Settings</h5>
+                </div>
+                <div class="card-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="streamGrabEnabled" form="settingsForm" {{ if .settings.StreamGrabEnabled }}checked{{ end }}>
+                        <label class="form-check-label" for="streamGrabEnabled">{{ .lcl.stream_grab_enabled }}</label>
+                    </div>
+                    <small class="text-muted d-block mt-2">
+                        {{ .lcl.stream_grab_enabled_desc }}
+                    </small>
+
+                    <hr class="my-3">
+
+                    <label for="streamGrabInterval" class="form-label">{{ .lcl.stream_grab_interval }}:
+                        <span id="streamGrabIntervalValue" class="fw-bold">{{ div .settings.StreamGrabInterval 60 }} {{ .lcl.time_minutes }}</span>
+                    </label>
+                    <input type="range" class="form-range" id="streamGrabInterval" form="settingsForm"
+                           min="5" max="60" step="5" value="{{ div .settings.StreamGrabInterval 60 }}">
+                    <small class="text-muted d-block mt-2">
+                        {{ .lcl.stream_grab_interval_desc }}
+                    </small>
+
+                    <div class="text-end mt-3">
+                        <button type="submit" form="settingsForm" class="btn btn-primary px-4">{{ .lcl.save_settings }}</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Streams Table -->
-            <div class="mt-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h3 class="text-secondary">{{ .lcl.title_streams }}</h3>
-                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStreamModal">
+            <div class="card mb-4 shadow-sm card-table">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">&#128249; {{ .lcl.title_streams }}</h5>
+                    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addStreamModal">
                         <i class="fa-solid fa-plus"></i> {{ .lcl.add_stream }}
                     </button>
                 </div>
-                <table class="table table-striped table-bordered table-hover">
-                    <thead class="table-dark">
-                    <tr>
-                        <th>{{ .lcl.stream_name }}</th>
-                        <th>{{ .lcl.stream_zone }}</th>
-                        <th>{{ .lcl.stream_url }}</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {{ range .streams }}
-                    <tr class="clickable-row stream-row" data-stream='{{ json . }}'>
-                        <td>{{ .Name }}</td>
-                        <td>{{ .ZoneName }}</td>
-                        <td>{{ .URL }}</td>
-                    </tr>
-                    {{ end }}
-                    </tbody>
-                </table>
+                <div class="card-body">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                        <tr>
+                            <th>{{ .lcl.stream_name }}</th>
+                            <th>{{ .lcl.stream_zone }}</th>
+                            <th>{{ .lcl.stream_url }}</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {{ range .streams }}
+                        <tr class="clickable-row stream-row" data-stream='{{ json . }}'>
+                            <td>{{ .Name }}</td>
+                            <td>{{ .ZoneName }}</td>
+                            <td>{{ .URL }}</td>
+                        </tr>
+                        {{ end }}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -691,6 +709,30 @@ color: #0d6efd; /* Primary color */
 </div>
 
 <script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const pollingSlider = document.getElementById("pollingInterval");
+        const pollingValue = document.getElementById("pollingValue");
+
+        // Update display when slider is adjusted
+        pollingSlider.addEventListener("input", () => {
+            pollingValue.textContent = `${pollingSlider.value} seconds`;
+        });
+
+        const streamGrabSlider = document.getElementById("streamGrabInterval");
+        const streamGrabValue = document.getElementById("streamGrabIntervalValue");
+
+        // Update display when slider is adjusted
+        streamGrabSlider.addEventListener("input", () => {
+            const minutes = streamGrabSlider.value;
+            const seconds = minutes * 60;
+            streamGrabValue.textContent = `${minutes} {{ .lcl.time_minutes }}`;
+            streamGrabSlider.setAttribute('data-seconds', seconds);
+        });
+
+        // Set initial value in seconds
+        streamGrabSlider.setAttribute('data-seconds', streamGrabSlider.value * 60);
+    });
+
     document.addEventListener("DOMContentLoaded", () => {
         const addStreamForm = document.getElementById("addStreamForm");
         const addStreamModal = document.getElementById("addStreamModal");
@@ -1316,29 +1358,11 @@ color: #0d6efd; /* Primary color */
         apiKeyInput.select();
         navigator.clipboard.writeText(apiKeyInput.value);
     }
+
     document.addEventListener("DOMContentLoaded", function () {
-        // Select all tab buttons.
-        const tabButtons = document.querySelectorAll('#settingsTabs [data-bs-toggle="tab"]');
-
-        // Restore active tab from localStorage
-        const activeTab = localStorage.getItem('activeSettingsTab');
-        if (activeTab) {
-            const activeTabEl = document.querySelector(`#settingsTabs [data-bs-target="${activeTab}"]`);
-            if (activeTabEl) {
-                const tabInstance = bootstrap.Tab.getOrCreateInstance(activeTabEl);
-                tabInstance.show();
-            }
-        }
-
-        // Listen to tab change events and store the active tab
-        tabButtons.forEach(function (tabButton) {
-            tabButton.addEventListener('shown.bs.tab', function (event) {
-                const selector = event.target.getAttribute('data-bs-target');
-                localStorage.setItem('activeSettingsTab', selector);
-            });
-        });
+        // Clear any previously stored tab so the page always starts on the Settings tab
+        localStorage.removeItem('activeSettingsTab');
     });
-
 
 </script>
 
