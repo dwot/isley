@@ -441,6 +441,7 @@ func GetPlant(id string) types.Plant {
 			fieldLogger.WithError(err).Error("Failed to scan plant")
 			return plant
 		}
+		start_dt = start_dt.Local()
 		// Calculate current day and week
 		currentTime := time.Now()
 		//Calculate the # of hours difference between the current timezone and UTC
@@ -488,7 +489,7 @@ func GetPlant(id string) types.Plant {
 
 			// Combine sensor details with the latest data
 			sensor.Value = sensorData.Value
-			sensor.Date = sensorData.CreateDT
+			sensor.Date = sensorData.CreateDT.Local()
 
 			// Add the sensor to the sensor list
 			sensorList = append(sensorList, sensor)
@@ -1189,7 +1190,7 @@ ORDER BY p.start_dt, p.name;
 		if strings.Contains(harvestDateStr, "T") {
 			plant.HarvestDate, err = time.Parse(time.RFC3339, harvestDateStr)
 		} else {
-			plant.HarvestDate, err = time.Parse("2006-01-02", harvestDateStr)
+			plant.HarvestDate, err = time.Parse(utils.LayoutDate, harvestDateStr)
 		}
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to parse harvest date")

@@ -130,7 +130,7 @@ func main() {
 			return string(a)
 		},
 		"formatDateTimeLocal": func(t time.Time) string {
-			return t.Format(utils.LayoutDateTimeLocal)
+			return t.Local().Format(utils.LayoutDateTimeLocal)
 		},
 		"formatDate": func(t time.Time) string {
 			return t.Format(utils.LayoutDate)
@@ -198,9 +198,17 @@ func main() {
 			return template.HTML(strings.ReplaceAll(template.HTMLEscapeString(s), "\n", "<br>"))
 		},
 		"formatStringDate": func(s string) string {
-			for _, layout := range []string{utils.LayoutDB, utils.LayoutDateTimeLocal, utils.LayoutDate} {
+			for _, layout := range []string{time.RFC3339, utils.LayoutDB, utils.LayoutDateTimeLocal, utils.LayoutDate} {
 				if t, err := time.Parse(layout, s); err == nil {
-					return t.Format(utils.LayoutDateTime)
+					return t.Local().Format(utils.LayoutDateTime)
+				}
+			}
+			return s
+		},
+		"formatStringDateOnly": func(s string) string {
+			for _, layout := range []string{time.RFC3339, utils.LayoutDB, utils.LayoutDateTimeLocal, utils.LayoutDate} {
+				if t, err := time.Parse(layout, s); err == nil {
+					return t.Local().Format(utils.LayoutDate)
 				}
 			}
 			return s

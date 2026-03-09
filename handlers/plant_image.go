@@ -8,6 +8,7 @@ import (
 	"io"
 	"isley/logger"
 	"isley/model"
+	"isley/utils"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -114,7 +115,7 @@ func UploadPlantImages(c *gin.Context) {
 		}
 		imageDate := time.Now()
 		if index < len(dates) {
-			parsedDate, err := time.Parse("2006-01-02", dates[index])
+			parsedDate, err := time.Parse(utils.LayoutDate, dates[index])
 			if err == nil {
 				imageDate = parsedDate
 			} else {

@@ -113,7 +113,7 @@ func querySensorHistoryByTime(sensor string, timeMinutes string) ([]types.Sensor
 		return sensorData, err
 	}
 
-	timeThreshold := time.Now().In(time.UTC).Add(-time.Duration(timeMinutesInt) * time.Minute).Format("2006-01-02 15:04:05")
+	timeThreshold := time.Now().In(time.UTC).Add(-time.Duration(timeMinutesInt) * time.Minute).Format(utils.LayoutDB)
 	query := "SELECT sd.id, sd.sensor_id, sd.value, sd.create_dt, s.name FROM sensor_data sd left outer join sensors s on s.id = sd.sensor_id WHERE sd.sensor_id = $1 AND sd.create_dt > $2 ORDER BY sd.create_dt"
 	rows, err := db.Query(query, sensorInt, timeThreshold)
 	if err != nil {

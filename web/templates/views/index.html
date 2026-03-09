@@ -40,7 +40,7 @@
                         <td>{{ .Name }}</td>
                         <td>{{ .StrainName }}</td>
                         <td>{{ with $lbl := index $.lcl (print (lower .Status) "_label") }}{{ $lbl }}{{ else }}{{ .Status }}{{ end }}</td>
-                        <td>{{ formatStringDate .StartDT }}</td>
+                        <td>{{ formatStringDateOnly .StartDT }}</td>
                         <td>{{ .DaysSinceLastWatering }}</td>
                         <td>{{ .DaysSinceLastFeeding }}</td>
                         <td>{{ if .FloweringDays }}{{ .FloweringDays }}{{ else }} {{ .lcl.na }} {{ end }}</td>
