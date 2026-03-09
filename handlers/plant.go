@@ -1198,7 +1198,10 @@ ORDER BY p.start_dt, p.name;
 		// calculate the estimated harvest date
 		startDate := plant.StartDT
 		//convert start date to a time.Time (has timezone data)
-		startTime, err := time.ParseInLocation(utils.LayoutDateTimeLocal, startDate, time.Local)
+		startTime, err := time.Parse(time.RFC3339, startDate)
+		if err != nil {
+			startTime, err = time.ParseInLocation(utils.LayoutDateTimeLocal, startDate, time.Local)
+		}
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to parse start date")
 		} else {
