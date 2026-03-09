@@ -1284,7 +1284,16 @@ func GetLogs(c *gin.Context) {
 		n = 2000
 	}
 
-	data, err := os.ReadFile("logs/app.log")
+	fileParam := c.DefaultQuery("file", "app")
+	var logPath string
+	switch fileParam {
+	case "access":
+		logPath = "logs/access.log"
+	default:
+		logPath = "logs/app.log"
+	}
+
+	data, err := os.ReadFile(logPath)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to read log file")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read log file"})
@@ -1305,14 +1314,24 @@ func GetLogs(c *gin.Context) {
 func DownloadLogs(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "DownloadLogs")
 
-	filePath := "logs/app.log"
+	fileParam := c.DefaultQuery("file", "app")
+	var filePath, fileName string
+	switch fileParam {
+	case "access":
+		filePath = "logs/access.log"
+		fileName = "access.log"
+	default:
+		filePath = "logs/app.log"
+		fileName = "app.log"
+	}
+
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		fieldLogger.WithError(err).Error("Log file not found")
 		c.JSON(http.StatusNotFound, gin.H{"error": "Log file not found"})
 		return
 	}
 
-	c.Header("Content-Disposition", "attachment; filename=app.log")
+	c.Header("Content-Disposition", "attachment; filename="+fileName)
 	c.Header("Content-Type", "text/plain")
 	c.File(filePath)
 }

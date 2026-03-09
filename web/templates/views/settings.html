@@ -408,6 +408,10 @@ color: #0d6efd; /* Primary color */
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0"><i class="fa fa-file-alt me-2"></i>&#128220; Application Logs</h5>
                     <div class="d-flex gap-2 align-items-center">
+                        <select id="logFileSelect" class="form-select form-select-sm" style="width:auto">
+                            <option value="app" selected>App Log</option>
+                            <option value="access">Access Log</option>
+                        </select>
                         <select id="logLineCount" class="form-select form-select-sm" style="width:auto">
                             <option value="100">Last 100 lines</option>
                             <option value="200" selected>Last 200 lines</option>
@@ -417,7 +421,7 @@ color: #0d6efd; /* Primary color */
                         <button class="btn btn-sm btn-outline-secondary" id="refreshLogsBtn">
                             <i class="fa fa-sync"></i> Refresh
                         </button>
-                        <a class="btn btn-sm btn-outline-primary" href="/settings/logs/download">
+                        <a class="btn btn-sm btn-outline-primary" id="downloadLogsBtn" href="/settings/logs/download">
                             <i class="fa fa-download"></i> Download
                         </a>
                     </div>
@@ -1432,11 +1436,18 @@ color: #0d6efd; /* Primary color */
         const refreshBtn = document.getElementById("refreshLogsBtn");
         const logOutput = document.getElementById("logOutput");
         const logLineCount = document.getElementById("logLineCount");
+        const logFileSelect = document.getElementById("logFileSelect");
+        const downloadBtn = document.getElementById("downloadLogsBtn");
+
+        function updateDownloadHref() {
+            downloadBtn.href = `/settings/logs/download?file=${logFileSelect.value}`;
+        }
 
         function loadLogs() {
             const lines = logLineCount.value;
+            const file = logFileSelect.value;
             logOutput.textContent = "Loading...";
-            fetch(`/settings/logs?lines=${lines}`)
+            fetch(`/settings/logs?lines=${lines}&file=${file}`)
                 .then(r => r.json())
                 .then(data => {
                     logOutput.textContent = data.lines || "(empty)";
@@ -1450,6 +1461,8 @@ color: #0d6efd; /* Primary color */
         logsTab.addEventListener("shown.bs.tab", loadLogs);
         refreshBtn.addEventListener("click", loadLogs);
         logLineCount.addEventListener("change", loadLogs);
+        logFileSelect.addEventListener("change", () => { updateDownloadHref(); loadLogs(); });
+        updateDownloadHref();
     });
 
 </script>
