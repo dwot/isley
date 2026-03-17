@@ -1189,6 +1189,10 @@ ORDER BY p.start_dt, p.name;
 		//If harvestDateStr contains T it has a time component, otherwise it's just a date, parse it accordingly
 		if strings.Contains(harvestDateStr, "T") {
 			plant.HarvestDate, err = time.Parse(time.RFC3339, harvestDateStr)
+			if err != nil {
+				// SQLite returns datetime without timezone info, try LayoutDateTimeLocal
+				plant.HarvestDate, err = time.ParseInLocation(utils.LayoutDateTimeLocal, harvestDateStr, time.Local)
+			}
 		} else {
 			plant.HarvestDate, err = time.Parse(utils.LayoutDate, harvestDateStr)
 		}
