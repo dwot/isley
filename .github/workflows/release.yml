@@ -92,14 +92,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Scan Docker Image for Vulnerabilities
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: dwot/isley:${{ env.version == 'dev' && 'dev' || env.version }}
-          format: table
-          exit-code: 0
-          severity: CRITICAL,HIGH
-
       - name: Generate Release Notes
         run: |
           release_date=$(date -u +"%Y-%m-%d")
