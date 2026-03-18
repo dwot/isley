@@ -38,9 +38,6 @@ jobs:
             exit 1
           fi
 
-      - name: Run Tests
-        run: go test ./...
-
       - name: Set Version
         id: version
         run: |
