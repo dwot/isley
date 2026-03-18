@@ -14,7 +14,7 @@
 
                     <!-- Strain Name -->
                     <div class="mb-3">
-                        <label for="editStrainName" class="form-label">{{ .lcl.strain_name }}</label>
+                        <label for="editStrainName" class="form-label required">{{ .lcl.strain_name }}</label>
                         <input type="text" class="form-control" id="editStrainName" required>
                     </div>
 
@@ -26,7 +26,7 @@
 
                     <!-- Breeder Dropdown -->
                     <div class="mb-3">
-                        <label for="editBreederSelect" class="form-label">{{ .lcl.breeder }}</label>
+                        <label for="editBreederSelect" class="form-label required">{{ .lcl.breeder }}</label>
                         <select class="form-select" id="editBreederSelect" required>
                             {{ range .breeders }}
                             <option value="{{ .ID }}">{{ .Name }}</option>
@@ -53,7 +53,7 @@
 
                     <!-- Autoflower -->
                     <div class="mb-3">
-                        <label for="editAutoflower" class="form-label">{{ .lcl.autoflower }}</label>
+                        <label for="editAutoflower" class="form-label required">{{ .lcl.autoflower }}</label>
                         <select class="form-select" id="editAutoflower" required>
                             <option value="true">{{ .lcl.yes }}</option>
                             <option value="false">{{ .lcl.no }}</option>
@@ -62,7 +62,7 @@
 
                     <!-- Cycle Time -->
                     <div class="mb-3">
-                        <label for="editCycleTime" class="form-label">{{ .lcl.cycle_time }}</label>
+                        <label for="editCycleTime" class="form-label required">{{ .lcl.cycle_time }}</label>
                         <input type="number" class="form-control" id="editCycleTime" min="0" placeholder="days" required value="56">
                         <p class="text-muted">{{ .lcl.cycle_time_desc }}</p>
                     </div>
@@ -75,7 +75,7 @@
 
                     <!-- Short Description -->
                     <div class="mb-3">
-                        <label for="editStrainShortDescription" class="form-label">{{ .lcl.short_description_txt }}</label>
+                        <label for="editStrainShortDescription" class="form-label required">{{ .lcl.short_description_txt }}</label>
                         <input type="text" class="form-control" id="editStrainShortDescription" placeholder="{{ .lcl.short_description_placeholder }}" required>
                     </div>
 
@@ -88,7 +88,7 @@
 
                     {{ if .loggedIn }}
                     <div class="text-end">
-                        <button type="submit" class="btn btn-primary">{{ .lcl.save_changes }}</button>
+                        <button type="submit" class="btn btn-primary"><span class="spinner-border spinner-border-sm btn-spinner" role="status" aria-hidden="true"></span> {{ .lcl.save_changes }}</button>
                         <button type="button" class="btn btn-danger" id="deleteStrainButton">{{ .lcl.delete_strain }}</button>
                     </div>
                     {{ end }}

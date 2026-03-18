@@ -1,0 +1,10 @@
+DROP INDEX IF EXISTS idx_sensor_data_sensor_id;
+DROP INDEX IF EXISTS idx_sensor_data_create_dt;
+DROP INDEX IF EXISTS idx_plant_activity_plant_id;
+DROP INDEX IF EXISTS idx_plant_status_log_plant_id;
+DROP INDEX IF EXISTS idx_sensors_source_device_type;
+DROP INDEX IF EXISTS idx_plant_measurements_plant_id;
+DROP INDEX IF EXISTS idx_plant_images_plant_id;
+DROP INDEX IF EXISTS idx_sensors_zone_id;
+DROP INDEX IF EXISTS idx_strain_breeder_id;
+DROP INDEX IF EXISTS idx_settings_name;

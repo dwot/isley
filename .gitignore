@@ -7,3 +7,5 @@
 /output/
 /.env
 /TODO.md
+/audits/
+/.claude/

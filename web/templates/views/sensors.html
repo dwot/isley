@@ -6,6 +6,7 @@
 {{ template "common/header2.html" .}}
 
 <div class="container">
+    <h1 class="visually-hidden">{{ .lcl.title_sensors }}</h1>
     <!-- Action Buttons -->
     <div class="mb-4">
         {{ if .settings.ACI.Enabled }}
@@ -37,12 +38,12 @@
                     <form id="ecScanForm">
                         <!-- Server Address -->
                         <div class="mb-3">
-                            <label for="serverAddress" class="form-label">{{ .lcl.server_address }}</label>
+                            <label for="serverAddress" class="form-label required">{{ .lcl.server_address }}</label>
                             <input type="text" class="form-control" id="serverAddress" placeholder="{{ .lcl.server_address_placeholder }}" required>
                         </div>
                         <!-- Zone Selection -->
                         <div class="mb-3">
-                            <label for="ecZoneSelect" class="form-label">{{ .lcl.title_zone }}</label>
+                            <label for="ecZoneSelect" class="form-label required">{{ .lcl.title_zone }}</label>
                             <select class="form-select" id="ecZoneSelect" required>
                                 {{ range .zones }}
                                 <option value="{{ .ID }}">{{ .Name }}</option>
@@ -63,20 +64,21 @@
 
 
     <!-- Sensors Table -->
+    {{ if .sensors }}
     <div class="table-responsive">
         <table class="table table-striped table-bordered table-hover">
             <thead class="table-dark">
             <tr>
-                <th>{{ .lcl.title_id }}</th>
-                <th>{{ .lcl.title_name }}</th>
-                <th>{{ .lcl.title_zone }}</th>
-                <th>{{ .lcl.title_source }}</th>
-                <th>{{ .lcl.title_device }}</th>
-                <th>{{ .lcl.title_type }}</th>
-                <th>{{ .lcl.title_unit }}</th>
-                <th>{{ .lcl.title_show_hide }}</th>
-                <th>{{ .lcl.title_created }}</th>
-                <th>{{ .lcl.title_updated }}</th>
+                <th scope="col" data-sort="id" data-type="numeric" class="sortable">{{ .lcl.title_id }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
+                <th scope="col" data-sort="name" data-type="text" class="sortable">{{ .lcl.title_name }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
+                <th scope="col" data-sort="zone" data-type="text" class="sortable">{{ .lcl.title_zone }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
+                <th scope="col" data-sort="source" data-type="text" class="sortable">{{ .lcl.title_source }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
+                <th scope="col" data-sort="device" data-type="text" class="sortable">{{ .lcl.title_device }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
+                <th scope="col" data-sort="type" data-type="text" class="sortable">{{ .lcl.title_type }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
+                <th scope="col" data-sort="unit" data-type="text" class="sortable">{{ .lcl.title_unit }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
+                <th scope="col" data-sort="visible" data-type="text" class="sortable">{{ .lcl.title_show_hide }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
+                <th scope="col" data-sort="create_dt" data-type="date" class="sortable">{{ .lcl.title_created }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
+                <th scope="col" data-sort="update_dt" data-type="date" class="sortable">{{ .lcl.title_updated }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
             </tr>
             </thead>
             <tbody>
@@ -97,6 +99,12 @@
             </tbody>
         </table>
     </div>
+    {{ else }}
+    <div class="empty-state">
+        <i class="fa-solid fa-thermometer-half"></i>
+        <p>{{ .lcl.no_sensors_yet }}</p>
+    </div>
+    {{ end }}
 </div>
 
 
@@ -111,7 +119,7 @@
             <div class="modal-body">
                 <form id="zoneForm">
                     <div class="mb-3">
-                        <label for="zoneSelect" class="form-label">{{ .lcl.title_zone }}</label>
+                        <label for="zoneSelect" class="form-label required">{{ .lcl.title_zone }}</label>
                         <select class="form-select" id="zoneSelect" required>
                             {{ range .zones }}
                             <option value="{{ .ID }}">{{ .Name }}</option>
@@ -150,20 +158,20 @@
 
                     <!-- Sensor Name -->
                     <div class="mb-3">
-                        <label for="sensorName" class="form-label">{{ .lcl.sensor_name }}</label>
+                        <label for="sensorName" class="form-label required">{{ .lcl.sensor_name }}</label>
                         <input type="text" class="form-control" id="sensorName" required>
                     </div>
 
                     <!-- Sensor Device -->
                     <div class="mb-3">
-                        <label for="sensorDevice" class="form-label">{{ .lcl.title_device }}</label>
+                        <label for="sensorDevice" class="form-label required">{{ .lcl.title_device }}</label>
                         <input type="text" class="form-control" id="sensorDevice" required>
                         <p class="form-text">{{ .lcl.edit_device_info }}</p>
                     </div>
 
                     <!-- Show/Hide -->
                     <div class="mb-3">
-                        <label for="sensorVisibility" class="form-label">{{ .lcl.title_visibility }}</label>
+                        <label for="sensorVisibility" class="form-label required">{{ .lcl.title_visibility }}</label>
                         <select class="form-select" id="sensorVisibility" required>
                             <option value="true">{{ .lcl.title_show }}</option>
                             <option value="false">{{ .lcl.title_hide }}</option>
@@ -172,7 +180,7 @@
 
                     <!-- Zone Dropdown -->
                     <div class="mb-3">
-                        <label for="sensorZone" class="form-label">{{ .lcl.title_zone }}</label>
+                        <label for="sensorZone" class="form-label required">{{ .lcl.title_zone }}</label>
                         <select class="form-select" id="sensorZone" required>
                             {{ range .zones }}
                             <option value="{{ .ID }}">{{ .Name }}</option>
@@ -182,7 +190,7 @@
 
                     <!-- Unit -->
                     <div class="mb-3">
-                        <label for="sensorUnit" class="form-label">{{ .lcl.title_unit }}</label>
+                        <label for="sensorUnit" class="form-label required">{{ .lcl.title_unit }}</label>
                         <input type="text" class="form-control" id="sensorUnit" required>
                     </div>
 
@@ -209,8 +217,8 @@
                 <h5 class="modal-title" id="dumpACIModalLabel">{{ .lcl.aci_dump_json }}</h5>
                 <!-- Added Refresh and Copy buttons for convenience -->
                 <div class="btn-group ms-2" role="group" aria-label="ACI dump actions">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" id="dumpACIRefresh" title="Refresh JSON"><i class="fa-solid fa-arrows-rotate"></i></button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" id="dumpACICopy" title="Copy JSON"><i class="fa-regular fa-copy"></i></button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary btn-icon-action" id="dumpACIRefresh" title="Refresh JSON"><i class="fa-solid fa-arrows-rotate"></i></button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary btn-icon-action" id="dumpACICopy" title="Copy JSON"><i class="fa-regular fa-copy"></i></button>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -308,18 +316,7 @@
         };
 
 
-        // Ensure modal cleanup on hide
-        const modals = [document.getElementById("zoneModal"), document.getElementById("ecScanModal")];
-        modals.forEach(modalElement => {
-            modalElement.addEventListener("hidden.bs.modal", () => {
-                // Remove lingering modal-backdrop elements
-                document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
-
-                // Ensure the body class does not remain disabled
-                document.body.classList.remove('modal-open');
-                document.body.style.overflow = '';
-            });
-        });
+        // Modal backdrop cleanup is handled globally in footer.html
 
         // Handle Zone Form Submission (shared logic for both AC Infinity and EcoWitt)
         document.getElementById("zoneForm").addEventListener("submit", (e) => {
@@ -581,6 +578,57 @@
     });
 </script>
 
+<script>
+    // Client-side column sorting for the sensors table
+    document.addEventListener("DOMContentLoaded", () => {
+        const table = document.querySelector(".table");
+        if (!table) return;
+        const tbody = table.querySelector("tbody");
+        if (!tbody) return;
+
+        let sortColumn = null;
+        let sortDirection = "asc";
+
+        // Map column data-sort keys to cell indexes
+        const headers = Array.from(table.querySelectorAll("thead .sortable"));
+        const colIndex = {};
+        headers.forEach((th, idx) => {
+            colIndex[th.getAttribute("data-sort")] = idx;
+        });
+
+        headers.forEach(header => {
+            header.addEventListener("click", () => {
+                const column = header.getAttribute("data-sort");
+                const dataType = header.getAttribute("data-type") || "text";
+                if (sortColumn === column) {
+                    sortDirection = sortDirection === "asc" ? "desc" : "asc";
+                } else {
+                    sortColumn = column;
+                    sortDirection = "asc";
+                }
+                headers.forEach(h => h.classList.remove("asc", "desc"));
+                header.classList.add(sortDirection);
+
+                const rows = Array.from(tbody.querySelectorAll("tr"));
+                const idx = colIndex[column];
+                rows.sort((a, b) => {
+                    const aText = a.cells[idx]?.textContent.trim() || "";
+                    const bText = b.cells[idx]?.textContent.trim() || "";
+                    let cmp;
+                    if (dataType === "numeric") {
+                        cmp = (parseFloat(aText) || 0) - (parseFloat(bText) || 0);
+                    } else if (dataType === "date") {
+                        cmp = (new Date(aText) || 0) - (new Date(bText) || 0);
+                    } else {
+                        cmp = aText.localeCompare(bText, undefined, { sensitivity: "base" });
+                    }
+                    return sortDirection === "asc" ? cmp : -cmp;
+                });
+                rows.forEach(row => tbody.appendChild(row));
+            });
+        });
+    });
+</script>
 
 <!--Embed the footer.html template at this location-->
 {{ template "common/footer.html" .}}

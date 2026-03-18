@@ -62,7 +62,9 @@
         toast.appendChild(body);
         container.appendChild(toast);
 
-        const timeout = (opts.timeout !== undefined) ? opts.timeout : 4000;
+        // Error/danger toasts persist until dismissed; others auto-close after 5s
+        const defaultTimeout = (level === 'danger' || level === 'warning') ? 0 : 5000;
+        const timeout = (opts.timeout !== undefined) ? opts.timeout : defaultTimeout;
         if (timeout > 0) setTimeout(() => { toast.remove(); }, timeout);
     }
 

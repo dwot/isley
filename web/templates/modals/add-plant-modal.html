@@ -11,13 +11,13 @@
                 <form id="addPlantForm">
                     <!-- Plant Name -->
                     <div class="mb-3">
-                        <label for="plantName" class="form-label">{{ .lcl.plant_name }}</label>
+                        <label for="plantName" class="form-label required">{{ .lcl.plant_name }}</label>
                         <input type="text" class="form-control" id="plantName" placeholder="{{ .lcl.plant_name_placeholder }}" required>
                     </div>
 
                     <!-- Zone Dropdown -->
                     <div class="mb-3">
-                        <label for="zoneSelect" class="form-label">{{ .lcl.title_zone }}</label>
+                        <label for="zoneSelect" class="form-label required">{{ .lcl.title_zone }}</label>
                         <select class="form-select" id="zoneSelect" required>
                             {{ range .zones }}
                             <option value="{{ .ID }}">{{ .Name }}</option>
@@ -34,7 +34,7 @@
 
                     <!-- Strain Dropdown -->
                     <div class="mb-3">
-                        <label for="strainSelect" class="form-label">{{ .lcl.title_strain }}</label>
+                        <label for="strainSelect" class="form-label required">{{ .lcl.title_strain }}</label>
                         <select class="form-select" id="strainSelect" required>
                             {{ range .strains }}
                             <option value="{{ .ID }}">{{ .Name }} ({{ .Breeder }})</option>
@@ -68,7 +68,7 @@
 
                     <!-- Status Dropdown -->
                     <div class="mb-3">
-                        <label for="statusSelect" class="form-label">{{ .lcl.title_status }}</label>
+                        <label for="statusSelect" class="form-label required">{{ .lcl.title_status }}</label>
                         <select class="form-select" id="statusSelect" required>
                             {{ range .statuses }}
                             {{ $lbl := index $.lcl (print (lower .Status) "_label") }}
@@ -79,7 +79,7 @@
 
                     <!-- Date Picker -->
                     <div class="mb-3">
-                        <label for="startDate" class="form-label">{{ .lcl.title_date }}</label>
+                        <label for="startDate" class="form-label required">{{ .lcl.title_date }}</label>
                         <input type="datetime-local" class="form-control" id="startDate" required value="{{ now | formatDateTimeLocal }}">
                     </div>
 
@@ -105,7 +105,10 @@
                     </div>
 
                     <!-- Submit Button -->
-                    <button type="submit" class="btn btn-primary">{{ .lcl.add_plant }}</button>
+                    <button type="submit" class="btn btn-primary">
+                        <span class="spinner-border spinner-border-sm btn-spinner" role="status" aria-hidden="true"></span>
+                        {{ .lcl.add_plant }}
+                    </button>
                 </form>
             </div>
         </div>

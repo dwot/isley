@@ -1,20 +1,20 @@
 {{ define "views/login.html" }}
-<!--Embed the header.html template at this location-->
 {{ template "common/header.html" .}}
 </head>
 
 <body>
-
+<main id="main-content">
 <div class="container">
     <h1 class="text-center text-primary">{{ .lcl.title_login }}</h1>
     <div class="card shadow-sm">
         <form action="/login" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ .csrfToken }}">
             <div class="mb-3">
-                <label for="username" class="form-label">{{ .lcl.username }}</label>
+                <label for="username" class="form-label required">{{ .lcl.username }}</label>
                 <input type="text" id="username" name="username" class="form-control" required>
             </div>
             <div class="mb-3">
-                <label for="password" class="form-label">{{ .lcl.password }}</label>
+                <label for="password" class="form-label required">{{ .lcl.password }}</label>
                 <input type="password" id="password" name="password" class="form-control" required>
             </div>
             <div class="mb-3 form-check">

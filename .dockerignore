@@ -1,0 +1,38 @@
+# Version control
+.git
+.gitignore
+
+# CI/CD and GitHub
+.github
+.gitlab-ci.yml
+qodana.yaml
+
+# IDE and editor files
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# Documentation
+*.md
+LICENSE
+audits/
+
+# Scripts and tooling
+scripts/
+tools/
+
+# Docker compose files (not needed in build context)
+docker-compose*.yml
+.env
+.env.*
+
+# Build artifacts and local data
+isley.exe
+data/
+uploads/
+logs/
+
+# Claude/AI config
+.claude

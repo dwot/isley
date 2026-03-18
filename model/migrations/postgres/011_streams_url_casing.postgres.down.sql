@@ -1,0 +1,1 @@
+-- No-op: PostgreSQL already uses lowercase url column.

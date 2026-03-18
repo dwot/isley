@@ -11,7 +11,7 @@
                 <form id="addActivityForm">
                     <!-- Activity Name Dropdown -->
                     <div class="mb-3">
-                        <label for="activityName" class="form-label">{{ .lcl.activity_name }}</label>
+                        <label for="activityName" class="form-label required">{{ .lcl.activity_name }}</label>
                         <select class="form-select" id="activityName" required>
                             {{ range .activities }}
                             <option value="{{ .ID }}">{{ .Name }}</option>
@@ -26,12 +26,12 @@
 
                     <!-- Date Picker -->
                     <div class="mb-3">
-                        <label for="activityDate" class="form-label">{{ .lcl.title_date }}</label>
+                        <label for="activityDate" class="form-label required">{{ .lcl.title_date }}</label>
                         <input type="datetime-local" class="form-control" id="activityDate" required value="{{ now | formatDateTimeLocal }}">
                     </div>
 
                     <!-- Submit Button -->
-                    <button type="submit" class="btn btn-primary">{{ .lcl.add_activity }}</button>
+                    <button type="submit" class="btn btn-primary"><span class="spinner-border spinner-border-sm btn-spinner" role="status" aria-hidden="true"></span> {{ .lcl.add_activity }}</button>
                 </form>
             </div>
         </div>

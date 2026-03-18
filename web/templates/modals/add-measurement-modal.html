@@ -11,7 +11,7 @@
                 <form id="addMeasurementForm">
                     <!-- Metric Name Dropdown -->
                     <div class="mb-3">
-                        <label for="measurementName" class="form-label">{{ .lcl.measurement_name }}</label>
+                        <label for="measurementName" class="form-label required">{{ .lcl.measurement_name }}</label>
                         <select class="form-select" id="measurementName" required>
                             {{ range .measurements }}
                             <option value="{{ .ID }}">{{ .Name }}</option>
@@ -20,18 +20,18 @@
                     </div>
                     <!-- Metric Value Input -->
                     <div class="mb-3">
-                        <label for="measurementValue" class="form-label">{{ .lcl.measurement_value }}</label>
+                        <label for="measurementValue" class="form-label required">{{ .lcl.measurement_value }}</label>
                         <input type="number" class="form-control" id="measurementValue" step="any" required>
                     </div>
 
                     <!-- Date Picker -->
                     <div class="mb-3">
-                        <label for="measureDate" class="form-label">{{ .lcl.title_date }}</label>
+                        <label for="measureDate" class="form-label required">{{ .lcl.title_date }}</label>
                         <input type="datetime-local" class="form-control" id="measureDate" required value="{{ now | formatDateTimeLocal }}">
                     </div>
 
                     <!-- Submit Button -->
-                    <button type="submit" class="btn btn-primary">{{ .lcl.add_measurement }}</button>
+                    <button type="submit" class="btn btn-primary"><span class="spinner-border spinner-border-sm btn-spinner" role="status" aria-hidden="true"></span> {{ .lcl.add_measurement }}</button>
                 </form>
             </div>
         </div>

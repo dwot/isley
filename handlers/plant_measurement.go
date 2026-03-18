@@ -24,7 +24,7 @@ func CreatePlantMeasurement(c *gin.Context) {
 	// Bind JSON payload
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Invalid input")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		apiBadRequest(c, "Invalid input")
 		return
 	}
 
@@ -39,7 +39,7 @@ func CreatePlantMeasurement(c *gin.Context) {
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		apiInternalError(c, "api_database_error")
 		return
 	}
 
@@ -47,7 +47,7 @@ func CreatePlantMeasurement(c *gin.Context) {
 		input.PlantID, input.MetricID, input.Value, input.Date)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert measurement into database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save measurement"})
+		apiInternalError(c, "api_failed_to_save_measurement")
 		return
 	}
 
@@ -68,7 +68,7 @@ func EditMeasurement(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Invalid input")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		apiBadRequest(c, "Invalid input")
 		return
 	}
 
@@ -81,7 +81,7 @@ func EditMeasurement(c *gin.Context) {
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		apiInternalError(c, "api_database_error")
 		return
 	}
 
@@ -89,12 +89,12 @@ func EditMeasurement(c *gin.Context) {
 	_, err = db.Exec(query, input.Date, input.Value, input.ID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update measurement in database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update measurement"})
+		apiInternalError(c, "api_failed_to_update_measurement")
 		return
 	}
 
 	fieldLogger.Info("Measurement updated successfully")
-	c.JSON(http.StatusOK, gin.H{"message": "Measurement updated successfully"})
+	apiOK(c, "api_measurement_updated")
 }
 
 func DeleteMeasurement(c *gin.Context) {
@@ -108,7 +108,7 @@ func DeleteMeasurement(c *gin.Context) {
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		apiInternalError(c, "api_database_error")
 		return
 	}
 
@@ -116,10 +116,10 @@ func DeleteMeasurement(c *gin.Context) {
 	_, err = db.Exec(query, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete measurement from database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete measurement"})
+		apiInternalError(c, "api_failed_to_delete_measurement")
 		return
 	}
 
 	fieldLogger.Info("Measurement deleted successfully")
-	c.JSON(http.StatusOK, gin.H{"message": "Measurement deleted successfully"})
+	apiOK(c, "api_measurement_deleted")
 }

@@ -21,9 +21,25 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.21
+          go-version: '1.25.0'
+
+      - name: Verify Go Modules
+        run: go mod verify
+
+      - name: Check Translation Keys
+        run: |
+          # Run i18n_sync in dry-run mode; if any output is produced, keys are missing
+          output=$(go run ./scripts/i18n_sync.go -path=utils/locales 2>&1)
+          if [ -n "$output" ]; then
+            echo "$output"
+            echo "::error::Translation keys are out of sync. Run: go run ./scripts/i18n_sync.go -path=utils/locales -apply"
+            exit 1
+          fi
+
+      - name: Run Tests
+        run: go test ./...
 
       - name: Set Version
         id: version
@@ -47,29 +63,45 @@ jobs:
         run: |
           GOOS=linux GOARCH=amd64 go build -ldflags="-w -s -X main.version=${{ env.version }}" -o isley-linux
 
-      - name: Build Docker Image
-        run: |
-          docker build -t isley:${{ env.version }} .
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-      - name: Push Docker Image (Dev Branch Only)
-        if: github.ref == 'refs/heads/dev'
-        run: |
-          # Push a stable dev tag and a short-sha specific dev tag so testers can pick the desired image
-          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-          SHORT_SHA=${GITHUB_SHA::8}
-          docker tag isley:${{ env.version }} dwot/isley:dev
-          docker tag isley:${{ env.version }} dwot/isley:dev-${SHORT_SHA}
-          docker push dwot/isley:dev
-          docker push dwot/isley:dev-${SHORT_SHA}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Push Docker Image (Main Branch Only)
-        if: github.ref == 'refs/heads/main'
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Set Docker Tags
+        id: docker_tags
         run: |
-          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-          docker tag isley:${{ env.version }} dwot/isley:${{ env.version }}
-          docker tag isley:${{ env.version }} dwot/isley:latest
-          docker push dwot/isley:${{ env.version }}
-          docker push dwot/isley:latest
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "tags=dwot/isley:${{ env.version }},dwot/isley:latest" >> $GITHUB_OUTPUT
+          else
+            SHORT_SHA=${GITHUB_SHA::8}
+            echo "tags=dwot/isley:dev,dwot/isley:dev-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and Push Multi-Platform Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.docker_tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan Docker Image for Vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: dwot/isley:${{ env.version == 'dev' && 'dev' || env.version }}
+          format: table
+          exit-code: 0
+          severity: CRITICAL,HIGH
 
       - name: Generate Release Notes
         run: |

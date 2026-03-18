@@ -4,13 +4,10 @@ import (
 	"context"
 	"embed"
 	"fmt"
-	"github.com/fogleman/gg"
-	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/image/font"
-	"golang.org/x/image/font/opentype"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"image/color"
-	"io"
 	"io/fs"
 	"isley/logger"
 	"math"
@@ -22,12 +19,57 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/fogleman/gg"
+	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/opentype"
 )
 
 // Embed the fonts directory
 //
 //go:embed fonts/*
 var embeddedFonts embed.FS
+
+const (
+	// maxImageDimension is the largest width or height (in pixels) we allow
+	// before refusing to decode an image.  16384 px covers virtually all
+	// consumer cameras while keeping the decoded bitmap under ~1 GB.
+	maxImageDimension = 16384
+
+	// maxImageFileSize is the largest file size (in bytes) we'll attempt to
+	// process.  50 MB is generous for any reasonable photograph.
+	maxImageFileSize = 50 * 1024 * 1024 // 50 MB
+)
+
+// validateImageFile checks that the file at path is within acceptable size and
+// dimension limits before the caller loads it into memory.  It uses
+// image.DecodeConfig which only reads the header, not the full pixel data.
+func validateImageFile(path string) error {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("cannot stat image: %w", err)
+	}
+	if fi.Size() > maxImageFileSize {
+		return fmt.Errorf("image file too large: %d bytes (max %d)", fi.Size(), maxImageFileSize)
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("cannot open image for validation: %w", err)
+	}
+	defer f.Close()
+
+	cfg, _, err := image.DecodeConfig(f)
+	if err != nil {
+		return fmt.Errorf("cannot decode image header: %w", err)
+	}
+	if cfg.Width > maxImageDimension || cfg.Height > maxImageDimension {
+		return fmt.Errorf("image dimensions %dx%d exceed maximum %d", cfg.Width, cfg.Height, maxImageDimension)
+	}
+	return nil
+}
 
 type TextObject struct {
 	Text        string
@@ -58,6 +100,12 @@ func ProcessImageWithTextOverlay(req TextOverlayRequest) error {
 	})
 	fieldLogger.Info("Starting image processing")
 
+	// Validate image dimensions and file size before loading into memory
+	if err := validateImageFile(req.ImagePath); err != nil {
+		fieldLogger.WithError(err).Error("Image validation failed")
+		return fmt.Errorf("image validation failed: %w", err)
+	}
+
 	// Load the base image
 	img, err := gg.LoadImage(req.ImagePath)
 	if err != nil {
@@ -84,6 +132,10 @@ func ProcessImageWithTextOverlay(req TextOverlayRequest) error {
 
 	// Process Image Objects
 	for _, imgObj := range req.ImageObjects {
+		if err := validateImageFile(imgObj.ImagePath); err != nil {
+			fieldLogger.WithError(err).Error("Overlay image validation failed")
+			return fmt.Errorf("overlay image validation failed: %w", err)
+		}
 		overlayImg, err := gg.LoadImage(imgObj.ImagePath)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to load overlay image")
@@ -198,6 +250,21 @@ func ProcessImageWithTextOverlay(req TextOverlayRequest) error {
 	return nil
 }
 
+// isPathWithinDir checks that resolved falls inside the allowed directory.
+// Both paths are cleaned and resolved to absolute form before comparison.
+func isPathWithinDir(path, allowedDir string) bool {
+	absPath, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		return false
+	}
+	absDir, err := filepath.Abs(filepath.Clean(allowedDir))
+	if err != nil {
+		return false
+	}
+	// Ensure the path starts with the allowed directory (with trailing separator)
+	return strings.HasPrefix(absPath, absDir+string(filepath.Separator)) || absPath == absDir
+}
+
 func DecorateImageHandler(c *gin.Context) {
 	var req struct {
 		ImagePath   string `json:"imagePath"`
@@ -231,6 +298,30 @@ func DecorateImageHandler(c *gin.Context) {
 	if req.ImagePath == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Image path is required"})
 		return
+	}
+
+	// SECURITY: Validate that ImagePath resolves within the uploads directory
+	if !isPathWithinDir(req.ImagePath, "./uploads") {
+		logger.Log.WithField("imagePath", req.ImagePath).Warn("Path traversal attempt blocked on ImagePath")
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Invalid image path"})
+		return
+	}
+
+	// SECURITY: Validate that Logo resolves within the uploads/logos directory
+	if req.Logo != "" && !isPathWithinDir(req.Logo, "./uploads/logos") {
+		logger.Log.WithField("logo", req.Logo).Warn("Path traversal attempt blocked on Logo")
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Invalid logo path"})
+		return
+	}
+
+	// SECURITY: Validate that Font is a simple embedded path (no traversal)
+	if req.Font != "" {
+		cleanFont := filepath.Clean(req.Font)
+		if strings.Contains(cleanFont, "..") || filepath.IsAbs(cleanFont) {
+			logger.Log.WithField("font", req.Font).Warn("Path traversal attempt blocked on Font")
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Invalid font path"})
+			return
+		}
 	}
 
 	fileExtension := filepath.Ext(req.ImagePath)
@@ -290,7 +381,7 @@ func DecorateImageHandler(c *gin.Context) {
 	// Process the image
 	if err := ProcessImageWithTextOverlay(overlayReq); err != nil {
 		logger.Log.WithError(err).Error("Failed to process image with text overlay")
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Failed to process image"})
 		return
 	}
 
@@ -411,40 +502,3 @@ func CreateFolderIfNotExists(join string) {
 	}
 }
 
-func CopyFile(path string, path2 string) {
-	//Copy file from path to path2
-	from, err := os.Open(path)
-	if err != nil {
-		logger.Log.WithError(err).Error("Failed to open source file")
-		return
-	}
-	defer from.Close()
-
-	to, err := os.OpenFile(path2, os.O_RDWR|os.O_CREATE, 0666)
-	if err != nil {
-		logger.Log.WithError(err).Error("Failed to open destination file")
-		return
-	}
-	defer to.Close()
-
-	_, err = io.Copy(to, from)
-	if err != nil {
-		logger.Log.WithError(err).Error("Failed to copy file")
-	}
-
-	err = to.Sync()
-	if err != nil {
-		logger.Log.WithError(err).Error("Failed to sync file")
-	}
-
-	err = to.Close()
-	if err != nil {
-		logger.Log.WithError(err).Error("Failed to close file")
-	}
-
-	err = from.Close()
-	if err != nil {
-		logger.Log.WithError(err).Error("Failed to close file")
-	}
-
-}

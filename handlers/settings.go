@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -29,161 +30,117 @@ func GenerateAPIKey() string {
 	return hex.EncodeToString(bytes)
 }
 
+// HashAPIKey returns the SHA-256 hex digest of the given plaintext API key.
+func HashAPIKey(plaintext string) string {
+	h := sha256.Sum256([]byte(plaintext))
+	return hex.EncodeToString(h[:])
+}
+
 func SaveSettings(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "SaveSettings")
 	var settings types.Settings
 	if err := c.ShouldBindJSON(&settings); err != nil {
 		fieldLogger.WithError(err).Error("Failed to save settings")
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		apiBadRequest(c, "Invalid settings payload")
 		return
 	}
 
 	// Generate new API key if requested
 	if settings.APIKey == "generate" {
-		settings.APIKey = GenerateAPIKey()
+		plaintextKey := GenerateAPIKey()
+		hashedKey := HashAPIKey(plaintextKey)
 
-		// Save the new API key to the database
-		err := UpdateSetting("api_key", settings.APIKey)
+		// Store the hashed key in the database
+		err := UpdateSetting("api_key", hashedKey)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to save API key")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save API key"})
+			apiInternalError(c, "Failed to save API key")
 			return
-		} else {
-			config.APIKey = settings.APIKey
 		}
+		config.APIKey = hashedKey
 
-		// Return the new API key in the response
-		c.JSON(http.StatusOK, gin.H{"message": "API key generated successfully", "api_key": settings.APIKey})
+		// Return the plaintext key only once — it cannot be retrieved again
+		c.JSON(http.StatusOK, gin.H{
+			"message": T(c, "api_api_key_generated"),
+			"api_key": plaintextKey,
+		})
 		return
 	}
 
-	// Save settings logic (e.g., to a database or config file)
-	//fmt.Printf("Received settings: %+v\n", settings)
-	if settings.ACI.Enabled {
-		err := UpdateSetting("aci.enabled", "1")
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to save settings")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
-			return
-		} else {
-			config.ACIEnabled = 1
+	// saveBool persists a boolean setting as "1"/"0" and updates the
+	// corresponding config int in one step, removing the repetitive
+	// if/else blocks that previously handled each boolean individually.
+	saveBool := func(key string, val bool, configField *int) error {
+		dbVal := "0"
+		cfgVal := 0
+		if val {
+			dbVal = "1"
+			cfgVal = 1
 		}
-	} else {
-		err := UpdateSetting("aci.enabled", "0")
-		if err != nil {
+		if err := UpdateSetting(key, dbVal); err != nil {
+			return err
+		}
+		*configField = cfgVal
+		return nil
+	}
+
+	boolSettings := []struct {
+		key   string
+		val   bool
+		field *int
+	}{
+		{"aci.enabled", settings.ACI.Enabled, &config.ACIEnabled},
+		{"ec.enabled", settings.EC.Enabled, &config.ECEnabled},
+		{"guest_mode", settings.GuestMode, &config.GuestMode},
+		{"stream_grab_enabled", settings.StreamGrabEnabled, &config.StreamGrabEnabled},
+		{"api_ingest_enabled", !settings.DisableAPIIngest, &config.APIIngestEnabled},
+	}
+
+	for _, bs := range boolSettings {
+		if err := saveBool(bs.key, bs.val, bs.field); err != nil {
 			fieldLogger.WithError(err).Error("Failed to save settings")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+			apiInternalError(c, "api_failed_to_save_settings")
 			return
-		} else {
-			config.ACIEnabled = 0
 		}
 	}
 
-	if settings.EC.Enabled {
-		err := UpdateSetting("ec.enabled", "1")
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to save settings")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
-			return
-		} else {
-			config.ECEnabled = 1
-		}
-	} else {
-		err := UpdateSetting("ec.enabled", "0")
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to save settings")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
-			return
-		} else {
-			config.ECEnabled = 0
-		}
-	}
 	err := UpdateSetting("polling_interval", settings.PollingInterval)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to save settings")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+		apiInternalError(c, "api_failed_to_save_settings")
 		return
-	} else {
-		config.PollingInterval, _ = strconv.Atoi(settings.PollingInterval)
 	}
-	if settings.GuestMode {
-		err := UpdateSetting("guest_mode", "1")
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to save settings")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
-			return
-		} else {
-			config.GuestMode = 1
-		}
-	} else {
-		err := UpdateSetting("guest_mode", "0")
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to save settings")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
-			return
-		} else {
-			config.GuestMode = 0
-		}
-	}
-	if settings.StreamGrabEnabled {
-		err := UpdateSetting("stream_grab_enabled", "1")
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to save settings")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
-			return
-		} else {
-			config.StreamGrabEnabled = 1
-		}
-	} else {
-		err := UpdateSetting("stream_grab_enabled", "0")
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to save settings")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
-			return
-		} else {
-			config.StreamGrabEnabled = 0
-		}
-	}
+	config.PollingInterval, _ = strconv.Atoi(settings.PollingInterval)
+
 	err = UpdateSetting("stream_grab_interval", settings.StreamGrabInterval)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to save settings")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+		apiInternalError(c, "api_failed_to_save_settings")
 		return
-	} else {
-		config.StreamGrabInterval, _ = strconv.Atoi(settings.StreamGrabInterval)
 	}
+	config.StreamGrabInterval, _ = strconv.Atoi(settings.StreamGrabInterval)
 
-	// New: handle disable_api_ingest flag. We store api_ingest_enabled in DB (1 = enabled)
-	apiIngestEnabled := "1"
-	if settings.DisableAPIIngest {
-		apiIngestEnabled = "0"
-	}
-	err = UpdateSetting("api_ingest_enabled", apiIngestEnabled)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to save api ingest setting")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
-		return
-	} else {
-		if apiIngestEnabled == "1" {
-			config.APIIngestEnabled = 1
-		} else {
-			config.APIIngestEnabled = 0
+	// API key is managed separately via the "generate" flow.
+	// Only update if a non-empty value is explicitly provided (backward compat).
+	if settings.APIKey != "" {
+		apiKeyToStore := settings.APIKey
+		// Hash plaintext keys; skip if already a SHA-256 hex digest (64 chars).
+		if len(settings.APIKey) != 64 {
+			apiKeyToStore = HashAPIKey(settings.APIKey)
 		}
-	}
-
-	err = UpdateSetting("api_key", settings.APIKey)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to save API key")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save API key"})
-		return
-	} else {
-		config.APIKey = settings.APIKey
+		err = UpdateSetting("api_key", apiKeyToStore)
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to save API key")
+			apiInternalError(c, "Failed to save API key")
+			return
+		}
+		config.APIKey = apiKeyToStore
 	}
 
 	err = UpdateSetting("sensor_retention_days", settings.SensorRetentionDays)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to save sensor retention setting")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+		apiInternalError(c, "api_failed_to_save_settings")
 		return
 	} else {
 		config.SensorRetention, _ = strconv.Atoi(settings.SensorRetentionDays)
@@ -192,7 +149,7 @@ func SaveSettings(c *gin.Context) {
 	err = UpdateSetting("log_level", settings.LogLevel)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to save log level setting")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+		apiInternalError(c, "api_failed_to_save_settings")
 		return
 	} else {
 		config.LogLevel = settings.LogLevel
@@ -202,7 +159,7 @@ func SaveSettings(c *gin.Context) {
 	//Load Settings
 	LoadSettings()
 
-	c.JSON(http.StatusOK, gin.H{"message": "Settings saved successfully"})
+	apiOK(c, "api_settings_saved")
 }
 
 func UpdateSetting(name string, value string) error {
@@ -304,7 +261,10 @@ func GetSettings() types.SettingsData {
 			}
 			settingsData.StreamGrabInterval = iValue
 		case "api_key":
-			settingsData.APIKey = value
+			// Only indicate that a key is set; never reveal the stored hash
+			if value != "" {
+				settingsData.APIKey = "********"
+			}
 		case "api_ingest_enabled":
 			settingsData.APIIngestEnabled = value == "1"
 		case "sensor_retention_days":
@@ -325,7 +285,11 @@ func AddZoneHandler(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&zone); err != nil {
 		fieldLogger.WithError(err).Error("Failed to add zone")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
+		apiBadRequest(c, "Invalid payload")
+		return
+	}
+	if err := utils.ValidateRequiredString("zone_name", zone.Name, utils.MaxNameLength); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
 
@@ -341,7 +305,7 @@ func AddZoneHandler(c *gin.Context) {
 	err = db.QueryRow("INSERT INTO zones (name) VALUES ($1) RETURNING id", zone.Name).Scan(&id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to add zone")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add zone"})
+		apiInternalError(c, "api_failed_to_add_zone")
 		return
 	}
 	//Add the new zone to the config
@@ -359,7 +323,15 @@ func AddMetricHandler(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&metric); err != nil {
 		fieldLogger.WithError(err).Error("Failed to add metric")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
+		apiBadRequest(c, "Invalid payload")
+		return
+	}
+	if err := utils.ValidateRequiredString("metric_name", metric.Name, utils.MaxNameLength); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+	if err := utils.ValidateStringLength("metric_unit", metric.Unit, utils.MaxUnitLength); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
 
@@ -382,7 +354,7 @@ func AddMetricHandler(c *gin.Context) {
 	err = db.QueryRow("INSERT INTO metric (name, unit) VALUES ($1, $2) RETURNING id", metric.Name, metric.Unit).Scan(&id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to add metric")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add metric"})
+		apiInternalError(c, "api_failed_to_add_metric")
 		return
 	}
 	config.Metrics = append(config.Metrics, types.Metric{ID: id, Name: metric.Name, Unit: metric.Unit})
@@ -397,14 +369,18 @@ func AddActivityHandler(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&activity); err != nil {
 		fieldLogger.WithError(err).Error("Failed to add activity")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
+		apiBadRequest(c, "Invalid payload")
+		return
+	}
+	if err := utils.ValidateRequiredString("activity_name", activity.Name, utils.MaxNameLength); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
 
 	//Reserved names can't be added "Water", "Feed", "Note"
 	if activity.Name == "Water" || activity.Name == "Feed" || activity.Name == "Note" {
 		fieldLogger.Error("Failed to add activity")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "This activity name is reserved and can't be added."})
+		apiBadRequest(c, "api_activity_name_reserved")
 		return
 	}
 
@@ -420,7 +396,7 @@ func AddActivityHandler(c *gin.Context) {
 	err = db.QueryRow("INSERT INTO activity (name) VALUES ($1) RETURNING id", activity.Name).Scan(&id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to add activity")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add activity"})
+		apiInternalError(c, "api_failed_to_add_activity")
 		return
 	}
 	config.Activities = append(config.Activities, types.Activity{ID: id, Name: activity.Name})
@@ -435,7 +411,11 @@ func UpdateZoneHandler(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&zone); err != nil {
 		fieldLogger.WithError(err).Error("Failed to update zone")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
+		apiBadRequest(c, "Invalid payload")
+		return
+	}
+	if err := utils.ValidateRequiredString("zone_name", zone.Name, utils.MaxNameLength); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
 
@@ -450,13 +430,13 @@ func UpdateZoneHandler(c *gin.Context) {
 	_, err = db.Exec("UPDATE zones SET name = $1 WHERE id = $2", zone.Name, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update zone")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update zone"})
+		apiInternalError(c, "api_failed_to_update_zone")
 		return
 	}
 	//Reload Config
 	config.Zones = GetZones()
 
-	c.JSON(http.StatusOK, gin.H{"message": "Zone updated"})
+	apiOK(c, "api_zone_updated")
 }
 
 func UpdateMetricHandler(c *gin.Context) {
@@ -468,7 +448,15 @@ func UpdateMetricHandler(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&metric); err != nil {
 		fieldLogger.WithError(err).Error("Failed to update metric")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
+		apiBadRequest(c, "Invalid payload")
+		return
+	}
+	if err := utils.ValidateRequiredString("metric_name", metric.Name, utils.MaxNameLength); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+	if err := utils.ValidateStringLength("metric_unit", metric.Unit, utils.MaxUnitLength); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
 
@@ -484,7 +472,7 @@ func UpdateMetricHandler(c *gin.Context) {
 	err = db.QueryRow("SELECT lock FROM metric WHERE id = $1", id).Scan(&lock)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update metric")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update metric"})
+		apiInternalError(c, "api_failed_to_update_metric")
 		return
 	}
 	if lock {
@@ -496,14 +484,14 @@ func UpdateMetricHandler(c *gin.Context) {
 	_, err = db.Exec("UPDATE metric SET name = $1, unit = $2 WHERE id = $3", metric.Name, metric.Unit, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update metric")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update metric"})
+		apiInternalError(c, "api_failed_to_update_metric")
 		return
 	}
 
 	//Reload Config
 	config.Metrics = GetMetrics()
 
-	c.JSON(http.StatusOK, gin.H{"message": "Metric updated"})
+	apiOK(c, "api_metric_updated")
 }
 
 func UpdateActivityHandler(c *gin.Context) {
@@ -514,7 +502,11 @@ func UpdateActivityHandler(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&activity); err != nil {
 		fieldLogger.WithError(err).Error("Failed to update activity")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
+		apiBadRequest(c, "Invalid payload")
+		return
+	}
+	if err := utils.ValidateRequiredString("activity_name", activity.Name, utils.MaxNameLength); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
 
@@ -538,14 +530,14 @@ func UpdateActivityHandler(c *gin.Context) {
 	_, err = db.Exec("UPDATE activity SET name = $1 WHERE id = $2", activity.Name, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update activity")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update activity"})
+		apiInternalError(c, "api_failed_to_update_activity")
 		return
 	}
 
 	//Reload Config
 	config.Activities = GetActivities()
 
-	c.JSON(http.StatusOK, gin.H{"message": "Activity updated"})
+	apiOK(c, "api_activity_updated")
 }
 func DeleteZoneHandler(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "DeleteZoneHandler")
@@ -630,14 +622,14 @@ func DeleteZoneHandler(c *gin.Context) {
 	_, err = db.Exec("DELETE FROM zones WHERE id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete zone")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete zone"})
+		apiInternalError(c, "api_failed_to_delete_zone")
 		return
 	}
 
 	//Reload Config
 	config.Zones = GetZones()
 
-	c.JSON(http.StatusOK, gin.H{"message": "Zone deleted"})
+	apiOK(c, "api_zone_deleted")
 }
 
 func DeleteMetricHandler(c *gin.Context) {
@@ -656,12 +648,12 @@ func DeleteMetricHandler(c *gin.Context) {
 	err = db.QueryRow("SELECT lock FROM metric WHERE id = $1", id).Scan(&lock)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete metric")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete metric"})
+		apiInternalError(c, "api_failed_to_delete_metric")
 		return
 	}
 	if lock {
 		fieldLogger.Error("Failed to delete metric")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Deleting this metric is not allowed."})
+		apiBadRequest(c, "api_metric_cannot_delete")
 		return
 	}
 
@@ -669,7 +661,7 @@ func DeleteMetricHandler(c *gin.Context) {
 	_, err = db.Exec("DELETE FROM plant_measurements WHERE metric_id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete measurements")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete measurements"})
+		apiInternalError(c, "api_failed_to_delete_measurements")
 		return
 	}
 
@@ -677,14 +669,14 @@ func DeleteMetricHandler(c *gin.Context) {
 	_, err = db.Exec("DELETE FROM metric WHERE id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete metric")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete metric"})
+		apiInternalError(c, "api_failed_to_delete_metric")
 		return
 	}
 
 	//Reload Config
 	config.Metrics = GetMetrics()
 
-	c.JSON(http.StatusOK, gin.H{"message": "Metric deleted"})
+	apiOK(c, "api_metric_deleted")
 }
 
 func DeleteActivityHandler(c *gin.Context) {
@@ -695,7 +687,7 @@ func DeleteActivityHandler(c *gin.Context) {
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete activity")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete activity"})
+		apiInternalError(c, "api_failed_to_delete_activity")
 		return
 	}
 
@@ -712,7 +704,7 @@ func DeleteActivityHandler(c *gin.Context) {
 	_, err = db.Exec("DELETE FROM plant_activity WHERE activity_id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete plant_activities")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete plant_activities"})
+		apiInternalError(c, "api_failed_to_delete_plant_activities")
 		return
 	}
 
@@ -720,14 +712,14 @@ func DeleteActivityHandler(c *gin.Context) {
 	_, err = db.Exec("DELETE FROM activity WHERE id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete activity")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete activity"})
+		apiInternalError(c, "api_failed_to_delete_activity")
 		return
 	}
 
 	//Reload Config
 	config.Activities = GetActivities()
 
-	c.JSON(http.StatusOK, gin.H{"message": "Activity deleted"})
+	apiOK(c, "api_activity_deleted")
 }
 
 func GetSetting(name string) (string, error) {
@@ -758,7 +750,7 @@ func UploadLogo(c *gin.Context) {
 	err := c.Request.ParseMultipartForm(10 << 20) // Limit to 10 MB
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to parse form data")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse form data"})
+		apiBadRequest(c, "api_failed_to_parse_form")
 		return
 	}
 
@@ -766,7 +758,7 @@ func UploadLogo(c *gin.Context) {
 	fileHeader, err := c.FormFile("logo")
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to retrieve file")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to retrieve file"})
+		apiBadRequest(c, "api_failed_to_retrieve_file")
 		return
 	}
 
@@ -774,7 +766,7 @@ func UploadLogo(c *gin.Context) {
 	file, err := fileHeader.Open()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open file")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open file"})
+		apiInternalError(c, "api_failed_to_open_file")
 		return
 	}
 	defer file.Close()
@@ -786,12 +778,12 @@ func UploadLogo(c *gin.Context) {
 	allowedMIME := map[string]bool{"image/jpeg": true, "image/png": true, "image/gif": true, "image/webp": true}
 	if !allowedMIME[mimeType] {
 		fieldLogger.WithField("mimeType", mimeType).Warn("Rejected logo upload with disallowed MIME type")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid file type; only JPEG, PNG, GIF, and WebP are allowed"})
+		apiBadRequest(c, "api_invalid_file_type")
 		return
 	}
 	if _, err = file.Seek(0, io.SeekStart); err != nil {
 		fieldLogger.WithError(err).Error("Failed to seek logo file")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process file"})
+		apiInternalError(c, "api_failed_to_process_file")
 		return
 	}
 
@@ -804,7 +796,7 @@ func UploadLogo(c *gin.Context) {
 	err = os.MkdirAll(filepath.Dir(savePath), os.ModePerm)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to create directory")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create directory"})
+		apiInternalError(c, "api_failed_to_create_directory")
 		return
 	}
 
@@ -812,14 +804,14 @@ func UploadLogo(c *gin.Context) {
 	out, err := os.Create(savePath)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to save file")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
+		apiInternalError(c, "api_failed_to_save_file")
 		return
 	}
 	defer out.Close()
 	_, err = io.Copy(out, file)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to save file")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
+		apiInternalError(c, "api_failed_to_save_file")
 		return
 	}
 
@@ -827,11 +819,11 @@ func UploadLogo(c *gin.Context) {
 	err = UpdateSetting("logo_image", fileName)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update logo setting")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update logo setting"})
+		apiInternalError(c, "api_failed_to_update_logo")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Logo uploaded successfully", "path": savePath})
+	c.JSON(http.StatusOK, gin.H{"message": T(c, "api_logo_uploaded"), "path": savePath})
 }
 
 func LoadEcDevices() ([]string, error) {
@@ -975,302 +967,8 @@ func LoadSettings() {
 	config.Breeders = GetBreeders()
 	config.Streams = GetStreams()
 }
-func AddBreederHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "AddBreederHandler")
-	var breeder struct {
-		Name string `json:"breeder_name"`
-	}
-	if err := c.ShouldBindJSON(&breeder); err != nil {
-		fieldLogger.WithError(err).Error("Failed to add breeder")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
-		return
-	}
-
-	// Add breeder to database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to add breeder")
-		return
-	}
-
-	// Insert new breeder and return new id
-	var id int
-	err = db.QueryRow("INSERT INTO breeder (name) VALUES ($1) RETURNING id", breeder.Name).Scan(&id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to add breeder")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add breeder"})
-		return
-	}
-	config.Breeders = append(config.Breeders, types.Breeder{ID: id, Name: breeder.Name})
-
-	c.JSON(http.StatusCreated, gin.H{"id": id})
-}
-func UpdateBreederHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "UpdateBreederHandler")
-	id := c.Param("id")
-	var breeder struct {
-		Name string `json:"breeder_name"`
-	}
-	if err := c.ShouldBindJSON(&breeder); err != nil {
-		fieldLogger.WithError(err).Error("Failed to update breeder")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
-		return
-	}
-
-	// Update breeder in database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to update breeder")
-		return
-	}
-
-	// Update breeder in database
-	_, err = db.Exec("UPDATE breeder SET name = $1 WHERE id = $2", breeder.Name, id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to update breeder")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update breeder"})
-		return
-	}
-
-	//Reload Config
-	config.Breeders = GetBreeders()
-
-	c.JSON(http.StatusOK, gin.H{"message": "Breeder updated"})
-}
-
-func DeleteBreederHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "DeleteBreederHandler")
-	id := c.Param("id")
-
-	// Delete breeder from database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete breeder")
-		return
-	}
-
-	// Delete any plants associated with this breeder
-	rows, err := db.Query("SELECT p.id FROM plant p LEFT OUTER JOIN strain s on s.id = p.strain_id WHERE s.breeder_id = $1", id)
-	if err != nil {
-		if err.Error() != "sql: no rows in result set" {
-
-		} else {
-			fieldLogger.WithError(err).Error("Failed to delete plants")
-			return
-		}
-	}
-	defer rows.Close()
-
-	plantList := []int{}
-	for rows.Next() {
-		var plantId int
-		err = rows.Scan(&plantId)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to delete plant")
-			continue
-		}
-		plantList = append(plantList, plantId)
-	}
-
-	for _, plantId := range plantList {
-		DeletePlantById(fmt.Sprintf("%d", plantId))
-	}
-
-	// Delete any strains associated with this breeder
-	_, err = db.Exec("DELETE FROM strain WHERE breeder_id = $1", id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete strains")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete strains"})
-	}
-
-	// Delete breeder from database
-	_, err = db.Exec("DELETE FROM breeder WHERE id = $1", id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete breeder")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete breeder"})
-		return
-	}
-
-	//Reload Config
-	config.Breeders = GetBreeders()
-
-	c.JSON(http.StatusOK, gin.H{"message": "Breeder deleted"})
-}
-
-func GetStreams() []types.Stream {
-	streams := []types.Stream{}
-	fieldLogger := logger.Log.WithField("func", "GetStreams")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return streams
-	}
-	rows, err := db.Query("SELECT s.id, s.name, url, zone_id, visible, z.name as zone_name FROM streams s left outer join zones z on s.zone_id = z.id")
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to read stream")
-		return streams
-	}
-	defer rows.Close()
-
-	stream := types.Stream{}
-	for rows.Next() {
-		var id, zoneID uint
-		var visible bool
-		var name, url, zoneName string
-		err = rows.Scan(&id, &name, &url, &zoneID, &visible, &zoneName)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to read stream")
-			continue
-		}
-		stream = types.Stream{ID: id, Name: name, URL: url, ZoneID: zoneID, ZoneName: zoneName, Visible: visible}
-		streams = append(streams, stream)
-	}
-
-	return streams
-}
-
-func AddStreamHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "AddStreamHandler")
-	var stream struct {
-		Name    string `json:"stream_name"`
-		URL     string `json:"url"`
-		ZoneID  string `json:"zone_id"`
-		Visible bool   `json:"visible"`
-	}
-	if err := c.ShouldBindJSON(&stream); err != nil {
-		fieldLogger.WithError(err).Error("Failed to add stream")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
-		return
-	}
-
-	// Add stream to database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to add stream")
-		return
-	}
-
-	// Insert new stream and return new id
-	var id int
-	err = db.QueryRow("INSERT INTO streams (name, url, zone_id, visible) VALUES ($1, $2, $3, $4) RETURNING id", stream.Name, stream.URL, stream.ZoneID, stream.Visible).Scan(&id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to add stream")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add stream"})
-		return
-	}
-
-	streams := GetStreams()
-	config.Streams = streams
-
-	latestFileName := fmt.Sprintf("stream_%d_latest%s", id, filepath.Ext(".jpg"))
-	latestSavePath := filepath.Join("uploads", "streams", latestFileName)
-	utils.GrabWebcamImage(stream.URL, latestSavePath)
-
-	c.JSON(http.StatusCreated, gin.H{"id": id, "streams": streams})
-}
-
-func UpdateStreamHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "UpdateStreamHandler")
-	id := c.Param("id")
-	var stream struct {
-		Name    string `json:"stream_name"`
-		URL     string `json:"url"`
-		ZoneID  int    `json:"zone_id"`
-		Visible bool   `json:"visible"`
-	}
-	if err := c.ShouldBindJSON(&stream); err != nil {
-		fieldLogger.WithError(err).Error("Failed to update stream")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
-		return
-	}
-
-	// Update stream in database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to update stream")
-		return
-	}
-
-	//convert visible to int
-	var visibleInt int
-	if stream.Visible {
-		visibleInt = 1
-	} else {
-		visibleInt = 0
-	}
-
-	// Update stream in database
-	_, err = db.Exec("UPDATE streams SET name = $1, url = $2, zone_id = $3, visible = $4 WHERE id = $5", stream.Name, stream.URL, stream.ZoneID, visibleInt, id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to update stream")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update stream"})
-		return
-	}
-
-	streams := GetStreams()
-	config.Streams = streams
-
-	c.JSON(http.StatusOK, gin.H{"message": "Stream updated", "streams": streams})
-}
-
-func DeleteStreamHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "DeleteStreamHandler")
-	id := c.Param("id")
-
-	// Delete stream from database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete stream")
-		return
-	}
-
-	// Delete stream from database
-	_, err = db.Exec("DELETE FROM streams WHERE id = $1", id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete stream")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete stream"})
-		return
-	}
-
-	streams := GetStreams()
-	config.Streams = streams
-
-	c.JSON(http.StatusOK, gin.H{"message": "Stream deleted", "streams": streams})
-}
-
-func GetStreamsByZoneHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "GetStreamsByZoneHandler")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open database"})
-		return
-	}
-
-	rows, err := db.Query("SELECT s.id, s.name, s.url, z.name as zone_name, visible FROM streams s left outer join zones z on s.zone_id = z.id")
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to read streams")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read streams"})
-		return
-	}
-	defer rows.Close()
-
-	streamsByZone := make(map[string][]types.Stream)
-	for rows.Next() {
-		var id int
-		var name, url, zoneName string
-		var visible bool
-		err = rows.Scan(&id, &name, &url, &zoneName, &visible)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to read streams")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read streams"})
-			return
-		}
-		streamsByZone[zoneName] = append(streamsByZone[zoneName], types.Stream{ID: uint(id), Name: name, URL: url, ZoneName: zoneName, Visible: visible})
-	}
-
-	c.JSON(http.StatusOK, streamsByZone)
-}
+// Breeder CRUD handlers have been moved to strain.go
+// Stream CRUD handlers have been moved to stream.go
 
 func GetLogs(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "GetLogs")
@@ -1296,7 +994,7 @@ func GetLogs(c *gin.Context) {
 	data, err := os.ReadFile(logPath)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to read log file")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read log file"})
+		apiInternalError(c, "api_failed_to_read_log_file")
 		return
 	}
 
@@ -1327,7 +1025,7 @@ func DownloadLogs(c *gin.Context) {
 
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		fieldLogger.WithError(err).Error("Log file not found")
-		c.JSON(http.StatusNotFound, gin.H{"error": "Log file not found"})
+		apiNotFound(c, "api_log_file_not_found")
 		return
 	}
 
@@ -1336,18 +1034,4 @@ func DownloadLogs(c *gin.Context) {
 	c.File(filePath)
 }
 
-func DeleteStreamByID(id string) error {
-	fieldLogger := logger.Log.WithField("func", "DeleteStreamByID")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error opening database")
-		return err
-	}
-
-	_, err = db.Exec("DELETE FROM streams WHERE id = $1", id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error deleting sensor")
-		return err
-	}
-	return nil
-}
+// DeleteStreamByID has been moved to stream.go

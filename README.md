@@ -7,7 +7,7 @@
 *Track, trend, and elevate your grow — all in one place.*
 
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/dwot/isley)
-[![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go&logoColor=white)](https://golang.org)
+[![Go](https://img.shields.io/badge/Go-1.25.0-00ADD8?logo=go&logoColor=white)](https://golang.org)
 [![License](https://img.shields.io/github/license/dwot/isley)](LICENSE)
 [![Issues](https://img.shields.io/github/issues/dwot/isley)](https://github.com/dwot/isley/issues)
 
@@ -93,7 +93,7 @@ services:
     restart: unless-stopped
 
   postgres:
-    image: postgres:16
+    image: postgres:16.8-alpine
     environment:
       - POSTGRES_DB=isleydb
       - POSTGRES_USER=isley
@@ -178,7 +178,7 @@ services:
     restart: unless-stopped
 
   postgres:
-    image: postgres:16
+    image: postgres:16.8-alpine
     environment:
       - POSTGRES_DB=isleydb
       - POSTGRES_USER=isley
@@ -211,6 +211,7 @@ For environment-level configuration, the full reference is below:
 |---|---|---|
 | `ISLEY_PORT` | `8080` | Port Isley listens on |
 | `ISLEY_SESSION_SECRET` | *(random)* | Session encryption key — **set this in production** |
+| `GIN_MODE` | `release` | Set to `debug` for verbose request logging and error details during development |
 
 ### Database
 
@@ -255,15 +256,217 @@ Isley exposes an HTTP API for pushing sensor data from custom devices, IoT hardw
 
 > **Use this for:** Arduino/ESP32 sensors, Home Assistant, Node-RED, or any off-the-shelf sensor not natively supported by Isley.
 
+### Overlay Endpoint
+
+**`GET /api/overlay`** — Returns a JSON snapshot of all living plants (with linked sensor readings) and grouped sensor data. Designed for live-stream overlays (e.g., OBS browser sources).
+
+Requires the `X-API-KEY` header.
+
+**Response structure:**
+
+```json
+{
+  "plants": [
+    {
+      "id": 1,
+      "name": "White Widow #3",
+      "strain_name": "White Widow",
+      "zone_name": "Tent A",
+      "status": "Flower",
+      "current_day": 42,
+      "linked_sensors": [
+        {
+          "name": "Tent A Temp",
+          "value": 24.5,
+          "unit": "°C",
+          "trend": "up",
+          "source": "ACI",
+          "type": "temperature"
+        }
+      ]
+    }
+  ],
+  "sensors": { }
+}
+```
+
+The `sensors` object groups all sensors by source, zone, and type with their latest readings.
+
+### Sensor Data Endpoint
+
+**`GET /sensorData`** — Returns historical sensor readings for charting. Requires authentication unless guest mode is enabled.
+
+**Query parameters:**
+
+| Parameter | Required | Description |
+|---|---|---|
+| `sensor` | Yes | Sensor ID |
+| `minutes` | One of `minutes` or `start`/`end` | Number of minutes of history to return |
+| `start` | One of `minutes` or `start`/`end` | Start date (`YYYY-MM-DD` or RFC 3339) |
+| `end` | One of `minutes` or `start`/`end` | End date (`YYYY-MM-DD` or RFC 3339) |
+
+**Example:**
+
+```
+GET /sensorData?sensor=5&minutes=1440
+```
+
+Returns an array of `{ "id", "sensor_id", "sensor_name", "value", "create_dt" }` objects.
+
+---
+
+## 🌡️ Sensor Integration
+
+Isley supports two sensor platforms out of the box, plus a generic HTTP ingest API for custom hardware.
+
+### AC Infinity
+
+AC Infinity controllers (UIS series) expose temperature, humidity, and per-port speed data. Isley communicates with the AC Infinity cloud API — your controller must be online and linked to an AC Infinity account.
+
+**Setup:**
+
+1. Go to **Settings** and enable **AC Infinity Sensor Monitoring**.
+2. Click **Retrieve Token** and enter your AC Infinity account email and password. Isley authenticates once and stores the API token locally — your password is not saved.
+3. After the token is set, go to **Sensors** and click **Scan and Add AC Infinity Sensors**. Isley will discover all controllers and their sensor channels.
+4. Assign each sensor to a **Zone** and toggle visibility for sensors you want to display.
+
+Sensor data is polled at the interval configured in **Settings → Polling Interval** (default 60 seconds). Data appears on the dashboard and can be linked to individual plants for per-plant environmental monitoring.
+
+> **Note:** AC Infinity's API limits password length to 25 characters. If your password is longer, only the first 25 characters are used during authentication.
+
+### EcoWitt
+
+EcoWitt weather stations and soil sensors expose data over a local HTTP API on your network. No cloud account is required — Isley communicates directly with the EcoWitt hub.
+
+**Setup:**
+
+1. Ensure your EcoWitt hub (e.g., GW1000, GW1100, GW2000) is on the same network as your Isley instance.
+2. Go to **Settings** and enable **EcoWitt Sensor Monitoring**.
+3. Go to **Sensors** and click **Scan and Add EcoWitt Sensors**. Enter the IP address of your EcoWitt hub (e.g., `192.168.1.50`) and click **Scan**.
+4. Isley will discover soil moisture and indoor temperature/humidity channels. Assign zones and set visibility as needed.
+
+EcoWitt data is polled at the same **Polling Interval** as AC Infinity. Multiple EcoWitt hubs are supported — scan each one individually.
+
+### Custom Sensors (API Ingest)
+
+For hardware not natively supported (Arduino, ESP32, Home Assistant, etc.), use the HTTP ingest endpoint documented in the [API & Integrations](#-api--integrations) section above. Any device that can make an HTTP POST can push sensor data into Isley.
+
+---
+
+## 💾 Backup & Restore
+
+Isley stores data in two Docker volumes that should be backed up regularly.
+
+| Volume | Contents | Path inside container |
+|---|---|---|
+| `postgres-data` (or `isley-db` for SQLite) | Database — all plants, sensors, settings, and history | `/var/lib/postgresql/data` (Postgres) or `/app/data` (SQLite) |
+| `isley-uploads` | Plant photos, stream snapshots, and logo images | `/app/uploads` |
+
+### Backing up
+
+**PostgreSQL:**
+
+```bash
+# Dump the database to a SQL file
+docker exec isley-postgres-1 pg_dump -U isley isleydb > isley_backup_$(date +%Y%m%d).sql
+
+# Back up the uploads volume
+docker cp isley-isley-1:/app/uploads ./isley_uploads_backup
+```
+
+**SQLite:**
+
+```bash
+# Copy the database file (stop the container first to avoid corruption)
+docker compose -f docker-compose.sqlite.yml stop
+docker cp isley-isley-1:/app/data ./isley_data_backup
+docker cp isley-isley-1:/app/uploads ./isley_uploads_backup
+docker compose -f docker-compose.sqlite.yml start
+```
+
+### Restoring
+
+**PostgreSQL:**
+
+```bash
+# Restore the database from a SQL dump
+cat isley_backup_20260315.sql | docker exec -i isley-postgres-1 psql -U isley isleydb
+
+# Restore uploads
+docker cp ./isley_uploads_backup/. isley-isley-1:/app/uploads
+```
+
+**SQLite:**
+
+```bash
+docker compose -f docker-compose.sqlite.yml stop
+docker cp ./isley_data_backup/. isley-isley-1:/app/data
+docker cp ./isley_uploads_backup/. isley-isley-1:/app/uploads
+docker compose -f docker-compose.sqlite.yml start
+```
+
+> **Tip:** Automate backups with a cron job. For PostgreSQL, `pg_dump` can run while the database is online with no downtime.
+
+---
+
+## 🔒 Reverse Proxy Examples
+
+Running Isley behind a reverse proxy is recommended for production. This enables HTTPS, custom domain routing, and keeps Isley off a public port.
+
+### Nginx
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name isley.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/isley.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/isley.example.com/privkey.pem;
+
+    client_max_body_size 20M;  # allow image uploads
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    listen 80;
+    server_name isley.example.com;
+    return 301 https://$host$request_uri;
+}
+```
+
+### Traefik (Docker labels)
+
+Add these labels to the `isley` service in your compose file:
+
+```yaml
+services:
+  isley:
+    # ... existing config ...
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.isley.rule=Host(`isley.example.com`)"
+      - "traefik.http.routers.isley.entrypoints=websecure"
+      - "traefik.http.routers.isley.tls.certresolver=letsencrypt"
+      - "traefik.http.services.isley.loadbalancer.server.port=8080"
+```
+
+> **Note:** Isley ships with trusted proxy configuration for private RFC-1918 ranges, so `X-Forwarded-For` headers from your reverse proxy will be used correctly for rate limiting and logging.
+
 ---
 
 ## 🛡️ Production Recommendations
 
 - Use **Docker with PostgreSQL** behind a reverse proxy (Nginx, Traefik) for TLS termination and clean URL routing.
-- Back up these volumes on a regular schedule:
-  - `postgres-data` — database
-  - `isley-uploads` — plant photos and images
+- Back up these volumes on a regular schedule — see [Backup & Restore](#-backup--restore) above.
 - Set `ISLEY_SESSION_SECRET` to keep sessions valid across container restarts.
+- Configure a [sensor data retention period](#) in Settings to prevent unbounded database growth.
 
 ---
 
@@ -278,6 +481,8 @@ Isley exposes an HTTP API for pushing sensor data from custom devices, IoT hardw
 
 ## ⭐ Star History
 
-## Star History
-
-[![Star History Chart](https://api.star-history.com/image?repos=dwot/isley&type=date&legend=top-left)](https://www.star-history.com/?repos=dwot%2Fisley&type=date&legend=top-left)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=dwot/isley&&type=Date&theme=dark" />
+  <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=sdwot/isley&&type=Date" />
+  <img alt="Star History Chart" src="https://api.star-history.com/image?repos=dwot/isley&&type=Date&theme=dark" />
+</picture>

@@ -25,7 +25,7 @@ func UploadPlantImages(c *gin.Context) {
 	plantID, err := strconv.Atoi(c.Param("plantID"))
 	if err != nil {
 		fileLogger.WithError(err).Error("Invalid plant ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid plant ID"})
+		apiBadRequest(c, "api_invalid_plant_id")
 		return
 	}
 	fileLogger = logger.Log.WithField("plantID", plantID)
@@ -34,7 +34,7 @@ func UploadPlantImages(c *gin.Context) {
 	err = c.Request.ParseMultipartForm(10 << 20) // Limit to 10 MB
 	if err != nil {
 		fileLogger.WithError(err).Error("Failed to parse multipart form data")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse form data"})
+		apiBadRequest(c, "api_failed_to_parse_form")
 		return
 	}
 
@@ -47,7 +47,7 @@ func UploadPlantImages(c *gin.Context) {
 	db, err := model.GetDB()
 	if err != nil {
 		fileLogger.WithError(err).Error("Failed to open database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		apiInternalError(c, "api_database_error")
 		return
 	}
 	imageIDs := make([]int, 0)
@@ -70,12 +70,12 @@ func UploadPlantImages(c *gin.Context) {
 		allowed := map[string]bool{"image/jpeg": true, "image/png": true, "image/gif": true, "image/webp": true}
 		if !allowed[mimeType] {
 			fileLogger.WithField("mimeType", mimeType).Warn("Rejected upload with disallowed MIME type")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid file type; only JPEG, PNG, GIF, and WebP are allowed"})
+			apiBadRequest(c, "api_invalid_file_type")
 			return
 		}
 		if _, err = file.Seek(0, io.SeekStart); err != nil {
 			fileLogger.WithError(err).Error("Failed to seek uploaded file")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process file"})
+			apiInternalError(c, "api_failed_to_process_file")
 			return
 		}
 
@@ -89,7 +89,7 @@ func UploadPlantImages(c *gin.Context) {
 		err = os.MkdirAll(filepath.Dir(savePath), os.ModePerm)
 		if err != nil {
 			fileLogger.WithError(err).Error("Failed to create directory")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create directory"})
+			apiInternalError(c, "api_failed_to_create_directory")
 			return
 		}
 
@@ -97,14 +97,14 @@ func UploadPlantImages(c *gin.Context) {
 		out, err := os.Create(savePath)
 		if err != nil {
 			fileLogger.WithError(err).Error("Failed to create file on filesystem")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
+			apiInternalError(c, "api_failed_to_save_file")
 			return
 		}
 		defer out.Close()
 		_, err = io.Copy(out, file)
 		if err != nil {
 			fileLogger.WithError(err).Error("Failed to save file to disk")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
+			apiInternalError(c, "api_failed_to_save_file")
 			return
 		}
 
@@ -139,7 +139,7 @@ func UploadPlantImages(c *gin.Context) {
 		fileLogger.Info("Successfully processed and saved image")
 	}
 
-	c.JSON(http.StatusOK, gin.H{"ids": imageIDs, "message": "Images uploaded successfully"})
+	c.JSON(http.StatusOK, gin.H{"ids": imageIDs, "message": T(c, "api_images_uploaded")})
 }
 
 func DeletePlantImage(c *gin.Context) {
@@ -150,7 +150,7 @@ func DeletePlantImage(c *gin.Context) {
 	imageID, err := strconv.Atoi(c.Param("imageID"))
 	if err != nil {
 		fileLogger.WithError(err).Error("Invalid image ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid image ID"})
+		apiBadRequest(c, "api_invalid_image_id")
 		return
 	}
 	fileLogger = logger.Log.WithField("imageID", imageID)
@@ -158,7 +158,7 @@ func DeletePlantImage(c *gin.Context) {
 	db, err := model.GetDB()
 	if err != nil {
 		fileLogger.WithError(err).Error("Failed to open database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		apiInternalError(c, "api_database_error")
 		return
 	}
 
@@ -168,10 +168,10 @@ func DeletePlantImage(c *gin.Context) {
 	if err != nil {
 		if err == sql.ErrNoRows {
 			fileLogger.WithError(err).Error("Image not found in database")
-			c.JSON(http.StatusNotFound, gin.H{"error": "Image not found"})
+			apiNotFound(c, "api_image_not_found")
 		} else {
 			fileLogger.WithError(err).Error("Failed to query database for image")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database query error"})
+			apiInternalError(c, "api_database_query_error")
 		}
 		return
 	}
@@ -181,7 +181,7 @@ func DeletePlantImage(c *gin.Context) {
 	err = os.Remove(imagePath)
 	if err != nil && !os.IsNotExist(err) {
 		fileLogger.WithError(err).Error("Failed to delete file from filesystem")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete file"})
+		apiInternalError(c, "api_failed_to_delete_file")
 		return
 	}
 
@@ -189,10 +189,10 @@ func DeletePlantImage(c *gin.Context) {
 	_, err = db.Exec("DELETE FROM plant_images WHERE id = $1", imageID)
 	if err != nil {
 		fileLogger.WithError(err).Error("Failed to delete image record from database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete image record"})
+		apiInternalError(c, "api_failed_to_delete_image_record")
 		return
 	}
 
 	fileLogger.Info("Image deleted successfully")
-	c.JSON(http.StatusOK, gin.H{"message": "Image deleted successfully"})
+	apiOK(c, "api_image_deleted")
 }

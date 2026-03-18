@@ -19,7 +19,7 @@ func ACILoginHandler(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Log.WithError(err).Error("Failed to bind JSON request")
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Invalid request payload"})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": T(c, "api_invalid_request_payload")})
 		return
 	}
 
@@ -33,12 +33,12 @@ func ACILoginHandler(c *gin.Context) {
 	values.Set("appEmail", req.Email)
 	values.Set("appPasswordl", req.Password)
 	formData := values.Encode()
-	apiURL := "http://www.acinfinityserver.com/api/user/appUserLogin"
+	apiURL := "https://www.acinfinityserver.com/api/user/appUserLogin"
 
 	httpRequest, err := http.NewRequest("POST", apiURL, strings.NewReader(formData))
 	if err != nil {
 		logger.Log.WithError(err).Error("Failed to create HTTP request")
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to create request"})
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": T(c, "api_failed_to_create_request")})
 		return
 	}
 
@@ -51,7 +51,7 @@ func ACILoginHandler(c *gin.Context) {
 	resp, err := client.Do(httpRequest)
 	if err != nil {
 		logger.Log.WithError(err).Error("Failed to connect to AC Infinity API")
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to connect to AC Infinity API"})
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": T(c, "api_failed_to_connect_aci")})
 		return
 	}
 	defer resp.Body.Close()
@@ -61,7 +61,7 @@ func ACILoginHandler(c *gin.Context) {
 			"status_code": resp.StatusCode,
 			"status":      resp.Status,
 		}).Error("Non-200 response from AC Infinity API")
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to fetch token"})
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": T(c, "api_failed_to_fetch_token")})
 		return
 	}
 
@@ -74,7 +74,7 @@ func ACILoginHandler(c *gin.Context) {
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&aciResponse); err != nil {
 		logger.Log.WithError(err).Error("Failed to decode AC Infinity response")
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to process AC Infinity response"})
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": T(c, "api_failed_to_process_aci_response")})
 		return
 	}
 

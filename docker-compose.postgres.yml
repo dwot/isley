@@ -10,24 +10,48 @@ services:
       - ISLEY_DB_DRIVER=postgres
       - ISLEY_DB_HOST=postgres
       - ISLEY_DB_PORT=5432
-      - ISLEY_DB_USER=isley
-      - ISLEY_DB_PASSWORD=supersecret
-      - ISLEY_DB_NAME=isleydb
+      - ISLEY_DB_USER=${ISLEY_DB_USER:-isley}
+      - ISLEY_DB_PASSWORD=${ISLEY_DB_PASSWORD:?Set ISLEY_DB_PASSWORD in .env}
+      - ISLEY_DB_NAME=${ISLEY_DB_NAME:-isleydb}
+      - ISLEY_SESSION_SECRET=${ISLEY_SESSION_SECRET:-}
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     volumes:
       - isley-uploads:/app/uploads
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
 
   postgres:
-    image: postgres:16
+    image: postgres:16.8-alpine
     environment:
-      - POSTGRES_DB=isleydb
-      - POSTGRES_USER=isley
-      - POSTGRES_PASSWORD=supersecret
+      - POSTGRES_DB=${ISLEY_DB_NAME:-isleydb}
+      - POSTGRES_USER=${ISLEY_DB_USER:-isley}
+      - POSTGRES_PASSWORD=${ISLEY_DB_PASSWORD:?Set ISLEY_DB_PASSWORD in .env}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ISLEY_DB_USER:-isley} -d ${ISLEY_DB_NAME:-isleydb}"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
 
 volumes:
   postgres-data:

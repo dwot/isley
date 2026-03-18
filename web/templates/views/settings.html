@@ -21,6 +21,7 @@ color: #0d6efd; /* Primary color */
 </style>
 {{ template "common/header2.html" .}}
 <div class="container">
+    <h1 class="visually-hidden">{{ .lcl.title_settings }}</h1>
     <!-- Tabs Navigation -->
     <ul class="nav nav-tabs d-flex align-items-center" id="settingsTabs" role="tablist">
         <li class="nav-item" role="presentation">
@@ -61,7 +62,7 @@ color: #0d6efd; /* Primary color */
                 <!-- AC Infinity Section -->
                 <div class="card mb-4 shadow-sm border-start border-4 border-primary">
                     <div class="card-header bg-light text-dark">
-                        <h5 class="card-title mb-0"><i class="fa fa-microchip me-2"></i>AC Infinity</h5>
+                        <h5 class="card-title mb-0"><i class="fa fa-microchip me-2"></i>{{ .lcl.settings_ac_infinity }}</h5>
                     </div>
                     <div class="card-body">
                         <div class="form-check form-switch">
@@ -85,7 +86,7 @@ color: #0d6efd; /* Primary color */
                 <!-- EcoWitt Section -->
                 <div class="card mb-4 shadow-sm border-start border-4 border-success">
                     <div class="card-header bg-light text-dark">
-                        <h5 class="card-title mb-0"><i class="fa fa-leaf me-2"></i>EcoWitt</h5>
+                        <h5 class="card-title mb-0"><i class="fa fa-leaf me-2"></i>{{ .lcl.settings_ecowitt }}</h5>
                     </div>
                     <div class="card-body">
                         <div class="form-check form-switch">
@@ -124,17 +125,15 @@ color: #0d6efd; /* Primary color */
                         </small>
 
                         <hr class="my-3">
-                        <label for="logLevel" class="form-label">Log Level</label>
+                        <label for="logLevel" class="form-label">{{ .lcl.settings_log_level }}</label>
                         <select class="form-select" id="logLevel" style="width:160px">
-                            <option value="debug" {{ if eq .settings.LogLevel "debug" }}selected{{ end }}>Debug</option>
-                            <option value="info" {{ if or (eq .settings.LogLevel "info") (eq .settings.LogLevel "") }}selected{{ end }}>Info</option>
-                            <option value="warn" {{ if eq .settings.LogLevel "warn" }}selected{{ end }}>Warn</option>
-                            <option value="error" {{ if eq .settings.LogLevel "error" }}selected{{ end }}>Error</option>
+                            <option value="debug" {{ if eq .settings.LogLevel "debug" }}selected{{ end }}>{{ .lcl.settings_log_level_debug }}</option>
+                            <option value="info" {{ if or (eq .settings.LogLevel "info") (eq .settings.LogLevel "") }}selected{{ end }}>{{ .lcl.settings_log_level_info }}</option>
+                            <option value="warn" {{ if eq .settings.LogLevel "warn" }}selected{{ end }}>{{ .lcl.settings_log_level_warn }}</option>
+                            <option value="error" {{ if eq .settings.LogLevel "error" }}selected{{ end }}>{{ .lcl.settings_log_level_error }}</option>
                         </select>
                         <small class="text-muted d-block mt-2">
-                            Controls which log messages are written. <strong>Info</strong> is recommended for normal use.
-                            Use <strong>Debug</strong> to troubleshoot issues; use <strong>Warn</strong> or <strong>Error</strong> to reduce noise.
-                            Changes take effect immediately without restart.
+                            {{ .lcl.settings_log_level_desc }}
                         </small>
                     </div>
                 </div>
@@ -147,19 +146,51 @@ color: #0d6efd; /* Primary color */
                         </h5>
                     </div>
                     <div class="card-body">
-                        <label for="apiKey" class="form-label">{{ .lcl.api_key_label }}</label>
-                        <div class="input-group">
-                            <input type="password" class="form-control" id="apiKey" name="api_key" value="{{ .settings.APIKey }}" placeholder="{{ .lcl.api_key_placeholder }}">
-                            <button class="btn btn-outline-secondary" type="button" onclick="toggleAPIKeyVisibility()" aria-label="{{ .lcl.toggle_visibility }}">
-                                <i class="fa fa-eye"></i>
-                            </button>
-                            <button class="btn btn-outline-secondary" type="button" onclick="copyAPIKey()" aria-label="{{ .lcl.copy }}">
-                                <i class="fa fa-clipboard"></i>
-                            </button>
-                            <button class="btn btn-outline-secondary" type="button" onclick="generateNewAPIKey()" aria-label="{{ .lcl.generate_new_key }}">
-                                <i class="fa fa-sync"></i> {{ .lcl.generate_new_key }}
-                            </button>
+                        <label class="form-label">{{ .lcl.api_key_label }}</label>
+
+                        <!-- Status indicator: key configured or not -->
+                        <div id="apiKeyStatus">
+                            {{ if eq .settings.APIKey "********" }}
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-success me-2"><i class="fa fa-check"></i></span>
+                                <span class="text-success fw-semibold">API key is configured.</span>
+                            </div>
+                            {{ else }}
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-secondary me-2"><i class="fa fa-minus"></i></span>
+                                <span class="text-muted">No API key configured.</span>
+                            </div>
+                            {{ end }}
                         </div>
+
+                        <!-- Generate / Regenerate button -->
+                        <div id="apiKeyActions">
+                            {{ if eq .settings.APIKey "********" }}
+                            <button class="btn btn-outline-warning btn-sm" type="button" onclick="generateNewAPIKey()">
+                                <i class="fa fa-sync me-1"></i> Regenerate API Key
+                            </button>
+                            {{ else }}
+                            <button class="btn btn-primary btn-sm" type="button" onclick="generateNewAPIKey()">
+                                <i class="fa fa-key me-1"></i> Generate API Key
+                            </button>
+                            {{ end }}
+                        </div>
+
+                        <!-- One-time key display (hidden by default, shown after generation) -->
+                        <div id="apiKeyReveal" class="d-none mt-3">
+                            <div class="alert alert-warning py-2 mb-2">
+                                <i class="fa fa-exclamation-triangle me-1"></i>
+                                <strong>Copy your key now.</strong> It will not be shown again.
+                            </div>
+                            <div class="input-group">
+                                <input type="text" class="form-control font-monospace" id="apiKeyDisplay" readonly>
+                                <button class="btn btn-outline-secondary" type="button" onclick="copyAPIKey()" aria-label="{{ .lcl.copy }}">
+                                    <i class="fa fa-clipboard me-1"></i> Copy
+                                </button>
+                            </div>
+                            <small class="text-muted d-block mt-1" id="apiKeyCopyStatus"></small>
+                        </div>
+
                         <small class="text-muted d-block mt-2">
                             {{ linebreaks .lcl.api_key_desc }}
                         </small>
@@ -178,15 +209,14 @@ color: #0d6efd; /* Primary color */
                 <!-- Data Retention -->
                 <div class="card mb-4 shadow-sm border-start border-4 border-warning">
                     <div class="card-header bg-light text-dark">
-                        <h5 class="card-title mb-0"><i class="fa fa-database me-2"></i>Data Retention</h5>
+                        <h5 class="card-title mb-0"><i class="fa fa-database me-2"></i>{{ .lcl.settings_data_retention }}</h5>
                     </div>
                     <div class="card-body">
-                        <label for="sensorRetentionDays" class="form-label">Sensor data retention (days)</label>
+                        <label for="sensorRetentionDays" class="form-label">{{ .lcl.settings_sensor_retention_label }}</label>
                         <input type="number" class="form-control" id="sensorRetentionDays" min="0" max="3650"
                                value="{{ .settings.SensorRetentionDays }}" style="width:160px">
                         <small class="text-muted d-block mt-2">
-                            How many days of sensor data and rolling averages to keep. Set to <strong>0</strong> to disable pruning (data kept forever).
-                            Pruning runs once every 24 hours while the app is running.
+                            {{ .lcl.settings_sensor_retention_desc }}
                         </small>
                     </div>
                 </div>
@@ -206,7 +236,7 @@ color: #0d6efd; /* Primary color */
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
                     <div>
                         <h5 class="mb-0">&#128205; {{ .lcl.title_zones }}</h5>
-                        <small class="text-muted">Growing areas or rooms. Used to group plants and streams.</small>
+                        <small class="text-muted">{{ .lcl.settings_zones_desc }}</small>
                     </div>
                     <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addZoneModal">
                         <i class="fa-solid fa-plus"></i> {{ .lcl.add_zone }}
@@ -235,7 +265,7 @@ color: #0d6efd; /* Primary color */
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
                     <div>
                         <h5 class="mb-0">&#9997; {{ .lcl.title_activities }}</h5>
-                        <small class="text-muted">Actions you can log against plants (e.g. watering, feeding, training).</small>
+                        <small class="text-muted">{{ .lcl.settings_activities_desc }}</small>
                     </div>
                     <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addActivityModal">
                         <i class="fa-solid fa-plus"></i> {{ .lcl.add_activity }}
@@ -264,7 +294,7 @@ color: #0d6efd; /* Primary color */
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
                     <div>
                         <h5 class="mb-0">&#128200; {{ .lcl.title_metrics }}</h5>
-                        <small class="text-muted">Custom measurements to track per plant (e.g. pH, height, EC).</small>
+                        <small class="text-muted">{{ .lcl.settings_metrics_desc }}</small>
                     </div>
                     <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addMetricModal">
                         <i class="fa-solid fa-plus"></i> {{ .lcl.add_metric }}
@@ -295,7 +325,7 @@ color: #0d6efd; /* Primary color */
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
                     <div>
                         <h5 class="mb-0">&#127807; {{ .lcl.breeders }}</h5>
-                        <small class="text-muted">Seed breeders and producers. Linked to strains and plants.</small>
+                        <small class="text-muted">{{ .lcl.settings_breeders_desc }}</small>
                     </div>
                     <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addBreederModal">
                         <i class="fa-solid fa-plus"></i> {{ .lcl.add_breeder }}
@@ -406,11 +436,11 @@ color: #0d6efd; /* Primary color */
         <div class="tab-pane fade" id="logs-content" role="tabpanel" aria-labelledby="logs-tab">
             <div class="card mb-4 shadow-sm mt-4">
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0"><i class="fa fa-file-alt me-2"></i>&#128220; Application Logs</h5>
+                    <h5 class="card-title mb-0"><i class="fa fa-file-alt me-2"></i>&#128220; {{ .lcl.settings_app_logs }}</h5>
                     <div class="d-flex gap-2 align-items-center">
                         <select id="logFileSelect" class="form-select form-select-sm" style="width:auto">
-                            <option value="app" selected>App Log</option>
-                            <option value="access">Access Log</option>
+                            <option value="app" selected>{{ .lcl.settings_app_log }}</option>
+                            <option value="access">{{ .lcl.settings_access_log }}</option>
                         </select>
                         <select id="logLineCount" class="form-select form-select-sm" style="width:auto">
                             <option value="100">Last 100 lines</option>
@@ -419,10 +449,10 @@ color: #0d6efd; /* Primary color */
                             <option value="1000">Last 1000 lines</option>
                         </select>
                         <button class="btn btn-sm btn-outline-secondary" id="refreshLogsBtn">
-                            <i class="fa fa-sync"></i> Refresh
+                            <i class="fa fa-sync"></i> {{ .lcl.settings_refresh }}
                         </button>
                         <a class="btn btn-sm btn-outline-primary" id="downloadLogsBtn" href="/settings/logs/download">
-                            <i class="fa fa-download"></i> Download
+                            <i class="fa fa-download"></i> {{ .lcl.settings_download }}
                         </a>
                     </div>
                 </div>
@@ -992,7 +1022,7 @@ color: #0d6efd; /* Primary color */
                 guest_mode: document.getElementById("guestMode").checked,
                 stream_grab_enabled: document.getElementById("streamGrabEnabled").checked,
                 stream_grab_interval: streamGrabInterval.toString(),
-                api_key: document.getElementById("apiKey").value,
+                api_key: "",
                 disable_api_ingest: document.getElementById("disableApiIngest").checked,
                 sensor_retention_days: document.getElementById("sensorRetentionDays").value,
                 log_level: document.getElementById("logLevel").value,
@@ -1395,35 +1425,44 @@ color: #0d6efd; /* Primary color */
     function generateNewAPIKey() {
         uiMessages.showConfirm(uiMessages.t('generate_new_key_confirm')).then(confirmed => {
             if (!confirmed) return;
-            // Send request to generate new API key
             fetch('/settings', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    api_key: 'generate'
-                })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: 'generate' })
             })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.api_key) {
-                        document.getElementById('apiKey').value = data.api_key;
-                    }
-                })
-                .catch(error => console.error('Error:', error));
+            .then(response => response.json())
+            .then(data => {
+                if (data.api_key) {
+                    // Show the one-time key display
+                    document.getElementById('apiKeyDisplay').value = data.api_key;
+                    document.getElementById('apiKeyReveal').classList.remove('d-none');
+                    document.getElementById('apiKeyCopyStatus').textContent = '';
+
+                    // Update status to show key is now configured
+                    document.getElementById('apiKeyStatus').innerHTML =
+                        '<div class="d-flex align-items-center mb-2">' +
+                        '<span class="badge bg-success me-2"><i class="fa fa-check"></i></span>' +
+                        '<span class="text-success fw-semibold">API key is configured.</span>' +
+                        '</div>';
+
+                    // Switch button to "Regenerate"
+                    document.getElementById('apiKeyActions').innerHTML =
+                        '<button class="btn btn-outline-warning btn-sm" type="button" onclick="generateNewAPIKey()">' +
+                        '<i class="fa fa-sync me-1"></i> Regenerate API Key</button>';
+                }
+            })
+            .catch(error => console.error('Error:', error));
         });
     }
 
-    function toggleAPIKeyVisibility() {
-        const apiKeyInput = document.getElementById('apiKey');
-        apiKeyInput.type = apiKeyInput.type === 'password' ? 'text' : 'password';
-    }
-
     function copyAPIKey() {
-        const apiKeyInput = document.getElementById('apiKey');
-        apiKeyInput.select();
-        navigator.clipboard.writeText(apiKeyInput.value);
+        const apiKeyInput = document.getElementById('apiKeyDisplay');
+        navigator.clipboard.writeText(apiKeyInput.value).then(() => {
+            document.getElementById('apiKeyCopyStatus').textContent = 'Copied to clipboard.';
+            setTimeout(() => {
+                document.getElementById('apiKeyCopyStatus').textContent = '';
+            }, 3000);
+        });
     }
 
     document.addEventListener("DOMContentLoaded", function () {

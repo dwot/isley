@@ -30,7 +30,7 @@
                     <!-- Plant Strain -->
                     <!-- Strain Dropdown -->
                     <div class="mb-3">
-                        <label for="strainSelect" class="form-label">{{ .lcl.title_strain }}</label>
+                        <label for="strainSelect" class="form-label required">{{ .lcl.title_strain }}</label>
                         <select class="form-select" id="strainSelect" required>
                             {{ range .strains }}
                             <option
@@ -74,7 +74,7 @@
 
                     <!-- Zone Dropdown -->
                     <div class="mb-3">
-                        <label for="zoneSelect" class="form-label">{{ .lcl.title_zone }}</label>
+                        <label for="zoneSelect" class="form-label required">{{ .lcl.title_zone }}</label>
                         <select class="form-select" id="zoneSelect" required>
                             {{ range .zones }}
                             <option
@@ -102,7 +102,7 @@
 
                     <!-- Submit Button -->
                     {{ if .loggedIn }}
-                    <button type="submit" class="btn btn-primary">{{ .lcl.save_changes }}</button>
+                    <button type="submit" class="btn btn-primary"><span class="spinner-border spinner-border-sm btn-spinner" role="status" aria-hidden="true"></span> {{ .lcl.save_changes }}</button>
                     {{ end }}
                 </form>
             </div>

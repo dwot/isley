@@ -24,6 +24,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"lcl":             translations,
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
+			"csrfToken":       c.GetString("csrf_token"),
 		})
 	})
 
@@ -53,6 +54,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"lcl":             translations,
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
+			"csrfToken":       c.GetString("csrf_token"),
 		})
 	})
 
@@ -72,6 +74,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"lcl":             translations,
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
+			"csrfToken":       c.GetString("csrf_token"),
 		})
 	})
 
@@ -90,6 +93,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"lcl":             translations,
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
+			"csrfToken":       c.GetString("csrf_token"),
 		})
 	})
 
@@ -114,6 +118,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"lcl":             translations,
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
+			"csrfToken":       c.GetString("csrf_token"),
 		})
 	})
 
@@ -131,6 +136,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"lcl":             translations,
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
+			"csrfToken":       c.GetString("csrf_token"),
 		})
 	})
 
@@ -212,11 +218,11 @@ func AddProtectedApiRoutes(r *gin.RouterGroup) {
 
 // AddExternalApiRoutes External API endpoints
 func AddExternalApiRoutes(r *gin.RouterGroup) {
-	r.POST("/api/sensors/ingest", handlers.IngestSensorData)
+	r.POST("/api/sensors/ingest", handlers.RateLimitMiddleware(handlers.IngestRateLimiter), handlers.IngestSensorData)
 	r.GET("/api/overlay", handlers.GetOverlayData)
 }
 
-func AddProtectedRotues(r *gin.RouterGroup, version string) {
+func AddProtectedRoutes(r *gin.RouterGroup, version string) {
 	r.GET("/settings", func(c *gin.Context) {
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
@@ -236,6 +242,7 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"lcl":             translations,
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
+			"csrfToken":       c.GetString("csrf_token"),
 		})
 	})
 
@@ -256,6 +263,7 @@ func AddProtectedRotues(r *gin.RouterGroup, version string) {
 			"lcl":             translations,
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
+			"csrfToken":       c.GetString("csrf_token"),
 		})
 	})
 

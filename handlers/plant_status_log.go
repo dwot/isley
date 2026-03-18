@@ -7,7 +7,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"isley/logger"
 	model "isley/model"
-	"net/http"
 )
 
 func EditStatus(c *gin.Context) {
@@ -22,7 +21,7 @@ func EditStatus(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Invalid input")
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		apiBadRequest(c, "Invalid input")
 		return
 	}
 
@@ -34,7 +33,7 @@ func EditStatus(c *gin.Context) {
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to connect to database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		apiInternalError(c, "api_database_error")
 		return
 	}
 
@@ -42,12 +41,12 @@ func EditStatus(c *gin.Context) {
 	_, err = db.Exec(query, input.Date, input.ID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update status in database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status"})
+		apiInternalError(c, "api_failed_to_update_status")
 		return
 	}
 
 	logger.Log.Info("Status updated successfully")
-	c.JSON(http.StatusOK, gin.H{"message": "Status updated successfully"})
+	apiOK(c, "api_status_updated")
 }
 
 func DeleteStatus(c *gin.Context) {
@@ -61,7 +60,7 @@ func DeleteStatus(c *gin.Context) {
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to connect to database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		apiInternalError(c, "api_database_error")
 		return
 	}
 
@@ -71,11 +70,11 @@ func DeleteStatus(c *gin.Context) {
 	if err != nil {
 		if err == sql.ErrNoRows {
 			fieldLogger.WithError(err).Warn("Status id not found")
-			c.JSON(http.StatusNotFound, gin.H{"error": "Status not found"})
+			apiNotFound(c, "api_status_not_found")
 			return
 		}
 		fieldLogger.WithError(err).Error("Failed to lookup status")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		apiInternalError(c, "api_database_error")
 		return
 	}
 
@@ -84,7 +83,7 @@ func DeleteStatus(c *gin.Context) {
 	err = db.QueryRow(`SELECT COUNT(*) FROM plant_status_log WHERE plant_id = $1`, plantID).Scan(&count)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to count status entries for plant")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		apiInternalError(c, "api_database_error")
 		return
 	}
 
@@ -92,7 +91,7 @@ func DeleteStatus(c *gin.Context) {
 		// Prevent deletion of the last remaining status
 		msg := fmt.Sprintf("Cannot delete the last status entry for plant %d", plantID)
 		fieldLogger.Warn(msg)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete the last status entry for a plant"})
+		apiBadRequest(c, "api_cannot_delete_last_status")
 		return
 	}
 
@@ -100,10 +99,10 @@ func DeleteStatus(c *gin.Context) {
 	_, err = db.Exec(query, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete status from database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete status"})
+		apiInternalError(c, "api_failed_to_delete_status")
 		return
 	}
 
 	fieldLogger.Info("Status deleted successfully")
-	c.JSON(http.StatusOK, gin.H{"message": "Status deleted successfully"})
+	apiOK(c, "api_status_deleted")
 }

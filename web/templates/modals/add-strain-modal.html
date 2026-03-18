@@ -11,7 +11,7 @@
                 <form id="addStrainForm">
                     <!-- Strain Name -->
                     <div class="mb-3">
-                        <label for="strainName" class="form-label">{{ .lcl.strain_name }}</label>
+                        <label for="strainName" class="form-label required">{{ .lcl.strain_name }}</label>
                         <input type="text" class="form-control" id="strainName" placeholder="{{ .lcl.strain_name_placeholder }}" required>
                     </div>
 
@@ -23,7 +23,7 @@
 
                     <!-- Breeder Dropdown -->
                     <div class="mb-3">
-                        <label for="breederSelect" class="form-label">{{ .lcl.breeder }}</label>
+                        <label for="breederSelect" class="form-label required">{{ .lcl.breeder }}</label>
                         <select class="form-select" id="breederSelect" required>
                             {{ range .breeders }}
                             <option value="{{ .ID }}">{{ .Name }}</option>
@@ -50,7 +50,7 @@
 
                     <!-- Autoflower -->
                     <div class="mb-3">
-                        <label for="autoflower" class="form-label">{{ .lcl.autoflower }}</label>
+                        <label for="autoflower" class="form-label required">{{ .lcl.autoflower }}</label>
                         <select class="form-select" id="autoflower" required>
                             <option value="true">{{ .lcl.yes }}</option>
                             <option value="false" selected>{{ .lcl.no }}</option>
@@ -59,20 +59,20 @@
 
                     <!-- Cycle Time -->
                     <div class="mb-3">
-                        <label for="cycleTime" class="form-label">{{ .lcl.cycle_time }}</label>
+                        <label for="cycleTime" class="form-label required">{{ .lcl.cycle_time }}</label>
                         <input type="number" class="form-control" id="cycleTime" min="0" placeholder="days" required value="56">
                         <p class="text-muted">{{ .lcl.cycle_time_desc }}</p>
                     </div>
 
                     <!-- Seed Count -->
                     <div class="mb-3">
-                        <label for="seedCount" class="form-label">{{ .lcl.seed_count }}</label>
+                        <label for="seedCount" class="form-label required">{{ .lcl.seed_count }}</label>
                         <input type="number" class="form-control" id="seedCount" min="0" placeholder="{{ .lcl.seed_count_placeholder }}" required>
                     </div>
 
                     <!-- Short Description -->
                     <div class="mb-3">
-                        <label for="strainShortDescription" class="form-label">{{ .lcl.short_description_txt }}</label>
+                        <label for="strainShortDescription" class="form-label required">{{ .lcl.short_description_txt }}</label>
                         <input type="text" class="form-control" id="strainShortDescription" placeholder="{{ .lcl.short_description_placeholder }}" required>
                     </div>
 
@@ -84,7 +84,7 @@
                     </div>
 
                     <!-- Submit Button -->
-                    <button type="submit" class="btn btn-primary">{{ .lcl.add_strain }}</button>
+                    <button type="submit" class="btn btn-primary"><span class="spinner-border spinner-border-sm btn-spinner" role="status" aria-hidden="true"></span> {{ .lcl.add_strain }}</button>
                 </form>
             </div>
         </div>

@@ -1,20 +1,18 @@
 {{ define "views/graph.html" }}
 <!--index.html-->
 
-<!--Embed the header.html template at this location-->
 {{ template "common/header.html" . }}
 <meta http-equiv="refresh" content="300">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
-
 <script src="/static/js/graph.js"></script>
 {{ template "common/header2.html" . }}
 
 <div class="container">
     <!-- Sensor Names -->
-    <h2 class="text-light mb-3">{{ .lcl.title_sensors }}: <span id="sensorName"></span></h2>
+    <h1 class="text-light mb-3 h2">{{ .lcl.title_sensors }}: <span id="sensorName"></span></h1>
 
     <!-- Controls -->
     <div class="controls mb-4">

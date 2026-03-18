@@ -4,6 +4,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const imagePreviewContainer = document.getElementById("imagePreviewContainer");
     const uploadImagesButton = document.getElementById("uploadImagesButton");
 
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB — matches server ParseMultipartForm limit
+
     let imagesToUpload = [];
 
     // Handle drag-and-drop events
@@ -39,11 +41,26 @@ document.addEventListener("DOMContentLoaded", () => {
         handleFiles(files);
     });
 
+    // Format bytes for display
+    function formatBytes(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
     // Process selected files
     function handleFiles(files) {
         files.forEach((file) => {
             if (!file.type.startsWith("image/")) {
-                uiMessages.showToast(uiMessages.t('only_image_files') || '{{ .lcl.only_image_files }}', 'warning');
+                uiMessages.showToast(uiMessages.t('only_image_files') || 'Only image files are allowed', 'warning');
+                return;
+            }
+
+            if (file.size > MAX_FILE_SIZE) {
+                const msg = (uiMessages.t('file_too_large') || 'File too large') +
+                    ': ' + file.name + ' (' + formatBytes(file.size) + '). ' +
+                    (uiMessages.t('max_file_size') || 'Maximum') + ': ' + formatBytes(MAX_FILE_SIZE);
+                uiMessages.showToast(msg, 'danger');
                 return;
             }
 
@@ -94,11 +111,11 @@ document.addEventListener("DOMContentLoaded", () => {
             <img src="${src}" class="card-img-top" alt="Preview">
             <div class="card-body">
                 <div class="mb-3">
-                    <label class="form-label">${uiMessages.t('description_txt') || '{{ .lcl.title_description }}'}</label>
+                    <label class="form-label">${uiMessages.t('description_txt') || 'Description'}</label>
                     <input type="text" class="form-control description" placeholder="${uiMessages.t('short_description_placeholder') || 'Enter description'}">
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">${uiMessages.t('title_date') || '{{ .lcl.title_date }}'}</label>
+                    <label class="form-label">${uiMessages.t('title_date') || 'Date'}</label>
                     <input type="date" class="form-control image-date" value="${imageDate}">
                 </div>
             </div>
@@ -109,9 +126,50 @@ document.addEventListener("DOMContentLoaded", () => {
         imagePreviewContainer.appendChild(col);
     }
 
+    // Create or get the upload progress bar container
+    function getOrCreateProgressBar() {
+        let container = document.getElementById("uploadProgressContainer");
+        if (!container) {
+            container = document.createElement("div");
+            container.id = "uploadProgressContainer";
+            container.className = "mt-3 d-none";
+            container.innerHTML = `
+                <div class="progress" style="height: 24px;">
+                    <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                         role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        0%
+                    </div>
+                </div>
+                <small id="uploadProgressText" class="text-muted mt-1 d-block"></small>
+            `;
+            uploadImagesButton.parentNode.insertBefore(container, uploadImagesButton.nextSibling);
+        }
+        return container;
+    }
 
-    // Handle upload
+    function updateProgress(percent, text) {
+        const container = getOrCreateProgressBar();
+        container.classList.remove("d-none");
+        const bar = document.getElementById("uploadProgressBar");
+        const label = document.getElementById("uploadProgressText");
+        bar.style.width = percent + "%";
+        bar.setAttribute("aria-valuenow", percent);
+        bar.textContent = Math.round(percent) + "%";
+        if (label && text) label.textContent = text;
+    }
+
+    function hideProgress() {
+        const container = document.getElementById("uploadProgressContainer");
+        if (container) container.classList.add("d-none");
+    }
+
+    // Handle upload with XMLHttpRequest for progress tracking
     uploadImagesButton.addEventListener("click", () => {
+        if (imagesToUpload.length === 0) {
+            uiMessages.showToast(uiMessages.t('no_images_selected') || 'No images selected', 'warning');
+            return;
+        }
+
         const formData = new FormData();
 
         // Collect data for each image
@@ -126,24 +184,43 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         const plantId = document.getElementById("plantId").value;
-        fetch(`/plant/${plantId}/images/upload`, {
-            method: "POST",
-            body: formData,
-        })
-            .then((response) => {
-                if (!response.ok) {
-                    throw new Error("Failed to upload images");
-                }
-                return response.json();
-            })
-            .then((data) => {
-                //uiMessages.showToast(uiMessages.t('images_uploaded_successfully') || 'Images uploaded successfully!', 'success');
-                location.reload();
-            })
-            .catch((error) => {
-                console.error("Error uploading images:", error);
+
+        // Disable the upload button during upload
+        uploadImagesButton.disabled = true;
+        updateProgress(0, uiMessages.t('uploading') || 'Uploading...');
+
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `/plant/${plantId}/images/upload`, true);
+
+        // Track upload progress
+        xhr.upload.addEventListener("progress", (e) => {
+            if (e.lengthComputable) {
+                const percent = (e.loaded / e.total) * 100;
+                const uploaded = formatBytes(e.loaded);
+                const total = formatBytes(e.total);
+                updateProgress(percent, `${uploaded} / ${total}`);
+            }
+        });
+
+        xhr.addEventListener("load", () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                updateProgress(100, uiMessages.t('upload_complete') || 'Upload complete');
+                setTimeout(() => location.reload(), 500);
+            } else {
+                hideProgress();
+                uploadImagesButton.disabled = false;
                 uiMessages.showToast(uiMessages.t('error_uploading_images') || 'An error occurred while uploading images.', 'danger');
-            });
+            }
+        });
+
+        xhr.addEventListener("error", () => {
+            hideProgress();
+            uploadImagesButton.disabled = false;
+            console.error("Upload error");
+            uiMessages.showToast(uiMessages.t('error_uploading_images') || 'An error occurred while uploading images.', 'danger');
+        });
+
+        xhr.send(formData);
     });
 
 });

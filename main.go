@@ -2,8 +2,10 @@ package main
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -54,6 +56,59 @@ func isLoginRateLimited(ip string) bool {
 	return len(recent) > 5
 }
 
+// generateCSRFToken creates a cryptographically random hex token.
+func generateCSRFToken() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		logger.Log.WithError(err).Error("Failed to generate CSRF token")
+		return ""
+	}
+	return hex.EncodeToString(b)
+}
+
+// CSRFMiddleware generates a CSRF token per session and validates it on
+// state-changing requests. JSON API calls authenticated via X-API-KEY are
+// exempt because API keys are not automatically attached by browsers.
+func CSRFMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		session := sessions.Default(c)
+
+		// Ensure every session has a CSRF token
+		token, _ := session.Get("csrf_token").(string)
+		if token == "" {
+			token = generateCSRFToken()
+			session.Set("csrf_token", token)
+			session.Save()
+		}
+
+		// Make the token available to templates and handlers
+		c.Set("csrf_token", token)
+
+		// Only validate on state-changing methods
+		if c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "DELETE" {
+			// Exempt requests authenticated via API key (not browser-initiated)
+			if c.GetHeader("X-API-KEY") != "" {
+				c.Next()
+				return
+			}
+
+			// Check form field first, then header (for AJAX)
+			submitted := c.PostForm("csrf_token")
+			if submitted == "" {
+				submitted = c.GetHeader("X-CSRF-Token")
+			}
+
+			if subtle.ConstantTimeCompare([]byte(submitted), []byte(token)) != 1 {
+				logger.Log.WithField("path", c.Request.URL.Path).Warn("CSRF token validation failed")
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "CSRF token invalid"})
+				return
+			}
+		}
+
+		c.Next()
+	}
+}
+
 func main() {
 	// Initialize logger
 	logger.InitLogger()
@@ -93,6 +148,12 @@ func main() {
 	// Load settings before pruning so config.SensorRetention is populated
 	handlers.LoadSettings()
 
+	if config.SensorRetention <= 0 {
+		logger.Log.Warn("Sensor data retention is disabled (sensor_retention_days = 0). " +
+			"Sensor data will grow indefinitely. Consider setting a retention period " +
+			"(e.g. 90 days) in Settings to prevent unbounded database growth.")
+	}
+
 	// Start the PruneSensorData and wait for it to complete before starting the main watcher Watch function. This ensures that old sensor data is pruned before we start grabbing new data.
 	if err := watcher.PruneSensorData(); err != nil {
 		logger.Log.WithError(err).Error("Initial sensor data prune failed")
@@ -108,6 +169,18 @@ func main() {
 
 	// Set up Gin router
 	r := gin.New()
+
+	// Trust only loopback and RFC-1918 private ranges so that
+	// c.ClientIP() returns the real client IP behind a reverse proxy.
+	// Users running without a proxy are unaffected.
+	r.SetTrustedProxies([]string{
+		"127.0.0.1",
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"::1",
+	})
+
 	r.Use(gin.Recovery())
 	r.Use(gin.LoggerWithWriter(logger.AccessWriter))
 
@@ -117,6 +190,13 @@ func main() {
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("X-XSS-Protection", "1; mode=block")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+		c.Header("Content-Security-Policy",
+			"default-src 'self'; "+
+				"script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "+
+				"style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; "+
+				"font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "+
+				"img-src 'self' data: blob:; "+
+				"connect-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com")
 		c.Next()
 	})
 
@@ -208,6 +288,10 @@ func main() {
 			}
 			return template.HTML(a)
 		},
+		"csrfToken": func() string {
+			// Placeholder — overridden per-request by middleware via c.Set
+			return ""
+		},
 		"linebreaks": func(s string) template.HTML {
 			// Replace newlines with <br> tags and mark as safe HTML
 			return template.HTML(strings.ReplaceAll(template.HTMLEscapeString(s), "\n", "<br>"))
@@ -282,6 +366,22 @@ func main() {
 	})
 	r.Use(sessions.Sessions("isley_session", store))
 
+	// CSRF protection — must come after sessions middleware
+	r.Use(CSRFMiddleware())
+
+	// Database middleware — injects *sql.DB into Gin context so handlers can
+	// retrieve it via handlers.DBFromContext(c) instead of calling model.GetDB().
+	r.Use(func(c *gin.Context) {
+		db, err := model.GetDB()
+		if err != nil {
+			logger.Log.WithError(err).Error("Database unavailable")
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Database unavailable"})
+			return
+		}
+		c.Set("db", db)
+		c.Next()
+	})
+
 	// Public routes
 	r.GET("/login", func(c *gin.Context) {
 		session := sessions.Default(c)
@@ -293,10 +393,12 @@ func main() {
 
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
+		csrfToken, _ := c.Get("csrf_token")
 		c.HTML(http.StatusOK, "views/login.html", gin.H{
 			"lcl":             translations,
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
+			"csrfToken":       csrfToken,
 		})
 	})
 
@@ -343,10 +445,12 @@ func main() {
 		protected.GET("/change-password", func(c *gin.Context) {
 			lang := utils.GetLanguage(c)
 			translations := utils.TranslationService.GetTranslations(lang)
+			csrfToken, _ := c.Get("csrf_token")
 			c.HTML(http.StatusOK, "views/change-password.html", gin.H{
 				"lcl":             translations,
 				"languages":       utils.AvailableLanguages,
 				"currentLanguage": lang,
+				"csrfToken":       csrfToken,
 			})
 		})
 
@@ -354,7 +458,7 @@ func main() {
 			handleChangePassword(c)
 		})
 
-		routes.AddProtectedRotues(protected, version)
+		routes.AddProtectedRoutes(protected, version)
 
 		if !guestMode {
 			routes.AddBasicRoutes(protected, version)
@@ -391,17 +495,30 @@ func handleLogin(c *gin.Context) {
 	if username != storedUsername || !utils.CheckPasswordHash(password, storedPasswordHash) {
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
+		csrfToken, _ := c.Get("csrf_token")
 		c.HTML(http.StatusUnauthorized, "views/login.html", gin.H{
 			"Error":           "Invalid username or password",
 			"lcl":             translations,
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
+			"csrfToken":       csrfToken,
 		})
 		return
 	}
 
 	session := sessions.Default(c)
-	// If the user checked 'remember', set session MaxAge to 14 days (in seconds)
+
+	// SECURITY: Regenerate session to prevent session fixation attacks.
+	// Clear the old session data and generate a new CSRF token.
+	session.Clear()
+	session.Options(sessions.Options{
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	// If the user checked 'remember', extend session MaxAge to 14 days
 	if remember == "on" || remember == "true" {
 		session.Options(sessions.Options{
 			Path:     "/",
@@ -412,8 +529,14 @@ func handleLogin(c *gin.Context) {
 		})
 	}
 
+	// Generate a fresh CSRF token for the new session
+	session.Set("csrf_token", generateCSRFToken())
 	session.Set("logged_in", true)
 	session.Set("force_password_change", forcePasswordChange == "true")
+
+	// Store current session version so it can be validated later
+	sessionVersion, _ := handlers.GetSetting("session_version")
+	session.Set("session_version", sessionVersion)
 	session.Save()
 
 	if forcePasswordChange == "true" {
@@ -431,6 +554,14 @@ func handleLogout(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/login")
 }
 
+// validatePasswordComplexity checks that a password meets minimum security requirements.
+func validatePasswordComplexity(password string) string {
+	if len(password) < 8 {
+		return "Password must be at least 8 characters long"
+	}
+	return ""
+}
+
 func handleChangePassword(c *gin.Context) {
 	newPassword := c.PostForm("new_password")
 	confirmPassword := c.PostForm("confirm_password")
@@ -438,11 +569,28 @@ func handleChangePassword(c *gin.Context) {
 	if newPassword != confirmPassword {
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
+		csrfToken, _ := c.Get("csrf_token")
 		c.HTML(http.StatusBadRequest, "views/change-password.html", gin.H{
 			"Error":           "Passwords do not match",
 			"lcl":             translations,
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
+			"csrfToken":       csrfToken,
+		})
+		return
+	}
+
+	// SECURITY: Enforce password complexity requirements
+	if errMsg := validatePasswordComplexity(newPassword); errMsg != "" {
+		lang := utils.GetLanguage(c)
+		translations := utils.TranslationService.GetTranslations(lang)
+		csrfToken, _ := c.Get("csrf_token")
+		c.HTML(http.StatusBadRequest, "views/change-password.html", gin.H{
+			"Error":           errMsg,
+			"lcl":             translations,
+			"languages":       utils.AvailableLanguages,
+			"currentLanguage": lang,
+			"csrfToken":       csrfToken,
 		})
 		return
 	}
@@ -452,8 +600,14 @@ func handleChangePassword(c *gin.Context) {
 	handlers.UpdateSetting("auth_password", hashedPassword)
 	handlers.UpdateSetting("force_password_change", "false")
 
+	// SECURITY: Bump session version to invalidate all other sessions.
+	// Only the current session gets the new version, so all others become stale.
+	newVersion := fmt.Sprintf("%d", time.Now().UnixNano())
+	handlers.UpdateSetting("session_version", newVersion)
+
 	session := sessions.Default(c)
 	session.Set("force_password_change", false)
+	session.Set("session_version", newVersion)
 	session.Save()
 
 	c.Redirect(http.StatusFound, "/")
@@ -466,7 +620,7 @@ func AuthMiddlewareApi() gin.HandlerFunc {
 		loggedIn := session.Get("logged_in")
 
 		if apiKey != "" {
-			// Get API key from settings
+			// Get stored (hashed) API key from settings
 			db, err := model.GetDB()
 			if err != nil {
 				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
@@ -478,16 +632,23 @@ func AuthMiddlewareApi() gin.HandlerFunc {
 			var storedAPIKey string
 			err = db.QueryRow("SELECT value FROM settings WHERE name = 'api_key'").Scan(&storedAPIKey)
 			if err != nil {
-				// Log error
 				logger.Log.WithError(err).Error("Error retrieving API key from database")
-
 				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 					"error": "Could not validate API key",
 				})
 				return
 			}
 
-			if subtle.ConstantTimeCompare([]byte(apiKey), []byte(storedAPIKey)) != 1 {
+			// Hash the incoming key and compare against the stored hash.
+			// Also accept a direct match for backward compatibility with
+			// keys that were stored before hashing was introduced.
+			incomingHash := sha256.Sum256([]byte(apiKey))
+			incomingHashHex := hex.EncodeToString(incomingHash[:])
+
+			hashMatch := subtle.ConstantTimeCompare([]byte(incomingHashHex), []byte(storedAPIKey)) == 1
+			legacyMatch := subtle.ConstantTimeCompare([]byte(apiKey), []byte(storedAPIKey)) == 1
+
+			if !hashMatch && !legacyMatch {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 					"error": "Invalid API key",
 				})
@@ -513,6 +674,17 @@ func AuthMiddleware() gin.HandlerFunc {
 		loggedIn := session.Get("logged_in")
 
 		if loggedIn == nil || !loggedIn.(bool) {
+			c.Redirect(http.StatusFound, "/login")
+			c.Abort()
+			return
+		}
+
+		// SECURITY: Validate session version to enforce invalidation on password change
+		dbVersion, _ := handlers.GetSetting("session_version")
+		sessVersion, _ := session.Get("session_version").(string)
+		if dbVersion != "" && sessVersion != dbVersion {
+			session.Clear()
+			session.Save()
 			c.Redirect(http.StatusFound, "/login")
 			c.Abort()
 			return

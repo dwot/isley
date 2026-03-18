@@ -63,7 +63,7 @@ func UpdatePlantStatus(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Invalid input")
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		apiBadRequest(c, "api_bad_request")
 		return
 	}
 
@@ -74,21 +74,21 @@ func UpdatePlantStatus(c *gin.Context) {
 
 	if input.PlantID == 0 || input.StatusID == 0 {
 		fieldLogger.Error("Plant ID and status ID are required")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "plant_id and status_id are required"})
+		apiBadRequest(c, "api_plant_id_status_id_required")
 		return
 	}
 
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to connect to database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		apiInternalError(c, "api_database_error")
 		return
 	}
 
 	updated, newID, err := updatePlantStatusLog(db, input.PlantID, input.StatusID, input.Date)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update plant status")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update plant status"})
+		apiInternalError(c, "api_failed_to_update_plant_status")
 		return
 	}
 

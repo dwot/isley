@@ -10,6 +10,13 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// dbExecutor is the common subset of *sql.DB and *sql.Tx that copyTableData needs.
+type dbExecutor interface {
+	Exec(query string, args ...any) (sql.Result, error)
+	Query(query string, args ...any) (*sql.Rows, error)
+	QueryRow(query string, args ...any) *sql.Row
+}
+
 var conflictKeys = map[string]string{
 	"settings":           "id",
 	"zones":              "id",
@@ -39,6 +46,8 @@ var orderedTables = []string{
 	"strain",
 	"sensors",
 	"sensor_data",
+	// rolling_averages is excluded — it's a trigger-maintained cache (one row per sensor)
+	// that rebuilds automatically on the first sensor_data insert after migration.
 	"plant_status",
 	"plant",
 	"plant_status_log",
@@ -50,6 +59,10 @@ var orderedTables = []string{
 	"streams",
 }
 
+// MigrateSqliteToPostgres copies all data from the SQLite database at
+// sqlitePath into the PostgreSQL database pg.  The entire operation runs
+// inside a single transaction so a failure on any table rolls back all
+// previously copied tables, leaving the destination untouched.
 func MigrateSqliteToPostgres(sqlitePath string, pg *sql.DB) error {
 	sqliteDB, err := sql.Open("sqlite", sqlitePath)
 	if err != nil {
@@ -57,15 +70,24 @@ func MigrateSqliteToPostgres(sqlitePath string, pg *sql.DB) error {
 	}
 	defer sqliteDB.Close()
 
-	tables := orderedTables
+	tx, err := pg.Begin()
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback() // no-op after Commit
 
-	for _, table := range tables {
+	for _, table := range orderedTables {
 		logger.Log.Infof("Migrating table: %s", table)
-		if err := copyTableData(sqliteDB, pg, table); err != nil {
+		if err := copyTableData(sqliteDB, tx, table); err != nil {
 			return fmt.Errorf("copy table %s: %w", table, err)
 		}
 	}
 
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit migration transaction: %w", err)
+	}
+
+	logger.Log.Info("SQLite-to-PostgreSQL migration committed successfully")
 	return nil
 }
 
@@ -87,10 +109,10 @@ func listSQLiteTables(db *sql.DB) ([]string, error) {
 	return tables, nil
 }
 
-func copyTableData(src *sql.DB, dest *sql.DB, table string) error {
+func copyTableData(src *sql.DB, dest dbExecutor, table string) error {
 	const batchSize = 5000
 
-	// 🔻 Disable triggers (only works in Postgres)
+	// Disable triggers (PostgreSQL only) to avoid firing during bulk insert
 	if IsPostgres() {
 		_, err := dest.Exec(fmt.Sprintf("ALTER TABLE %s DISABLE TRIGGER ALL", table))
 		if err != nil {
@@ -196,7 +218,7 @@ func copyTableData(src *sql.DB, dest *sql.DB, table string) error {
 		}
 	}
 
-	// 🔺 Re-enable triggers
+	// Re-enable triggers
 	if IsPostgres() {
 		_, err := dest.Exec(fmt.Sprintf("ALTER TABLE %s ENABLE TRIGGER ALL", table))
 		if err != nil {

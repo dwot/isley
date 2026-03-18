@@ -22,7 +22,7 @@ func CreatePlantActivity(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Failed to bind JSON")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		apiBadRequest(c, "api_invalid_input")
 		return
 	}
 
@@ -36,14 +36,14 @@ func CreatePlantActivity(c *gin.Context) {
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		apiInternalError(c, "api_database_error")
 		return
 	}
 
 	_, err = db.Exec("INSERT INTO plant_activity (plant_id, activity_id, note, date) VALUES ($1, $2, $3, $4)", input.PlantID, input.ActivityID, input.Note, input.Date)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert activity into database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create activity"})
+		apiInternalError(c, "api_failed_to_create_activity")
 		return
 	}
 
@@ -65,7 +65,7 @@ func EditActivity(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Failed to bind JSON")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		apiBadRequest(c, "api_invalid_input")
 		return
 	}
 
@@ -79,7 +79,7 @@ func EditActivity(c *gin.Context) {
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		apiInternalError(c, "api_database_error")
 		return
 	}
 
@@ -87,12 +87,12 @@ func EditActivity(c *gin.Context) {
 	_, err = db.Exec(query, input.Date, input.ActivityID, input.Note, input.ID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update activity")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update activity"})
+		apiInternalError(c, "api_failed_to_update_activity")
 		return
 	}
 
 	fieldLogger.Info("Plant activity updated successfully")
-	c.JSON(http.StatusOK, gin.H{"message": "Activity updated successfully"})
+	apiOK(c, "api_activity_updated")
 }
 
 func DeleteActivity(c *gin.Context) {
@@ -106,7 +106,7 @@ func DeleteActivity(c *gin.Context) {
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		apiInternalError(c, "api_database_error")
 		return
 	}
 
@@ -114,12 +114,12 @@ func DeleteActivity(c *gin.Context) {
 	_, err = db.Exec(query, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete activity")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete activity"})
+		apiInternalError(c, "api_failed_to_delete_activity")
 		return
 	}
 
 	fieldLogger.Info("Plant activity deleted successfully")
-	c.JSON(http.StatusOK, gin.H{"message": "Activity deleted successfully"})
+	apiOK(c, "api_activity_deleted")
 }
 
 func RecordMultiPlantActivity(c *gin.Context) {
@@ -136,13 +136,13 @@ func RecordMultiPlantActivity(c *gin.Context) {
 
 	if err := c.BindJSON(&request); err != nil {
 		fieldLogger.WithError(err).Error("Failed to bind JSON")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		apiBadRequest(c, "api_invalid_request")
 		return
 	}
 
 	if len(request.PlantIDs) == 0 {
 		fieldLogger.Error("No plants selected")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No plants selected"})
+		apiBadRequest(c, "api_no_plants_selected")
 		return
 	}
 
@@ -156,7 +156,7 @@ func RecordMultiPlantActivity(c *gin.Context) {
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		apiInternalError(c, "api_database_error")
 		return
 	}
 
@@ -165,7 +165,7 @@ func RecordMultiPlantActivity(c *gin.Context) {
 			plantID, request.ActivityID, request.Note, request.Date)
 		if err != nil {
 			fieldLogger.WithError(err).WithField("plant_id", plantID).Error("Failed to insert activity for plant")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save activity"})
+			apiInternalError(c, "api_failed_to_save_activity")
 			return
 		}
 	}

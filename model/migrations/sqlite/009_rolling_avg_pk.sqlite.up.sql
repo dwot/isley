@@ -1,0 +1,2 @@
+-- No-op: SQLite already has the correct single-column primary key (sensor_id).
+-- One row per sensor is the intended design for trend arrows.

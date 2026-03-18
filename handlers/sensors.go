@@ -11,6 +11,7 @@ import (
 	"isley/logger"
 	"isley/model"
 	"isley/model/types"
+	"isley/utils"
 	"net"
 	"net/http"
 	"regexp"
@@ -97,7 +98,12 @@ func ScanACInfinitySensors(c *gin.Context) {
 	// Bind the JSON payload to the input struct
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Invalid input")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		apiBadRequest(c, "Invalid input")
+		return
+	}
+	// Validate string lengths
+	if err := utils.ValidateStringLength("new_zone", input.NewZone, utils.MaxNameLength); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
 	if input.ZoneID == nil && input.NewZone != "" {
@@ -105,7 +111,7 @@ func ScanACInfinitySensors(c *gin.Context) {
 		zoneID, err := CreateNewZone(input.NewZone)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create new zone"})
+			apiInternalError(c, "Failed to create new zone")
 			return
 		}
 		input.ZoneID = &zoneID // Set the created zone ID
@@ -119,7 +125,7 @@ func ScanACInfinitySensors(c *gin.Context) {
 	}
 
 	// Query settings table and write result to console
-	url := "http://www.acinfinityserver.com/api/user/devInfoListAll?userId=" + config.ACIToken
+	url := "https://www.acinfinityserver.com/api/user/devInfoListAll?userId=" + config.ACIToken
 	reqBody := bytes.NewBuffer([]byte(""))
 
 	req, err := http.NewRequest("POST", url, reqBody)
@@ -238,7 +244,7 @@ func ScanACInfinitySensors(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "AC Infinity sensors scanned and added"})
+	apiOK(c, "api_ac_infinity_sensors_scanned")
 }
 
 // prettyMarshalSorted marshals an unmarshaled JSON structure (interface{}) into
@@ -353,17 +359,17 @@ func DumpACInfinityJSON(c *gin.Context) {
 
 	if config.ACIToken == "" {
 		fieldLogger.Error("ACIToken is not configured")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "ACIToken is not configured"})
+		apiInternalError(c, "api_aci_token_not_configured")
 		return
 	}
 
-	url := "http://www.acinfinityserver.com/api/user/devInfoListAll?userId=" + config.ACIToken
+	url := "https://www.acinfinityserver.com/api/user/devInfoListAll?userId=" + config.ACIToken
 	reqBody := bytes.NewBuffer([]byte(""))
 
 	req, err := http.NewRequest("POST", url, reqBody)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error creating request")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error creating request"})
+		apiInternalError(c, "api_error_creating_request")
 		return
 	}
 
@@ -376,7 +382,7 @@ func DumpACInfinityJSON(c *gin.Context) {
 	resp, err := client.Do(req)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error sending request")
-		c.JSON(http.StatusBadGateway, gin.H{"error": "Error sending request to AC Infinity"})
+		apiError(c, http.StatusBadGateway, "api_error_sending_request_aci")
 		return
 	}
 	defer resp.Body.Close()
@@ -384,7 +390,7 @@ func DumpACInfinityJSON(c *gin.Context) {
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error reading response body")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error reading response body"})
+		apiInternalError(c, "api_error_reading_response")
 		return
 	}
 
@@ -471,7 +477,16 @@ func ScanEcoWittSensors(c *gin.Context) {
 	// Bind the JSON payload to the input struct
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Invalid input")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		apiBadRequest(c, "Invalid input")
+		return
+	}
+	// Validate string lengths
+	if err := utils.ValidateStringLength("new_zone", input.NewZone, utils.MaxNameLength); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+	if err := utils.ValidateStringLength("server_address", input.ServerAddress, utils.MaxNameLength); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
 	if input.ZoneID == nil && input.NewZone != "" {
@@ -479,7 +494,7 @@ func ScanEcoWittSensors(c *gin.Context) {
 		zoneID, err := CreateNewZone(input.NewZone)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create new zone"})
+			apiInternalError(c, "Failed to create new zone")
 			return
 		}
 		input.ZoneID = &zoneID // Set the created zone ID
@@ -565,7 +580,7 @@ func ScanEcoWittSensors(c *gin.Context) {
 		fieldLogger.WithError(err).Error("Error loading EC devices")
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "EcoWitt sensors scanned and added"})
+	apiOK(c, "api_ecowitt_sensors_scanned")
 }
 
 func checkInsertSensor(db *sql.DB, source string, device string, sensorType string, name string, zoneId *int, unit string) {
@@ -574,7 +589,7 @@ func checkInsertSensor(db *sql.DB, source string, device string, sensorType stri
 	err := db.QueryRow("SELECT id FROM sensors WHERE source = $1 and device = $2 and type = $3", source, device, sensorType).Scan(&sensorid)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			//fmt.Println("No rows found")
+			// Sensor not registered; skip silently
 		} else {
 			fieldLogger.WithError(err).Error("Error querying for sensor")
 			return
@@ -670,7 +685,7 @@ func GetGroupedSensorsWithLatestReading() map[string]map[string][]map[string]int
 FROM sensors s
 JOIN zones z ON s.zone_id = z.id
 JOIN sensor_data sd ON s.id = sd.sensor_id
-LEFT JOIN rolling_averages ra ON ra.sensor_id = s.id AND ra.create_dt = sd.create_dt
+LEFT JOIN rolling_averages ra ON ra.sensor_id = s.id
 WHERE sd.id = (
     SELECT MAX(id) FROM sensor_data WHERE sensor_id = s.id
 )
@@ -786,7 +801,21 @@ func EditSensor(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Invalid input")
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		apiBadRequest(c, "Invalid input")
+		return
+	}
+
+	// Validate string lengths
+	if err := utils.ValidateStringLength("name", input.Name, utils.MaxNameLength); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+	if err := utils.ValidateStringLength("device", input.Device, utils.MaxDeviceLength); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+	if err := utils.ValidateStringLength("unit", input.Unit, utils.MaxUnitLength); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
 
@@ -800,11 +829,11 @@ func EditSensor(c *gin.Context) {
 		input.Name, input.Visible, input.ZoneID, input.Unit, input.Device, input.ID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error updating sensor")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update sensor"})
+		apiInternalError(c, "api_failed_to_update_sensor")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Sensor updated successfully"})
+	apiOK(c, "api_sensor_updated")
 }
 
 func DeleteSensor(c *gin.Context) {
@@ -814,11 +843,11 @@ func DeleteSensor(c *gin.Context) {
 	err := DeleteSensorByID(sensorID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error deleting sensor")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete sensor"})
+		apiInternalError(c, "api_failed_to_delete_sensor")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Sensor deleted successfully"})
+	apiOK(c, "api_sensor_deleted")
 }
 
 func DeleteSensorByID(id string) error {
@@ -898,14 +927,46 @@ func IngestSensorData(c *gin.Context) {
 	// Check whether API ingest is enabled in config
 	if config.APIIngestEnabled == 0 {
 		fieldLogger.Warn("API ingest is disabled via settings")
-		c.JSON(http.StatusForbidden, gin.H{"error": "API ingest is disabled"})
+		apiForbidden(c, "api_api_ingest_disabled")
 		return
 	}
 
 	var payload SensorDataPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		fieldLogger.WithError(err).Error("Invalid payload")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload: " + err.Error()})
+		apiBadRequest(c, "Invalid payload")
+		return
+	}
+
+	// Validate string lengths
+	if err := utils.ValidateStringLength("source", payload.Source, utils.MaxSourceLength); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+	if err := utils.ValidateStringLength("device", payload.Device, utils.MaxDeviceLength); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+	if err := utils.ValidateStringLength("type", payload.Type, utils.MaxTypeLength); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+	if err := utils.ValidateStringLength("name", payload.Name, utils.MaxNameLength); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+	if err := utils.ValidateStringLength("unit", payload.Unit, utils.MaxUnitLength); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+	if err := utils.ValidateStringLength("new_zone", payload.NewZone, utils.MaxNameLength); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+
+	// Validate sensor value is finite (reject NaN and Infinity)
+	if err := utils.ValidateFiniteFloat64("value", payload.Value); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
 
@@ -936,7 +997,7 @@ func IngestSensorData(c *gin.Context) {
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error opening database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		apiInternalError(c, "api_database_error")
 		return
 	}
 
@@ -957,12 +1018,12 @@ func IngestSensorData(c *gin.Context) {
 
 		if err != nil {
 			fieldLogger.WithError(err).Error("Error creating sensor")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create sensor"})
+			apiInternalError(c, "api_failed_to_create_sensor")
 			return
 		}
 	} else if err != nil {
 		fieldLogger.WithError(err).Error("Error querying sensor")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		apiInternalError(c, "api_database_error")
 		return
 	}
 
@@ -971,12 +1032,12 @@ func IngestSensorData(c *gin.Context) {
 		sensorID, payload.Value)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error inserting sensor data")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save sensor data"})
+		apiInternalError(c, "api_failed_to_save_sensor_data")
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":   "Sensor data ingested successfully",
+		"message":   T(c, "api_sensor_data_ingested"),
 		"sensor_id": sensorID,
 	})
 }

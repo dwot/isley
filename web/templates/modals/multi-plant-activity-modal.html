@@ -11,7 +11,7 @@
                 <form id="addMultiPlantActivityForm">
                     <!-- Activity Name Dropdown -->
                     <div class="mb-3">
-                        <label for="activityMultiName" class="form-label">{{ .lcl.activity_name }}</label>
+                        <label for="activityMultiName" class="form-label required">{{ .lcl.activity_name }}</label>
                         <select class="form-select" id="activityMultiName" required>
                             {{ range .activities }}
                             <option value="{{ .ID }}">{{ .Name }}</option>
@@ -27,13 +27,13 @@
 
                     <!-- Date Picker -->
                     <div class="mb-3">
-                        <label for="activityMultiDate" class="form-label">{{ .lcl.title_date }}</label>
+                        <label for="activityMultiDate" class="form-label required">{{ .lcl.title_date }}</label>
                         <input type="datetime-local" class="form-control" id="activityMultiDate" required value="{{ now | formatDateTimeLocal }}">
                     </div>
 
                     <!-- Plant Selection -->
                     <div class="mb-3">
-                        <label for="plantSelection" class="form-label">{{ .lcl.select_plants }}</label>
+                        <label for="plantSelection" class="form-label required">{{ .lcl.select_plants }}</label>
                         <select class="form-select" id="plantSelection" multiple required>
                             {{ range .plants }}
                             <option value="{{ .ID }}">
@@ -46,7 +46,7 @@
 
                     <!-- Submit Button -->
                     <div class="text-end">
-                        <button type="submit" class="btn btn-primary">{{ .lcl.record_activity }}</button>
+                        <button type="submit" class="btn btn-primary"><span class="spinner-border spinner-border-sm btn-spinner" role="status" aria-hidden="true"></span> {{ .lcl.record_activity }}</button>
                     </div>
                 </form>
             </div>

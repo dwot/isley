@@ -6,9 +6,9 @@
 {{ template "common/header2.html" .}}
 
 
-<header class="masthead text-center">
-    <div class="overlay"></div>
+<div class="text-center">
     <div class="container">
+        <h1 class="visually-hidden">{{ .lcl.title_strains }}</h1>
         <!-- View Selector and Actions -->
         <div class="d-flex justify-content-between align-items-center mb-4">
             <!-- View Selector -->
@@ -37,30 +37,12 @@
         </div>
     </div>
 
-</header>
+</div>
 
 {{ template "modals/add-strain-modal.html" .}}
 {{ template "modals/edit-strain-modal.html" .}}
 
-<script>
 
-
-
-    document.addEventListener("DOMContentLoaded", () => {
-        // Listen for when any modal is hidden
-        document.querySelectorAll('.modal').forEach(modal => {
-            modal.addEventListener('hidden.bs.modal', () => {
-                // Remove lingering modal-backdrop elements
-                document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
-
-                // Ensure the body class does not remain disabled
-                document.body.classList.remove('modal-open');
-                document.body.style.overflow = '';
-            });
-        });
-    });
-
-</script>
 
 <script>
     document.addEventListener("DOMContentLoaded", () => {

@@ -15,6 +15,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// httpClient is a shared client for all outbound sensor API requests.
+// Reusing a single client enables TCP connection pooling and avoids the
+// overhead of a fresh TLS handshake / TCP connection on every poll cycle.
+var httpClient = &http.Client{Timeout: 10 * time.Second}
+
 func Watch() {
 	logger.Log.Info("Started Sensor Watcher")
 
@@ -56,8 +61,7 @@ func updateEcoWittSensorData(server string) {
 		return
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		logger.Log.WithError(err).Error("Error sending EcoWitt request")
 		return
@@ -99,7 +103,7 @@ func updateACISensorData(token string) {
 	currentDate := time.Now()
 	logger.Log.WithField("timestamp", currentDate).Info("Updating ACI sensor data")
 
-	url := "http://www.acinfinityserver.com/api/user/devInfoListAll?userId=" + token
+	url := "https://www.acinfinityserver.com/api/user/devInfoListAll?userId=" + token
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		logger.Log.WithError(err).Error("Error creating ACI request")
@@ -111,8 +115,7 @@ func updateACISensorData(token string) {
 	req.Header.Add("User-Agent", "okhttp/3.10.0")
 	req.Header.Add("Content-Encoding", "gzip")
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		logger.Log.WithError(err).Error("Error sending ACI request")
 		return
@@ -210,28 +213,26 @@ func PruneSensorData() error {
 		return err
 	}
 
-	var pruneQuery, pruneAvgQuery string
+	var pruneQuery string
 	if model.IsPostgres() {
 		pruneQuery = fmt.Sprintf("DELETE FROM sensor_data WHERE create_dt < NOW() - INTERVAL '%d days'", days)
-		pruneAvgQuery = fmt.Sprintf("DELETE FROM rolling_averages WHERE create_dt < NOW() - INTERVAL '%d days'", days)
 	} else {
 		pruneQuery = fmt.Sprintf("DELETE FROM sensor_data WHERE create_dt < datetime('now', 'localtime', '-%d days')", days)
-		pruneAvgQuery = fmt.Sprintf("DELETE FROM rolling_averages WHERE create_dt < datetime('now', 'localtime', '-%d days')", days)
 	}
 	_, err = db.Exec(pruneQuery)
 	if err != nil {
 		logger.Log.WithError(err).Error("Error pruning sensor data")
 		return err
 	}
-	_, err = db.Exec(pruneAvgQuery)
-	if err != nil {
-		logger.Log.WithError(err).Error("Error pruning rolling averages")
-		return err
-	}
+	// rolling_averages is not pruned — it's a trigger-maintained cache with only
+	// one row per sensor, so it stays small and self-maintaining.
 
 	if model.IsSQLite() {
 		if _, err := db.Exec("VACUUM"); err != nil {
 			logger.Log.WithError(err).Warn("SQLite VACUUM failed")
+		}
+		if _, err := db.Exec("ANALYZE"); err != nil {
+			logger.Log.WithError(err).Warn("SQLite ANALYZE failed")
 		}
 		if _, err := db.Exec("PRAGMA optimize"); err != nil {
 			logger.Log.WithError(err).Warn("SQLite PRAGMA optimize failed")

@@ -1,0 +1,1 @@
+-- No-op: SQLite already had the single-column primary key.

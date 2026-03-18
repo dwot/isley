@@ -5,10 +5,18 @@
 {{ template "common/header.html" .}}
 {{ template "common/header2.html" .}}
 <div class="container">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/strains">{{ .lcl.title_strains }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ .strain.Name }}</li>
+        </ol>
+    </nav>
+
     <!-- Page Title -->
     <div class="text-center mb-5">
         <h1 class="display-4 text-primary">{{ .strain.Name }}</h1>
-        <h2 class="text-secondary">by {{ .strain.Breeder }}</h2>
+        <p class="text-secondary fs-4">by {{ .strain.Breeder }}</p>
         <p class="text-muted">{{ .strain.ShortDescription }}</p>
         {{ if .strain.Autoflower }}
         <i class="fas fa-bolt"></i>
@@ -45,21 +53,6 @@
 
 {{ template "modals/edit-strain-modal.html" .}}
 
-<script>
-    document.addEventListener("DOMContentLoaded", () => {
-        // Listen for when any modal is hidden
-        document.querySelectorAll('.modal').forEach(modal => {
-            modal.addEventListener('hidden.bs.modal', () => {
-                // Remove lingering modal-backdrop elements
-                document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
-
-                // Ensure the body class does not remain disabled
-                document.body.classList.remove('modal-open');
-                document.body.style.overflow = '';
-            });
-        });
-    });
-</script>
 <script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.min.js"></script>
 <!--Embed the footer.html template at this location-->
 {{ template "common/footer.html" .}}

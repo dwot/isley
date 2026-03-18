@@ -42,7 +42,7 @@ func ChartHandler(c *gin.Context) {
 
 	if sensor == "" {
 		sensorLogger.Error("Sensor parameter is required")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "sensor parameter is required"})
+		apiBadRequest(c, "api_sensor_param_required")
 		return
 	}
 
@@ -67,13 +67,13 @@ func ChartHandler(c *gin.Context) {
 		sensorData, err = querySensorHistoryByTime(sensor, timeMinutes)
 	} else {
 		sensorLogger.Error("Invalid query parameters: Either minutes or start/end dates must be provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Either minutes or start and end dates must be provided"})
+		apiBadRequest(c, "api_sensor_dates_required")
 		return
 	}
 
 	if err != nil {
 		sensorLogger.WithError(err).Error("Failed to query sensor data")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		apiInternalError(c, "Failed to query sensor data")
 		return
 	}
 
@@ -114,7 +114,7 @@ func querySensorHistoryByTime(sensor string, timeMinutes string) ([]types.Sensor
 	}
 
 	timeThreshold := time.Now().In(time.UTC).Add(-time.Duration(timeMinutesInt) * time.Minute).Format(utils.LayoutDB)
-	query := "SELECT sd.id, sd.sensor_id, sd.value, sd.create_dt, s.name FROM sensor_data sd left outer join sensors s on s.id = sd.sensor_id WHERE sd.sensor_id = $1 AND sd.create_dt > $2 ORDER BY sd.create_dt"
+	query := "SELECT sd.id, sd.sensor_id, sd.value, sd.create_dt, s.name FROM sensor_data sd left outer join sensors s on s.id = sd.sensor_id WHERE sd.sensor_id = $1 AND sd.create_dt > $2 ORDER BY sd.create_dt LIMIT 10000"
 	rows, err := db.Query(query, sensorInt, timeThreshold)
 	if err != nil {
 		sensorLogger.WithError(err).Error("Failed to execute query")
@@ -174,7 +174,7 @@ func querySensorHistoryByDateRange(sensor string, startDate string, endDate stri
 	}
 
 	// Query sensor_data table for the given date range
-	query := "SELECT sd.id, sd.sensor_id, sd.value, sd.create_dt, s.name FROM sensor_data sd left outer join sensors s on s.id = sd.sensor_id WHERE sd.sensor_id = $1 AND sd.create_dt BETWEEN $2 AND $3 ORDER BY sd.create_dt"
+	query := "SELECT sd.id, sd.sensor_id, sd.value, sd.create_dt, s.name FROM sensor_data sd left outer join sensors s on s.id = sd.sensor_id WHERE sd.sensor_id = $1 AND sd.create_dt BETWEEN $2 AND $3 ORDER BY sd.create_dt LIMIT 10000"
 	rows, err := db.Query(query, sensorInt, startDate, endDate)
 	if err != nil {
 		sensorLogger.WithError(err).Error(err)

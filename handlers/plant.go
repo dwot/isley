@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"html"
 	"isley/config"
 	"isley/logger"
 	model "isley/model"
@@ -17,35 +16,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
-
-func GetBreeders() []types.Breeder {
-	fieldLogger := logger.Log.WithField("func", "GetBreeders")
-	// Init the db
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return nil
-	}
-
-	rows, err := db.Query("SELECT id, name FROM breeder")
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to query breeders")
-		return nil
-	}
-
-	var breeders []types.Breeder
-	for rows.Next() {
-		var breeder types.Breeder
-		err = rows.Scan(&breeder.ID, &breeder.Name)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to scan breeder")
-			return nil
-		}
-		breeders = append(breeders, breeder)
-	}
-
-	return breeders
-}
 
 func AddPlant(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "AddPlant")
@@ -69,7 +39,16 @@ func AddPlant(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Failed to bind JSON")
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		apiBadRequest(c, "Invalid input")
+		return
+	}
+	// Validate string lengths
+	if err := utils.ValidateRequiredString("name", input.Name, utils.MaxNameLength); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+	if err := utils.ValidateStringLength("new_zone", input.NewZone, utils.MaxNameLength); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
 
@@ -78,7 +57,7 @@ func AddPlant(c *gin.Context) {
 		zoneID, err := CreateNewZone(input.NewZone)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create new zone"})
+			apiInternalError(c, "api_failed_to_create_new_zone")
 			return
 		}
 		input.ZoneID = &zoneID // Set the created zone ID
@@ -90,32 +69,40 @@ func AddPlant(c *gin.Context) {
 		strainID, err := CreateNewStrain(input.NewStrain)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new strain")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create new strain"})
+			apiInternalError(c, "api_failed_to_create_new_strain")
 			return
 		}
 		input.StrainID = &strainID // Set the created strain ID
 	}
 
-	// Insert the new plant
-	// Init the db
+	// Insert plant, decrement seed count, and create initial status log
+	// inside a transaction so partial writes cannot occur.
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return
 	}
 
-	//Insert into the plants table returning id
+	tx, err := db.Begin()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to begin transaction")
+		apiInternalError(c, "Failed to create plant")
+		return
+	}
+	defer tx.Rollback() // no-op after Commit
+
 	plantID := 0
-	err = db.QueryRow("INSERT INTO plant (name, zone_id, strain_id, description, clone, parent_plant_id, start_dt, sensors) VALUES ($1, $2, $3, '', $4, $5, $6, '[]') RETURNING id", input.Name, *input.ZoneID, *input.StrainID, input.Clone, input.ParentID, input.Date).Scan(&plantID)
+	err = tx.QueryRow("INSERT INTO plant (name, zone_id, strain_id, description, clone, parent_plant_id, start_dt, sensors) VALUES ($1, $2, $3, '', $4, $5, $6, '[]') RETURNING id", input.Name, *input.ZoneID, *input.StrainID, input.Clone, input.ParentID, input.Date).Scan(&plantID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert plant")
+		apiInternalError(c, "Failed to create plant")
 		return
 	} else if plantID == 0 {
 		fieldLogger.Error("Failed to retrieve plant ID")
+		apiInternalError(c, "Failed to create plant")
 		return
 	}
 
-	//If decrement seed count, lower seed count on strain by 1, min 0
 	if input.DecrementSeedCount {
 		var query string
 		if model.IsPostgres() {
@@ -123,51 +110,26 @@ func AddPlant(c *gin.Context) {
 		} else {
 			query = "UPDATE strain SET seed_count = MAX(0, seed_count - 1) WHERE id = $1"
 		}
-
-		_, err := db.Exec(query, *input.StrainID)
-
-		if err != nil {
+		if _, err := tx.Exec(query, *input.StrainID); err != nil {
 			fieldLogger.WithError(err).Error("Failed to decrement seed count")
+			apiInternalError(c, "Failed to create plant")
 			return
 		}
 	}
 
-	_, err = db.Exec("INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, $3)", plantID, input.StatusID, input.Date)
-	if err != nil {
+	if _, err := tx.Exec("INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, $3)", plantID, input.StatusID, input.Date); err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert plant status log")
+		apiInternalError(c, "Failed to create plant")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"id": plantID, "message": "Plant added successfully"})
-}
-
-func GetStrains() []types.Strain {
-	fieldLogger := logger.Log.WithField("func", "GetStrains")
-	// Init the db
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return nil
+	if err := tx.Commit(); err != nil {
+		fieldLogger.WithError(err).Error("Failed to commit transaction")
+		apiInternalError(c, "Failed to create plant")
+		return
 	}
 
-	rows, err := db.Query("SELECT s.id, s.name, b.id as breeder_id, b.name as breeder, s.indica, s.sativa, s.autoflower, s.description, coalesce(s.short_desc, ''), s.seed_count FROM strain s left outer join breeder b on s.breeder_id = b.id ORDER BY s.name ASC")
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to query strains")
-		return nil
-	}
-
-	var strains []types.Strain
-	for rows.Next() {
-		var strain types.Strain
-		err = rows.Scan(&strain.ID, &strain.Name, &strain.BreederID, &strain.Breeder, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.Description, &strain.ShortDescription, &strain.SeedCount)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to scan strain")
-			return nil
-		}
-		strains = append(strains, strain)
-	}
-
-	return strains
+	c.JSON(http.StatusOK, gin.H{"id": plantID, "message": T(c, "api_plant_added")})
 }
 
 func GetActivities() []types.Activity {
@@ -312,55 +274,49 @@ func DeletePlant(c *gin.Context) {
 	err := DeletePlantById(id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete plant")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete plant"})
+		apiInternalError(c, "api_failed_to_delete_plant")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Plant deleted successfully"})
+	apiOK(c, "api_plant_deleted")
 }
 
 func DeletePlantById(id string) error {
 	fieldLogger := logger.Log.WithField("func", "DeletePlantById")
-	// Init the db
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return err
 	}
 
-	// Delete the plant's images
-	_, err = db.Exec("DELETE FROM plant_images WHERE plant_id = $1", id)
+	tx, err := db.Begin()
 	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete plant images")
-		return err
+		fieldLogger.WithError(err).Error("Failed to begin transaction")
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback() // no-op after Commit
+
+	// Delete child records first, then the plant itself.
+	deletes := []struct {
+		table string
+		query string
+	}{
+		{"plant_images", "DELETE FROM plant_images WHERE plant_id = $1"},
+		{"plant_measurements", "DELETE FROM plant_measurements WHERE plant_id = $1"},
+		{"plant_activity", "DELETE FROM plant_activity WHERE plant_id = $1"},
+		{"plant_status_log", "DELETE FROM plant_status_log WHERE plant_id = $1"},
+		{"plant", "DELETE FROM plant WHERE id = $1"},
+	}
+	for _, d := range deletes {
+		if _, err := tx.Exec(d.query, id); err != nil {
+			fieldLogger.WithError(err).WithField("table", d.table).Error("Failed to delete records")
+			return fmt.Errorf("failed to delete from %s: %w", d.table, err)
+		}
 	}
 
-	// Delete the plant's measurements
-	_, err = db.Exec("DELETE FROM plant_measurements WHERE plant_id = $1", id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete plant measurements")
-		return err
-	}
-
-	// Delete the plant's activities
-	_, err = db.Exec("DELETE FROM plant_activity WHERE plant_id = $1", id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete plant activities")
-		return err
-	}
-
-	// Delete the plant's status log
-	_, err = db.Exec("DELETE FROM plant_status_log WHERE plant_id = $1", id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete plant status log")
-		return err
-	}
-
-	// Delete the plant
-	_, err = db.Exec("DELETE FROM plant WHERE id = $1", id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete plant")
-		return err
+	if err := tx.Commit(); err != nil {
+		fieldLogger.WithError(err).Error("Failed to commit delete transaction")
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 	return nil
 }
@@ -368,12 +324,14 @@ func DeletePlantById(id string) error {
 func GetPlant(id string) types.Plant {
 	fieldLogger := logger.Log.WithField("func", "GetPlant")
 	var plant types.Plant
-	// Init the db
+
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
 		return plant
 	}
+
+	// --- Load base plant data via single JOIN query ---
 	var orderByExpr string
 	if model.IsPostgres() {
 		orderByExpr = "EXTRACT(EPOCH FROM psl.date)"
@@ -409,254 +367,277 @@ func GetPlant(id string) types.Plant {
 		LEFT OUTER JOIN zones z ON p.zone_id = z.id
 		WHERE p.id = $1`, orderByExpr, orderByExpr)
 
-	rows, err := db.Query(query, id)
+	var plantID uint
+	var name, description, strainName, breederName, zoneName, status, sensors, strainURL, parentName string
+	var isClone, autoflower bool
+	var startDT time.Time
+	var zoneID, statusID, strainID, cycleTime int
+	var harvestWeight float64
+	var parentID uint
+
+	err = db.QueryRow(query, id).Scan(&plantID, &name, &description, &isClone, &startDT,
+		&strainName, &breederName, &zoneName, &zoneID, &status, &statusID,
+		&sensors, &strainID, &harvestWeight, &cycleTime, &strainURL,
+		&autoflower, &parentID, &parentName)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query plant")
 		return plant
 	}
+	startDT = startDT.Local()
 
-	// Iterate over rows
+	// Calculate current day and week
+	diff := time.Now().Sub(startDT)
+	currentDay := int(diff.Hours()/24) + 1
+	currentWeek := int((diff.Hours() / 24 / 7) + 1)
+
+	// --- Load related data via focused sub-functions ---
+	sensorList := loadPlantSensors(db, plantID)
+	measurements := loadPlantMeasurements(db, plantID)
+	activities := loadPlantActivities(db, plantID)
+	statusHistory := loadPlantStatusHistory(db, plantID)
+	latestImage, images := loadPlantImages(db, plantID)
+
+	// --- Derive business-logic dates ---
+	lastWaterDate, lastFeedDate := deriveActivityDates(activities)
+	harvestDate := deriveHarvestDate(statusHistory)
+	estHarvestDate := deriveEstimatedHarvestDate(statusHistory, startDT, cycleTime, autoflower)
+
+	plant = types.Plant{
+		ID: plantID, Name: name, Description: description, Status: status,
+		StatusID: statusID, StrainName: strainName, StrainID: strainID,
+		BreederName: breederName, ZoneName: zoneName, ZoneID: zoneID,
+		CurrentDay: currentDay, CurrentWeek: currentWeek,
+		CurrentHeight: strconv.Itoa(0), HeightDate: time.Time{},
+		LastWaterDate: lastWaterDate, LastFeedDate: lastFeedDate,
+		Measurements: measurements, Activities: activities,
+		StatusHistory: statusHistory, Sensors: sensorList,
+		LatestImage: latestImage, Images: images,
+		IsClone: isClone, StartDT: startDT, HarvestWeight: harvestWeight,
+		HarvestDate: harvestDate, CycleTime: cycleTime, StrainUrl: strainURL,
+		EstHarvestDate: estHarvestDate, Autoflower: autoflower,
+		ParentID: parentID, ParentName: parentName,
+	}
+	return plant
+}
+
+// loadPlantSensors fetches the linked sensor IDs from the plant's JSON column
+// and returns each sensor's details with its latest reading.
+func loadPlantSensors(db *sql.DB, plantID uint) []types.SensorDataResponse {
+	fieldLogger := logger.Log.WithField("func", "loadPlantSensors")
+
+	var sensorsJSON string
+	err := db.QueryRow("SELECT sensors FROM plant WHERE id = $1", plantID).Scan(&sensorsJSON)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to query sensors JSON")
+		return nil
+	}
+
+	var sensorIDs []int
+	if err := json.Unmarshal([]byte(sensorsJSON), &sensorIDs); err != nil {
+		fieldLogger.WithError(err).Error("Failed to deserialize sensor IDs")
+		return nil
+	}
+
+	var sensorList []types.SensorDataResponse
+	for _, sensorID := range sensorIDs {
+		var sensor types.SensorDataResponse
+		err := db.QueryRow("SELECT id, name, unit FROM sensors WHERE id = $1", sensorID).Scan(&sensor.ID, &sensor.Name, &sensor.Unit)
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to query sensor details")
+			continue
+		}
+
+		var sensorData types.SensorData
+		err = db.QueryRow("SELECT id, value, create_dt FROM sensor_data WHERE sensor_id = $1 ORDER BY create_dt DESC LIMIT 1", sensorID).Scan(&sensorData.ID, &sensorData.Value, &sensorData.CreateDT)
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to query sensor data")
+			continue
+		}
+
+		sensor.Value = sensorData.Value
+		sensor.Date = sensorData.CreateDT.Local()
+		sensorList = append(sensorList, sensor)
+	}
+	return sensorList
+}
+
+// loadPlantMeasurements fetches the most recent measurements for a plant, ordered by date descending.
+func loadPlantMeasurements(db *sql.DB, plantID uint) []types.Measurement {
+	fieldLogger := logger.Log.WithField("func", "loadPlantMeasurements")
+
+	rows, err := db.Query("SELECT m.id, me.name, m.value, m.date FROM plant_measurements m LEFT OUTER JOIN metric me ON me.id = m.metric_id WHERE m.plant_id = $1 ORDER BY date DESC LIMIT 500", plantID)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to query measurements")
+		return nil
+	}
+	defer rows.Close()
+
+	var measurements []types.Measurement
 	for rows.Next() {
 		var id uint
 		var name string
-		var description string
-		var isClone bool
-		var start_dt time.Time
-		var strain_name string
-		var breeder_name string
-		var zone_name string
-		var zoneID int
+		var value float64
+		var date time.Time
+		if err := rows.Scan(&id, &name, &value, &date); err != nil {
+			fieldLogger.WithError(err).Error("Failed to scan measurement")
+			continue
+		}
+		measurements = append(measurements, types.Measurement{ID: id, Name: name, Value: value, Date: date})
+	}
+	return measurements
+}
+
+// loadPlantActivities fetches the most recent activities for a plant, ordered by date descending.
+func loadPlantActivities(db *sql.DB, plantID uint) []types.PlantActivity {
+	fieldLogger := logger.Log.WithField("func", "loadPlantActivities")
+
+	rows, err := db.Query("SELECT pa.id, a.id AS activity_id, a.name, pa.note, pa.date FROM plant_activity pa LEFT OUTER JOIN activity a ON a.id = pa.activity_id WHERE pa.plant_id = $1 ORDER BY date DESC LIMIT 500", plantID)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to query activities")
+		return nil
+	}
+	defer rows.Close()
+
+	var activities []types.PlantActivity
+	for rows.Next() {
+		var id uint
+		var activityID int
+		var name, note string
+		var date time.Time
+		if err := rows.Scan(&id, &activityID, &name, &note, &date); err != nil {
+			fieldLogger.WithError(err).Error("Failed to scan activity")
+			continue
+		}
+		activities = append(activities, types.PlantActivity{ID: id, Name: name, Note: note, Date: date, ActivityId: activityID})
+	}
+	return activities
+}
+
+// loadPlantStatusHistory fetches the most recent status log entries for a plant, ordered by date descending.
+func loadPlantStatusHistory(db *sql.DB, plantID uint) []types.Status {
+	fieldLogger := logger.Log.WithField("func", "loadPlantStatusHistory")
+
+	rows, err := db.Query("SELECT psl.id, ps.status, psl.date, psl.status_id FROM plant_status_log psl LEFT OUTER JOIN plant_status ps ON psl.status_id = ps.id WHERE psl.plant_id = $1 ORDER BY date DESC LIMIT 500", plantID)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to query status history")
+		return nil
+	}
+	defer rows.Close()
+
+	var history []types.Status
+	for rows.Next() {
+		var id uint
 		var status string
+		var date time.Time
 		var statusID int
-		var sensors string
-		var strain_id int
-		var harvest_weight float64
-		var cycle_time int
-		var strain_url string
-		var autoflower bool
-		var parent_id uint
-		var parent_name string
-		err = rows.Scan(&id, &name, &description, &isClone, &start_dt, &strain_name, &breeder_name, &zone_name, &zoneID, &status, &statusID, &sensors, &strain_id, &harvest_weight, &cycle_time, &strain_url, &autoflower, &parent_id, &parent_name)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to scan plant")
-			return plant
+		if err := rows.Scan(&id, &status, &date, &statusID); err != nil {
+			fieldLogger.WithError(err).Error("Failed to scan status history")
+			continue
 		}
-		start_dt = start_dt.Local()
-		// Calculate current day and week
-		currentTime := time.Now()
-		//Calculate the # of hours difference between the current timezone and UTC
-		diff := currentTime.Sub(start_dt)
-		iCurrentDay := int(diff.Hours()/24) + 1
-		iCurrentWeek := int((diff.Hours() / 24 / 7) + 1)
+		history = append(history, types.Status{ID: id, Status: status, Date: date, StatusID: statusID})
+	}
+	return history
+}
 
-		//convert sensors string into list and Iterate over sensors and load sensor and latest sensor_data
-		var sensorList []types.SensorDataResponse
+// loadPlantImages fetches the latest image and all images for a plant.
+// Returns (latestImage, allImages).
+func loadPlantImages(db *sql.DB, plantID uint) (types.PlantImage, []types.PlantImage) {
+	fieldLogger := logger.Log.WithField("func", "loadPlantImages")
 
-		// Retrieve the serialized sensors column from the plant table
-		var sensorsJSON string
-		err := db.QueryRow("SELECT sensors FROM plant WHERE id = $1", id).Scan(&sensorsJSON)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to query sensors JSON")
-			return plant
+	// Latest image
+	var latestImage types.PlantImage
+	err := db.QueryRow("SELECT id, image_path, image_description, image_order, image_date FROM plant_images WHERE plant_id = $1 ORDER BY image_date DESC LIMIT 1", plantID).Scan(
+		&latestImage.ID, &latestImage.ImagePath, &latestImage.ImageDescription, &latestImage.ImageOrder, &latestImage.ImageDate)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to query latest image")
+		latestImage = types.PlantImage{
+			ID: 0, PlantID: plantID, ImagePath: "/static/img/winston.hat.jpg",
+			ImageDescription: "Placeholder", ImageOrder: 100,
+			ImageDate: time.Now(), CreatedAt: time.Now(), UpdatedAt: time.Now(),
 		}
-
-		// Deserialize the JSON data into a slice of integers
-		var sensorIDs []int
-		err = json.Unmarshal([]byte(sensorsJSON), &sensorIDs)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to deserialize sensor IDs")
-			return plant
-		}
-
-		// Loop through each sensor ID and fetch details
-		for _, sensorID := range sensorIDs {
-			var sensor types.SensorDataResponse
-
-			// Query sensor details from the sensors table
-			err := db.QueryRow("SELECT id, name, unit FROM sensors WHERE id = $1", sensorID).Scan(&sensor.ID, &sensor.Name, &sensor.Unit)
-			if err != nil {
-				fieldLogger.WithError(err).Error("Failed to query sensor details")
-				continue
-			}
-
-			// Query the latest sensor data from the sensor_data table
-			var sensorData types.SensorData
-			err = db.QueryRow("SELECT id, value, create_dt FROM sensor_data WHERE sensor_id = $1 ORDER BY create_dt DESC LIMIT 1", sensorID).Scan(&sensorData.ID, &sensorData.Value, &sensorData.CreateDT)
-			if err != nil {
-				fieldLogger.WithError(err).Error("Failed to query sensor data")
-				continue
-			}
-
-			// Combine sensor details with the latest data
-			sensor.Value = sensorData.Value
-			sensor.Date = sensorData.CreateDT.Local()
-
-			// Add the sensor to the sensor list
-			sensorList = append(sensorList, sensor)
-		}
-
-		//Load measurements
-		rows2, err := db.Query("SELECT m.id, me.name, m.value, m.date FROM plant_measurements m left outer join metric me on me.id = m.metric_id WHERE m.plant_id = $1 ORDER BY date desc", id)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to query measurements")
-		}
-		var measurements []types.Measurement
-		for rows2.Next() {
-			var id uint
-			var name string
-			var value float64
-			var date time.Time
-			err = rows2.Scan(&id, &name, &value, &date)
-			if err != nil {
-				fmt.Println(err)
-			}
-			measurements = append(measurements, types.Measurement{id, name, value, date})
-		}
-
-		//Load activities
-		rows3, err := db.Query("SELECT pa.id, a.id as activity_id, a.name, pa.note, pa.date FROM plant_activity pa left outer join activity a on a.id = pa.activity_id WHERE pa.plant_id = $1 ORDER BY date desc", id)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to query activities")
-		}
-		var activities []types.PlantActivity
-		for rows3.Next() {
-			var id uint
-			var name string
-			var note string
-			var date time.Time
-			var activityId int
-			err = rows3.Scan(&id, &activityId, &name, &note, &date)
-			if err != nil {
-				fmt.Println(err)
-			}
-			activities = append(activities, types.PlantActivity{id, name, note, date, activityId})
-		}
-
-		//Load status history
-		rows5, err := db.Query("SELECT psl.id, ps.status, psl.date, psl.status_id FROM plant_status_log psl left outer join plant_status ps on psl.status_id = ps.id WHERE psl.plant_id = $1 ORDER BY date desc", id)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to query status history")
-		}
-		var statusHistory []types.Status
-		for rows5.Next() {
-			var id uint
-			var status string
-			var date time.Time
-			var statusID int
-			err = rows5.Scan(&id, &status, &date, &statusID)
-			if err != nil {
-				fieldLogger.WithError(err).Error("Failed to scan status history")
-			}
-			statusHistory = append(statusHistory, types.Status{id, status, date, statusID})
-		}
-
-		//Load latest image
-		var latestImage types.PlantImage
-		err = db.QueryRow("SELECT id, image_path, image_description, image_order, image_date FROM plant_images WHERE plant_id = $1 ORDER BY image_date DESC LIMIT 1", id).Scan(&latestImage.ID, &latestImage.ImagePath, &latestImage.ImageDescription, &latestImage.ImageOrder, &latestImage.ImageDate)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to query latest image")
-			latestImage = types.PlantImage{ID: 0, PlantID: plant.ID, ImagePath: "/static/img/winston.hat.jpg", ImageDescription: "Placeholder", ImageOrder: 100, ImageDate: time.Now(), CreatedAt: time.Now(), UpdatedAt: time.Now()}
-		} else {
-			latestImage.ImagePath = "/" + strings.Replace(latestImage.ImagePath, "\\", "/", -1)
-		}
-
-		//Load images
-		rows6, err := db.Query("SELECT id, image_path, image_description, image_order, image_date FROM plant_images WHERE plant_id = $1 ORDER BY image_date desc", id)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to query images")
-		}
-		var images []types.PlantImage
-		for rows6.Next() {
-			var id uint
-			var image_path string
-			var image_description string
-			var image_order int
-			var image_date time.Time
-			err = rows6.Scan(&id, &image_path, &image_description, &image_order, &image_date)
-			if err != nil {
-				fieldLogger.WithError(err).Error("Failed to scan images")
-			}
-			//Convert any \ in image_path to /
-			image_path = "/" + strings.Replace(image_path, "\\", "/", -1)
-			images = append(images, types.PlantImage{ID: id, PlantID: plant.ID, ImagePath: image_path, ImageDescription: image_description, ImageOrder: image_order, ImageDate: image_date, CreatedAt: time.Now(), UpdatedAt: time.Now()})
-		}
-
-		//initialize the height date and other sentinel dates to zero value
-		heightDate := time.Time{}
-		lastWaterDate := time.Time{}
-		lastFeedDate := time.Time{}
-		harvestDate := time.Now()
-		estHarvestDate := time.Time{}
-
-		//iterate activities to find the last water and feed dates
-		for _, activity := range activities {
-			if activity.ActivityId == 1 {
-				if activity.Date.After(lastWaterDate) {
-					lastWaterDate = activity.Date
-				}
-			}
-			if activity.ActivityId == 2 {
-				if activity.Date.After(lastFeedDate) {
-					lastFeedDate = activity.Date
-				}
-			}
-		}
-
-		//iterate status history to find the last harvest date
-		for _, status := range statusHistory {
-			if status.Status == "Success" {
-				if status.Date.Before(harvestDate) {
-					harvestDate = status.Date
-				}
-			}
-			if status.Status == "Dead" {
-				if status.Date.Before(harvestDate) {
-					harvestDate = status.Date
-				}
-			}
-			if status.Status == "Curing" {
-				if status.Date.Before(harvestDate) {
-					harvestDate = status.Date
-				}
-			}
-			if status.Status == "Drying" {
-				if status.Date.Before(harvestDate) {
-					harvestDate = status.Date
-				}
-			}
-		}
-
-		//calculate estimated harvest date
-		// For Autoflower strains estimate from start date; for photosensitive strains estimate from the earliest Flower date (if available).
-		if cycle_time > 0 {
-			if autoflower {
-				// Autoflower: start date + cycle_time
-				estHarvestDate = start_dt.AddDate(0, 0, cycle_time)
-			} else {
-				// Photosensitive: find earliest "Flower" status and add cycle_time
-				var flowerDate time.Time
-				foundFlower := false
-				for _, st := range statusHistory {
-					if st.Status == "Flower" {
-						if !foundFlower || st.Date.Before(flowerDate) {
-							flowerDate = st.Date
-							foundFlower = true
-						}
-					}
-				}
-				if foundFlower {
-					estHarvestDate = flowerDate.AddDate(0, 0, cycle_time)
-				}
-			}
-		}
-
-		//Convert int and dates to strings
-		strCurrentHeight := strconv.Itoa(0)
-
-		plant = types.Plant{id, name, description, status, statusID, strain_name, strain_id, breeder_name, zone_name, zoneID, iCurrentDay, iCurrentWeek, strCurrentHeight, heightDate, lastWaterDate, lastFeedDate, measurements, activities, statusHistory, sensorList, latestImage, images, isClone, start_dt, harvest_weight, harvestDate, cycle_time, strain_url, estHarvestDate, autoflower, parent_id, parent_name}
+	} else {
+		latestImage.ImagePath = "/" + strings.Replace(latestImage.ImagePath, "\\", "/", -1)
 	}
 
-	return plant
+	// All images
+	rows, err := db.Query("SELECT id, image_path, image_description, image_order, image_date FROM plant_images WHERE plant_id = $1 ORDER BY image_date DESC", plantID)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to query images")
+		return latestImage, nil
+	}
+	defer rows.Close()
+
+	var images []types.PlantImage
+	for rows.Next() {
+		var id uint
+		var imagePath, imageDescription string
+		var imageOrder int
+		var imageDate time.Time
+		if err := rows.Scan(&id, &imagePath, &imageDescription, &imageOrder, &imageDate); err != nil {
+			fieldLogger.WithError(err).Error("Failed to scan image")
+			continue
+		}
+		imagePath = "/" + strings.Replace(imagePath, "\\", "/", -1)
+		images = append(images, types.PlantImage{
+			ID: id, PlantID: plantID, ImagePath: imagePath,
+			ImageDescription: imageDescription, ImageOrder: imageOrder,
+			ImageDate: imageDate, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		})
+	}
+	return latestImage, images
+}
+
+// deriveActivityDates scans activities to find the most recent water and feed dates.
+func deriveActivityDates(activities []types.PlantActivity) (lastWater, lastFeed time.Time) {
+	for _, a := range activities {
+		if a.ActivityId == 1 && a.Date.After(lastWater) {
+			lastWater = a.Date
+		}
+		if a.ActivityId == 2 && a.Date.After(lastFeed) {
+			lastFeed = a.Date
+		}
+	}
+	return
+}
+
+// deriveHarvestDate finds the earliest terminal status date (Success, Dead, Curing, Drying).
+func deriveHarvestDate(history []types.Status) time.Time {
+	harvestDate := time.Now()
+	for _, s := range history {
+		switch s.Status {
+		case "Success", "Dead", "Curing", "Drying":
+			if s.Date.Before(harvestDate) {
+				harvestDate = s.Date
+			}
+		}
+	}
+	return harvestDate
+}
+
+// deriveEstimatedHarvestDate calculates the estimated harvest date based on
+// cycle time and strain type (autoflower vs photosensitive).
+func deriveEstimatedHarvestDate(history []types.Status, startDT time.Time, cycleTime int, autoflower bool) time.Time {
+	if cycleTime <= 0 {
+		return time.Time{}
+	}
+	if autoflower {
+		return startDT.AddDate(0, 0, cycleTime)
+	}
+	// Photosensitive: find earliest "Flower" status and add cycle_time
+	var flowerDate time.Time
+	found := false
+	for _, s := range history {
+		if s.Status == "Flower" {
+			if !found || s.Date.Before(flowerDate) {
+				flowerDate = s.Date
+				found = true
+			}
+		}
+	}
+	if found {
+		return flowerDate.AddDate(0, 0, cycleTime)
+	}
+	return time.Time{}
 }
 
 func LinkSensorsToPlant(c *gin.Context) {
@@ -668,7 +649,7 @@ func LinkSensorsToPlant(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Failed to bind JSON")
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		apiBadRequest(c, "Invalid input")
 		return
 	}
 
@@ -676,7 +657,7 @@ func LinkSensorsToPlant(c *gin.Context) {
 	sensorIDsJSON, err := json.Marshal(input.SensorIDs)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to serialize sensor IDs")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process sensor IDs"})
+		apiInternalError(c, "api_failed_to_process_sensor_ids")
 		return
 	}
 
@@ -684,7 +665,7 @@ func LinkSensorsToPlant(c *gin.Context) {
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to the database"})
+		apiInternalError(c, "api_failed_to_connect_db")
 		return
 	}
 
@@ -692,267 +673,11 @@ func LinkSensorsToPlant(c *gin.Context) {
 	_, err = db.Exec("UPDATE plant SET sensors = $1 WHERE id = $2", sensorIDsJSON, input.PlantID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update sensors")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update sensors for the plant"})
+		apiInternalError(c, "api_failed_to_update_sensors")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Sensors linked to plant successfully"})
-}
-
-func AddStrainHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "AddStrainHandler")
-	// Parse the incoming JSON request
-	var req struct {
-		Name             string `json:"name"`
-		BreederID        *int   `json:"breeder_id"` // Nullable for new breeders
-		NewBreeder       string `json:"new_breeder"`
-		Indica           int    `json:"indica"`
-		Sativa           int    `json:"sativa"`
-		Autoflower       bool   `json:"autoflower"`
-		SeedCount        int    `json:"seed_count"`
-		Description      string `json:"description"`
-		ShortDescription string `json:"short_desc"`
-		CycleTime        int    `json:"cycle_time"`
-		Url              string `json:"url"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		fieldLogger.WithError(err).Error("Failed to bind JSON")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
-		return
-	}
-
-	// Validate Indica and Sativa sum
-	if req.Indica+req.Sativa != 100 {
-		fieldLogger.Error("Indica and Sativa must sum to 100")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Indica and Sativa must sum to 100"})
-		return
-	}
-
-	// Open the database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-		return
-	}
-	// Check for new breeder and insert if needed
-	var breederID int
-	if req.BreederID == nil {
-		if req.NewBreeder == "" {
-			fieldLogger.Error("New breeder name is required")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "New breeder name is required"})
-			return
-		}
-
-		// Insert new breeder
-		insertBreederStmt := `
-			INSERT INTO breeder (name)
-			VALUES ($1)
-		 RETURNING id`
-		err := db.QueryRow(insertBreederStmt, req.NewBreeder).Scan(&breederID)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to insert new breeder")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add new breeder"})
-			return
-		}
-
-		config.Breeders = GetBreeders()
-	} else {
-		// Use existing breeder ID
-		breederID = *req.BreederID
-	}
-
-	// Insert the new strain into the database
-	stmt := `
-		INSERT INTO strain (name, breeder_id, indica, sativa, autoflower, seed_count, description, cycle_time, url, short_desc)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id
-	`
-	//convert autoflower to int
-	var autoflowerInt int
-	if req.Autoflower {
-		autoflowerInt = 1
-	} else {
-		autoflowerInt = 0
-	}
-	var id int
-	err = db.QueryRow(stmt, req.Name, breederID, req.Indica, req.Sativa, autoflowerInt, req.SeedCount, req.Description, req.CycleTime, req.Url, req.ShortDescription).Scan(&id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to insert strain")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add strain"})
-		return
-	}
-
-	config.Strains = GetStrains()
-
-	// Respond with success
-	c.JSON(http.StatusCreated, gin.H{"id": id, "message": "Strain added successfully"})
-}
-
-func GetStrainHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "GetStrainHandler")
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		fieldLogger.WithError(err).Error("Invalid strain ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid strain ID"})
-		return
-	}
-
-	// Open the database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to database"})
-		return
-	}
-	var strain types.Strain
-
-	err = db.QueryRow(`
-        SELECT s.id, s.name, b.name as breeder, s.indica, s.sativa, s.autoflower, s.description, coalesce(s.short_desc, ''), s.seed_count
-        FROM strain s LEFT OUTER JOIN breeder b on s.breeder_id = b.id
-        WHERE id = $1`, id).Scan(
-		&strain.ID, &strain.Name, &strain.Breeder, &strain.Indica, &strain.Sativa,
-		&strain.Autoflower, &strain.Description, &strain.ShortDescription, &strain.SeedCount)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Strain not found"})
-		} else {
-			fieldLogger.WithError(err).Error("Failed to fetch strain")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch strain"})
-		}
-		return
-	}
-
-	c.JSON(http.StatusOK, strain)
-}
-
-func UpdateStrainHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "UpdateStrainHandler")
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		fieldLogger.WithError(err).Error("Invalid strain ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid strain ID"})
-		return
-	}
-
-	var req struct {
-		Name             string `json:"name"`
-		BreederID        *int   `json:"breeder_id"` // Nullable for new breeders
-		NewBreeder       string `json:"new_breeder"`
-		Indica           int    `json:"indica"`
-		Sativa           int    `json:"sativa"`
-		Autoflower       bool   `json:"autoflower"`
-		Description      string `json:"description"`
-		ShortDescription string `json:"short_desc"`
-		SeedCount        int    `json:"seed_count"`
-		CycleTime        int    `json:"cycle_time"`
-		Url              string `json:"url"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		fieldLogger.WithError(err).Error("Failed to bind JSON")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
-	}
-
-	// Validate Indica and Sativa sum
-	if req.Indica+req.Sativa != 100 {
-		fieldLogger.Error("Indica and Sativa must sum to 100")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Indica and Sativa must sum to 100"})
-		return
-	}
-
-	// Open the database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to database"})
-		return
-	}
-
-	// Determine the breeder ID
-	var breederID int
-	if req.BreederID == nil {
-		if req.NewBreeder == "" {
-			fieldLogger.Error("New breeder name is required")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "New breeder name is required"})
-			return
-		}
-
-		// Insert the new breeder into the database
-		insertBreederStmt := `
-			INSERT INTO breeder (name)
-			VALUES ($1)
-			RETURNING id
-		`
-		err := db.QueryRow(insertBreederStmt, req.NewBreeder).Scan(&breederID)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to insert new breeder")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add new breeder"})
-			return
-		}
-
-		config.Breeders = GetBreeders()
-	} else {
-		breederID = *req.BreederID
-	}
-
-	// Update the strain in the database
-	updateStmt := `
-        UPDATE strain
-        SET name = $1, breeder_id = $2, indica = $3, sativa = $4, autoflower = $5, description = $6, seed_count = $7, cycle_time = $8, url = $9, short_desc = $10
-        WHERE id = $11
-    `
-	//Convert autoflower to int
-	var autoflowerInt int
-	if req.Autoflower {
-		autoflowerInt = 1
-	} else {
-		autoflowerInt = 0
-	}
-	_, err = db.Exec(updateStmt, req.Name, breederID, req.Indica, req.Sativa,
-		autoflowerInt, req.Description, req.SeedCount, req.CycleTime, req.Url, req.ShortDescription, id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to update strain")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update strain"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Strain updated successfully"})
-}
-
-func DeleteStrainHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "DeleteStrainHandler")
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		fieldLogger.WithError(err).Error("Invalid strain ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid strain ID"})
-		return
-	}
-
-	// Open the database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to database"})
-		return
-	}
-
-	result, err := db.Exec(`DELETE FROM strain WHERE id = $1`, id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete strain")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete strain"})
-		return
-	}
-
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
-		fieldLogger.Error("Strain not found")
-		c.JSON(http.StatusNotFound, gin.H{"error": "Strain not found"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Strain deleted successfully"})
+	apiOK(c, "api_sensors_linked")
 }
 
 func UpdatePlant(c *gin.Context) {
@@ -979,7 +704,20 @@ func UpdatePlant(c *gin.Context) {
 	// Bind JSON payload
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Failed to bind JSON")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		apiBadRequest(c, "Invalid input")
+		return
+	}
+	// Validate string lengths
+	if err := utils.ValidateStringLength("plant_name", input.PlantName, utils.MaxNameLength); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+	if err := utils.ValidateStringLength("plant_description", input.PlantDescription, utils.MaxDescriptionLength); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+	if err := utils.ValidateStringLength("new_zone", input.NewZone, utils.MaxNameLength); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
 
@@ -987,7 +725,7 @@ func UpdatePlant(c *gin.Context) {
 	db, err := model.GetDB()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to open database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		apiInternalError(c, "Database error")
 		return
 	}
 
@@ -996,7 +734,7 @@ func UpdatePlant(c *gin.Context) {
 		zoneID, err := CreateNewZone(input.NewZone)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create new zone"})
+			apiInternalError(c, "api_failed_to_create_new_zone")
 			return
 		}
 		input.ZoneID = &zoneID // Set the created zone ID
@@ -1008,7 +746,7 @@ func UpdatePlant(c *gin.Context) {
 		strainID, err := CreateNewStrain(input.NewStrain)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new strain")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create new strain"})
+			apiInternalError(c, "api_failed_to_create_new_strain")
 			return
 		}
 		input.StrainID = &strainID // Set the created strain ID
@@ -1279,7 +1017,7 @@ func HarvestedPlantsHandler(c *gin.Context) {
 
 	plants, err := getPlantsByStatus(statuses)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve plants"})
+		apiInternalError(c, "api_failed_to_retrieve_plants")
 		return
 	}
 
@@ -1312,152 +1050,11 @@ func DeadPlantsHandler(c *gin.Context) {
 	}
 	plants, err := getPlantsByStatus(statuses)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve plants"})
+		apiInternalError(c, "api_failed_to_retrieve_plants")
 		return
 	}
 
 	c.JSON(http.StatusOK, plants)
 }
 
-func InStockStrainsHandler(c *gin.Context) {
-	strains, err := getStrainsBySeedCount(true)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch in-stock strains"})
-		return
-	}
-	c.JSON(http.StatusOK, strains)
-}
-func OutOfStockStrainsHandler(c *gin.Context) {
-	strains, err := getStrainsBySeedCount(false)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch out-of-stock strains"})
-		return
-	}
-	c.JSON(http.StatusOK, strains)
-}
-func getStrainsBySeedCount(inStock bool) ([]types.Strain, error) {
-	fieldLogger := logger.Log.WithField("func", "getStrainsBySeedCount")
-	query := `
-        SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count, s.description, coalesce(s.short_desc, ''), coalesce(s.cycle_time, 0), coalesce(s.url, '')
-        FROM strain s
-        JOIN breeder b ON s.breeder_id = b.id
-        WHERE s.seed_count > 0
-		ORDER BY s.name ASC
-    `
-	if !inStock {
-		query = `
-            SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count, s.description, coalesce(s.short_desc, ''), coalesce(s.cycle_time, 0), coalesce(s.url, '')
-            FROM strain s
-            JOIN breeder b ON s.breeder_id = b.id
-            WHERE s.seed_count = 0
-            ORDER BY s.name ASC
-        `
-	}
-
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return nil, err
-	}
-
-	rows, err := db.Query(query)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to query strains")
-		return nil, err
-	}
-	defer rows.Close()
-
-	var strains []types.Strain
-	for rows.Next() {
-		var strain types.Strain
-		if err := rows.Scan(&strain.ID, &strain.Name, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount, &strain.Description, &strain.ShortDescription, &strain.CycleTime, &strain.Url); err != nil {
-			fieldLogger.WithError(err).Error("Failed to scan strain")
-			return nil, err
-		}
-		strain.Description = html.EscapeString(strain.Description)
-		strains = append(strains, strain)
-	}
-
-	return strains, nil
-}
-
-func PlantsByStrainHandler(context *gin.Context) {
-	fieldLogger := logger.Log.WithField("handler", "PlantsByStrainHandler")
-
-	// Parse strain ID from query parameter
-	strainID, err := strconv.Atoi(context.Param("strainID"))
-	if err != nil {
-		fieldLogger.WithError(err).Error("Invalid strain ID")
-		context.JSON(http.StatusBadRequest, gin.H{"error": "Invalid strain ID"})
-		return
-	}
-
-	fieldLogger = fieldLogger.WithField("strainID", strainID)
-	fieldLogger.Info("Fetching plants for strain")
-
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return
-	}
-
-	// Query plants with the given strain ID
-	rows, err := db.Query(`SELECT id, name FROM plant WHERE strain_id = $1 ORDER BY name ASC`, strainID)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to query database")
-		context.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch plants"})
-		return
-	}
-	defer rows.Close()
-
-	// Parse query results
-	var plants []types.Plant
-	for rows.Next() {
-		var plant types.Plant
-		if err := rows.Scan(&plant.ID, &plant.Name); err != nil {
-			fieldLogger.WithError(err).Error("Failed to scan row")
-			context.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process results"})
-			return
-		}
-		plants = append(plants, plant)
-	}
-
-	if err := rows.Err(); err != nil {
-		fieldLogger.WithError(err).Error("Error iterating rows")
-		context.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process results"})
-		return
-	}
-
-	// Return the list of plants as JSON
-	fieldLogger.WithField("plantCount", len(plants)).Info("Plants fetched successfully")
-	context.JSON(http.StatusOK, plants)
-}
-
-func GetStrain(id string) types.Strain {
-	fieldLogger := logger.Log.WithField("func", "GetStrain")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return types.Strain{}
-	}
-
-	var strain types.Strain
-	//join in breeder name
-	err = db.QueryRow(`
-		SELECT s.id, s.name, coalesce(s.short_desc, ''), b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count, s.description, coalesce(s.cycle_time, 0), coalesce(s.url, '')
-		FROM strain s
-		JOIN breeder b ON s.breeder_id = b.id
-		WHERE s.id = $1`, id).Scan(
-		&strain.ID, &strain.Name, &strain.ShortDescription, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount, &strain.Description, &strain.CycleTime, &strain.Url)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			fieldLogger.Error("Strain not found")
-		} else {
-			fieldLogger.WithError(err).Error("Failed to fetch strain")
-		}
-		return types.Strain{}
-	}
-	//strain.Description = html.EscapeString(strain.Description)
-
-	return strain
-}
+// Strain and breeder handlers have been moved to strain.go

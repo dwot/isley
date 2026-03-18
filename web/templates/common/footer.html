@@ -1,4 +1,5 @@
 {{ define "common/footer.html"}}
+</main>
 
 <!-- Footer -->
 <footer class="d-flex flex-wrap justify-content-between align-items-center py-3 my-4 border-top container">
@@ -52,6 +53,20 @@
 <script src="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.7.1/js/all.min.js" integrity="sha256-OUS5KSI0FzXk07uK21SSLdUdWJ55gg3ZaJQ+9luYpdE=" crossorigin="anonymous"></script>
 <!-- UI messages helper (toasts + confirm modal + i18n fetch) -->
 <script src="/static/js/ui-messages.js"></script>
+<!-- Form UX helpers (submit spinner + inline validation) -->
+<script src="/static/js/form-helpers.js"></script>
+<!-- Global modal backdrop cleanup: Bootstrap's backdrop can linger when
+     the page reloads while a modal fade-out animation is in progress.
+     This listener removes any orphaned backdrops on every modal close. -->
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    document.addEventListener('hidden.bs.modal', () => {
+        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+    });
+});
+</script>
 </body>
 </html>
 
