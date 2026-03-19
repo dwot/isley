@@ -92,7 +92,7 @@ func AddPlant(c *gin.Context) {
 	defer tx.Rollback() // no-op after Commit
 
 	plantID := 0
-	err = tx.QueryRow("INSERT INTO plant (name, zone_id, strain_id, description, clone, parent_plant_id, start_dt, sensors) VALUES ($1, $2, $3, '', $4, $5, $6, '[]') RETURNING id", input.Name, *input.ZoneID, *input.StrainID, input.Clone, input.ParentID, input.Date).Scan(&plantID)
+	err = tx.QueryRow("INSERT INTO plant (name, zone_id, strain_id, description, clone, parent_plant_id, start_dt, sensors) VALUES ($1, $2, $3, '', $4, NULLIF($5, 0), $6, '[]') RETURNING id", input.Name, *input.ZoneID, *input.StrainID, input.Clone, input.ParentID, input.Date).Scan(&plantID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert plant")
 		apiInternalError(c, "Failed to create plant")
