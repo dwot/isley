@@ -482,7 +482,7 @@ func loadPlantMeasurements(db *sql.DB, plantID uint) []types.Measurement {
 			fieldLogger.WithError(err).Error("Failed to scan measurement")
 			continue
 		}
-		measurements = append(measurements, types.Measurement{ID: id, Name: name, Value: value, Date: date})
+		measurements = append(measurements, types.Measurement{ID: id, Name: name, Value: value, Date: utils.AsLocal(date)})
 	}
 	return measurements
 }
@@ -508,7 +508,7 @@ func loadPlantActivities(db *sql.DB, plantID uint) []types.PlantActivity {
 			fieldLogger.WithError(err).Error("Failed to scan activity")
 			continue
 		}
-		activities = append(activities, types.PlantActivity{ID: id, Name: name, Note: note, Date: date, ActivityId: activityID})
+		activities = append(activities, types.PlantActivity{ID: id, Name: name, Note: note, Date: utils.AsLocal(date), ActivityId: activityID})
 	}
 	return activities
 }
@@ -534,7 +534,7 @@ func loadPlantStatusHistory(db *sql.DB, plantID uint) []types.Status {
 			fieldLogger.WithError(err).Error("Failed to scan status history")
 			continue
 		}
-		history = append(history, types.Status{ID: id, Status: status, Date: date, StatusID: statusID})
+		history = append(history, types.Status{ID: id, Status: status, Date: utils.AsLocal(date), StatusID: statusID})
 	}
 	return history
 }
@@ -557,6 +557,7 @@ func loadPlantImages(db *sql.DB, plantID uint) (types.PlantImage, []types.PlantI
 		}
 	} else {
 		latestImage.ImagePath = "/" + strings.Replace(latestImage.ImagePath, "\\", "/", -1)
+		latestImage.ImageDate = utils.AsLocal(latestImage.ImageDate)
 	}
 
 	// All images
@@ -581,7 +582,7 @@ func loadPlantImages(db *sql.DB, plantID uint) (types.PlantImage, []types.PlantI
 		images = append(images, types.PlantImage{
 			ID: id, PlantID: plantID, ImagePath: imagePath,
 			ImageDescription: imageDescription, ImageOrder: imageOrder,
-			ImageDate: imageDate, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+			ImageDate: utils.AsLocal(imageDate), CreatedAt: time.Now(), UpdatedAt: time.Now(),
 		})
 	}
 	return latestImage, images
