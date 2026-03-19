@@ -358,10 +358,11 @@ func main() {
 		sessionSecret = string(randomBytes)
 	}
 	store := cookie.NewStore([]byte(sessionSecret))
+	secureCookie := strings.EqualFold(os.Getenv("ISLEY_SECURE_COOKIES"), "true")
 	store.Options(sessions.Options{
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   secureCookie,
 		SameSite: http.SameSiteLaxMode,
 	})
 	r.Use(sessions.Sessions("isley_session", store))
