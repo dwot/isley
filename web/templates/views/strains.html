@@ -1,182 +1,401 @@
 {{ define "views/strains.html"}}
-<!--index.html-->
 
-<!--Embed the header.html template at this location-->
 {{ template "common/header.html" .}}
 {{ template "common/header2.html" .}}
 
+<div class="container">
+    <h1 class="visually-hidden">{{ .lcl.title_strains }}</h1>
 
-<div class="text-center">
-    <div class="container">
-        <h1 class="visually-hidden">{{ .lcl.title_strains }}</h1>
-        <!-- View Selector and Actions -->
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <!-- View Selector -->
+    <!-- Top Controls Bar -->
+    <div class="strains-controls">
+        <!-- Stock toggle + search + layout toggle row -->
+        <div class="strains-controls-row">
             <div class="btn-group" role="group">
-                <button class="btn btn-outline-primary view-button active" data-view="in-stock">{{ .lcl.in_stock }}</button>
-                <button class="btn btn-outline-secondary view-button" data-view="out-of-stock">{{ .lcl.out_stock }}</button>
+                <button class="btn btn-sm view-button active" data-view="in-stock">
+                    <i class="fa-solid fa-seedling me-1"></i> {{ .lcl.in_stock }}
+                </button>
+                <button class="btn btn-sm view-button" data-view="out-of-stock">
+                    <i class="fa-solid fa-box-open me-1"></i> {{ .lcl.out_stock }}
+                </button>
             </div>
 
-            <!-- Search Bar and Add Strain Button -->
-            <div class="d-flex align-items-center">
-                <div class="input-group">
-                    <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
-                    <input type="text" class="form-control" id="searchStrains" placeholder="{{ .lcl.search_strains }}...">
-                </div>
-                {{ if .loggedIn }}
-                <a href="/strain/new" class="btn btn-success ms-3">
-                    <i class="fa-solid fa-plus"></i>
-                </a>
-                {{ end }}
+            <div class="strains-search-wrap">
+                <i class="fa-solid fa-search strains-search-icon"></i>
+                <input type="text" class="form-control form-control-sm" id="searchStrains"
+                       placeholder="{{ .lcl.search_strains }}...">
             </div>
+
+            <!-- Layout toggle -->
+            <div class="btn-group" role="group" aria-label="Layout toggle">
+                <button class="btn btn-sm layout-toggle active" data-layout="cards" title="Card view">
+                    <i class="fa-solid fa-grip"></i>
+                </button>
+                <button class="btn btn-sm layout-toggle" data-layout="table" title="Table view">
+                    <i class="fa-solid fa-table-list"></i>
+                </button>
+            </div>
+
+            {{ if .loggedIn }}
+            <a href="/strain/new" class="btn btn-sm btn-success" title="Add new strain">
+                <i class="fa-solid fa-plus me-1"></i> {{ .lcl.add_new_strain }}
+            </a>
+            {{ end }}
         </div>
 
-        <!-- Strains Table -->
-        <div id="strainsContainer">
-            <!-- Table dynamically populated by JavaScript -->
+        <!-- Filters row -->
+        <div class="strains-filters-row">
+            <div class="strains-filter-group">
+                <label class="strains-filter-label">{{ .lcl.breeder }}</label>
+                <select id="filterBreeder" class="form-select form-select-sm">
+                    <option value="">All</option>
+                </select>
+            </div>
+            <div class="strains-filter-group">
+                <label class="strains-filter-label">Type</label>
+                <select id="filterType" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    <option value="auto">{{ .lcl.autoflower }}</option>
+                    <option value="photo">Photoperiod</option>
+                </select>
+            </div>
+            <div class="strains-filter-group">
+                <label class="strains-filter-label">Sort by</label>
+                <select id="sortBy" class="form-select form-select-sm">
+                    <option value="name-asc">Name A–Z</option>
+                    <option value="name-desc">Name Z–A</option>
+                    <option value="breeder-asc">Breeder A–Z</option>
+                    <option value="indica-desc">Most Indica</option>
+                    <option value="sativa-desc">Most Sativa</option>
+                    <option value="seeds-desc">Most Seeds</option>
+                    <option value="seeds-asc">Fewest Seeds</option>
+                </select>
+            </div>
+            <div class="strains-filter-group">
+                <button id="clearFilters" class="btn btn-sm btn-outline-secondary" title="Clear all filters">
+                    <i class="fa-solid fa-filter-circle-xmark me-1"></i> Clear
+                </button>
+            </div>
+            <div class="strains-result-count ms-auto">
+                <span id="resultCount" class="text-muted"></span>
+            </div>
         </div>
     </div>
 
+    <!-- Strains Card Grid -->
+    <div id="strainsCards" class="strains-grid">
+    </div>
+
+    <!-- Strains Table -->
+    <div id="strainsTable" class="strains-table-wrap" style="display:none;">
+        <table class="table table-hover strains-table">
+            <thead>
+                <tr>
+                    <th class="st-th-name">{{ .lcl.title_strain }}</th>
+                    <th class="st-th-breeder">{{ .lcl.breeder }}</th>
+                    <th class="st-th-lineage">Lineage</th>
+                    <th class="st-th-type">Type</th>
+                    <th class="st-th-ratio">Indica/Sativa</th>
+                    <th class="st-th-seeds">Seeds</th>
+                </tr>
+            </thead>
+            <tbody id="strainsTableBody">
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Empty state -->
+    <div id="emptyState" class="strains-empty" style="display:none;">
+        <i class="fa-solid fa-cannabis fa-3x text-muted mb-3"></i>
+        <p class="text-muted">No strains match your filters.</p>
+    </div>
 </div>
 
-
-
-
 <script>
-    document.addEventListener("DOMContentLoaded", () => {
-        const strainsContainer = document.getElementById("strainsContainer");
-        const searchInput = document.getElementById("searchStrains");
-        const viewButtons = document.querySelectorAll(".view-button");
+document.addEventListener("DOMContentLoaded", () => {
+    const cardsContainer = document.getElementById("strainsCards");
+    const tableWrap = document.getElementById("strainsTable");
+    const tableBody = document.getElementById("strainsTableBody");
+    const emptyState = document.getElementById("emptyState");
+    const searchInput = document.getElementById("searchStrains");
+    const filterBreeder = document.getElementById("filterBreeder");
+    const filterType = document.getElementById("filterType");
+    const sortBy = document.getElementById("sortBy");
+    const clearBtn = document.getElementById("clearFilters");
+    const resultCount = document.getElementById("resultCount");
+    const viewButtons = document.querySelectorAll(".view-button");
+    const layoutButtons = document.querySelectorAll(".layout-toggle");
 
-        let currentView = "in-stock";
-        let strains = []; // Will hold all strains fetched from the backend
+    let currentView = "in-stock";
+    let currentLayout = localStorage.getItem("strainsLayout") || "cards";
+    let allStrains = [];
 
-        // Function to load strains from the backend
-        async function fetchStrains(view) {
-            const response = await fetch(`/strains/${view}`);
-            //console.log("Fetched strains:", data); // Debug output
-            strains = await response.json();
-            renderStrainsTable(strains);
+    // Set initial layout button state
+    layoutButtons.forEach(b => {
+        b.classList.toggle("active", b.dataset.layout === currentLayout);
+    });
+    syncLayoutVisibility();
+
+    // ----- Fetch strains -----
+    async function fetchStrains(view) {
+        cardsContainer.innerHTML = `<div class="text-center py-5" style="flex-basis:100%"><div class="spinner-border text-primary" role="status"></div></div>`;
+        tableBody.innerHTML = `<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>`;
+        try {
+            const res = await fetch(`/strains/${view}`);
+            allStrains = await res.json() || [];
+            populateBreederFilter();
+            applyFilters();
+        } catch (e) {
+            cardsContainer.innerHTML = `<p class="text-danger text-center" style="flex-basis:100%">Failed to load strains.</p>`;
+            tableBody.innerHTML = `<tr><td colspan="6" class="text-danger text-center">Failed to load strains.</td></tr>`;
         }
+    }
 
-        let currentSort = { key: null, isAscending: true }; // Track current sort state
+    // ----- Populate breeder dropdown -----
+    function populateBreederFilter() {
+        const breeders = [...new Set(allStrains.map(s => s.breeder).filter(Boolean))].sort();
+        const current = filterBreeder.value;
+        filterBreeder.innerHTML = '<option value="">All</option>';
+        breeders.forEach(b => {
+            const opt = document.createElement("option");
+            opt.value = b;
+            opt.textContent = b;
+            if (b === current) opt.selected = true;
+            filterBreeder.appendChild(opt);
+        });
+    }
 
-        function renderStrainsTable(data) {
-            let filteredData = filterStrains(data, searchInput.value);
-            const theme = localStorage.getItem("isley-theme") || "dark";
-            const themeTableClass = theme === "dark" ? "table-dark" : "table-light";
+    // ----- Filter + Sort -----
+    function applyFilters() {
+        let data = [...allStrains];
+        const query = searchInput.value.toLowerCase().trim();
+        const breeder = filterBreeder.value;
+        const type = filterType.value;
+        const sort = sortBy.value;
 
-            //If filteredData is null, reset with empty map object
-            if (filteredData == null) {
-                strainsContainer.innerHTML = `
-        <table class="table table-striped table-bordered table-hover">
-            <thead class="${themeTableClass}">
-                <tr>
-                    <th scope="col" data-key="name" data-type="text" class="sortable ${currentSort.key === "name" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.title_strain }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
-                    <th scope="col" data-key="breeder" data-type="text" class="sortable ${currentSort.key === "breeder" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.breeder }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
-                    <th scope="col" data-key="short_desc" data-type="text" class="sortable ${currentSort.key === "short_desc" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.description_txt }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
-                    <th scope="col" data-key="seed_count" data-type="numeric" class="sortable ${currentSort.key === "seed_count" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.seed_count }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
-                    <th scope="col" colspan="2"> </th>
-                </tr>
-            </thead>
-            <tbody>
-            </tbody>
-        </table>
-                `;
-            } else {
-                strainsContainer.innerHTML = `
-        <table class="table table-striped table-bordered table-hover">
-            <thead class="${themeTableClass}">
-                <tr>
-                    <th scope="col" data-key="name" data-type="text" class="sortable ${currentSort.key === "name" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.title_strain }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
-                    <th scope="col" data-key="breeder" data-type="text" class="sortable ${currentSort.key === "breeder" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.breeder }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
-                    <th scope="col" data-key="short_desc" data-type="text" class="sortable ${currentSort.key === "short_desc" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.description_txt }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
-                    <th scope="col" data-key="seed_count" data-type="numeric" class="sortable ${currentSort.key === "seed_count" ? (currentSort.isAscending ? "asc" : "desc") : ""}">{{ .lcl.seed_count }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
-                    <th scope="col" colspan="2"> </th>
-                </tr>
-            </thead>
-            <tbody>
-                ${filteredData.map(strain => `
-                    <tr >
-                        <td><a href="strain/${strain.id}">${strain.name || "N/A"}</a></td>
-                        <td>${strain.breeder || "N/A"}</td>
-                        <td>${strain.short_desc || "&nbsp;"}</td>
-                        <td>${strain.seed_count || 0}</td>
-                        <td>
-                        ${strain.url ? `<a href="${strain.url}" target="_blank"><i class="fa-solid fa-link"></i></a>` : "&nbsp;"}
-                        </td>
-                        <td><a href="strain/${strain.id}/edit" title="Edit strain"><i class="fa-solid fa-pen-to-square"></i></a></td>
-                    </tr>
-                `).join("")}
-            </tbody>
-        </table>
-    `;
-            }
-
-            // Add click listeners for sorting
-            document.querySelectorAll(".sortable").forEach(header => {
-                header.addEventListener("click", () => {
-                    const key = header.dataset.key;
-                    const type = header.dataset.type;
-
-                    // Determine the current sort order and toggle it
-                    const isAscending = currentSort.key === key ? !currentSort.isAscending : true;
-                    currentSort = { key, isAscending };
-
-                    // Sort the data
-                    const sortedData = [...strains].sort((a, b) => {
-                        if (type === "numeric") {
-                            return isAscending ? a[key] - b[key] : b[key] - a[key];
-                        } else if (type === "text") {
-                            return isAscending
-                                ? a[key].localeCompare(b[key], undefined, { sensitivity: "base" })
-                                : b[key].localeCompare(a[key], undefined, { sensitivity: "base" });
-                        }
-                        return 0;
-                    });
-
-                    // Re-render the table with sorted data
-                    renderStrainsTable(sortedData);
-                });
-            });
-
-        }
-
-        // Function to filter strains based on search
-        function filterStrains(data, query) {
-            if (!query) return data;
-            const lowerCaseQuery = query.toLowerCase();
-            return data.filter(strain =>
-                strain.name.toLowerCase().includes(lowerCaseQuery) || // Match strain name
-                strain.breeder.toLowerCase().includes(lowerCaseQuery) // Match breeder name
+        if (query) {
+            data = data.filter(s =>
+                s.name.toLowerCase().includes(query) ||
+                (s.breeder || "").toLowerCase().includes(query) ||
+                (s.short_desc || "").toLowerCase().includes(query) ||
+                (s.lineage || "").toLowerCase().includes(query)
             );
         }
+        if (breeder) {
+            data = data.filter(s => s.breeder === breeder);
+        }
+        if (type === "auto") {
+            data = data.filter(s => s.autoflower);
+        } else if (type === "photo") {
+            data = data.filter(s => !s.autoflower);
+        }
 
-        // Event listener for search input
-        searchInput.addEventListener("input", () => {
-            renderStrainsTable(strains); // Re-render table based on updated search query
+        const [key, dir] = sort.split("-");
+        const asc = dir === "asc";
+        data.sort((a, b) => {
+            let va, vb;
+            switch (key) {
+                case "name":
+                    va = (a.name || "").toLowerCase();
+                    vb = (b.name || "").toLowerCase();
+                    return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+                case "breeder":
+                    va = (a.breeder || "").toLowerCase();
+                    vb = (b.breeder || "").toLowerCase();
+                    return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+                case "indica":
+                    return asc ? a.indica - b.indica : b.indica - a.indica;
+                case "sativa":
+                    return asc ? a.sativa - b.sativa : b.sativa - a.sativa;
+                case "seeds":
+                    return asc ? a.seed_count - b.seed_count : b.seed_count - a.seed_count;
+                default:
+                    return 0;
+            }
         });
 
-        // Event listener for view buttons
-        viewButtons.forEach(button => {
-            button.addEventListener("click", () => {
-                currentView = button.dataset.view;
+        resultCount.textContent = `${data.length} strain${data.length !== 1 ? "s" : ""}`;
 
-                // Update button states
-                viewButtons.forEach(btn => btn.classList.remove("active"));
-                button.classList.add("active");
+        if (data.length === 0) {
+            cardsContainer.innerHTML = "";
+            tableBody.innerHTML = "";
+            emptyState.style.display = "flex";
+            return;
+        }
+        emptyState.style.display = "none";
+        renderCards(data);
+        renderTable(data);
+    }
 
-                // Fetch and render strains
-                fetchStrains(currentView);
-            });
+    // ----- Render card grid -----
+    function renderCards(data) {
+        cardsContainer.innerHTML = data.map(s => {
+            const typeBadge = s.autoflower
+                ? `<span class="strain-badge-auto"><i class="fa-solid fa-bolt me-1"></i>Auto</span>`
+                : `<span class="strain-badge-photo"><i class="fa-solid fa-sun me-1"></i>Photo</span>`;
+
+            const dominance = s.indica > s.sativa ? "Indica" : s.sativa > s.indica ? "Sativa" : "Hybrid";
+
+            const seedBadge = s.seed_count > 0
+                ? `<span class="badge bg-success">${s.seed_count}</span>`
+                : `<span class="badge bg-secondary">0</span>`;
+
+            const lineageHtml = s.lineage
+                ? `<div class="sc-lineage"><i class="fa-solid fa-sitemap me-1"></i>${esc(s.lineage)}</div>`
+                : "";
+
+            const shortDesc = s.short_desc
+                ? `<p class="sc-desc">${esc(s.short_desc)}</p>`
+                : "";
+
+            const linkIcon = s.url
+                ? `<span class="sc-ext-link" data-href="${esc(s.url)}" title="Breeder page"><i class="fa-solid fa-arrow-up-right-from-square"></i></span>`
+                : "";
+
+            return `
+            <div class="sc-card-link" data-href="/strain/${s.id}">
+                <div class="sc-card">
+                    <div class="sc-card-header">
+                        <div class="sc-card-title-row">
+                            <h3 class="sc-name">${esc(s.name)}</h3>
+                            ${linkIcon}
+                        </div>
+                        <span class="sc-breeder">${esc(s.breeder || "Unknown")}</span>
+                    </div>
+                    <div class="sc-card-body">
+                        ${shortDesc}
+                        ${lineageHtml}
+                    </div>
+                    <div class="sc-card-footer">
+                        <div class="sc-meta-left">
+                            ${typeBadge}
+                            <span class="sc-dominance">${dominance} ${s.indica}/${s.sativa}</span>
+                        </div>
+                        <div class="sc-ratio-mini">
+                            <div class="sc-ratio-mini-fill" style="width:${s.indica}%"></div>
+                        </div>
+                        <div class="sc-meta-right">
+                            <i class="fa-solid fa-seedling me-1"></i>${seedBadge}
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        }).join("");
+    }
+
+    // ----- Render table -----
+    function renderTable(data) {
+        tableBody.innerHTML = data.map(s => {
+            const typeBadge = s.autoflower
+                ? `<span class="strain-badge-auto" style="font-size:0.7rem;padding:0.15em 0.5em"><i class="fa-solid fa-bolt me-1"></i>Auto</span>`
+                : `<span class="strain-badge-photo" style="font-size:0.7rem;padding:0.15em 0.5em"><i class="fa-solid fa-sun me-1"></i>Photo</span>`;
+
+            const seedBadge = s.seed_count > 0
+                ? `<span class="badge bg-success">${s.seed_count}</span>`
+                : `<span class="badge bg-secondary">0</span>`;
+
+            const extLink = s.url
+                ? ` <a href="${esc(s.url)}" target="_blank" class="text-muted" style="font-size:0.75rem"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>`
+                : "";
+
+            return `<tr class="st-row" onclick="window.location='/strain/${s.id}'" style="cursor:pointer">
+                <td>
+                    <a href="/strain/${s.id}" class="st-strain-name">${esc(s.name)}</a>${extLink}
+                    ${s.short_desc ? `<div class="st-short-desc">${esc(s.short_desc)}</div>` : ""}
+                </td>
+                <td class="st-cell-breeder">${esc(s.breeder || "")}</td>
+                <td class="st-cell-lineage">${s.lineage ? esc(s.lineage) : '<span class="text-muted">—</span>'}</td>
+                <td class="text-center">${typeBadge}</td>
+                <td>
+                    <div class="st-ratio-wrap">
+                        <div class="sc-ratio-mini" style="width:60px">
+                            <div class="sc-ratio-mini-fill" style="width:${s.indica}%"></div>
+                        </div>
+                        <span class="st-ratio-label">${s.indica}/${s.sativa}</span>
+                    </div>
+                </td>
+                <td class="text-center">${seedBadge}</td>
+            </tr>`;
+        }).join("");
+    }
+
+    // ----- Layout switching -----
+    function syncLayoutVisibility() {
+        if (currentLayout === "cards") {
+            cardsContainer.style.display = "";
+            tableWrap.style.display = "none";
+        } else {
+            cardsContainer.style.display = "none";
+            tableWrap.style.display = "";
+        }
+    }
+
+    layoutButtons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            currentLayout = btn.dataset.layout;
+            localStorage.setItem("strainsLayout", currentLayout);
+            layoutButtons.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            syncLayoutVisibility();
         });
-
-        // Initial load
-        fetchStrains(currentView);
     });
+
+    // ----- Card click delegation -----
+    cardsContainer.addEventListener("click", (e) => {
+        // External link click
+        const extLink = e.target.closest(".sc-ext-link");
+        if (extLink) {
+            e.stopPropagation();
+            window.open(extLink.dataset.href, "_blank");
+            return;
+        }
+        // Card click → navigate to strain
+        const card = e.target.closest(".sc-card-link");
+        if (card && card.dataset.href) {
+            window.location = card.dataset.href;
+        }
+    });
+
+    // ----- Helpers -----
+    function esc(str) {
+        if (!str) return "";
+        const d = document.createElement("div");
+        d.textContent = str;
+        return d.innerHTML;
+    }
+
+    function debounce(fn, ms) {
+        let t;
+        return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+    }
+
+    // ----- Event listeners -----
+    searchInput.addEventListener("input", debounce(applyFilters, 200));
+    filterBreeder.addEventListener("change", applyFilters);
+    filterType.addEventListener("change", applyFilters);
+    sortBy.addEventListener("change", applyFilters);
+
+    clearBtn.addEventListener("click", () => {
+        searchInput.value = "";
+        filterBreeder.value = "";
+        filterType.value = "";
+        sortBy.value = "name-asc";
+        applyFilters();
+    });
+
+    viewButtons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            currentView = btn.dataset.view;
+            viewButtons.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            fetchStrains(currentView);
+        });
+    });
+
+    // ----- Initial load -----
+    fetchStrains(currentView);
+});
 </script>
 
-<!--Embed the footer.html template at this location-->
 {{ template "common/footer.html" .}}
 
 {{ end }}

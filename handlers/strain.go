@@ -513,22 +513,23 @@ func OutOfStockStrainsHandler(c *gin.Context) {
 }
 func getStrainsBySeedCount(inStock bool) ([]types.Strain, error) {
 	fieldLogger := logger.Log.WithField("func", "getStrainsBySeedCount")
-	query := `
-        SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count, s.description, coalesce(s.short_desc, ''), coalesce(s.cycle_time, 0), coalesce(s.url, '')
-        FROM strain s
-        JOIN breeder b ON s.breeder_id = b.id
-        WHERE s.seed_count > 0
-		ORDER BY s.name ASC
-    `
+	op := ">"
 	if !inStock {
-		query = `
-            SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count, s.description, coalesce(s.short_desc, ''), coalesce(s.cycle_time, 0), coalesce(s.url, '')
-            FROM strain s
-            JOIN breeder b ON s.breeder_id = b.id
-            WHERE s.seed_count = 0
-            ORDER BY s.name ASC
-        `
+		op = "="
 	}
+	query := `
+		SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id,
+		       s.indica, s.sativa, s.autoflower, s.seed_count, s.description,
+		       coalesce(s.short_desc, ''), coalesce(s.cycle_time, 0), coalesce(s.url, ''),
+		       coalesce(string_agg(sl.parent_name, ', ' ORDER BY sl.parent_name), '')
+		FROM strain s
+		JOIN breeder b ON s.breeder_id = b.id
+		LEFT JOIN strain_lineage sl ON sl.strain_id = s.id
+		WHERE s.seed_count ` + op + ` 0
+		GROUP BY s.id, s.name, b.name, b.id, s.indica, s.sativa, s.autoflower,
+		         s.seed_count, s.description, s.short_desc, s.cycle_time, s.url
+		ORDER BY s.name ASC
+	`
 
 	db, err := model.GetDB()
 	if err != nil {
@@ -546,7 +547,10 @@ func getStrainsBySeedCount(inStock bool) ([]types.Strain, error) {
 	var strains []types.Strain
 	for rows.Next() {
 		var strain types.Strain
-		if err := rows.Scan(&strain.ID, &strain.Name, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount, &strain.Description, &strain.ShortDescription, &strain.CycleTime, &strain.Url); err != nil {
+		if err := rows.Scan(&strain.ID, &strain.Name, &strain.Breeder, &strain.BreederID,
+			&strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount,
+			&strain.Description, &strain.ShortDescription, &strain.CycleTime, &strain.Url,
+			&strain.Lineage); err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan strain")
 			return nil, err
 		}

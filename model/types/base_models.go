@@ -198,6 +198,7 @@ type Strain struct {
 	CycleTime        int    `json:"cycle_time"`
 	Url              string `json:"url"`
 	ShortDescription string `json:"short_desc"`
+	Lineage          string `json:"lineage,omitempty"`
 }
 
 type StrainLineage struct {
