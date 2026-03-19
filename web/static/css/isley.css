@@ -938,3 +938,144 @@ body.dark-mode .strain-sativa-text {
     margin-left: 0;
     color: var(--color-muted);
 }
+
+/* ===== Lineage Tree (View) ===== */
+.lineage-tree {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+/* Nested subtrees */
+.lineage-tree .lineage-tree {
+    padding-left: 0;
+    margin-left: 1rem;
+    margin-top: 0;
+}
+.lineage-node {
+    position: relative;
+    padding: 0.15rem 0 0.15rem 0;
+}
+/* Connector lines for nested nodes */
+.lineage-tree .lineage-tree > .lineage-node {
+    padding-left: 1.25rem;
+}
+.lineage-tree .lineage-tree > .lineage-node::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 50%;
+    width: 1rem;
+    border-left: 2px solid var(--color-border);
+    border-bottom: 2px solid var(--color-border);
+    border-bottom-left-radius: 4px;
+}
+/* Vertical line connecting siblings */
+.lineage-tree .lineage-tree > .lineage-node:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    border-left: 2px solid var(--color-border);
+}
+/* Extend vertical line to connect to next sibling */
+.lineage-tree .lineage-tree > .lineage-node:last-child::after {
+    display: none;
+}
+.lineage-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.92rem;
+    line-height: 1.5;
+}
+.lineage-toggle {
+    background: none;
+    border: none;
+    color: var(--color-muted);
+    padding: 0 0.25rem;
+    cursor: pointer;
+    font-size: 0.7rem;
+    line-height: 1;
+}
+.lineage-toggle:hover {
+    color: var(--color-accent);
+}
+.lineage-subtree.collapsed {
+    display: none;
+}
+
+/* Wikipedia-style links */
+.lineage-link-exists {
+    color: var(--color-accent);
+    text-decoration: none;
+}
+.lineage-link-exists:hover {
+    text-decoration: underline;
+}
+.lineage-link-missing {
+    color: #c0392b;
+    text-decoration: none;
+}
+body.dark-mode .lineage-link-missing {
+    color: #e74c3c;
+}
+.lineage-link-missing:hover {
+    text-decoration: underline;
+}
+
+/* ===== Lineage Editor ===== */
+.lineage-entry-row {
+    position: relative;
+}
+.lineage-match-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 0.7rem;
+    flex-shrink: 0;
+}
+.lineage-matched {
+    color: var(--color-accent);
+    background: rgba(59, 130, 246, 0.15);
+}
+.lineage-unmatched {
+    color: #c0392b;
+    background: rgba(192, 57, 43, 0.15);
+}
+body.dark-mode .lineage-unmatched {
+    color: #e74c3c;
+    background: rgba(231, 76, 60, 0.15);
+}
+
+/* Autocomplete dropdown */
+.lineage-autocomplete-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1050;
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: 0 0 6px 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    max-height: 200px;
+    overflow-y: auto;
+}
+.lineage-autocomplete-item {
+    padding: 0.4rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.88rem;
+    border-bottom: 1px solid var(--color-border);
+}
+.lineage-autocomplete-item:last-child {
+    border-bottom: none;
+}
+.lineage-autocomplete-item:hover {
+    background: var(--color-bg);
+}

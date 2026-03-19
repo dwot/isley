@@ -200,6 +200,14 @@ type Strain struct {
 	ShortDescription string `json:"short_desc"`
 }
 
+type StrainLineage struct {
+	ID             int              `json:"id"`
+	StrainID       int              `json:"strain_id"`
+	ParentName     string           `json:"parent_name"`
+	ParentStrainID *int             `json:"parent_strain_id"` // nil if parent isn't a full strain entry
+	Children       []StrainLineage  `json:"children,omitempty"`
+}
+
 type Zone struct {
 	ID   uint   `json:"id"`
 	Name string `json:"name"`

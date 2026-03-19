@@ -1,4 +1,4 @@
-{{ define "views/strain-edit.html"}}
+{{ define "views/strain-add.html"}}
 
 {{ template "common/header.html" .}}
 {{ template "common/header2.html" .}}
@@ -7,28 +7,20 @@
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="/strains">{{ .lcl.title_strains }}</a></li>
-            <li class="breadcrumb-item"><a href="/strain/{{ .strain.ID }}">{{ .strain.Name }}</a></li>
-            <li class="breadcrumb-item active" aria-current="page">{{ .lcl.edit_strain }}</li>
+            <li class="breadcrumb-item active" aria-current="page">{{ .lcl.add_strain }}</li>
         </ol>
     </nav>
 
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 text-primary mb-0">
-            <i class="fa-solid fa-pen-to-square me-2"></i>{{ .lcl.edit_strain }}: {{ .strain.Name }}
+            <i class="fa-solid fa-plus me-2"></i>{{ .lcl.add_strain }}
         </h1>
-        <div>
-            <a href="/strain/{{ .strain.ID }}" class="btn btn-secondary me-2">
-                <i class="fa-solid fa-xmark me-1"></i> Cancel
-            </a>
-            <button type="button" class="btn btn-danger" id="deleteStrainButton">
-                <i class="fa-solid fa-trash me-1"></i> {{ .lcl.delete_strain }}
-            </button>
-        </div>
+        <a href="/strains" class="btn btn-secondary">
+            <i class="fa-solid fa-xmark me-1"></i> Cancel
+        </a>
     </div>
 
-    <form id="editStrainForm">
-        <input type="hidden" id="editStrainId" value="{{ .strain.ID }}">
-
+    <form id="addStrainForm">
         <div class="row g-4">
             <!-- Left column: Form fields + markdown editor -->
             <div class="col-lg-7">
@@ -43,15 +35,16 @@
                             <!-- Strain Name -->
                             <div class="col-md-6">
                                 <label for="editStrainName" class="form-label required">{{ .lcl.strain_name }}</label>
-                                <input type="text" class="form-control" id="editStrainName" value="{{ .strain.Name }}" required>
+                                <input type="text" class="form-control" id="editStrainName" value="{{ .prefillName }}" required>
                             </div>
 
                             <!-- Breeder -->
                             <div class="col-md-6">
                                 <label for="editBreederSelect" class="form-label required">{{ .lcl.breeder }}</label>
                                 <select class="form-select" id="editBreederSelect" required>
+                                    <option value="" disabled selected>Select breeder...</option>
                                     {{ range .breeders }}
-                                    <option value="{{ .ID }}" {{ if eq .ID $.strain.BreederID }}selected{{ end }}>{{ .Name }}</option>
+                                    <option value="{{ .ID }}">{{ .Name }}</option>
                                     {{ end }}
                                     <option value="new">{{ .lcl.add_new_breeder }}</option>
                                 </select>
@@ -66,13 +59,13 @@
                             <!-- URL -->
                             <div class="col-12">
                                 <label for="editUrl" class="form-label">{{ .lcl.url }}</label>
-                                <input type="text" class="form-control" id="editUrl" value="{{ .strain.Url }}" placeholder="{{ .lcl.strain_url_placeholder }}">
+                                <input type="text" class="form-control" id="editUrl" placeholder="{{ .lcl.strain_url_placeholder }}">
                             </div>
 
                             <!-- Short Description -->
                             <div class="col-12">
                                 <label for="editStrainShortDescription" class="form-label required">{{ .lcl.short_description_txt }}</label>
-                                <input type="text" class="form-control" id="editStrainShortDescription" value="{{ .strain.ShortDescription }}" placeholder="{{ .lcl.short_description_placeholder }}" required>
+                                <input type="text" class="form-control" id="editStrainShortDescription" placeholder="{{ .lcl.short_description_placeholder }}" required>
                             </div>
                         </div>
                     </div>
@@ -89,14 +82,14 @@
                             <!-- Indica/Sativa Slider -->
                             <div class="col-12">
                                 <label for="editIndicaSativaSlider" class="form-label">{{ .lcl.i_s_ratio }}</label>
-                                <input type="range" class="form-range" id="editIndicaSativaSlider" min="0" max="100" value="{{ .strain.Indica }}">
+                                <input type="range" class="form-range" id="editIndicaSativaSlider" min="0" max="100" value="50">
                                 <div class="d-flex justify-content-between">
-                                    <small class="fw-semibold strain-indica-text" id="editIndicaLabel">Indica: {{ .strain.Indica }}%</small>
-                                    <small class="fw-semibold strain-sativa-text" id="editSativaLabel">Sativa: {{ .strain.Sativa }}%</small>
+                                    <small class="fw-semibold strain-indica-text" id="editIndicaLabel">Indica: 50%</small>
+                                    <small class="fw-semibold strain-sativa-text" id="editSativaLabel">Sativa: 50%</small>
                                 </div>
                                 <!-- Live preview bar -->
                                 <div class="strain-ratio-bar mt-2" id="editRatioPreview">
-                                    <div class="strain-ratio-fill" id="editRatioFill" style="width: {{ .strain.Indica }}%"></div>
+                                    <div class="strain-ratio-fill" id="editRatioFill" style="width: 50%"></div>
                                 </div>
                             </div>
 
@@ -104,8 +97,8 @@
                             <div class="col-md-6">
                                 <label for="editAutoflower" class="form-label required">{{ .lcl.autoflower }}</label>
                                 <select class="form-select" id="editAutoflower" required>
-                                    <option value="true" {{ if .strain.Autoflower }}selected{{ end }}>{{ .lcl.yes }}</option>
-                                    <option value="false" {{ if not .strain.Autoflower }}selected{{ end }}>{{ .lcl.no }}</option>
+                                    <option value="true">{{ .lcl.yes }}</option>
+                                    <option value="false" selected>{{ .lcl.no }}</option>
                                 </select>
                             </div>
 
@@ -113,7 +106,7 @@
                             <div class="col-md-6">
                                 <label for="editCycleTime" class="form-label required">{{ .lcl.cycle_time }}</label>
                                 <div class="input-group">
-                                    <input type="number" class="form-control" id="editCycleTime" min="0" value="{{ .strain.CycleTime }}" required>
+                                    <input type="number" class="form-control" id="editCycleTime" min="0" value="56" required>
                                     <span class="input-group-text">{{ .lcl.title_days }}</span>
                                 </div>
                                 <small class="text-muted">{{ .lcl.cycle_time_desc }}</small>
@@ -122,25 +115,9 @@
                             <!-- Seed Count -->
                             <div class="col-md-6">
                                 <label for="editSeedCount" class="form-label">{{ .lcl.seed_count }}</label>
-                                <input type="number" class="form-control" id="editSeedCount" min="0" value="{{ .strain.SeedCount }}">
+                                <input type="number" class="form-control" id="editSeedCount" min="0" value="0">
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Lineage card -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <h5 class="card-title text-primary mb-3">
-                            <i class="fa-solid fa-sitemap me-1"></i> Lineage (Parent Strains)
-                        </h5>
-                        <div id="lineageEditor">
-                            <div id="lineageEntries"></div>
-                            <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="addParentBtn">
-                                <i class="fa-solid fa-plus me-1"></i> Add Parent
-                            </button>
-                        </div>
-                        <small class="text-muted d-block mt-2">Add parent strains to build a lineage tree. Type a name to search existing strains or enter a new name.</small>
                     </div>
                 </div>
 
@@ -160,7 +137,7 @@
                                 <button type="button" class="btn btn-outline-secondary" title="List" onclick="mdPrefix('- ')"><i class="fa-solid fa-list"></i></button>
                             </div>
                         </div>
-                        <textarea class="form-control font-monospace" id="editStrainDescription" rows="16" style="resize: vertical;">{{ .strain.Description }}</textarea>
+                        <textarea class="form-control font-monospace" id="editStrainDescription" rows="16" style="resize: vertical;"></textarea>
                         <small class="text-muted">{{ .lcl.description_txt_desc }}</small>
                     </div>
                 </div>
@@ -169,7 +146,7 @@
                 <div class="d-flex justify-content-end mb-4">
                     <button type="submit" class="btn btn-primary btn-lg">
                         <span class="spinner-border spinner-border-sm btn-spinner" role="status" aria-hidden="true"></span>
-                        <i class="fa-solid fa-check me-1"></i> {{ .lcl.save_changes }}
+                        <i class="fa-solid fa-plus me-1"></i> {{ .lcl.add_strain }}
                     </button>
                 </div>
             </div>
@@ -182,7 +159,6 @@
                             <i class="fa-solid fa-eye me-1"></i> Preview
                         </h5>
                         <div class="markdown-body" id="markdownPreview">
-                            {{ .strain.Description | markdownify }}
                         </div>
                     </div>
                 </div>
@@ -191,11 +167,7 @@
     </form>
 </div>
 
-<script>
-    var currentStrainID = {{ .strain.ID }};
-</script>
-<script src="/static/js/strain-edit.js"></script>
-<script src="/static/js/strain-lineage-edit.js"></script>
+<script src="/static/js/strain-add.js"></script>
 {{ template "common/footer.html" .}}
 
 {{ end }}

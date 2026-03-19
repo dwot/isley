@@ -122,11 +122,27 @@
                     </ul>
                 </div>
             </div>
+
+            <!-- Lineage box -->
+            <div class="card strain-infobox mt-3" id="lineageCard">
+                <div class="card-body">
+                    <h5 class="card-title text-primary text-center mb-3">
+                        <i class="fa-solid fa-sitemap me-1"></i> Lineage
+                    </h5>
+                    <div id="lineageTree"></div>
+                    <div id="lineageEmpty" class="text-center text-muted py-2" style="display:none;">
+                        <small>No lineage data recorded.</small>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.min.js"></script>
+<script>
+    var currentStrainID = {{ .strain.ID }};
+</script>
+<script src="/static/js/strain-lineage.js"></script>
 {{ template "common/footer.html" .}}
 
 {{ end }}

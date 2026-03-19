@@ -122,6 +122,31 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 		})
 	})
 
+	r.GET("/strain/new", func(c *gin.Context) {
+		// Redirect to login if not authenticated
+		if sessions.Default(c).Get("logged_in") == nil {
+			c.Redirect(http.StatusFound, "/login")
+			return
+		}
+		lang := utils.GetLanguage(c)
+		translations := utils.TranslationService.GetTranslations(lang)
+		currentPath, _ := c.Get("currentPath")
+		c.HTML(http.StatusOK, "views/strain-add.html", gin.H{
+			"title":           "Add Strain",
+			"currentPath":     currentPath,
+			"version":         version,
+			"prefillName":     c.Query("name"),
+			"breeders":        config.Breeders,
+			"plants":          handlers.GetLivingPlants(),
+			"activities":      config.Activities,
+			"loggedIn":        sessions.Default(c).Get("logged_in"),
+			"lcl":             translations,
+			"languages":       utils.AvailableLanguages,
+			"currentLanguage": lang,
+			"csrfToken":       c.GetString("csrf_token"),
+		})
+	})
+
 	r.GET("/strain/:id", func(c *gin.Context) {
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
@@ -157,6 +182,10 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	r.GET("/strains/out-of-stock", handlers.OutOfStockStrainsHandler)
 	r.POST("/decorateImage", utils.DecorateImageHandler)
 	r.GET("/streams", handlers.GetStreamsByZoneHandler)
+
+	// Lineage (public read)
+	r.GET("/strains/:id/lineage", handlers.GetLineageHandler)
+	r.GET("/strains/lookup", handlers.LookupStrainByName)
 }
 
 func AddProtectedApiRoutes(r *gin.RouterGroup) {
@@ -189,6 +218,12 @@ func AddProtectedApiRoutes(r *gin.RouterGroup) {
 
 	r.PUT("/strains/:id", handlers.UpdateStrainHandler)
 	r.DELETE("/strains/:id", handlers.DeleteStrainHandler)
+
+	// Lineage (protected write)
+	r.POST("/strains/:id/lineage", handlers.AddLineageHandler)
+	r.PUT("/strains/:id/lineage", handlers.SetLineageHandler)
+	r.PUT("/lineage/:lineageID", handlers.UpdateLineageHandler)
+	r.DELETE("/lineage/:lineageID", handlers.DeleteLineageHandler)
 
 	r.POST("/aci/login", handlers.ACILoginHandler)
 

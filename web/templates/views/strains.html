@@ -24,9 +24,9 @@
                     <input type="text" class="form-control" id="searchStrains" placeholder="{{ .lcl.search_strains }}...">
                 </div>
                 {{ if .loggedIn }}
-                <button class="btn btn-success ms-3" data-bs-toggle="modal" data-bs-target="#addStrainModal">
+                <a href="/strain/new" class="btn btn-success ms-3">
                     <i class="fa-solid fa-plus"></i>
-                </button>
+                </a>
                 {{ end }}
             </div>
         </div>
@@ -39,8 +39,6 @@
 
 </div>
 
-{{ template "modals/add-strain-modal.html" .}}
-{{ template "modals/edit-strain-modal.html" .}}
 
 
 
@@ -64,7 +62,6 @@
         let currentSort = { key: null, isAscending: true }; // Track current sort state
 
         function renderStrainsTable(data) {
-            const editStrainModal = new bootstrap.Modal(document.getElementById("editStrainModal"));
             let filteredData = filterStrains(data, searchInput.value);
             const theme = localStorage.getItem("isley-theme") || "dark";
             const themeTableClass = theme === "dark" ? "table-dark" : "table-light";
@@ -108,9 +105,7 @@
                         <td>
                         ${strain.url ? `<a href="${strain.url}" target="_blank"><i class="fa-solid fa-link"></i></a>` : "&nbsp;"}
                         </td>
-                        <td class="clickable-row"
-                        data-id="${strain.id}"
-                        data-strain="${encodeURIComponent(JSON.stringify(strain))}"><i class="fa-solid fa-pen-to-square"></i></td>
+                        <td><a href="strain/${strain.id}/edit" title="Edit strain"><i class="fa-solid fa-pen-to-square"></i></a></td>
                     </tr>
                 `).join("")}
             </tbody>
@@ -145,43 +140,6 @@
                 });
             });
 
-            // Populate modal fields when editing
-            document.querySelectorAll(".clickable-row").forEach(row => {
-                row.addEventListener("click", () => {
-                    const strainData = JSON.parse(decodeURIComponent(row.getAttribute("data-strain")));
-
-                    // Populate form fields
-                    document.getElementById("editStrainId").value = strainData.id;
-                    document.getElementById("editStrainName").value = strainData.name;
-                    editBreederSelect.value = strainData.breeder_id || "new";
-
-                    if (strainData.breeder_id) {
-                        editNewBreederInput.classList.add("d-none");
-                        document.getElementById("editNewBreederName").value = "";
-                    } else {
-                        editNewBreederInput.classList.remove("d-none");
-                        document.getElementById("editNewBreederName").value = strainData.new_breeder || "";
-                    }
-
-                    document.getElementById("editIndicaSativaSlider").value = strainData.indica;
-                    editIndicaLabel.textContent = `Indica: ${strainData.indica}%`;
-                    editSativaLabel.textContent = `Sativa: ${100 - strainData.indica}%`;
-                    if (strainData.autoflower === "true" || strainData.autoflower === true || strainData.autoflower === 1) {
-                        document.getElementById("editAutoflower").value = "true";
-                    } else {
-                        document.getElementById("editAutoflower").value = "false";
-                    }
-                    document.getElementById("editAutoflower").value = strainData.autoflower;
-                    document.getElementById("editSeedCount").value = strainData.seed_count;
-                    document.getElementById("editStrainDescription").value = strainData.description;
-                    document.getElementById("editCycleTime").value = strainData.cycle_time;
-                    document.getElementById("editUrl").value = strainData.url;
-                    document.getElementById("editStrainShortDescription").value = strainData.short_desc;
-
-                    // Show the modal
-                    editStrainModal.show();
-                });
-            });
         }
 
         // Function to filter strains based on search
