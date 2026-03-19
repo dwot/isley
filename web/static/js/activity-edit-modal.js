@@ -3,13 +3,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const activityForm = document.getElementById("editActivityForm");
     const deleteActivityButton = document.getElementById("deleteActivity");
 
+    // Format a Date as a local datetime-local string (YYYY-MM-DDTHH:MM:SS)
+    // without converting to UTC (unlike toISOString which shifts timezone).
+    function toLocalDateTimeString(d) {
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
     document.querySelectorAll(".activity-row").forEach(row => {
         row.addEventListener("click", () => {
             const activityData = JSON.parse(row.getAttribute("data-activity"));
 
             document.getElementById("activityId").value = activityData.id;
-            const formattedDate = activityData.date.split("T")[0];
-            document.getElementById("editActivityDate").value = formattedDate;
+            const date = new Date(activityData.date);
+            document.getElementById("editActivityDate").value = toLocalDateTimeString(date);
             document.getElementById("editActivityType").value = activityData.activity_id;
             document.getElementById("editActivityNote").value = activityData.note;
 

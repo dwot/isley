@@ -12,7 +12,7 @@
                     <input type="hidden" id="activityId">
                     <div class="mb-3">
                         <label for="editActivityDate" class="form-label">{{ .lcl.title_date }}</label>
-                        <input type="datetime-local" class="form-control" id="editActivityDate" required value="{{ now | formatDateTimeLocal }}">
+                        <input type="datetime-local" step="1" class="form-control" id="editActivityDate" required value="{{ now | formatDateTimeLocal }}">
                     </div>
                     <div class="mb-3">
                         <label for="editActivityType" class="form-label">{{ .lcl.title_type }}</label>

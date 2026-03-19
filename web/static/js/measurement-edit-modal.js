@@ -3,13 +3,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const measurementForm = document.getElementById("editMeasurementForm");
     const deleteMeasurementButton = document.getElementById("deleteMeasurement");
 
+    // Format a Date as a local datetime-local string (YYYY-MM-DDTHH:MM:SS)
+    // without converting to UTC (unlike toISOString which shifts timezone).
+    function toLocalDateTimeString(d) {
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
     document.querySelectorAll(".measurement-row").forEach(row => {
         row.addEventListener("click", () => {
             const measurementData = JSON.parse(row.getAttribute("data-measurement"));
 
             document.getElementById("measurementId").value = measurementData.id;
-            const formattedDate = measurementData.date.split("T")[0];
-            document.getElementById("editMeasurementDate").value = formattedDate;
+            const date = new Date(measurementData.date);
+            document.getElementById("editMeasurementDate").value = toLocalDateTimeString(date);
             document.getElementById("editMeasurementValue").value = measurementData.value;
 
             editMeasurementModal.show();
