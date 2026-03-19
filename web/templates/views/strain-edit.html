@@ -1,0 +1,181 @@
+{{ define "views/strain-edit.html"}}
+
+{{ template "common/header.html" .}}
+{{ template "common/header2.html" .}}
+<div class="container">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/strains">{{ .lcl.title_strains }}</a></li>
+            <li class="breadcrumb-item"><a href="/strain/{{ .strain.ID }}">{{ .strain.Name }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ .lcl.edit_strain }}</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 text-primary mb-0">
+            <i class="fa-solid fa-pen-to-square me-2"></i>{{ .lcl.edit_strain }}: {{ .strain.Name }}
+        </h1>
+        <div>
+            <a href="/strain/{{ .strain.ID }}" class="btn btn-secondary me-2">
+                <i class="fa-solid fa-xmark me-1"></i> Cancel
+            </a>
+            <button type="button" class="btn btn-danger" id="deleteStrainButton">
+                <i class="fa-solid fa-trash me-1"></i> {{ .lcl.delete_strain }}
+            </button>
+        </div>
+    </div>
+
+    <form id="editStrainForm">
+        <input type="hidden" id="editStrainId" value="{{ .strain.ID }}">
+
+        <div class="row g-4">
+            <!-- Left column: Form fields + markdown editor -->
+            <div class="col-lg-7">
+                <!-- Basic info card -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title text-primary mb-3">
+                            <i class="fa-solid fa-circle-info me-1"></i> Basic Info
+                        </h5>
+
+                        <div class="row g-3">
+                            <!-- Strain Name -->
+                            <div class="col-md-6">
+                                <label for="editStrainName" class="form-label required">{{ .lcl.strain_name }}</label>
+                                <input type="text" class="form-control" id="editStrainName" value="{{ .strain.Name }}" required>
+                            </div>
+
+                            <!-- Breeder -->
+                            <div class="col-md-6">
+                                <label for="editBreederSelect" class="form-label required">{{ .lcl.breeder }}</label>
+                                <select class="form-select" id="editBreederSelect" required>
+                                    {{ range .breeders }}
+                                    <option value="{{ .ID }}" {{ if eq .ID $.strain.BreederID }}selected{{ end }}>{{ .Name }}</option>
+                                    {{ end }}
+                                    <option value="new">{{ .lcl.add_new_breeder }}</option>
+                                </select>
+                            </div>
+
+                            <!-- New Breeder Input (hidden by default) -->
+                            <div class="col-12 d-none" id="editNewBreederInput">
+                                <label for="editNewBreederName" class="form-label">{{ .lcl.new_breeder_name }}</label>
+                                <input type="text" class="form-control" id="editNewBreederName" placeholder="{{ .lcl.new_breeder_placeholder }}">
+                            </div>
+
+                            <!-- URL -->
+                            <div class="col-12">
+                                <label for="editUrl" class="form-label">{{ .lcl.url }}</label>
+                                <input type="text" class="form-control" id="editUrl" value="{{ .strain.Url }}" placeholder="{{ .lcl.strain_url_placeholder }}">
+                            </div>
+
+                            <!-- Short Description -->
+                            <div class="col-12">
+                                <label for="editStrainShortDescription" class="form-label required">{{ .lcl.short_description_txt }}</label>
+                                <input type="text" class="form-control" id="editStrainShortDescription" value="{{ .strain.ShortDescription }}" placeholder="{{ .lcl.short_description_placeholder }}" required>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Genetics card -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title text-primary mb-3">
+                            <i class="fa-solid fa-dna me-1"></i> Genetics
+                        </h5>
+
+                        <div class="row g-3">
+                            <!-- Indica/Sativa Slider -->
+                            <div class="col-12">
+                                <label for="editIndicaSativaSlider" class="form-label">{{ .lcl.i_s_ratio }}</label>
+                                <input type="range" class="form-range" id="editIndicaSativaSlider" min="0" max="100" value="{{ .strain.Indica }}">
+                                <div class="d-flex justify-content-between">
+                                    <small class="fw-semibold strain-indica-text" id="editIndicaLabel">Indica: {{ .strain.Indica }}%</small>
+                                    <small class="fw-semibold strain-sativa-text" id="editSativaLabel">Sativa: {{ .strain.Sativa }}%</small>
+                                </div>
+                                <!-- Live preview bar -->
+                                <div class="strain-ratio-bar mt-2" id="editRatioPreview">
+                                    <div class="strain-ratio-fill" id="editRatioFill" style="width: {{ .strain.Indica }}%"></div>
+                                </div>
+                            </div>
+
+                            <!-- Autoflower -->
+                            <div class="col-md-6">
+                                <label for="editAutoflower" class="form-label required">{{ .lcl.autoflower }}</label>
+                                <select class="form-select" id="editAutoflower" required>
+                                    <option value="true" {{ if .strain.Autoflower }}selected{{ end }}>{{ .lcl.yes }}</option>
+                                    <option value="false" {{ if not .strain.Autoflower }}selected{{ end }}>{{ .lcl.no }}</option>
+                                </select>
+                            </div>
+
+                            <!-- Cycle Time -->
+                            <div class="col-md-6">
+                                <label for="editCycleTime" class="form-label required">{{ .lcl.cycle_time }}</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="editCycleTime" min="0" value="{{ .strain.CycleTime }}" required>
+                                    <span class="input-group-text">{{ .lcl.title_days }}</span>
+                                </div>
+                                <small class="text-muted">{{ .lcl.cycle_time_desc }}</small>
+                            </div>
+
+                            <!-- Seed Count -->
+                            <div class="col-md-6">
+                                <label for="editSeedCount" class="form-label">{{ .lcl.seed_count }}</label>
+                                <input type="number" class="form-control" id="editSeedCount" min="0" value="{{ .strain.SeedCount }}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Description / Markdown editor card -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="card-title text-primary mb-0">
+                                <i class="fa-solid fa-file-lines me-1"></i> {{ .lcl.description_txt }}
+                            </h5>
+                            <!-- Markdown toolbar -->
+                            <div class="btn-group btn-group-sm" role="toolbar" aria-label="Markdown formatting">
+                                <button type="button" class="btn btn-outline-secondary" title="Bold" onclick="mdWrap('**','**')"><i class="fa-solid fa-bold"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" title="Italic" onclick="mdWrap('*','*')"><i class="fa-solid fa-italic"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" title="Heading" onclick="mdPrefix('### ')"><i class="fa-solid fa-heading"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" title="Link" onclick="mdLink()"><i class="fa-solid fa-link"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" title="List" onclick="mdPrefix('- ')"><i class="fa-solid fa-list"></i></button>
+                            </div>
+                        </div>
+                        <textarea class="form-control font-monospace" id="editStrainDescription" rows="16" style="resize: vertical;">{{ .strain.Description }}</textarea>
+                        <small class="text-muted">{{ .lcl.description_txt_desc }}</small>
+                    </div>
+                </div>
+
+                <!-- Save button -->
+                <div class="d-flex justify-content-end mb-4">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <span class="spinner-border spinner-border-sm btn-spinner" role="status" aria-hidden="true"></span>
+                        <i class="fa-solid fa-check me-1"></i> {{ .lcl.save_changes }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right column: Live preview -->
+            <div class="col-lg-5">
+                <div class="card strain-preview-card sticky-top" style="top: 1rem;">
+                    <div class="card-body">
+                        <h5 class="card-title text-primary mb-3">
+                            <i class="fa-solid fa-eye me-1"></i> Preview
+                        </h5>
+                        <div class="markdown-body" id="markdownPreview">
+                            {{ .strain.Description | markdownify }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script src="/static/js/strain-edit.js"></script>
+{{ template "common/footer.html" .}}
+
+{{ end }}

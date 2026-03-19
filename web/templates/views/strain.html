@@ -1,7 +1,5 @@
 {{ define "views/strain.html"}}
-<!--index.html-->
 
-<!--Embed the header.html template at this location-->
 {{ template "common/header.html" .}}
 {{ template "common/header2.html" .}}
 <div class="container">
@@ -14,47 +12,121 @@
     </nav>
 
     <!-- Page Title -->
-    <div class="text-center mb-5">
-        <h1 class="display-4 text-primary">{{ .strain.Name }}</h1>
-        <p class="text-secondary fs-4">by {{ .strain.Breeder }}</p>
-        <p class="text-muted">{{ .strain.ShortDescription }}</p>
-        {{ if .strain.Autoflower }}
-        <i class="fas fa-bolt"></i>
-        {{ else }}
-        <i class="fas fa-photo-film"></i>
-        {{ end }}
-        {{ if .strain.Url }}
-        <a href="{{ .strain.Url }}" class="btn btn-secondary" target="_blank">
-            <i class="fas fa-external-link-alt"></i>
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1 class="display-5 text-primary mb-1">{{ .strain.Name }}</h1>
+            <p class="text-muted fs-5 mb-0">by
+                {{ if .strain.Url }}
+                    <a href="{{ .strain.Url }}" target="_blank" class="text-decoration-none">{{ .strain.Breeder }} <i class="fa-solid fa-arrow-up-right-from-square fa-xs"></i></a>
+                {{ else }}
+                    {{ .strain.Breeder }}
+                {{ end }}
+            </p>
+        </div>
+        {{ if .loggedIn }}
+        <a href="/strain/{{ .strain.ID }}/edit" class="btn btn-primary">
+            <i class="fa-solid fa-pen-to-square me-1"></i> {{ .lcl.edit_strain }}
         </a>
         {{ end }}
-        {{ if .loggedIn }}
-        <button class="btn btn-primary"
-                data-bs-toggle="modal"
-                data-bs-target="#editStrainModal"
-                data-id="{{ .strain.ID }}"
-                data-strain='{{ .strain | jsonify }}'>
-            {{ .lcl.edit_strain }}
-        </button>
-        {{ end }}
-
     </div>
 
-    <!-- Strain Details -->
-    <div class="row mb-5">
-        <div class="col-12">
-            <!-- Render Description from Markdown -->
+    <!-- Wikipedia-style layout: content + infobox -->
+    <div class="row g-4">
+        <!-- Main content: Markdown description -->
+        <div class="col-lg-8 order-2 order-lg-1">
+            {{ if .strain.ShortDescription }}
+            <p class="lead text-muted mb-4">{{ .strain.ShortDescription }}</p>
+            {{ end }}
             <div class="markdown-body">
                 {{ .strain.Description | markdownify }}
+            </div>
+        </div>
+
+        <!-- Infobox sidebar -->
+        <div class="col-lg-4 order-1 order-lg-2">
+            <div class="card strain-infobox">
+                <div class="card-body">
+                    <h5 class="card-title text-primary text-center mb-3">
+                        <i class="fa-solid fa-dna me-1"></i> {{ .lcl.title_strain }} Info
+                    </h5>
+
+                    <!-- Type badge -->
+                    <div class="text-center mb-3">
+                        {{ if .strain.Autoflower }}
+                        <span class="badge strain-badge-auto">
+                            <i class="fa-solid fa-bolt me-1"></i> {{ .lcl.autoflower }}
+                        </span>
+                        {{ else }}
+                        <span class="badge strain-badge-photo">
+                            <i class="fa-solid fa-sun me-1"></i> Photoperiod
+                        </span>
+                        {{ end }}
+                    </div>
+
+                    <!-- Indica / Sativa ratio bar -->
+                    <div class="strain-ratio-section mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <small class="fw-semibold strain-indica-text">Indica {{ .strain.Indica }}%</small>
+                            <small class="fw-semibold strain-sativa-text">Sativa {{ .strain.Sativa }}%</small>
+                        </div>
+                        <div class="strain-ratio-bar" role="img" aria-label="Indica {{ .strain.Indica }}% / Sativa {{ .strain.Sativa }}%">
+                            <div class="strain-ratio-fill" style="width: {{ .strain.Indica }}%"></div>
+                        </div>
+                        <div class="text-center mt-1">
+                            <small class="text-muted">
+                                {{ if gt .strain.Indica .strain.Sativa }}
+                                    Indica Dominant
+                                {{ else if gt .strain.Sativa .strain.Indica }}
+                                    Sativa Dominant
+                                {{ else }}
+                                    Hybrid 50/50
+                                {{ end }}
+                            </small>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Metadata list -->
+                    <ul class="list-unstyled strain-info-list mb-0">
+                        <li>
+                            <span class="strain-info-label"><i class="fa-solid fa-building me-2"></i>{{ .lcl.breeder }}</span>
+                            <span class="strain-info-value">
+                                {{ if .strain.Url }}
+                                    <a href="{{ .strain.Url }}" target="_blank">{{ .strain.Breeder }}</a>
+                                {{ else }}
+                                    {{ .strain.Breeder }}
+                                {{ end }}
+                            </span>
+                        </li>
+                        <li>
+                            <span class="strain-info-label"><i class="fa-solid fa-clock me-2"></i>{{ .lcl.cycle_time }}</span>
+                            <span class="strain-info-value">
+                                {{ if gt .strain.CycleTime 0 }}
+                                    {{ .strain.CycleTime }} {{ .lcl.title_days }}
+                                {{ else }}
+                                    {{ .lcl.na }}
+                                {{ end }}
+                            </span>
+                        </li>
+                        <li>
+                            <span class="strain-info-label"><i class="fa-solid fa-seedling me-2"></i>{{ .lcl.seed_count }}</span>
+                            <span class="strain-info-value">
+                                {{ if gt .strain.SeedCount 0 }}
+                                    <span class="badge bg-success">{{ .strain.SeedCount }} in stock</span>
+                                {{ else }}
+                                    <span class="badge bg-secondary">Out of stock</span>
+                                {{ end }}
+                            </span>
+                        </li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-{{ template "modals/edit-strain-modal.html" .}}
-
 <script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.min.js"></script>
-<!--Embed the footer.html template at this location-->
 {{ template "common/footer.html" .}}
 
 {{ end }}

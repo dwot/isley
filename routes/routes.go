@@ -223,6 +223,26 @@ func AddExternalApiRoutes(r *gin.RouterGroup) {
 }
 
 func AddProtectedRoutes(r *gin.RouterGroup, version string) {
+	r.GET("/strain/:id/edit", func(c *gin.Context) {
+		lang := utils.GetLanguage(c)
+		translations := utils.TranslationService.GetTranslations(lang)
+		currentPath, _ := c.Get("currentPath")
+		c.HTML(http.StatusOK, "views/strain-edit.html", gin.H{
+			"title":           "Edit Strain",
+			"currentPath":     currentPath,
+			"version":         version,
+			"strain":          handlers.GetStrain(c.Param("id")),
+			"breeders":        config.Breeders,
+			"plants":          handlers.GetLivingPlants(),
+			"activities":      config.Activities,
+			"loggedIn":        sessions.Default(c).Get("logged_in"),
+			"lcl":             translations,
+			"languages":       utils.AvailableLanguages,
+			"currentLanguage": lang,
+			"csrfToken":       c.GetString("csrf_token"),
+		})
+	})
+
 	r.GET("/settings", func(c *gin.Context) {
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)

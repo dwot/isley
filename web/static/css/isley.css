@@ -795,3 +795,146 @@ header .nav-link.active::after {
     margin: 0;
     font-size: 0.95rem;
 }
+
+/* ===== Strain Infobox ===== */
+.strain-infobox {
+    border-left: 3px solid var(--color-accent);
+}
+.strain-infobox .card-title {
+    font-size: 1rem;
+    letter-spacing: 0.03em;
+}
+
+/* Strain type badges */
+.strain-badge-auto {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #fff;
+    font-size: 0.85rem;
+    padding: 0.4em 1em;
+    border-radius: 999px;
+    font-weight: 600;
+}
+.strain-badge-photo {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #fff;
+    font-size: 0.85rem;
+    padding: 0.4em 1em;
+    border-radius: 999px;
+    font-weight: 600;
+}
+
+/* Indica/Sativa gradient ratio bar */
+.strain-ratio-bar {
+    height: 10px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #22c55e 0%, #22c55e 100%);
+    overflow: hidden;
+    position: relative;
+}
+.strain-ratio-fill {
+    height: 100%;
+    border-radius: 999px 0 0 999px;
+    background: linear-gradient(90deg, #7c3aed, #a855f7);
+    transition: width 0.3s ease;
+}
+.strain-indica-text {
+    color: #a855f7;
+}
+.strain-sativa-text {
+    color: #22c55e;
+}
+body.dark-mode .strain-indica-text {
+    color: #c4b5fd;
+}
+body.dark-mode .strain-sativa-text {
+    color: #6ee7b7;
+}
+
+/* Strain info list */
+.strain-info-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.55rem 0;
+    border-bottom: 1px solid var(--color-card-border);
+}
+.strain-info-list li:last-child {
+    border-bottom: none;
+}
+.strain-info-label {
+    color: var(--color-muted);
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+.strain-info-value {
+    font-weight: 500;
+    text-align: right;
+}
+
+/* Strain ratio section */
+.strain-ratio-section {
+    padding: 0.5rem 0;
+}
+
+/* ===== Strain Edit Page ===== */
+.strain-preview-card {
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+}
+.strain-preview-card .markdown-body {
+    font-size: 0.92rem;
+}
+
+/* Markdown body base styling */
+.markdown-body {
+    line-height: 1.7;
+    word-wrap: break-word;
+}
+.markdown-body h1, .markdown-body h2, .markdown-body h3,
+.markdown-body h4, .markdown-body h5, .markdown-body h6 {
+    margin-top: 1.25em;
+    margin-bottom: 0.5em;
+    font-weight: 600;
+    color: var(--color-fg);
+}
+.markdown-body h1 { font-size: 1.6rem; border-bottom: 1px solid var(--color-border); padding-bottom: 0.3em; }
+.markdown-body h2 { font-size: 1.35rem; border-bottom: 1px solid var(--color-border); padding-bottom: 0.3em; }
+.markdown-body h3 { font-size: 1.15rem; }
+.markdown-body p { margin-bottom: 0.75em; }
+.markdown-body ul, .markdown-body ol { padding-left: 1.5em; margin-bottom: 0.75em; }
+.markdown-body li { margin-bottom: 0.25em; }
+.markdown-body code {
+    background: var(--color-bg);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-size: 0.88em;
+}
+.markdown-body pre {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 1em;
+    overflow-x: auto;
+}
+.markdown-body pre code {
+    background: transparent;
+    padding: 0;
+}
+.markdown-body a {
+    color: var(--color-accent);
+}
+.markdown-body hr {
+    border: none;
+    border-top: 1px solid var(--color-border);
+    margin: 1.5em 0;
+}
+.markdown-body img {
+    max-width: 100%;
+    border-radius: 6px;
+}
+.markdown-body blockquote {
+    border-left: 3px solid var(--color-accent);
+    padding-left: 1em;
+    margin-left: 0;
+    color: var(--color-muted);
+}
