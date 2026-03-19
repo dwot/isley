@@ -3,13 +3,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const statusForm = document.getElementById("editStatusForm");
     const deleteStatusButton = document.getElementById("deleteStatus");
 
+    // Format a Date as a local datetime-local string (YYYY-MM-DDTHH:MM:SS)
+    // without converting to UTC (unlike toISOString which shifts timezone).
+    function toLocalDateTimeString(d) {
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
     document.querySelectorAll(".status-row").forEach(row => {
         row.addEventListener("click", () => {
             const statusData = JSON.parse(row.getAttribute("data-status"));
 
             document.getElementById("statusId").value = statusData.id;
             const date = new Date(statusData.date);
-            document.getElementById("editStatusDate").value = date.toISOString().slice(0, 19);
+            document.getElementById("editStatusDate").value = toLocalDateTimeString(date);
 
             // Disable delete if this is the only status for the plant
             const totalStatuses = document.querySelectorAll('.status-row').length;

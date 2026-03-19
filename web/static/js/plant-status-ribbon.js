@@ -19,6 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const plantId = parseInt(container.dataset.plantId, 10);
+    const loggedIn = container.dataset.loggedIn === "true";
     const currentStatusId = parseInt(container.dataset.currentStatusId || '0', 10);
     const statusHistoryJson = container.dataset.statusHistory || "[]";
     let statusHistory;
@@ -39,71 +40,21 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // Build a map of server-rendered formatted date strings for each status id.
-    // This ensures the ribbon uses the same human-readable format the server/template uses
-    // (avoids client-side timezone/locale conversions like toLocaleString producing different times).
-    const serverFormattedDateByStatusId = {};
-    try {
-        document.querySelectorAll('.status-row').forEach(row => {
-            try {
-                const raw = row.getAttribute('data-status');
-                if (!raw) return;
-                const parsed = JSON.parse(raw);
-                const sid = parsed.status_id || parsed.StatusID || parsed.statusId || parsed.StatusId || parsed.id || parsed.ID || parsed.Status_id;
-                const td = row.querySelector('td');
-                const text = td ? td.textContent.trim() : null;
-                if (sid && text) serverFormattedDateByStatusId[sid] = text;
-            } catch (e) {
-                // ignore malformed rows
-            }
-        });
-    } catch (e) {
-        // if table not present, just ignore and fallback to existing behavior
+    // Format a Date as a local datetime-local string (YYYY-MM-DDTHH:MM:SS)
+    // without converting to UTC (unlike toISOString which shifts timezone).
+    function toLocalDateTimeString(d) {
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     }
 
-    // Helpers to split and populate date/time into separate DOM spans
-    function splitServerDateTime(text) {
-        if (!text) return { day: '', time: '' };
-        // Try to find a time-like token (e.g., 3:04, 03:04, 3:04 PM)
-        const timeRe = /(\d{1,2}:\d{2}(?::\d{2})?(?:\s?[APMapm]{2})?)/;
-        const m = text.match(timeRe);
-        if (m) {
-            const time = m[0];
-            const day = text.replace(time, '').replace(/[,\u202F\u00A0]+$/,'').trim();
-            return { day: day, time: time };
-        }
-        // fallback: split on last comma or — or at midpoint
-        const parts = text.split(/,|\u2014| - /);
-        if (parts.length > 1) {
-            const time = parts.pop().trim();
-            const day = parts.join(',').trim();
-            return { day, time };
-        }
-        return { day: text, time: '' };
-    }
-
-    function populateDateTimeSpans(dateEl, serverDateStr, dateObj) {
+    // Populate the day/time spans under each ribbon step
+    function populateDateTimeSpans(dateEl, dateObj) {
         const daySpan = dateEl.querySelector('.status-date-day');
         const timeSpan = dateEl.querySelector('.status-date-time');
         if (!daySpan || !timeSpan) return;
-        if (serverDateStr) {
-            const split = splitServerDateTime(serverDateStr);
-            // If parsing left the day empty (server string might only include a time),
-            // show the full server string on the day line so something is visible.
-            if ((!split.day || split.day.trim() === '') && split.time) {
-                daySpan.textContent = serverDateStr;
-                timeSpan.textContent = '';
-            } else {
-                daySpan.textContent = split.day || '';
-                timeSpan.textContent = split.time || '';
-            }
-            return;
-        }
         if (dateObj && !isNaN(dateObj.getTime())) {
-            // Use locale methods to keep user timezone and formatting
             try {
                 daySpan.textContent = dateObj.toLocaleDateString();
-                // Show hours:minutes with AM/PM if applicable
                 timeSpan.textContent = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             } catch (e) {
                 daySpan.textContent = dateObj.toLocaleString();
@@ -226,19 +177,13 @@ document.addEventListener("DOMContentLoaded", () => {
             const hist = reachedByStatusId[sid];
             if (hist) {
                 const d = new Date(hist.date || hist.Date);
-                // Prefer server-rendered formatted date when available to avoid timezone shifts
-                const serverDate = serverFormattedDateByStatusId[sid];
-                if (serverDate) {
-                    populateDateTimeSpans(dateEl, serverDate, null);
-                } else {
-                    if (!isNaN(d.getTime())) populateDateTimeSpans(dateEl, null, d);
-                }
+                if (!isNaN(d.getTime())) populateDateTimeSpans(dateEl, d);
             }
             el.classList.remove('text-muted');
         } else {
             // Future
             el.classList.add('status-future', 'text-muted');
-            populateDateTimeSpans(dateEl, null, null);
+            populateDateTimeSpans(dateEl, null);
         }
 
         // Icon heuristics
@@ -261,8 +206,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Click handler
         const btn = el.querySelector('.status-icon');
+        if (!loggedIn) {
+            btn.disabled = true;
+            btn.style.cursor = 'default';
+        }
         btn.addEventListener('click', async (evt) => {
             evt.preventDefault();
+            if (!loggedIn) return;
             // If this index is <= currentIndex -> open edit modal
             if (idx <= currentIndex && currentIndex >= 0) {
                 const hist = reachedByStatusId[sid];
@@ -291,15 +241,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 let placeholderDate;
                 if (leftDate && rightDate) {
                     const mid = new Date((leftDate.getTime() + rightDate.getTime()) / 2);
-                    placeholderDate = mid.toISOString().slice(0,19);
+                    placeholderDate = toLocalDateTimeString(mid);
                 } else if (leftDate) {
                     const d = new Date(leftDate.getTime() + 3600*1000);
-                    placeholderDate = d.toISOString().slice(0,19);
+                    placeholderDate = toLocalDateTimeString(d);
                 } else if (rightDate) {
                     const d = new Date(rightDate.getTime() - 3600*1000);
-                    placeholderDate = d.toISOString().slice(0,19);
+                    placeholderDate = toLocalDateTimeString(d);
                 } else {
-                    placeholderDate = new Date().toISOString().slice(0,19);
+                    placeholderDate = toLocalDateTimeString(new Date());
                 }
                 
                 try {
@@ -309,7 +259,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                      // Update UI: show date and mark as past
                      const d = new Date(placeholderDate);
-                     if (!isNaN(d.getTime())) populateDateTimeSpans(dateEl, null, d);
+                     if (!isNaN(d.getTime())) populateDateTimeSpans(dateEl, d);
                      el.classList.add('status-past');
                      el.classList.remove('status-future', 'text-muted');
 
@@ -377,7 +327,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!statusIdInput || !editDateInput) { uiMessages.showToast(uiMessages.t('edit_modal_inputs_not_found') || 'Edit modal inputs not found', 'danger'); return; }
             statusIdInput.value = statusObj.id || statusObj.ID;
             const d = new Date(statusObj.date || statusObj.Date);
-            editDateInput.value = d.toISOString().slice(0,19);
+            editDateInput.value = toLocalDateTimeString(d);
             new bootstrap.Modal(editModalEl).show();
         } catch (e) {
             console.error('Failed to open edit status modal', e);
