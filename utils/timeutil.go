@@ -14,15 +14,19 @@ func IsZeroDate(t time.Time) bool {
 	return t.IsZero() || t.Year() == 1970
 }
 
-// AsLocal reinterprets a time.Time that was incorrectly tagged as UTC
-// (because the SQL driver parsed a naive datetime string) as local time.
-// This preserves the wall-clock values (year, month, day, hour, minute, second)
-// while changing only the timezone from UTC to the server's local zone.
-// If t is already in a non-UTC zone, it is returned unchanged.
+// AsLocal reinterprets a time.Time whose wall-clock values represent local
+// time but whose timezone tag may be wrong (e.g. UTC or a zero-offset
+// FixedZone from the SQL driver) as the server's local timezone.
+//
+// All dates in the database are stored as naive local-time strings.  SQL
+// drivers (lib/pq, modernc/sqlite) parse these into time.Time tagged with
+// UTC or an equivalent zero-offset zone.  This function preserves the
+// wall-clock digits and re-tags with time.Local so that JSON serialisation
+// emits the correct offset and template formatting works as expected.
+//
+// Safe to call unconditionally: when the input is already in time.Local the
+// wall-clock values are unchanged, producing an identical time.Time.
 func AsLocal(t time.Time) time.Time {
-	if t.Location() == time.UTC {
-		return time.Date(t.Year(), t.Month(), t.Day(),
-			t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.Local)
-	}
-	return t
+	return time.Date(t.Year(), t.Month(), t.Day(),
+		t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.Local)
 }
