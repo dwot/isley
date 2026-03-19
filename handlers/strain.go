@@ -348,11 +348,11 @@ func GetStrainHandler(c *gin.Context) {
 	var strain types.Strain
 
 	err = db.QueryRow(`
-        SELECT s.id, s.name, b.name as breeder, s.indica, s.sativa, s.autoflower, s.description, coalesce(s.short_desc, ''), s.seed_count
+        SELECT s.id, s.name, b.name as breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.description, coalesce(s.short_desc, ''), s.seed_count, coalesce(s.cycle_time, 0), coalesce(s.url, '')
         FROM strain s LEFT OUTER JOIN breeder b on s.breeder_id = b.id
-        WHERE id = $1`, id).Scan(
-		&strain.ID, &strain.Name, &strain.Breeder, &strain.Indica, &strain.Sativa,
-		&strain.Autoflower, &strain.Description, &strain.ShortDescription, &strain.SeedCount)
+        WHERE s.id = $1`, id).Scan(
+		&strain.ID, &strain.Name, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa,
+		&strain.Autoflower, &strain.Description, &strain.ShortDescription, &strain.SeedCount, &strain.CycleTime, &strain.Url)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			apiNotFound(c, "api_strain_not_found")
