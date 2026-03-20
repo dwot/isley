@@ -185,6 +185,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 
 	// Lineage (public read)
 	r.GET("/strains/:id/lineage", handlers.GetLineageHandler)
+	r.GET("/strains/:id/descendants", handlers.GetDescendantsHandler)
 	r.GET("/strains/lookup", handlers.LookupStrainByName)
 }
 

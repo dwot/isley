@@ -1355,6 +1355,44 @@ body.dark-mode .lineage-link-missing {
     text-decoration: underline;
 }
 
+/* ===== Descendants List ===== */
+.descendants-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+.descendant-item {
+    padding: 0.45rem 0;
+    border-bottom: 1px solid var(--color-border, rgba(255,255,255,0.06));
+}
+.descendant-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+.descendant-item:first-child {
+    padding-top: 0;
+}
+.descendant-top {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+.descendant-icon {
+    color: var(--color-muted);
+    opacity: 0.45;
+}
+.descendant-cross {
+    font-size: 0.82rem;
+    color: var(--color-muted);
+}
+.descendant-breeder {
+    font-size: 0.78rem;
+    color: var(--color-muted);
+    opacity: 0.55;
+    padding-left: 1.15rem;
+}
+
 /* ===== Lineage Editor ===== */
 .lineage-entry-row {
     position: relative;

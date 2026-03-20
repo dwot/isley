@@ -135,14 +135,26 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Descendants box -->
+            <div class="card strain-infobox mt-3" id="descendantsCard" style="display:none;">
+                <div class="card-body">
+                    <h5 class="card-title text-primary text-center mb-3">
+                        <i class="fa-solid fa-diagram-project me-1"></i> Descendants
+                    </h5>
+                    <div id="descendantsList"></div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
     var currentStrainID = {{ .strain.ID }};
+    var currentStrainName = "{{ .strain.Name | js }}";
 </script>
 <script src="/static/js/strain-lineage.js"></script>
+<script src="/static/js/strain-descendants.js"></script>
 {{ template "common/footer.html" .}}
 
 {{ end }}

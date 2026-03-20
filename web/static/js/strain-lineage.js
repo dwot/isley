@@ -1,6 +1,7 @@
 /**
  * Strain Lineage Tree Renderer
  * Renders a collapsible ancestry tree with Wikipedia-style blue/red links.
+ * Shows the current strain as the root, with parents nested below.
  * Blue link = strain exists in the database (clickable)
  * Red link = strain not yet added (links to add-strain flow)
  */
@@ -19,8 +20,46 @@ document.addEventListener("DOMContentLoaded", () => {
                 emptyMsg.style.display = "block";
                 return;
             }
-            const tree = buildTree(lineageData);
-            treeContainer.appendChild(tree);
+
+            // Build wrapper: current strain as root with parents as children
+            const rootUl = document.createElement("ul");
+            rootUl.className = "lineage-tree";
+
+            const rootLi = document.createElement("li");
+            rootLi.className = "lineage-node";
+
+            const rootName = document.createElement("span");
+            rootName.className = "lineage-name";
+
+            // Current strain is bold, not a link (we're already on its page)
+            const label = document.createElement("strong");
+            label.textContent = currentStrainName;
+            label.style.color = "var(--color-text)";
+            rootName.appendChild(label);
+
+            // Add collapse toggle
+            const toggle = document.createElement("button");
+            toggle.className = "lineage-toggle";
+            toggle.innerHTML = '<i class="fa-solid fa-chevron-down fa-xs"></i>';
+            toggle.title = "Show ancestry";
+            rootName.insertBefore(toggle, rootName.firstChild);
+
+            rootLi.appendChild(rootName);
+
+            // Build the parent tree beneath the root
+            const parentTree = buildTree(lineageData);
+            parentTree.className += " lineage-subtree";
+            rootLi.appendChild(parentTree);
+
+            toggle.addEventListener("click", () => {
+                const isCollapsed = parentTree.classList.toggle("collapsed");
+                toggle.innerHTML = isCollapsed
+                    ? '<i class="fa-solid fa-chevron-right fa-xs"></i>'
+                    : '<i class="fa-solid fa-chevron-down fa-xs"></i>';
+            });
+
+            rootUl.appendChild(rootLi);
+            treeContainer.appendChild(rootUl);
         })
         .catch(err => {
             console.error("Failed to load lineage:", err);

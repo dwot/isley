@@ -268,6 +268,68 @@ func SetLineageHandler(c *gin.Context) {
 	apiOK(c, "api_lineage_updated")
 }
 
+// GetDescendants returns strains that have the given strain as a parent,
+// including the other parent names and breeder for each descendant.
+func GetDescendants(strainID int) []gin.H {
+	fieldLogger := logger.Log.WithField("func", "GetDescendants")
+	db, err := model.GetDB()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to open database")
+		return nil
+	}
+
+	rows, err := db.Query(`
+		SELECT DISTINCT s.id, s.name, b.name as breeder,
+			COALESCE((
+				SELECT string_agg(sl2.parent_name, ', ' ORDER BY sl2.parent_name)
+				FROM strain_lineage sl2
+				WHERE sl2.strain_id = s.id
+				AND (sl2.parent_strain_id IS NULL OR sl2.parent_strain_id != $1)
+			), '') as other_parents
+		FROM strain_lineage sl
+		JOIN strain s ON sl.strain_id = s.id
+		JOIN breeder b ON s.breeder_id = b.id
+		WHERE sl.parent_strain_id = $1
+		ORDER BY s.name ASC`, strainID)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to query descendants")
+		return nil
+	}
+	defer rows.Close()
+
+	var results []gin.H
+	for rows.Next() {
+		var id int
+		var name, breeder, otherParents string
+		if err := rows.Scan(&id, &name, &breeder, &otherParents); err != nil {
+			fieldLogger.WithError(err).Error("Failed to scan descendant row")
+			continue
+		}
+		results = append(results, gin.H{
+			"id":            id,
+			"name":          name,
+			"breeder":       breeder,
+			"other_parents": otherParents,
+		})
+	}
+	return results
+}
+
+// GetDescendantsHandler returns strains that list this strain as a parent
+func GetDescendantsHandler(c *gin.Context) {
+	strainID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		apiBadRequest(c, "api_invalid_strain_id")
+		return
+	}
+
+	descendants := GetDescendants(strainID)
+	if descendants == nil {
+		descendants = []gin.H{}
+	}
+	c.JSON(http.StatusOK, descendants)
+}
+
 // LookupStrainByName finds strains whose name matches a search query (for autocomplete)
 func LookupStrainByName(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "LookupStrainByName")
