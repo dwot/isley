@@ -37,6 +37,7 @@ var embeddedFiles embed.FS
 var (
 	loginAttempts   = make(map[string][]time.Time)
 	loginAttemptsMu sync.Mutex
+	secureCookies   = strings.EqualFold(os.Getenv("ISLEY_SECURE_COOKIES"), "true")
 )
 
 func isLoginRateLimited(ip string) bool {
@@ -358,11 +359,10 @@ func main() {
 		sessionSecret = string(randomBytes)
 	}
 	store := cookie.NewStore([]byte(sessionSecret))
-	secureCookie := strings.EqualFold(os.Getenv("ISLEY_SECURE_COOKIES"), "true")
 	store.Options(sessions.Options{
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   secureCookie,
+		Secure:   secureCookies,
 		SameSite: http.SameSiteLaxMode,
 	})
 	r.Use(sessions.Sessions("isley_session", store))
@@ -515,7 +515,7 @@ func handleLogin(c *gin.Context) {
 	session.Options(sessions.Options{
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   secureCookies,
 		SameSite: http.SameSiteLaxMode,
 	})
 
@@ -525,7 +525,7 @@ func handleLogin(c *gin.Context) {
 			Path:     "/",
 			MaxAge:   14 * 24 * 60 * 60, // 14 days
 			HttpOnly: true,
-			Secure:   true,
+			Secure:   secureCookies,
 			SameSite: http.SameSiteLaxMode,
 		})
 	}
