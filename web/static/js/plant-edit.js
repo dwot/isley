@@ -9,6 +9,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const deletePlantButton = document.getElementById("deletePlantButton");
     const plantId = document.getElementById("plantId").value;
 
+    // Initialize autocomplete on strain and zone selects
+    const zoneAC = new IsleyAutocomplete(zoneSelect, {
+        placeholder: "Type to search zones...",
+    });
+    const strainAC = new IsleyAutocomplete(strainSelect, {
+        placeholder: "Type to search strains...",
+    });
+
     // Show/Hide New Zone Input
     zoneSelect.addEventListener("change", () => {
         newZoneInput.classList.toggle("d-none", zoneSelect.value !== "new");

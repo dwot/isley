@@ -10,6 +10,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const newBreederName = document.getElementById("newBreederName");
     const harvestWeight = document.getElementById("harvestWeight");
 
+    // Initialize autocomplete on strain and zone selects
+    const zoneAC = new IsleyAutocomplete(zoneSelect, {
+        placeholder: "Type to search zones...",
+    });
+    const strainAC = new IsleyAutocomplete(strainSelect, {
+        placeholder: "Type to search strains...",
+    });
+
     // Show/Hide New Zone Input
     zoneSelect.addEventListener("change", () => {
         if (zoneSelect.value === "new") {

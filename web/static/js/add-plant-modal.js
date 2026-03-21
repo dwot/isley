@@ -18,22 +18,24 @@ document.addEventListener("DOMContentLoaded", () => {
     const isClone = document.getElementById("isClone");
     const decrementSeedCount = document.getElementById("decrementSeedCount");
 
-    // Set default date to today
-    //const setDefaultDate = () => {
-    //    const today = new Date().toISOString().split("T")[0];
-    //    startDt.value = today;
-    //};
+    // Initialize autocomplete on strain and zone selects
+    const zoneAC = new IsleyAutocomplete(zoneSelect, {
+        placeholder: "Type to search zones...",
+    });
+    const strainAC = new IsleyAutocomplete(strainSelect, {
+        placeholder: "Type to search strains...",
+    });
 
     // Reset Zone Selection
     const resetZoneSelection = () => {
         zoneSelect.disabled = false;
-        zoneSelect.value = "";
+        zoneAC.reset();
         newZoneInput.classList.add("d-none");
     };
 
     // Reset Strain Selection
     const resetStrainSelection = () => {
-        strainSelect.value = "";
+        strainAC.reset();
         newStrainInputs.classList.add("d-none");
         resetBreederSelection();
     };

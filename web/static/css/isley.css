@@ -1563,6 +1563,60 @@ body.dark-mode .lineage-unmatched {
     background: var(--color-bg);
 }
 
+/* ===== Reusable Autocomplete Select ===== */
+.isley-ac-wrapper {
+    position: relative;
+}
+.isley-ac-input {
+    background: var(--color-input-bg);
+    color: var(--color-input-fg);
+    border-color: var(--color-input-border);
+}
+.isley-ac-input:focus {
+    border-color: var(--color-input-focus-border);
+}
+.isley-ac-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1050;
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    max-height: 240px;
+    overflow-y: auto;
+}
+.isley-ac-item {
+    padding: 0.45rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-fg);
+}
+.isley-ac-item:last-child {
+    border-bottom: none;
+}
+.isley-ac-item:hover,
+.isley-ac-item.active {
+    background: var(--color-row-hover);
+}
+.isley-ac-item strong {
+    color: var(--color-accent);
+}
+.isley-ac-new-item {
+    color: var(--color-accent);
+    font-weight: 500;
+}
+.isley-ac-separator {
+    height: 1px;
+    background: var(--color-border);
+    margin: 0;
+}
+
 /* ============================================
    PLANTS LIST PAGE
    Mirrors strains-* pattern for consistency

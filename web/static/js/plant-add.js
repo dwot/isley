@@ -11,6 +11,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const isClone = document.getElementById("isClone");
     const plantPreview = document.getElementById("plantPreview");
 
+    // Initialize autocomplete on strain and zone selects
+    const zoneAC = new IsleyAutocomplete(zoneSelect, {
+        placeholder: "Type to search zones...",
+    });
+    const strainAC = new IsleyAutocomplete(strainSelect, {
+        placeholder: "Type to search strains...",
+    });
+
     // Show/Hide New Zone Input
     zoneSelect.addEventListener("change", () => {
         newZoneInput.classList.toggle("d-none", zoneSelect.value !== "new");
@@ -51,14 +59,12 @@ document.addEventListener("DOMContentLoaded", () => {
     // Live preview update
     function updatePreview() {
         const name = document.getElementById("plantName").value || "Untitled Plant";
-        const zoneEl = zoneSelect.selectedOptions[0];
         const zone = zoneSelect.value === "new"
             ? (document.getElementById("newZoneName").value || "New Zone")
-            : (zoneEl && zoneEl.value ? zoneEl.textContent : "—");
-        const strainEl = strainSelect.selectedOptions[0];
+            : (zoneAC.input ? zoneAC.input.value : "—") || "—";
         const strain = strainSelect.value === "new"
             ? (document.getElementById("newStrainName").value || "New Strain")
-            : (strainEl && strainEl.value ? strainEl.textContent : "—");
+            : (strainAC.input ? strainAC.input.value : "—") || "—";
 
         plantPreview.innerHTML = `
             <div class="text-start">
