@@ -881,7 +881,17 @@ SELECT
 		WHERE pa.plant_id = p.id AND a.name = 'Feed'
 	), 0) AS days_since_last_feeding,
 	COALESCE((
-		SELECT (CURRENT_DATE - MAX(date)::date)
+		SELECT (
+			LEAST(
+				COALESCE((
+					SELECT MIN(h2.date)::date FROM plant_status_log h2
+					WHERE h2.plant_id = p.id
+					  AND h2.status_id IN (SELECT id FROM plant_status WHERE status IN ('Drying','Curing','Success','Dead'))
+					  AND h2.date > MAX(plant_status_log.date)
+				), CURRENT_DATE),
+				CURRENT_DATE
+			) - MAX(date)::date
+		)
 		FROM plant_status_log
 		WHERE plant_id = p.id
 		  AND status_id = (SELECT id FROM plant_status WHERE status = 'Flower')
@@ -930,8 +940,19 @@ SELECT
         WHERE pa.plant_id = p.id AND a.name = 'Feed'
     ), 0) AS days_since_last_feeding,
     COALESCE((
-        SELECT CAST(julianday('now', 'localtime') - julianday(MAX(date)) AS INT)
-        FROM plant_status_log 
+        SELECT CAST(
+            julianday(
+                MIN(
+                    COALESCE((
+                        SELECT MIN(h2.date) FROM plant_status_log h2
+                        WHERE h2.plant_id = p.id
+                          AND h2.status_id IN (SELECT id FROM plant_status WHERE status IN ('Drying','Curing','Success','Dead'))
+                          AND h2.date > MAX(plant_status_log.date)
+                    ), datetime('now', 'localtime')),
+                    datetime('now', 'localtime')
+                )
+            ) - julianday(MAX(date)) AS INT)
+        FROM plant_status_log
         WHERE plant_id = p.id AND status_id = (
             SELECT id FROM plant_status WHERE status = 'Flower'
         )

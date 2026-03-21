@@ -94,6 +94,8 @@
                  data-status-history='{{ json .plant.StatusHistory }}'
                  data-logged-in="{{ .loggedIn }}"
                  data-current-stage="{{ .plant.Status }}"
+                 data-start-date="{{ .plant.StartDT }}"
+                 data-harvest-date="{{ .plant.HarvestDate }}"
                  data-days-label="{{ .lcl.title_days }}">
                 <div class="card-body px-3 py-3">
                     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -242,7 +244,7 @@
                         {{ if or (not (isZeroDate .plant.LastWaterDate)) (not (isZeroDate .plant.LastFeedDate)) }}
                         <li>
                             <span class="strain-info-label"><i class="fa-solid fa-droplet me-2"></i>{{ .lcl.last_watered_or_fed }}</span>
-                            <span class="strain-info-value" style="font-size: 0.82rem;">
+                            <span class="strain-info-value">
                                 {{ if gt (formatDateTime .plant.LastWaterDate) (formatDateTime .plant.LastFeedDate) }}
                                     {{ formatDate .plant.LastWaterDate }}
                                 {{ else }}
@@ -369,12 +371,31 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     const now = new Date();
+    const currentStage = card.dataset.currentStage || "";
+    const isTerminalPlant = /^(dead|success)$/i.test(currentStage);
+    const plantIsDead = /^dead$/i.test(currentStage);
+    // For terminal plants, cap the end date at the terminal status entry
+    const terminalDate = isTerminalPlant && stages.length
+        ? stages[stages.length - 1].date : null;
     const segments = stages.map((stage, i) => {
         const start = stage.date;
-        const end = i + 1 < stages.length ? stages[i + 1].date : now;
+        const end = i + 1 < stages.length ? stages[i + 1].date : (terminalDate || now);
         return { status: stage.status, start, end, duration: Math.max(0, (end - start) / msPerDay) };
     });
-    const totalDays = segments.reduce((sum, s) => sum + s.duration, 0);
+
+    // Total days: start→harvest if harvested, start→dead if dead, start→now otherwise
+    const plantStartDate = new Date(card.dataset.startDate);
+    const harvestDate = new Date(card.dataset.harvestDate);
+    const hasHarvest = !isNaN(harvestDate.getTime()) && harvestDate.getFullYear() > 1;
+    const deadDate = (plantIsDead && stages.length) ? stages[stages.length - 1].date : null;
+
+    let totalEndDate = now;
+    if (hasHarvest) totalEndDate = harvestDate;
+    else if (deadDate) totalEndDate = deadDate;
+
+    const totalDays = !isNaN(plantStartDate.getTime())
+        ? Math.max(0, (totalEndDate - plantStartDate) / msPerDay)
+        : segments.reduce((sum, s) => sum + s.duration, 0);
 
     // Helpers
     function stageIcon(name) {
@@ -415,8 +436,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!track) return;
     track.innerHTML = "";
 
-    const currentStage = card.dataset.currentStage || "";
-    const plantIsDead = /^dead$/i.test(currentStage);
     let renderedCount = 0;
 
     statusOptions.forEach((opt, i) => {
@@ -433,7 +452,6 @@ document.addEventListener("DOMContentLoaded", () => {
         if (/^dead$/i.test(name) && !plantIsDead) return;
 
         // For terminal plants (Dead/Success), skip unreached stages
-        const isTerminalPlant = /^(dead|success)$/i.test(currentStage);
         if (isTerminalPlant && !reached && !isCurrent) return;
 
         const node = document.createElement("div");

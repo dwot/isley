@@ -103,7 +103,7 @@
                     <th class="pt-th-age pt-sortable" data-sort="col1" id="dynamicHeader1">{{ .lcl.current_week }} <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
                     <th class="pt-th-detail pt-sortable" data-sort="col2" id="dynamicHeader2">{{ .lcl.current_day }} <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
                     {{ if .loggedIn }}
-                    <th class="pt-th-actions"></th>
+                    <th class="pt-th-actions" id="dynamicHeaderActions"></th>
                     {{ end }}
                 </tr>
             </thead>
@@ -252,6 +252,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const layoutButtons = document.querySelectorAll(".layout-toggle");
     const headerDynamic1 = document.getElementById("dynamicHeader1");
     const headerDynamic2 = document.getElementById("dynamicHeader2");
+    const headerActions = document.getElementById("dynamicHeaderActions");
 
     const canEdit = {{ if .loggedIn }}true{{ else }}false{{ end }};
     const statusOptionsRaw = {{ json .statuses }};
@@ -289,18 +290,22 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // ----- Update table headers based on view -----
+    const sortIcon = ' <i class="fa-solid fa-sort ms-1 text-muted"></i>';
     function updateHeaders(view) {
         if (view === "harvested") {
-            headerDynamic1.textContent = "{{ .lcl.harvest_weight_g }}";
-            headerDynamic2.textContent = "{{ .lcl.harvest_date }}";
-        } else if (view === "dead") {
-            headerDynamic1.textContent = "{{ .lcl.dead_date }}";
-            headerDynamic2.textContent = "";
-            headerDynamic2.style.display = "none";
-        } else {
-            headerDynamic1.textContent = "{{ .lcl.current_week }}";
-            headerDynamic2.textContent = "{{ .lcl.current_day }}";
+            headerDynamic1.innerHTML = "{{ .lcl.harvest_weight_g }}" + sortIcon;
+            headerDynamic2.innerHTML = "{{ .lcl.harvest_date }}" + sortIcon;
             headerDynamic2.style.display = "";
+            if (headerActions) headerActions.style.display = "";
+        } else if (view === "dead") {
+            headerDynamic1.innerHTML = "{{ .lcl.dead_date }}" + sortIcon;
+            headerDynamic2.style.display = "none";
+            if (headerActions) headerActions.style.display = "none";
+        } else {
+            headerDynamic1.innerHTML = "{{ .lcl.current_week }}" + sortIcon;
+            headerDynamic2.innerHTML = "{{ .lcl.current_day }}" + sortIcon;
+            headerDynamic2.style.display = "";
+            if (headerActions) headerActions.style.display = "";
         }
     }
 
@@ -489,7 +494,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 ? `<span class="pc-clone-badge"><i class="fa-solid fa-clone me-1"></i>Clone</span>`
                 : "";
 
-            const flowerDays = p.flowering_days
+            const isTerminal = /^(dead|success|drying|curing)$/i.test(p.status);
+            const flowerDays = (p.flowering_days && !isTerminal)
                 ? `<span class="pc-stat pc-flower-days"><i class="fa-solid fa-fire me-1"></i>F${p.flowering_days}</span>`
                 : "";
 
@@ -563,7 +569,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 ? `<span class="pc-water-indicator${p.days_since_last_watering > 2 ? " pc-water-warn" : ""}" style="font-size:0.72rem;margin-left:0.5rem"><i class="fa-solid fa-droplet me-1"></i>${p.days_since_last_watering}d</span>`
                 : "";
 
-            const actionsHtml = (canEdit && currentView === "living") ? `
+            let actionsHtml = "";
+            if (canEdit && currentView === "living") {
+                actionsHtml = `
                 <td class="text-center">
                     <div class="d-inline-flex gap-1">
                         <button type="button" class="btn btn-sm btn-outline-secondary btn-icon-action plant-status-edit" data-id="${p.id}" data-status-id="${statusIdByName.get(p.status) || ""}" data-name="${encodeURIComponent(p.name || "")}">
@@ -576,7 +584,15 @@ document.addEventListener("DOMContentLoaded", () => {
                             <i class="fa-solid fa-clipboard-list"></i>
                         </button>
                     </div>
-                </td>` : "";
+                </td>`;
+            } else if (canEdit && currentView === "harvested") {
+                actionsHtml = `
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-outline-secondary btn-icon-action plant-status-edit" data-id="${p.id}" data-status-id="${statusIdByName.get(p.status) || ""}" data-name="${encodeURIComponent(p.name || "")}">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                </td>`;
+            }
 
             return `<tr class="pt-row" data-href="/plant/${p.id}" style="cursor:pointer">
                 <td>
