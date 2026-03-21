@@ -22,9 +22,10 @@ WORKDIR /app
 # stream frame capture now uses native Go HTTP/MJPEG handling.
 # Versions are pinned transitively via the alpine:3.23 base image.
 # Log installed versions for build auditing and reproducibility.
-RUN apk add --no-cache tzdata su-exec \
+RUN apk upgrade --no-cache \
+    && apk add --no-cache tzdata su-exec \
     && echo "--- Installed package versions ---" \
-    && apk info -v tzdata su-exec
+    && apk info -v tzdata su-exec zlib
 
 # Copy the built application and entrypoint
 COPY --from=builder /app/isley /app/isley
