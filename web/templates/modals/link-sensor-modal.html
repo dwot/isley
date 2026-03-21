@@ -8,37 +8,54 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
             </div>
             <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    <i class="fa-solid fa-circle-info"></i>
+                    {{ .lcl.link_sensors_zone_note }}
+                </p>
                 <form id="linkSensorForm">
+                    {{/* Collect plant's zone ID for filtering */}}
+                    {{ $plantZoneID := .plant.ZoneID }}
+
+                    {{/* Direct-link sensors: Soil sensors from any zone, plus any sensor NOT in the plant's zone.
+                         Zone environment sensors (non-Soil in the plant's zone) are inherited automatically
+                         and suppressed from this list. */}}
                     <table class="table table-bordered table-striped table-hover">
                         <thead class="table-dark">
                         <tr>
                             <th>{{ .lcl.title_select }}</th>
                             <th>{{ .lcl.sensor_name }}</th>
-                            <th>{{ .lcl.title_source }}</th>
-                            <th>{{ .lcl.title_device }}</th>
+                            <th>{{ .lcl.title_zone }}</th>
+                            <th>{{ .lcl.title_type }}</th>
                         </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="linkSensorTableBody">
                         {{ range .sensors }}
-                        <tr>
-                            <td>
-                                <input
-                                        type="checkbox"
-                                        class="form-check-input"
-                                        name="sensorIds"
-                                        value="{{ index . "id" }}"
-                                {{ $sensorId := index . "id" }}
-                                {{ range $.plant.Sensors }}
-                                {{ if eq (toInt $sensorId) .ID }}checked{{ end }}
-                                {{ end }}
-                                >
-                            </td>
-                            <td>{{ index . "name" }}</td>
-                            <td>{{ index . "source" }}</td>
-                            <td>{{ index . "device" }}</td>
-                        </tr>
+                            {{ $sType := index . "type" }}
+                            {{ $sZoneID := index . "zone_id" }}
+                            {{ $isSoil := hasPrefix (printf "%v" $sType) "Soil" }}
+                            {{ $sameZone := eq (toInt $sZoneID) $plantZoneID }}
+                            {{/* Show if: it's a Soil sensor (always needs direct link), or it's from a different zone */}}
+                            {{ if or $isSoil (not $sameZone) }}
+                            <tr>
+                                <td>
+                                    <input
+                                            type="checkbox"
+                                            class="form-check-input"
+                                            name="sensorIds"
+                                            value="{{ index . "id" }}"
+                                    {{ $sensorId := index . "id" }}
+                                    {{/* Only pre-check if directly linked (not inherited) */}}
+                                    {{ range $.plant.Sensors }}
+                                        {{ if and (eq (toInt $sensorId) (toInt .ID)) (not .Inherited) }}checked{{ end }}
+                                    {{ end }}
+                                    >
+                                </td>
+                                <td>{{ index . "name" }}</td>
+                                <td>{{ index . "zone" }}</td>
+                                <td>{{ index . "type" }}</td>
+                            </tr>
+                            {{ end }}
                         {{ end }}
-
                         </tbody>
                     </table>
                     <button type="submit" class="btn btn-primary"><span class="spinner-border spinner-border-sm btn-spinner" role="status" aria-hidden="true"></span> {{ .lcl.link_sensors }}</button>

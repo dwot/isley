@@ -1,8 +1,6 @@
 {{ define "views/plant.html"}}
-<!--index.html-->
 
 {{ template "common/header.html" .}}
-<script src="/static/js/growth-history.js"></script>
 {{ template "common/header2.html" .}}
 <div class="container">
     <!-- Breadcrumbs -->
@@ -13,381 +11,587 @@
         </ol>
     </nav>
 
-    <!-- Page Title -->
-    <div class="text-center mb-5">
-        <h1 class="display-4 text-primary">{{ .plant.Name }}</h1>
-        <p class="text-muted">{{ .plant.Description }}</p>
-    </div>
-
-    <div class="text-center mb-5">
-        <div class="row g-4">
-            <!-- Latest Image Section -->
-            <div class="col-md-6">
-                <div class="card">
-                    <img
-                            src="{{ .plant.LatestImage.ImagePath }}"
-                            class="card-img-top"
-                            alt="{{ .plant.LatestImage.ImageDescription }}"
-                            style="max-height: 450px; object-fit: contain;"
-                    >
-                </div>
-            </div>
-
-            <!-- Plant Details Section -->
-            <div class="col-md-6">
-                <div class="card mb-3">
-                    <div class="card-body text-start">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="card-title text-primary">{{ .lcl.plant_details }}</h5>
-                            {{ if .loggedIn }}
-                            <div>
-                                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#changeStatusModal">
-                                    <i class="fa-solid fa-pen-to-square"></i>
-                                </button>
-                                <button class="btn btn-danger" id="deletePlantButton">
-                                    <i class="fa-solid fa-trash"></i>
-                                </button>
-                            </div>
-                            {{ end }}
-                        </div>
-                        <input type="hidden" id="strainName" value="{{ .plant.StrainName }}">
-                        <input type="hidden" id="breederName" value="{{ .plant.BreederName }}">
-                        <input type="hidden" id="currentDay" value="{{ .plant.CurrentDay }}">
-                        <input type="hidden" id="currentWeek" value="{{ .plant.CurrentWeek }}">
-
-                        <ul class="list-unstyled">
-                            {{ $plbl := index $.lcl (print (lower .plant.Status) "_label") }}
-                            <li><strong>{{ .lcl.title_status }}:</strong> <span id="plantStatusText">{{ if $plbl }}{{ $plbl }}{{ else }}{{ .plant.Status }}{{ end }}</span></li>
-                            <li><strong>{{ .lcl.title_strain }}:</strong>
-                                {{ if ne .plant.StrainUrl "" }}
-                                    <a href="{{ .plant.StrainUrl }}" target="_blank">{{ .plant.StrainName }}</a> (by {{ .plant.BreederName }})
-                                {{ else }}
-                                    {{ .plant.StrainName }} (by {{ .plant.BreederName }})
-                                {{ end }}
-                                </li>
-
-                            <!-- Conditional: If Plant is a Clone -->
-                            {{ if .plant.IsClone }}
-                            {{ if ne .plant.ParentID 0 }}
-                            <li><strong>{{ .lcl.clone_of }}:</strong> <a href="/plant/{{ .plant.ParentID }}">{{ .plant.ParentName }}</a></li>
-                            {{ else }}
-                            <li><strong>{{ .lcl.clone_of }}:</strong> {{ .lcl.title_unknown }}</li>
-                            {{ end }}
-                            {{ end }}
-
-                            <li><strong>{{ .lcl.title_zone }}:</strong> {{ .plant.ZoneName }}</li>
-                            <li><strong>{{ .lcl.start_date }}:</strong> {{ formatDateTime .plant.StartDT }}</li>
-
-                            <!-- Conditional: If Plant is an Autoflower and not Harvested and not Dead OR if an estimated harvest date exists -->
-                            {{ if and (ne .plant.Status "Success") (ne .plant.Status "Drying") (ne .plant.Status "Curing") (ne .plant.Status "Dead") }}
-                                {{ if or (eq .plant.Autoflower true) (not (isZeroDate .plant.EstHarvestDate)) }}
-                                    <li><strong>{{ .lcl.est_harvest_date }}:</strong> {{ formatDate .plant.EstHarvestDate }}</li>
-                                {{ end }}
-                            {{ end }}
-
-
-                            <!-- Conditional: If Plant is Harvested or Dead -->
-                            {{ if or (eq .plant.Status "Success") (eq .plant.Status "Drying") (eq .plant.Status "Curing") (eq .plant.Status "Dead") }}
-                            <li><strong>{{ .lcl.harvest_date }}:</strong> {{ formatDateTime .plant.HarvestDate }}</li>
-                            <li><strong>{{ .lcl.harvest_weight }}:</strong> {{ .plant.HarvestWeight }} {{ .lcl.title_grams }}</li>
-                            {{ else }}
-                            <li><strong>{{ .lcl.title_day }}:</strong> {{ .plant.CurrentDay }}</li>
-                            <li><strong>{{ .lcl.title_week }}:</strong> {{ .plant.CurrentWeek }}</li>
-                            {{ end }}
-
-                            <!-- Optional: Last Watered or Fed -->
-                            {{ if or (not (isZeroDate .plant.LastWaterDate)) (not (isZeroDate .plant.LastFeedDate)) }}
-                            <li><strong>{{ .lcl.last_watered_or_fed }}:</strong>
-                                {{ if gt (formatDateTime .plant.LastWaterDate) (formatDateTime .plant.LastFeedDate) }}
-                                {{ formatDateTime .plant.LastWaterDate }} ({{ .lcl.title_watered }})
-                                {{ else }}
-                                {{ formatDateTime .plant.LastFeedDate }} ({{ .lcl.title_fed }})
-                                {{ end }}
-                            </li>
-                            {{ end }}
-                        </ul>
-                    </div>
-                </div>
-
-                <!-- Quick Actions Section -->
-                {{ if .loggedIn }}
-                <div class="card">
-                    <div class="card-body text-center">
-                        <div class="d-flex justify-content-around">
-                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMeasurementModal">
-                                <i class="fa-solid fa-plus"></i> {{ .lcl.add_measurement }}
-                            </button>
-                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addActivityModal">
-                                <i class="fa-solid fa-plus"></i> {{ .lcl.add_activity }}
-                            </button>
-                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadImagesModal">
-                                <i class="fa-solid fa-plus"></i> {{ .lcl.upload_images }}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                {{ end }}
-            </div>
-
+    <!-- ===== HERO BANNER ===== -->
+    <div class="plant-hero mb-4{{ if eq .plant.LatestImage.ImagePath "" }} plant-hero--no-img{{ end }}"
+         {{ if ne .plant.LatestImage.ImagePath "" }}style="background-image:url('{{ .plant.LatestImage.ImagePath }}')"{{ end }}>
+        <div class="plant-hero-overlay"></div>
+        {{ if and .plant.Sensors (ne .plant.Status "Dead") (ne .plant.Status "Success") (ne .plant.Status "Drying") (ne .plant.Status "Curing") }}
+        <div class="plant-hero-sensors">
+            {{ range .plant.Sensors }}
+            <a href="/graph/{{.ID}}" class="hero-sensor-chip{{ if .Inherited }} hero-sensor-inherited{{ end }}">
+                <span class="hero-sensor-name">{{ .Name }}</span>
+                <span class="hero-sensor-val">{{ .Value }}<span class="hero-sensor-unit">{{ .Unit }}</span></span>
+            </a>
+            {{ end }}
         </div>
-    </div>
-
-    <!-- Plant Status Ribbon -->
-    <!-- Renders a horizontal timeline of statuses; JS will hydrate dates and click behavior -->
-    <div id="plantStatusRibbonContainer" class="mb-4"
-         data-plant-id="{{ .plant.ID }}"
-         data-current-status-id="{{ .plant.StatusID }}"
-         data-status-history='{{ json .plant.StatusHistory }}'
-         data-logged-in="{{ .loggedIn }}">
-        <div class="card">
-            <div class="card-body">
-                <div class="plant-status-ribbon d-flex justify-content-between align-items-center" role="navigation" aria-label="{{ .lcl.growth_stage_timeline }}">
-                    {{ range $idx, $s := .statuses }}
-                    {{ $lbl := index $.lcl (print (lower $s.Status) "_label") }}
-                    <div class="status-step text-center" data-status-id="{{ $s.ID }}" data-status-name="{{ $s.Status }}" data-status-index="{{ $idx }}">
-                        <button class="btn status-icon" aria-label="{{ if $lbl }}{{ $lbl }}{{ else }}{{ $s.Status }}{{ end }}">
-                            <i class="fa-solid fa-lemon fa-2x"></i>
-                        </button>
-                        <div class="status-name small text-muted">{{ if $lbl }}{{ $lbl }}{{ else }}{{ $s.Status }}{{ end }}</div>
-                        <div class="status-date small mt-1">
-                            <span class="status-date-day"></span>
-                            <span class="status-date-time"></span>
-                        </div>
-                    </div>
+        {{ end }}
+        <div class="plant-hero-content">
+            <div class="plant-hero-text">
+                <h1 class="plant-hero-title">{{ .plant.Name }}</h1>
+                <p class="plant-hero-sub">
+                    {{ .plant.StrainName }}
+                    {{ if ne .plant.BreederName "" }}
+                        <span class="plant-hero-sep">&middot;</span>
+                        {{ if ne .plant.StrainUrl "" }}
+                            <a href="{{ .plant.StrainUrl }}" target="_blank" class="plant-hero-link">{{ .plant.BreederName }} <i class="fa-solid fa-arrow-up-right-from-square fa-xs"></i></a>
+                        {{ else }}
+                            {{ .plant.BreederName }}
+                        {{ end }}
+                    {{ end }}
+                </p>
+                <div class="plant-hero-badges">
+                    {{ $plbl := index $.lcl (print (lower .plant.Status) "_label") }}
+                    <span class="pc-status-badge" id="plantStatusBadge">{{ if $plbl }}{{ $plbl }}{{ else }}{{ .plant.Status }}{{ end }}</span>
+                    {{ if .plant.Autoflower }}
+                    <span class="badge strain-badge-auto"><i class="fa-solid fa-bolt me-1"></i>{{ .lcl.autoflower }}</span>
+                    {{ else }}
+                    <span class="badge strain-badge-photo"><i class="fa-solid fa-sun me-1"></i>Photoperiod</span>
+                    {{ end }}
+                    {{ if .plant.IsClone }}
+                    <span class="pc-clone-badge"><i class="fa-solid fa-clone me-1"></i>Clone</span>
                     {{ end }}
                 </div>
             </div>
-        </div>
-    </div>
-
-    <script src="/static/js/plant-status-ribbon.js"></script>
-
-
-    <!-- Tabs Navigation -->
-    <ul class="nav nav-tabs mb-4" id="plantDetailsTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="sensors-tab" data-bs-toggle="tab" data-bs-target="#sensors" type="button" role="tab" aria-controls="sensors" aria-selected="false">
-                {{ .lcl.title_sensors }}
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="growthHistory-tab" data-bs-toggle="tab" data-bs-target="#growthHistory" type="button" role="tab" aria-controls="growthHistory" aria-selected="false">
-                {{ .lcl.growth_history }}
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="measurements-tab" data-bs-toggle="tab" data-bs-target="#measurements" type="button" role="tab" aria-controls="measurements" aria-selected="false">
-                {{ .lcl.title_measurements }}
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="activities-tab" data-bs-toggle="tab" data-bs-target="#activities" type="button" role="tab" aria-controls="activities" aria-selected="false">
-                {{ .lcl.title_activities }}
-            </button>
-        </li>
-    </ul>
-
-    <!-- Tabs Content -->
-    <div class="tab-content" id="plantDetailsTabsContent">
-        <!-- Sensors Tab -->
-        <div class="tab-pane fade show active" id="sensors" role="tabpanel" aria-labelledby="sensors-tab">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h2 class="text-secondary h5">{{ .lcl.title_sensors }}</h2>
-                {{ if .loggedIn }}
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#linkSensorModal">
-                    <i class="fa-solid fa-link"></i> {{ .lcl.link_sensors }}
+            {{ if .loggedIn }}
+            <div class="plant-hero-actions">
+                <a href="/plant/{{ .plant.ID }}/edit" class="plant-action-btn plant-action-edit" title="{{ .lcl.edit_plant }}">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                </a>
+                <button class="plant-action-btn plant-action-measure" data-bs-toggle="modal" data-bs-target="#addMeasurementModal" title="{{ .lcl.add_measurement }}">
+                    <i class="fa-solid fa-ruler-combined"></i>
+                </button>
+                <button class="plant-action-btn plant-action-activity" data-bs-toggle="modal" data-bs-target="#addActivityModal" title="{{ .lcl.add_activity }}">
+                    <i class="fa-solid fa-clipboard-list"></i>
+                </button>
+                <button class="plant-action-btn plant-action-photo" data-bs-toggle="modal" data-bs-target="#uploadImagesModal" title="{{ .lcl.upload_images }}">
+                    <i class="fa-solid fa-camera"></i>
+                </button>
+                <button class="plant-action-btn plant-action-link" data-bs-toggle="modal" data-bs-target="#linkSensorModal" title="{{ .lcl.link_sensors }}">
+                    <i class="fa-solid fa-link"></i>
+                </button>
+                {{ if and (ne .plant.Status "Dead") (ne .plant.Status "Success") }}
+                <button class="plant-action-btn plant-action-kill" id="killPlantBtn" title="{{ .lcl.kill_plant }}">
+                    <i class="fa-solid fa-skull-crossbones"></i>
                 </button>
                 {{ end }}
             </div>
-            {{ if .plant.Sensors }}
-            <div class="row g-4">
-                {{ range .plant.Sensors }}
-                <div class="col-12 col-sm-6 col-md-4 col-lg-3">
-                    <a href="/graph/{{.ID}}" class="text-decoration-none">
-                        <div class="card text-center">
-                            <div class="card-body">
-                                <h3 class="card-title h5">{{ .Name }}</h3>
-                                <p class="display-6 fw-bold">{{ .Value }} {{ .Unit }}</p>
-                                <small class="text-muted">{{ formatDateTime .Date }}</small>
-                            </div>
-                        </div>
-                    </a>
-                </div>
-                {{ end }}
-            </div>
-            {{ else }}
-            <div class="empty-state">
-                <i class="fa-solid fa-thermometer-half"></i>
-                <p>{{ .lcl.no_linked_sensors }}</p>
-            </div>
             {{ end }}
         </div>
-
-        <!-- Growth History Tab -->
-        <div class="tab-pane fade" id="growthHistory" role="tabpanel" aria-labelledby="growthHistory-tab">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h2 class="text-secondary h5">{{ .lcl.growth_history }}</h2>
-            </div>
-            <div class="growth-history-card" id="growthHistorySection"
-                 data-current-stage="{{ .plant.Status }}"
-                 data-days-label="{{ .lcl.title_days }}"
-                 data-empty-label="{{ .lcl.growth_history_empty }}">
-                <script type="application/json" id="growthHistoryData">{{ jsonify .plant.StatusHistory }}</script>
-                <div class="row g-4 growth-history-grid" id="growthHistoryGrid">
-                    <div class="col-12 col-lg-6">
-                        <div class="card h-100 growth-history-panel">
-                            <div class="card-body">
-                                <div class="growth-section">
-                                    <div class="growth-section-title">{{ .lcl.current_growth_stage }}</div>
-                                    <div class="growth-current-value" id="growthCurrentStage">-</div>
-                                    <div class="growth-current-meta"><span id="growthCurrentDays">0</span> {{ .lcl.days_in_stage }}</div>
-                                </div>
-                                <div class="growth-section">
-                                    <div class="growth-section-title">{{ .lcl.days_in_each_growth_stage }}</div>
-                                    <div class="growth-stage-list" id="growthStageList"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-lg-6">
-                        <div class="card h-100 growth-history-panel">
-                            <div class="card-body">
-                                <div class="growth-timeline-header">
-                                    <div class="growth-section-title">{{ .lcl.growth_stage_timeline }}</div>
-                                    <div class="growth-total-pill">
-                                        <span>{{ .lcl.total_days }}</span>
-                                        <strong id="growthTotalDays">0</strong>
-                                    </div>
-                                </div>
-                                <div class="growth-timeline" id="growthTimeline" aria-label="{{ .lcl.growth_stage_timeline }}"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="growth-history-empty d-none" id="growthHistoryEmpty">{{ .lcl.growth_history_empty }}</div>
-            </div>
-        </div>
-
-        <!-- Measurements Tab -->
-        <div class="tab-pane fade" id="measurements" role="tabpanel" aria-labelledby="measurements-tab">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h2 class="text-secondary h5">{{ .lcl.title_measurements }}</h2>
-            </div>
-            {{ if .plant.Measurements }}
-            <div class="table-responsive">
-                <table class="table table-striped table-bordered table-hover">
-                    <thead class="table-dark">
-                    <tr>
-                        <th>{{ .lcl.title_date }}</th>
-                        <th>{{ .lcl.title_measurement }}</th>
-                        <th>{{ .lcl.title_value }}</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {{ range .plant.Measurements }}
-                    <tr class="clickable-row measurement-row" data-measurement='{{ json . }}'>
-                        <td>{{ formatDateTime .Date }}</td>
-                        <td>{{ .Name }}</td>
-                        <td>{{ .Value }}</td>
-                    </tr>
-                    {{ end }}
-                    </tbody>
-                </table>
-            </div>
-            {{ else }}
-            <div class="empty-state">
-                <i class="fa-solid fa-ruler-combined"></i>
-                <p>{{ .lcl.no_measurements_yet }}</p>
-            </div>
-            {{ end }}
-        </div>
-
-        <!-- Activities Tab -->
-        <div class="tab-pane fade" id="activities" role="tabpanel" aria-labelledby="activities-tab">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h2 class="text-secondary h5">{{ .lcl.title_activities }}</h2>
-            </div>
-            {{ if .plant.Activities }}
-            <div class="table-responsive">
-                <table class="table table-striped table-bordered table-hover">
-                    <thead class="table-dark">
-                    <tr>
-                        <th>{{ .lcl.title_date }}</th>
-                        <th>{{ .lcl.title_activity }}</th>
-                        <th>{{ .lcl.title_note }}</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {{ range .plant.Activities }}
-                    <tr class="clickable-row activity-row" data-activity='{{ json . }}'>
-                        <td>{{ formatDateTime .Date }}</td>
-                        <td>{{ .Name }}</td>
-                        <td>{{ preview .Note }}</td>
-                    </tr>
-                    {{ end }}
-                    </tbody>
-                </table>
-            </div>
-            {{ else }}
-            <div class="empty-state">
-                <i class="fa-solid fa-clipboard-list"></i>
-                <p>{{ .lcl.no_activities_yet }}</p>
-            </div>
-            {{ end }}
-        </div>
-
     </div>
 
-    <hr class="my-5" />
+    <!-- Wikipedia-style layout: content + infobox -->
+    <div class="row g-4">
+        <!-- Main content area -->
+        <div class="col-lg-8 order-2 order-lg-1">
 
-    <!-- Image Gallery -->
-    <div class="row g-4" id="gallery">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h2 class="text-secondary h5">{{ .lcl.image_gallery }}</h2>
-        </div>
-        {{ if .plant.Images }}
-        <div class="row g-3">
-            {{ range .plant.Images }}
-            <div class="col-6 col-md-4 col-lg-3">
-                <div class="card">
-                    <img
-                            src="{{ .ImagePath }}"
-                            class="card-img-top thumbnail-img"
-                            alt="{{ .ImageDescription }}"
-                            data-bs-toggle="modal"
-                            data-bs-target="#imageModal"
-                            data-image="{{ .ImagePath }}"
-                            data-description="{{ .ImageDescription }}"
-                            data-date="{{ formatDate .ImageDate }}"
-                            data-id="{{ .ID }}"
-                    >
-                    <div class="card-body text-center">
-                        <small class="text-muted">{{ formatDate .ImageDate }}</small>
+            <!-- ===== HORIZONTAL TIMELINE ===== -->
+            <div class="card mb-4" id="timelineCard"
+                 data-plant-id="{{ .plant.ID }}"
+                 data-current-status-id="{{ .plant.StatusID }}"
+                 data-status-history='{{ json .plant.StatusHistory }}'
+                 data-logged-in="{{ .loggedIn }}"
+                 data-current-stage="{{ .plant.Status }}"
+                 data-days-label="{{ .lcl.title_days }}">
+                <div class="card-body px-3 py-3">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="card-title mb-0 text-primary">
+                            <i class="fa-solid fa-timeline me-1"></i> Timeline
+                        </h5>
+                        <span class="growth-total-pill" id="growthTotalPill">
+                            <span>{{ .lcl.total_days }}</span>
+                            <strong id="growthTotalDays">0</strong>
+                        </span>
+                    </div>
+
+                    <!-- Horizontal timeline container -->
+                    <div class="htl-track" id="htlTrack">
+                        <!-- JS renders milestone nodes here -->
+                    </div>
+
+                    <!-- Hidden status data for JS -->
+                    <div id="plantStatusData" class="d-none"
+                         data-statuses='{{ json .statuses }}'>
+                        {{ range $idx, $s := .statuses }}
+                        {{ $lbl := index $.lcl (print (lower $s.Status) "_label") }}
+                        <span class="status-option" data-status-id="{{ $s.ID }}" data-status-name="{{ $s.Status }}" data-status-label="{{ if $lbl }}{{ $lbl }}{{ else }}{{ $s.Status }}{{ end }}" data-status-index="{{ $idx }}"></span>
+                        {{ end }}
                     </div>
                 </div>
+            </div>
 
+            <!-- Description -->
+            {{ if ne .plant.Description "" }}
+            <div class="mb-4">
+                <p class="text-muted">{{ .plant.Description }}</p>
+            </div>
+            {{ end }}
+
+            <!-- Recent Activities (hidden if none) -->
+            {{ if .plant.Activities }}
+            <div class="card mb-4 plant-section-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="card-title mb-0 text-primary">
+                            <i class="fa-solid fa-clipboard-list me-1"></i> {{ .lcl.title_activities }}
+                            <span class="badge bg-secondary ms-1" style="font-size:0.7rem">{{ len .plant.Activities }}</span>
+                        </h6>
+                        {{ if .loggedIn }}
+                        <button class="btn btn-sm btn-outline-success py-0 px-2" data-bs-toggle="modal" data-bs-target="#addActivityModal" style="font-size:0.75rem">
+                            <i class="fa-solid fa-plus me-1"></i>{{ .lcl.title_add }}
+                        </button>
+                        {{ end }}
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0 plant-mini-table">
+                            <tbody>
+                            {{ range $i, $a := .plant.Activities }}
+                            <tr class="clickable-row activity-row{{ if ge $i 5 }} plant-row-hidden{{ end }}" data-activity='{{ json $a }}'>
+                                <td class="text-muted plant-mini-date">{{ formatDate $a.Date }}</td>
+                                <td>{{ $a.Name }}</td>
+                                <td class="text-muted plant-mini-note">{{ preview $a.Note }}</td>
+                            </tr>
+                            {{ end }}
+                            </tbody>
+                        </table>
+                    </div>
+                    {{ if gt (len .plant.Activities) 5 }}
+                    <button class="btn btn-sm btn-link text-muted plant-expand-btn mt-2 p-0" data-target="activity">
+                        <i class="fa-solid fa-chevron-down me-1"></i> Show all {{ len .plant.Activities }} activities
+                    </button>
+                    {{ end }}
+                </div>
+            </div>
+            {{ end }}
+
+            <!-- Recent Measurements (hidden if none) -->
+            {{ if .plant.Measurements }}
+            <div class="card mb-4 plant-section-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="card-title mb-0 text-primary">
+                            <i class="fa-solid fa-ruler-combined me-1"></i> {{ .lcl.title_measurements }}
+                            <span class="badge bg-secondary ms-1" style="font-size:0.7rem">{{ len .plant.Measurements }}</span>
+                        </h6>
+                        {{ if .loggedIn }}
+                        <button class="btn btn-sm btn-outline-primary py-0 px-2" data-bs-toggle="modal" data-bs-target="#addMeasurementModal" style="font-size:0.75rem">
+                            <i class="fa-solid fa-plus me-1"></i>{{ .lcl.title_add }}
+                        </button>
+                        {{ end }}
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0 plant-mini-table">
+                            <tbody>
+                            {{ range $i, $m := .plant.Measurements }}
+                            <tr class="clickable-row measurement-row{{ if ge $i 5 }} plant-row-hidden{{ end }}" data-measurement='{{ json $m }}'>
+                                <td class="text-muted plant-mini-date">{{ formatDate $m.Date }}</td>
+                                <td>{{ $m.Name }}</td>
+                                <td class="text-end fw-semibold">{{ $m.Value }}</td>
+                            </tr>
+                            {{ end }}
+                            </tbody>
+                        </table>
+                    </div>
+                    {{ if gt (len .plant.Measurements) 5 }}
+                    <button class="btn btn-sm btn-link text-muted plant-expand-btn mt-2 p-0" data-target="measurement">
+                        <i class="fa-solid fa-chevron-down me-1"></i> Show all {{ len .plant.Measurements }} measurements
+                    </button>
+                    {{ end }}
+                </div>
+            </div>
+            {{ end }}
+
+            <!-- Image Gallery (hidden if none) -->
+            {{ if .plant.Images }}
+            <div id="gallery" class="mb-4">
+                <h2 class="text-secondary h5 mb-3">{{ .lcl.image_gallery }}</h2>
+                <div class="row g-3">
+                    {{ range .plant.Images }}
+                    <div class="col-6 col-md-4 col-lg-3">
+                        <div class="card">
+                            <img
+                                    src="{{ .ImagePath }}"
+                                    class="card-img-top thumbnail-img"
+                                    alt="{{ .ImageDescription }}"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#imageModal"
+                                    data-image="{{ .ImagePath }}"
+                                    data-description="{{ .ImageDescription }}"
+                                    data-date="{{ formatDate .ImageDate }}"
+                                    data-id="{{ .ID }}"
+                            >
+                            <div class="card-body text-center py-2">
+                                <small class="text-muted">{{ formatDate .ImageDate }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    {{ end }}
+                </div>
             </div>
             {{ end }}
         </div>
-        {{ else }}
-        <div class="empty-state">
-            <i class="fa-solid fa-images"></i>
-            <p>{{ .lcl.no_images_yet }}</p>
+
+        <!-- Infobox sidebar -->
+        <div class="col-lg-4 order-1 order-lg-2">
+            <!-- Plant Info Card -->
+            <div class="card plant-infobox mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-primary text-center mb-3">
+                        <i class="fa-solid fa-leaf me-1"></i> {{ .lcl.plant_details }}
+                    </h5>
+
+                    <hr>
+
+                    <!-- Metadata list -->
+                    <ul class="list-unstyled strain-info-list mb-0">
+                        <li>
+                            <span class="strain-info-label"><i class="fa-solid fa-cannabis me-2"></i>{{ .lcl.title_strain }}</span>
+                            <span class="strain-info-value">{{ .plant.StrainName }}</span>
+                        </li>
+                        <li>
+                            <span class="strain-info-label"><i class="fa-solid fa-building me-2"></i>{{ .lcl.breeder }}</span>
+                            <span class="strain-info-value">
+                                {{ if ne .plant.StrainUrl "" }}
+                                    <a href="{{ .plant.StrainUrl }}" target="_blank">{{ .plant.BreederName }}</a>
+                                {{ else }}
+                                    {{ .plant.BreederName }}
+                                {{ end }}
+                            </span>
+                        </li>
+                        <li>
+                            <span class="strain-info-label"><i class="fa-solid fa-location-dot me-2"></i>{{ .lcl.title_zone }}</span>
+                            <span class="strain-info-value">{{ .plant.ZoneName }}</span>
+                        </li>
+                        <li>
+                            <span class="strain-info-label"><i class="fa-solid fa-calendar me-2"></i>{{ .lcl.start_date }}</span>
+                            <span class="strain-info-value">{{ formatDate .plant.StartDT }}</span>
+                        </li>
+
+                        {{ if .plant.IsClone }}
+                        <li>
+                            <span class="strain-info-label"><i class="fa-solid fa-clone me-2"></i>{{ .lcl.clone_of }}</span>
+                            <span class="strain-info-value">
+                                {{ if ne .plant.ParentID 0 }}
+                                    <a href="/plant/{{ .plant.ParentID }}">{{ .plant.ParentName }}</a>
+                                {{ else }}
+                                    {{ .lcl.title_unknown }}
+                                {{ end }}
+                            </span>
+                        </li>
+                        {{ end }}
+
+                        {{ if and (ne .plant.Status "Success") (ne .plant.Status "Drying") (ne .plant.Status "Curing") (ne .plant.Status "Dead") }}
+                        <li>
+                            <span class="strain-info-label"><i class="fa-solid fa-calendar-day me-2"></i>{{ .lcl.title_day }}</span>
+                            <span class="strain-info-value">{{ .plant.CurrentDay }}</span>
+                        </li>
+                        <li>
+                            <span class="strain-info-label"><i class="fa-solid fa-clock me-2"></i>{{ .lcl.title_week }}</span>
+                            <span class="strain-info-value">{{ .plant.CurrentWeek }}</span>
+                        </li>
+                        {{ end }}
+
+                        {{ if and (ne .plant.Status "Success") (ne .plant.Status "Drying") (ne .plant.Status "Curing") (ne .plant.Status "Dead") }}
+                            {{ if or (eq .plant.Autoflower true) (not (isZeroDate .plant.EstHarvestDate)) }}
+                            <li>
+                                <span class="strain-info-label"><i class="fa-solid fa-hourglass-half me-2"></i>{{ .lcl.est_harvest_date }}</span>
+                                <span class="strain-info-value">{{ formatDate .plant.EstHarvestDate }}</span>
+                            </li>
+                            {{ end }}
+                        {{ end }}
+
+                        {{ if or (eq .plant.Status "Success") (eq .plant.Status "Drying") (eq .plant.Status "Curing") (eq .plant.Status "Dead") }}
+                        <li>
+                            <span class="strain-info-label"><i class="fa-solid fa-calendar-check me-2"></i>{{ .lcl.harvest_date }}</span>
+                            <span class="strain-info-value">{{ formatDate .plant.HarvestDate }}</span>
+                        </li>
+                        <li>
+                            <span class="strain-info-label"><i class="fa-solid fa-weight-scale me-2"></i>{{ .lcl.harvest_weight }}</span>
+                            <span class="strain-info-value">{{ .plant.HarvestWeight }} {{ .lcl.title_grams }}</span>
+                        </li>
+                        {{ end }}
+
+                        {{ if or (not (isZeroDate .plant.LastWaterDate)) (not (isZeroDate .plant.LastFeedDate)) }}
+                        <li>
+                            <span class="strain-info-label"><i class="fa-solid fa-droplet me-2"></i>{{ .lcl.last_watered_or_fed }}</span>
+                            <span class="strain-info-value" style="font-size: 0.82rem;">
+                                {{ if gt (formatDateTime .plant.LastWaterDate) (formatDateTime .plant.LastFeedDate) }}
+                                    {{ formatDate .plant.LastWaterDate }}
+                                {{ else }}
+                                    {{ formatDate .plant.LastFeedDate }}
+                                {{ end }}
+                            </span>
+                        </li>
+                        {{ end }}
+                    </ul>
+                </div>
+            </div>
+
         </div>
-        {{ end }}
     </div>
 </div>
 
 {{ template "modals/upload-images-modal.html" . }}
 {{ template "modals/decorate-image-modal.html" . }}
 {{ template "modals/link-sensor-modal.html" . }}
-{{ template "modals/edit-plant-modal.html" . }}
 {{ template "modals/add-measurement-modal.html" . }}
 {{ template "modals/add-activity-modal.html" . }}
 {{ template "modals/status-history-edit-modal.html" . }}
 {{ template "modals/measurement-edit-modal.html" . }}
 {{ template "modals/activity-edit-modal.html" . }}
-<!--Embed the footer.html template at this location-->
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    // ===== Timeline =====
+    const card = document.getElementById("timelineCard");
+    if (!card) return;
+
+    const plantId = parseInt(card.dataset.plantId, 10);
+    const loggedIn = card.dataset.loggedIn === "true";
+    const currentStatusId = parseInt(card.dataset.currentStatusId || "0", 10);
+    const daysLabel = card.dataset.daysLabel || "Days";
+    const msPerDay = 1000 * 60 * 60 * 24;
+
+    function safeParseJSON(raw) {
+        try {
+            let parsed = JSON.parse(raw || "[]");
+            if (typeof parsed === "string") parsed = JSON.parse(parsed);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (e) { return []; }
+    }
+
+    const statusHistory = safeParseJSON(card.dataset.statusHistory);
+
+    const reachedByStatusId = {};
+    statusHistory.forEach(s => {
+        const sid = s.status_id || s.StatusID || s.statusId || s.StatusId || s.Status_id;
+        if (sid && !reachedByStatusId[sid]) reachedByStatusId[sid] = s;
+    });
+
+    const parsedStages = statusHistory
+        .filter(item => item && (item.status || item.Status) && (item.date || item.Date))
+        .map(item => ({ status: item.status || item.Status, date: new Date(item.date || item.Date) }))
+        .filter(item => !isNaN(item.date.getTime()))
+        .sort((a, b) => a.date - b.date);
+
+    const stages = [];
+    parsedStages.forEach(s => {
+        if (!stages.length || stages[stages.length - 1].status !== s.status) stages.push(s);
+    });
+
+    const statusOptions = Array.from(document.querySelectorAll("#plantStatusData .status-option"));
+    let currentStepIndex = -1;
+    statusOptions.forEach((el, idx) => {
+        if (parseInt(el.dataset.statusId, 10) === currentStatusId) currentStepIndex = idx;
+    });
+
+    const now = new Date();
+    const segments = stages.map((stage, i) => {
+        const start = stage.date;
+        const end = i + 1 < stages.length ? stages[i + 1].date : now;
+        return { status: stage.status, start, end, duration: Math.max(0, (end - start) / msPerDay) };
+    });
+    const totalDays = segments.reduce((sum, s) => sum + s.duration, 0);
+
+    // Helpers
+    function stageIcon(name) {
+        const n = (name || "").toLowerCase();
+        if (n.includes("germ")) return "fa-lemon";
+        if (n.includes("plant") && !n.includes("ing")) return "fa-bucket";
+        if (n.includes("seedling")) return "fa-seedling";
+        if (n.includes("veg")) return "fa-plant-wilt";
+        if (n.includes("flower")) return "fa-cannabis";
+        if (n.includes("dry")) return "fa-sun";
+        if (n.includes("cur")) return "fa-jar";
+        if (n.includes("success")) return "fa-award";
+        if (n.includes("dead")) return "fa-skull-crossbones";
+        return "fa-circle";
+    }
+
+    function formatDays(d) {
+        if (!Number.isFinite(d) || d <= 0) return "0";
+        const r = d < 10 ? Math.round(d * 10) / 10 : Math.round(d);
+        return Number.isInteger(r) ? `${r}` : r.toFixed(1);
+    }
+
+    function formatDateShort(d) {
+        return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    }
+
+    function toLocalDateTimeString(d) {
+        const pad = n => String(n).padStart(2, "0");
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
+    // Total days
+    const totalDaysEl = document.getElementById("growthTotalDays");
+    if (totalDaysEl) totalDaysEl.textContent = formatDays(totalDays);
+
+    // Build horizontal timeline
+    const track = document.getElementById("htlTrack");
+    if (!track) return;
+    track.innerHTML = "";
+
+    const currentStage = card.dataset.currentStage || "";
+    const plantIsDead = /^dead$/i.test(currentStage);
+    let renderedCount = 0;
+
+    statusOptions.forEach((opt, i) => {
+        const sid = parseInt(opt.dataset.statusId, 10);
+        const name = opt.dataset.statusName;
+        const label = opt.dataset.statusLabel;
+        const idx = parseInt(opt.dataset.statusIndex, 10);
+        const segment = segments.find(s => s.status === name);
+        const reached = !!reachedByStatusId[sid];
+        const isCurrent = idx === currentStepIndex;
+        const isFuture = idx > currentStepIndex && currentStepIndex >= 0;
+
+        // Hide Dead from timeline unless plant is actually dead
+        if (/^dead$/i.test(name) && !plantIsDead) return;
+
+        // For terminal plants (Dead/Success), skip unreached stages
+        const isTerminalPlant = /^(dead|success)$/i.test(currentStage);
+        if (isTerminalPlant && !reached && !isCurrent) return;
+
+        const node = document.createElement("div");
+        node.className = "htl-node";
+        if (isCurrent) node.classList.add("htl-active");
+        if (isFuture) node.classList.add("htl-future");
+        if (reached && !isCurrent) node.classList.add("htl-reached");
+
+        // Connector line (skip before first rendered node)
+        if (renderedCount > 0) {
+            const conn = document.createElement("div");
+            conn.className = "htl-connector";
+            if (reached || isCurrent) conn.classList.add("htl-connector-filled");
+            track.appendChild(conn);
+        }
+
+        // Icon circle
+        const icon = document.createElement("div");
+        icon.className = "htl-icon";
+        icon.innerHTML = `<i class="fa-solid ${stageIcon(name)}"></i>`;
+
+        // Label
+        const lbl = document.createElement("div");
+        lbl.className = "htl-label";
+        lbl.textContent = label;
+
+        // Day pill (only if this stage was reached and has duration)
+        const meta = document.createElement("div");
+        meta.className = "htl-meta";
+        if (segment && segment.duration > 0) {
+            meta.innerHTML = `<span class="htl-days">${formatDays(segment.duration)}d</span>`;
+        } else if (reached) {
+            const hist = reachedByStatusId[sid];
+            const d = new Date(hist.date || hist.Date);
+            if (!isNaN(d.getTime())) {
+                meta.innerHTML = `<span class="htl-date">${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>`;
+            }
+        }
+
+        node.appendChild(icon);
+        node.appendChild(lbl);
+        node.appendChild(meta);
+
+        // Click handler for edit / advance
+        if (loggedIn) {
+            node.style.cursor = "pointer";
+            node.addEventListener("click", () => {
+                if (reached) {
+                    const hist = reachedByStatusId[sid];
+                    if (hist) openEditStatusModal(hist);
+                } else if (isFuture) {
+                    advanceToStatus(sid, name);
+                }
+            });
+        }
+
+        track.appendChild(node);
+        renderedCount++;
+    });
+
+    // Kill button wiring
+    const killBtn = document.getElementById("killPlantBtn");
+    if (killBtn) {
+        const deadOpt = statusOptions.find(o => /^dead$/i.test(o.dataset.statusName));
+        if (deadOpt) {
+            const deadSid = parseInt(deadOpt.dataset.statusId, 10);
+            killBtn.addEventListener("click", () => advanceToStatus(deadSid, "Dead"));
+        }
+    }
+
+    // Status handlers
+    if (typeof window.postStatus === "undefined") {
+        window.postStatus = function(plant_id, status_id, date) {
+            const payload = { plant_id, status_id };
+            if (date) payload.date = date;
+            return fetch("/plant/status", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            }).then(r => { if (!r.ok) throw new Error("Failed"); return r.json(); });
+        };
+    }
+
+    function openEditStatusModal(statusObj) {
+        try {
+            const editModalEl = document.getElementById("editStatusModal");
+            if (!editModalEl) return;
+            const statusIdInput = document.getElementById("statusId");
+            const editDateInput = document.getElementById("editStatusDate");
+            if (!statusIdInput || !editDateInput) return;
+            statusIdInput.value = statusObj.id || statusObj.ID;
+            const d = new Date(statusObj.date || statusObj.Date);
+            editDateInput.value = toLocalDateTimeString(d);
+            new bootstrap.Modal(editModalEl).show();
+        } catch (e) {
+            console.error("Failed to open edit status modal", e);
+        }
+    }
+
+    async function advanceToStatus(sid, name) {
+        const isTerminal = /dead|success/i.test(name);
+        if (isTerminal) {
+            const msg = `Are you sure you want to set status to ${name}?`;
+            if (window.uiMessages && typeof uiMessages.showConfirm === "function") {
+                const confirmed = await uiMessages.showConfirm(msg);
+                if (!confirmed) return;
+            } else if (!confirm(msg)) return;
+        }
+        try {
+            await window.postStatus(plantId, sid);
+            location.reload();
+        } catch (err) {
+            console.error(err);
+            if (window.uiMessages) uiMessages.showToast("Failed to advance status", "danger");
+        }
+    }
+
+    // ===== Expand/Collapse for activity & measurement tables =====
+    document.querySelectorAll(".plant-expand-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const card = btn.closest(".plant-section-card");
+            if (!card) return;
+            const hiddenRows = card.querySelectorAll(".plant-row-hidden");
+            const isExpanded = btn.dataset.expanded === "true";
+
+            if (isExpanded) {
+                hiddenRows.forEach(r => r.style.display = "none");
+                btn.dataset.expanded = "false";
+                btn.innerHTML = btn.innerHTML.replace("Show less", "Show all").replace("fa-chevron-up", "fa-chevron-down");
+            } else {
+                hiddenRows.forEach(r => r.style.display = "");
+                btn.dataset.expanded = "true";
+                btn.innerHTML = '<i class="fa-solid fa-chevron-up me-1"></i> Show less';
+            }
+        });
+    });
+
+    // Initialize hidden rows
+    document.querySelectorAll(".plant-row-hidden").forEach(r => r.style.display = "none");
+});
+</script>
+
 {{ template "common/footer.html" .}}
 
 {{ end }}

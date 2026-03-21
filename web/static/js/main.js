@@ -181,7 +181,16 @@ document.addEventListener("DOMContentLoaded", async () => {
                         sensorRow.style.cursor = 'pointer';
 
                         const nameSpan = document.createElement('span');
-                        nameSpan.textContent = sensor.name;
+                        // Show plant name prefix for sensors linked to active plants
+                        if (sensor.plant_name) {
+                            const plantBadge = document.createElement('small');
+                            plantBadge.className = 'text-info me-1';
+                            plantBadge.textContent = sensor.plant_name + ' \u2014';
+                            nameSpan.appendChild(plantBadge);
+                            nameSpan.appendChild(document.createTextNode(' ' + sensor.name));
+                        } else {
+                            nameSpan.textContent = sensor.name;
+                        }
 
                         const valueDiv = document.createElement('div');
                         valueDiv.className = 'text-end';

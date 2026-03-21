@@ -257,6 +257,8 @@ func main() {
 				return int(v)
 			case int:
 				return v
+			case uint:
+				return int(v)
 			default:
 				logger.Log.WithField("input", value).Warn("Unhandled type in toInt conversion")
 				return 0

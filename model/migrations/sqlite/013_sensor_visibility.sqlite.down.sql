@@ -1,0 +1,2 @@
+-- SQLite doesn't support DROP COLUMN in older versions, so we keep both columns
+-- and just ignore the visibility column.

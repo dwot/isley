@@ -76,7 +76,7 @@
                 <th scope="col" data-sort="device" data-type="text" class="sortable">{{ .lcl.title_device }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
                 <th scope="col" data-sort="type" data-type="text" class="sortable">{{ .lcl.title_type }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
                 <th scope="col" data-sort="unit" data-type="text" class="sortable">{{ .lcl.title_unit }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
-                <th scope="col" data-sort="visible" data-type="text" class="sortable">{{ .lcl.title_show_hide }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
+                <th scope="col" data-sort="visibility" data-type="text" class="sortable">{{ .lcl.title_visibility }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
                 <th scope="col" data-sort="create_dt" data-type="date" class="sortable">{{ .lcl.title_created }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
                 <th scope="col" data-sort="update_dt" data-type="date" class="sortable">{{ .lcl.title_updated }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
             </tr>
@@ -91,7 +91,7 @@
                 <td>{{ .device }}</td>
                 <td>{{ .type }}</td>
                 <td>{{ .unit }}</td>
-                <td>{{ if .visible }}{{ .lcl.title_show }}{{ else }}{{ .lcl.title_hide }}{{ end }}</td>
+                <td>{{ if eq .visibility "zone_plant" }}{{ .lcl.vis_zone_plant }}{{ else if eq .visibility "zone" }}{{ .lcl.vis_zone }}{{ else if eq .visibility "plant" }}{{ .lcl.vis_plant }}{{ else }}{{ .lcl.title_hide }}{{ end }}</td>
                 <td>{{ formatStringDate .create_dt }}</td>
                 <td>{{ formatStringDate .update_dt }}</td>
             </tr>
@@ -162,19 +162,21 @@
                         <input type="text" class="form-control" id="sensorName" required>
                     </div>
 
-                    <!-- Sensor Device -->
+                    <!-- Sensor Identity (read-only) -->
                     <div class="mb-3">
-                        <label for="sensorDevice" class="form-label required">{{ .lcl.title_device }}</label>
-                        <input type="text" class="form-control" id="sensorDevice" required>
-                        <p class="form-text">{{ .lcl.edit_device_info }}</p>
+                        <label class="form-label text-muted">{{ .lcl.title_source }} / {{ .lcl.title_device }} / {{ .lcl.title_type }}</label>
+                        <div class="form-control bg-body-secondary" id="sensorIdentity" style="cursor: default; opacity: 0.8;" readonly></div>
+                        <p class="form-text">{{ .lcl.sensor_identity_info }}</p>
                     </div>
 
-                    <!-- Show/Hide -->
+                    <!-- Visibility -->
                     <div class="mb-3">
                         <label for="sensorVisibility" class="form-label required">{{ .lcl.title_visibility }}</label>
                         <select class="form-select" id="sensorVisibility" required>
-                            <option value="true">{{ .lcl.title_show }}</option>
-                            <option value="false">{{ .lcl.title_hide }}</option>
+                            <option value="zone_plant">{{ .lcl.vis_zone_plant }}</option>
+                            <option value="zone">{{ .lcl.vis_zone }}</option>
+                            <option value="plant">{{ .lcl.vis_plant }}</option>
+                            <option value="hide">{{ .lcl.title_hide }}</option>
                         </select>
                     </div>
 
@@ -501,10 +503,10 @@
                 // Populate modal fields
                 document.getElementById("sensorId").value = sensorData.id;
                 document.getElementById("sensorName").value = sensorData.name;
-                document.getElementById("sensorDevice").value = sensorData.device;
+                document.getElementById("sensorIdentity").textContent = sensorData.source + " / " + sensorData.device + " / " + sensorData.type;
 
-                // Populate visibility (ensure it's boolean in the backend)
-                document.getElementById("sensorVisibility").value = sensorData.visible ? "true" : "false";
+                // Populate visibility
+                document.getElementById("sensorVisibility").value = sensorData.visibility || "zone_plant";
 
                 // Populate unit
                 document.getElementById("sensorUnit").value = sensorData.unit;
@@ -523,8 +525,7 @@
             const payload = {
                 id: parseInt(document.getElementById("sensorId").value, 10),
                 name: document.getElementById("sensorName").value,
-                device: document.getElementById("sensorDevice").value,
-                visible: document.getElementById("sensorVisibility").value === "true",
+                visibility: document.getElementById("sensorVisibility").value,
                 zone_id: parseInt(document.getElementById("sensorZone").value, 10),
                 unit: document.getElementById("sensorUnit").value,
             };

@@ -1,69 +1,126 @@
 {{ define "views/plants.html"}}
-<!--index.html-->
 
-<!--Embed the header.html template at this location-->
 {{ template "common/header.html" .}}
 {{ template "common/header2.html" .}}
 
+<div class="container">
+    <h1 class="visually-hidden">{{ .lcl.title_plants }}</h1>
 
-<div class="text-center">
-    <div class="container">
-        <h1 class="visually-hidden">{{ .lcl.title_plants }}</h1>
-        <div class="mb-4">
-            <!-- View Selector -->
-            <div class="mb-4 d-flex justify-content-between align-items-center">
-                <div class="btn-group" role="group">
-                    <button class="btn view-button active" data-view="living">{{ .lcl.living_plants }}</button>
-                    <button class="btn view-button" data-view="harvested">{{ .lcl.harvested_plants }}</button>
-                    <button class="btn view-button" data-view="dead">{{ .lcl.dead_plants }}</button>
-                </div>
-                <div class="d-flex align-items-center">
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
-                        <input type="text" class="form-control" id="searchPlants" placeholder="{{ .lcl.search_plants }}...">
-                    </div>
-                    {{ if .loggedIn }}
-                    <button class="btn btn-success ms-3" data-bs-toggle="modal" data-bs-target="#addPlantModal">
-                        <i class="fa-solid fa-plus"></i>
-                    </button>
-                    {{ end }}
-                </div>
+    <!-- Top Controls Bar -->
+    <div class="plants-controls">
+        <!-- Status toggle + search + layout toggle row -->
+        <div class="plants-controls-row">
+            <div class="btn-group" role="group">
+                <button class="btn btn-sm view-button active" data-view="living">
+                    <i class="fa-solid fa-seedling me-1"></i> {{ .lcl.living_plants }}
+                </button>
+                <button class="btn btn-sm view-button" data-view="harvested">
+                    <i class="fa-solid fa-wheat-awn me-1"></i> {{ .lcl.harvested_plants }}
+                </button>
+                <button class="btn btn-sm view-button" data-view="dead">
+                    <i class="fa-solid fa-skull-crossbones me-1"></i> {{ .lcl.dead_plants }}
+                </button>
             </div>
 
+            <div class="plants-search-wrap">
+                <i class="fa-solid fa-search plants-search-icon"></i>
+                <input type="text" class="form-control form-control-sm" id="searchPlants"
+                       placeholder="{{ .lcl.search_plants }}...">
+            </div>
+
+            <!-- Layout toggle -->
+            <div class="btn-group" role="group" aria-label="Layout toggle">
+                <button class="btn btn-sm layout-toggle active" data-layout="cards" title="Card view">
+                    <i class="fa-solid fa-grip"></i>
+                </button>
+                <button class="btn btn-sm layout-toggle" data-layout="table" title="Table view">
+                    <i class="fa-solid fa-table-list"></i>
+                </button>
+            </div>
+
+            {{ if .loggedIn }}
+            <a href="/plant/new" class="btn btn-sm btn-success" title="{{ .lcl.add_new_plant }}">
+                <i class="fa-solid fa-plus me-1"></i> {{ .lcl.add_new_plant }}
+            </a>
+            {{ end }}
         </div>
 
-        <div class="row">
-            <div class="col-12">
-                <div class="table-responsive">
-                <table class="table table-striped table-bordered table-hover">
-                    <thead class="table-dark" id="plantsTableHeader">
-                    <tr>
-                        <th scope="col" data-sort="name" data-type="text" class="sortable">{{ .lcl.title_plant }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
-                        <th scope="col" data-sort="strain_name" data-type="text" class="sortable">{{ .lcl.title_strain }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
-                        <th scope="col" data-sort="breeder_name" data-type="text" class="sortable">{{ .lcl.breeder }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
-                        <th scope="col" data-sort="status" data-type="text" class="sortable">{{ .lcl.title_status }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
-                        <th scope="col" data-sort="start_dt" data-type="date" class="sortable">{{ .lcl.start_date }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
-                        <th scope="col" id="dynamicHeader1" class="sortable">{{ .lcl.current_week }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
-                        <th scope="col" id="dynamicHeader2" class="sortable">{{ .lcl.current_day }} <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></th>
-                        {{ if .loggedIn }}
-                        <th scope="col"></th>
-                        {{ end }}
-                    </tr>
-                    </thead>
-                    <tbody id="plantsTableBody">
-                    <!-- Rows populated dynamically -->
-                    </tbody>
-                </table>
-                </div>
+        <!-- Filters row -->
+        <div class="plants-filters-row">
+            <div class="plants-filter-group" id="filterZoneGroup">
+                <label class="plants-filter-label">{{ .lcl.title_zone }}</label>
+                <select id="filterZone" class="form-select form-select-sm">
+                    <option value="">All</option>
+                </select>
+            </div>
+            <div class="plants-filter-group" id="filterBreederGroup">
+                <label class="plants-filter-label">{{ .lcl.breeder }}</label>
+                <select id="filterBreeder" class="form-select form-select-sm">
+                    <option value="">All</option>
+                </select>
+            </div>
+            <div class="plants-filter-group" id="filterStatusGroup">
+                <label class="plants-filter-label">{{ .lcl.title_status }}</label>
+                <select id="filterStatus" class="form-select form-select-sm">
+                    <option value="">All</option>
+                </select>
+            </div>
+            <div class="plants-filter-group">
+                <label class="plants-filter-label">Sort by</label>
+                <select id="sortBy" class="form-select form-select-sm">
+                    <option value="name-asc">Name A–Z</option>
+                    <option value="name-desc">Name Z–A</option>
+                    <option value="day-desc">Newest First</option>
+                    <option value="day-asc">Oldest First</option>
+                    <option value="strain-asc">Strain A–Z</option>
+                    <option value="water-desc">Needs Water</option>
+                </select>
+            </div>
+            <div class="plants-filter-group">
+                <button id="clearFilters" class="btn btn-sm btn-outline-secondary" title="Clear all filters">
+                    <i class="fa-solid fa-filter-circle-xmark me-1"></i> Clear
+                </button>
+            </div>
+            <div class="plants-result-count ms-auto">
+                <span id="resultCount" class="text-muted"></span>
             </div>
         </div>
     </div>
+
+    <!-- Plants Card Grid -->
+    <div id="plantsCards" class="plants-grid">
+    </div>
+
+    <!-- Plants Table -->
+    <div id="plantsTable" class="plants-table-wrap" style="display:none;">
+        <table class="table table-hover plants-table">
+            <thead>
+                <tr>
+                    <th class="pt-th-name pt-sortable" data-sort="name">{{ .lcl.title_plant }} <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
+                    <th class="pt-th-strain pt-sortable" data-sort="strain">{{ .lcl.title_strain }} <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
+                    <th class="pt-th-zone pt-sortable" data-sort="zone">{{ .lcl.title_zone }} <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
+                    <th class="pt-th-status pt-sortable" data-sort="status">{{ .lcl.title_status }} <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
+                    <th class="pt-th-age pt-sortable" data-sort="col1" id="dynamicHeader1">{{ .lcl.current_week }} <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
+                    <th class="pt-th-detail pt-sortable" data-sort="col2" id="dynamicHeader2">{{ .lcl.current_day }} <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
+                    {{ if .loggedIn }}
+                    <th class="pt-th-actions"></th>
+                    {{ end }}
+                </tr>
+            </thead>
+            <tbody id="plantsTableBody">
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Empty state -->
+    <div id="emptyState" class="plants-empty" style="display:none;">
+        <i class="fa-solid fa-cannabis fa-3x text-muted mb-3"></i>
+        <p class="text-muted">{{ .lcl.no_plants_match }}</p>
+    </div>
 </div>
 
-<!-- Add Plant Modal -->
-{{ template "modals/add-plant-modal.html" .}}
-
 {{ if .loggedIn }}
+<!-- Quick Status Change Modal -->
 <div class="modal fade" id="quickStatusModal" tabindex="-1" aria-labelledby="quickStatusModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -98,6 +155,7 @@
     </div>
 </div>
 
+<!-- Quick Measurement Modal -->
 <div class="modal fade" id="quickMeasurementModal" tabindex="-1" aria-labelledby="quickMeasurementModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -135,6 +193,7 @@
     </div>
 </div>
 
+<!-- Quick Activity Modal -->
 <div class="modal fade" id="quickActivityModal" tabindex="-1" aria-labelledby="quickActivityModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -174,457 +233,628 @@
 {{ end }}
 
 <script>
-    document.addEventListener("DOMContentLoaded", () => {
-        const plantsTableBody = document.getElementById("plantsTableBody");
-        const searchPlants = document.getElementById("searchPlants");
-        const viewButtons = document.querySelectorAll(".view-button");
-        const headerDynamic1 = document.getElementById("dynamicHeader1");
-        const headerDynamic2 = document.getElementById("dynamicHeader2");
-        const statusOptionsRaw = {{ json .statuses }};
-        const parsedStatusOptions = typeof statusOptionsRaw === "string"
-            ? JSON.parse(statusOptionsRaw || "[]")
-            : statusOptionsRaw;
-        const statusOptions = Array.isArray(parsedStatusOptions) ? parsedStatusOptions : [];
-        const canEditStatus = {{ if .loggedIn }}true{{ else }}false{{ end }};
-        const statusIdByName = new Map(statusOptions.map(status => [status.status, status.id]));
-        const statusUpdateError = "{{ .lcl.failed_to_change_status }}";
-        const measurementAddError = "{{ .lcl.failed_to_add_measurement }}";
-        const activityAddError = "{{ .lcl.failed_to_add_activity }}";
-        const quickStatusModalElement = document.getElementById("quickStatusModal");
-        const quickStatusForm = document.getElementById("quickStatusForm");
-        const quickStatusPlantIdInput = document.getElementById("quickStatusPlantId");
-        const quickStatusPlantNameInput = document.getElementById("quickStatusPlantName");
-        const quickStatusSelect = document.getElementById("quickStatusSelect");
-        const quickStatusDate = document.getElementById("quickStatusDate");
-        const quickStatusModal = quickStatusModalElement && window.bootstrap
-            ? new bootstrap.Modal(quickStatusModalElement)
-            : null;
-        const quickMeasurementModalElement = document.getElementById("quickMeasurementModal");
-        const quickMeasurementForm = document.getElementById("quickMeasurementForm");
-        const quickMeasurementPlantIdInput = document.getElementById("quickMeasurementPlantId");
-        const quickMeasurementPlantNameInput = document.getElementById("quickMeasurementPlantName");
-        const quickMeasurementMetric = document.getElementById("quickMeasurementMetric");
-        const quickMeasurementValue = document.getElementById("quickMeasurementValue");
-        const quickMeasurementDate = document.getElementById("quickMeasurementDate");
-        const quickMeasurementModal = quickMeasurementModalElement && window.bootstrap
-            ? new bootstrap.Modal(quickMeasurementModalElement)
-            : null;
-        const quickActivityModalElement = document.getElementById("quickActivityModal");
-        const quickActivityForm = document.getElementById("quickActivityForm");
-        const quickActivityPlantIdInput = document.getElementById("quickActivityPlantId");
-        const quickActivityPlantNameInput = document.getElementById("quickActivityPlantName");
-        const quickActivityName = document.getElementById("quickActivityName");
-        const quickActivityNote = document.getElementById("quickActivityNote");
-        const quickActivityDate = document.getElementById("quickActivityDate");
-        const quickActivityModal = quickActivityModalElement && window.bootstrap
-            ? new bootstrap.Modal(quickActivityModalElement)
-            : null;
-        let currentView = "living";
-        let plantsData = [];
-        let sortColumn = null;
-        let sortDirection = "asc";
+document.addEventListener("DOMContentLoaded", () => {
+    const cardsContainer = document.getElementById("plantsCards");
+    const tableWrap = document.getElementById("plantsTable");
+    const tableBody = document.getElementById("plantsTableBody");
+    const emptyState = document.getElementById("emptyState");
+    const searchInput = document.getElementById("searchPlants");
+    const filterZone = document.getElementById("filterZone");
+    const filterZoneGroup = document.getElementById("filterZoneGroup");
+    const filterBreeder = document.getElementById("filterBreeder");
+    const filterBreederGroup = document.getElementById("filterBreederGroup");
+    const filterStatus = document.getElementById("filterStatus");
+    const filterStatusGroup = document.getElementById("filterStatusGroup");
+    const sortBy = document.getElementById("sortBy");
+    const clearBtn = document.getElementById("clearFilters");
+    const resultCount = document.getElementById("resultCount");
+    const viewButtons = document.querySelectorAll(".view-button");
+    const layoutButtons = document.querySelectorAll(".layout-toggle");
+    const headerDynamic1 = document.getElementById("dynamicHeader1");
+    const headerDynamic2 = document.getElementById("dynamicHeader2");
 
-        const setActiveButton = (clickedButton) => {
-            viewButtons.forEach(button => {
-                if (button === clickedButton) {
-                    button.classList.add("active"); // Add active class to clicked button
-                } else {
-                    button.classList.remove("active"); // Remove active class from others
-                }
+    const canEdit = {{ if .loggedIn }}true{{ else }}false{{ end }};
+    const statusOptionsRaw = {{ json .statuses }};
+    const parsedStatusOptions = typeof statusOptionsRaw === "string"
+        ? JSON.parse(statusOptionsRaw || "[]")
+        : statusOptionsRaw;
+    const statusOptions = Array.isArray(parsedStatusOptions) ? parsedStatusOptions : [];
+    const statusIdByName = new Map(statusOptions.map(s => [s.status, s.id]));
+
+    let currentView = "living";
+    let currentLayout = localStorage.getItem("plantsLayout") || "cards";
+    let allPlants = [];
+    let tableSort = { key: null, asc: true };
+
+    // Set initial layout button state
+    layoutButtons.forEach(b => {
+        b.classList.toggle("active", b.dataset.layout === currentLayout);
+    });
+    syncLayoutVisibility();
+
+    // ----- Fetch plants -----
+    async function fetchPlants(view) {
+        cardsContainer.innerHTML = `<div class="text-center py-5" style="flex-basis:100%"><div class="spinner-border text-primary" role="status"></div></div>`;
+        tableBody.innerHTML = `<tr><td colspan="7" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>`;
+        try {
+            const res = await fetch(`/plants/${view}`);
+            allPlants = await res.json() || [];
+            updateHeaders(view);
+            populateFilters();
+            applyFilters();
+        } catch (e) {
+            cardsContainer.innerHTML = `<p class="text-danger text-center" style="flex-basis:100%">Failed to load plants.</p>`;
+            tableBody.innerHTML = `<tr><td colspan="7" class="text-danger text-center">Failed to load plants.</td></tr>`;
+        }
+    }
+
+    // ----- Update table headers based on view -----
+    function updateHeaders(view) {
+        if (view === "harvested") {
+            headerDynamic1.textContent = "{{ .lcl.harvest_weight_g }}";
+            headerDynamic2.textContent = "{{ .lcl.harvest_date }}";
+        } else if (view === "dead") {
+            headerDynamic1.textContent = "{{ .lcl.dead_date }}";
+            headerDynamic2.textContent = "";
+            headerDynamic2.style.display = "none";
+        } else {
+            headerDynamic1.textContent = "{{ .lcl.current_week }}";
+            headerDynamic2.textContent = "{{ .lcl.current_day }}";
+            headerDynamic2.style.display = "";
+        }
+    }
+
+    // ----- Populate filter dropdowns -----
+    function populateFilters() {
+        const zones = [...new Set(allPlants.map(p => p.zone_name).filter(Boolean))].sort();
+        const breeders = [...new Set(allPlants.map(p => p.breeder_name).filter(Boolean))].sort();
+        const statuses = [...new Set(allPlants.map(p => p.status).filter(Boolean))].sort();
+
+        const curZone = filterZone.value;
+        const curBreeder = filterBreeder.value;
+        const curStatus = filterStatus.value;
+
+        // Zone filter — only relevant for living plants
+        if (currentView === "living") {
+            filterZoneGroup.style.display = "";
+            filterZone.innerHTML = '<option value="">All</option>';
+            zones.forEach(z => {
+                const opt = document.createElement("option");
+                opt.value = z;
+                opt.textContent = z;
+                if (z === curZone) opt.selected = true;
+                filterZone.appendChild(opt);
             });
-        };
+        } else {
+            filterZoneGroup.style.display = "none";
+            filterZone.value = "";
+        }
 
-        const fetchPlants = (view) => {
-            fetch(`/plants/${view}`)
-                .then(response => response.json())
-                .then(data => {
-                    plantsData = data;
-                    updateHeaders(view);
-                    updateTable();
-                })
-                .catch(err => console.error("Error fetching plants:", err));
-        };
+        // Breeder filter
+        filterBreeder.innerHTML = '<option value="">All</option>';
+        breeders.forEach(b => {
+            const opt = document.createElement("option");
+            opt.value = b;
+            opt.textContent = b;
+            if (b === curBreeder) opt.selected = true;
+            filterBreeder.appendChild(opt);
+        });
 
-        const sortIconMarkup = ' <i class="fa-solid fa-sort"></i><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i>';
-        const updateHeaders = (view) => {
-            if (view === "harvested") {
-                headerDynamic1.textContent = "{{ .lcl.harvest_weight_g }}";
-                headerDynamic2.textContent = "{{ .lcl.harvest_date }}";
-                // Append sort icons to the headers.
-                headerDynamic1.innerHTML += sortIconMarkup;
-                headerDynamic2.innerHTML += sortIconMarkup;
-                //Set data-sort and data-type for the columns
-                headerDynamic1.setAttribute("data-sort", "harvest_weight");
-                headerDynamic1.setAttribute("data-type", "number");
-                headerDynamic2.setAttribute("data-sort", "harvest_date");
-                headerDynamic2.setAttribute("data-type", "date");
-            } else if (view === "dead") {
-                headerDynamic1.textContent = "{{ .lcl.dead_date }}";
-                headerDynamic2.textContent = ""; // Hide second header
-                // Append sort icons to the headers.
-                headerDynamic1.innerHTML += sortIconMarkup;
-                //Set data-sort and data-type for the columns
-                headerDynamic1.setAttribute("data-sort", "harvest_date");
-                headerDynamic1.setAttribute("data-type", "date");
-            } else {
-                headerDynamic1.textContent = "{{ .lcl.current_week }}";
-                headerDynamic2.textContent = "{{ .lcl.current_day }}";
-                // Append sort icons to the headers.
-                headerDynamic1.innerHTML += sortIconMarkup;
-                headerDynamic2.innerHTML += sortIconMarkup;
-                //Set data-sort and data-type for the columns
-                headerDynamic1.setAttribute("data-sort", "current_week");
-                headerDynamic1.setAttribute("data-type", "number");
-                headerDynamic2.setAttribute("data-sort", "current_day");
-                headerDynamic2.setAttribute("data-type", "number");
+        // Status filter
+        filterStatus.innerHTML = '<option value="">All</option>';
+        statuses.forEach(s => {
+            const opt = document.createElement("option");
+            opt.value = s;
+            opt.textContent = s;
+            if (s === curStatus) opt.selected = true;
+            filterStatus.appendChild(opt);
+        });
+
+        // Hide "Needs Water" sort option for non-living views
+        const waterSortOpt = sortBy.querySelector('option[value="water-desc"]');
+        if (waterSortOpt) waterSortOpt.style.display = currentView === "living" ? "" : "none";
+        if (currentView !== "living" && sortBy.value === "water-desc") sortBy.value = "name-asc";
+    }
+
+    // ----- Filter + Sort -----
+    function applyFilters() {
+        let data = [...allPlants];
+        const query = searchInput.value.toLowerCase().trim();
+        const zone = filterZone.value;
+        const breeder = filterBreeder.value;
+        const status = filterStatus.value;
+        const sort = sortBy.value;
+
+        if (query) {
+            data = data.filter(p =>
+                p.name.toLowerCase().includes(query) ||
+                (p.strain_name || "").toLowerCase().includes(query) ||
+                (p.breeder_name || "").toLowerCase().includes(query) ||
+                (p.zone_name || "").toLowerCase().includes(query)
+            );
+        }
+        if (zone) data = data.filter(p => p.zone_name === zone);
+        if (breeder) data = data.filter(p => p.breeder_name === breeder);
+        if (status) data = data.filter(p => p.status === status);
+
+        // Use table header sort if active, otherwise use dropdown
+        let sortKey, sortAsc;
+        if (tableSort.key) {
+            sortKey = tableSort.key;
+            sortAsc = tableSort.asc;
+        } else {
+            const [k, d] = sort.split("-");
+            sortKey = k;
+            sortAsc = d === "asc";
+        }
+
+        data.sort((a, b) => {
+            let va, vb;
+            switch (sortKey) {
+                case "name":
+                    va = (a.name || "").toLowerCase();
+                    vb = (b.name || "").toLowerCase();
+                    return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+                case "day":
+                case "col1":
+                    if (currentView === "harvested") {
+                        va = a.harvest_weight || 0;
+                        vb = b.harvest_weight || 0;
+                    } else {
+                        va = a.current_day || 0;
+                        vb = b.current_day || 0;
+                    }
+                    return sortAsc ? va - vb : vb - va;
+                case "col2":
+                    if (currentView === "harvested") {
+                        va = a.harvest_date || "";
+                        vb = b.harvest_date || "";
+                    } else {
+                        va = a.current_day || 0;
+                        vb = b.current_day || 0;
+                    }
+                    return sortAsc ? (va < vb ? -1 : va > vb ? 1 : 0) : (vb < va ? -1 : vb > va ? 1 : 0);
+                case "strain":
+                    va = (a.strain_name || "").toLowerCase();
+                    vb = (b.strain_name || "").toLowerCase();
+                    return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+                case "zone":
+                    va = (a.zone_name || "").toLowerCase();
+                    vb = (b.zone_name || "").toLowerCase();
+                    return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+                case "status":
+                    va = (a.status || "").toLowerCase();
+                    vb = (b.status || "").toLowerCase();
+                    return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+                case "water":
+                    va = a.days_since_last_watering ?? 999;
+                    vb = b.days_since_last_watering ?? 999;
+                    return sortAsc ? va - vb : vb - va;
+                default:
+                    return 0;
             }
-        };
+        });
 
-        const formatDateTimeLocal = (date) => {
-            const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-            return offsetDate.toISOString().slice(0, 19);
-        };
+        resultCount.textContent = `${data.length} plant${data.length !== 1 ? "s" : ""}`;
 
-        const initTooltips = () => {
-            if (!window.bootstrap || !bootstrap.Tooltip) {
-                return;
-            }
-            document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((element) => {
-                bootstrap.Tooltip.getOrCreateInstance(element);
-            });
-        };
+        if (data.length === 0) {
+            cardsContainer.innerHTML = "";
+            tableBody.innerHTML = "";
+            emptyState.style.display = "flex";
+            return;
+        }
+        emptyState.style.display = "none";
+        renderCards(data);
+        renderTable(data);
+    }
 
-        const renderQuickActionsCell = (plant) => {
-            if (!canEditStatus) {
-                return "";
-            }
-            const statusId = statusIdByName.get(plant.status) || "";
-            const encodedName = encodeURIComponent(plant.name || "");
+    // ----- Status badge helper -----
+    function statusBadge(status) {
+        const cls = {
+            "Germination": "pc-status-germ",
+            "Seedling": "pc-status-seed",
+            "Vegetative": "pc-status-veg",
+            "Flowering": "pc-status-flower",
+            "Drying": "pc-status-dry",
+            "Curing": "pc-status-cure",
+            "Success": "pc-status-harvest",
+            "Dead": "pc-status-dead"
+        }[status] || "pc-status-default";
+        return `<span class="pc-status-badge ${cls}">${esc(status)}</span>`;
+    }
+
+    // ----- Render card grid -----
+    function renderCards(data) {
+        cardsContainer.innerHTML = data.map(p => {
+            const dayInfo = currentView === "harvested"
+                ? `<span class="pc-stat"><i class="fa-solid fa-weight-scale me-1"></i>${p.harvest_weight ? p.harvest_weight + "g" : "—"}</span>`
+                : currentView === "dead"
+                ? `<span class="pc-stat"><i class="fa-solid fa-calendar-xmark me-1"></i>${p.harvest_date ? new Date(p.harvest_date).toLocaleDateString() : "—"}</span>`
+                : `<span class="pc-stat"><i class="fa-solid fa-calendar-day me-1"></i>Day ${p.current_day || "—"}</span>
+                   <span class="pc-stat"><i class="fa-solid fa-clock me-1"></i>Week ${p.current_week || "—"}</span>`;
+
+            const waterInfo = (currentView === "living" && p.days_since_last_watering != null && p.days_since_last_watering >= 0)
+                ? `<span class="pc-water-indicator${p.days_since_last_watering > 2 ? " pc-water-warn" : ""}"><i class="fa-solid fa-droplet me-1"></i>${p.days_since_last_watering}d</span>`
+                : "";
+
+            const feedInfo = (currentView === "living" && p.days_since_last_feeding != null && p.days_since_last_feeding >= 0)
+                ? `<span class="pc-feed-indicator${p.days_since_last_feeding > 5 ? " pc-feed-warn" : ""}"><i class="fa-solid fa-flask me-1"></i>${p.days_since_last_feeding}d</span>`
+                : "";
+
+            const typeBadge = p.autoflower
+                ? `<span class="strain-badge-auto" style="font-size:0.65rem;padding:0.15em 0.5em"><i class="fa-solid fa-bolt me-1"></i>Auto</span>`
+                : `<span class="strain-badge-photo" style="font-size:0.65rem;padding:0.15em 0.5em"><i class="fa-solid fa-sun me-1"></i>Photo</span>`;
+
+            const cloneBadge = p.clone
+                ? `<span class="pc-clone-badge"><i class="fa-solid fa-clone me-1"></i>Clone</span>`
+                : "";
+
+            const flowerDays = p.flowering_days
+                ? `<span class="pc-stat pc-flower-days"><i class="fa-solid fa-fire me-1"></i>F${p.flowering_days}</span>`
+                : "";
+
+            const quickActions = (canEdit && currentView === "living") ? `
+                <div class="pc-quick-actions">
+                    <button type="button" class="pc-action-btn plant-status-edit" data-id="${p.id}" data-status-id="${statusIdByName.get(p.status) || ""}" data-name="${encodeURIComponent(p.name || "")}" title="{{ .lcl.change_status }}">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button type="button" class="pc-action-btn plant-measurement-add" data-id="${p.id}" data-name="${encodeURIComponent(p.name || "")}" title="{{ .lcl.add_measurement }}">
+                        <i class="fa-solid fa-ruler-combined"></i>
+                    </button>
+                    <button type="button" class="pc-action-btn plant-activity-add" data-id="${p.id}" data-name="${encodeURIComponent(p.name || "")}" title="{{ .lcl.add_activity }}">
+                        <i class="fa-solid fa-clipboard-list"></i>
+                    </button>
+                </div>` : "";
+
             return `
-                <td>
+            <div class="pc-card-link" data-href="/plant/${p.id}">
+                <div class="pc-card">
+                    <div class="pc-card-header">
+                        <div class="pc-card-title-row">
+                            <h3 class="pc-name">${esc(p.name)}</h3>
+                            ${quickActions}
+                        </div>
+                        <div class="pc-subtitle">
+                            <span class="pc-strain">${esc(p.strain_name || "Unknown")}</span>
+                            <span class="pc-breeder">${esc(p.breeder_name || "")}</span>
+                        </div>
+                    </div>
+                    <div class="pc-card-body">
+                        <div class="pc-info-row">
+                            <span class="pc-zone"><i class="fa-solid fa-location-dot me-1"></i>${esc(p.zone_name || "—")}</span>
+                            ${statusBadge(p.status)}
+                        </div>
+                        <div class="pc-info-row">
+                            ${cloneBadge}
+                            ${typeBadge}
+                            ${flowerDays}
+                        </div>
+                    </div>
+                    <div class="pc-card-footer">
+                        <div class="pc-meta-left">
+                            ${dayInfo}
+                        </div>
+                        <div class="pc-meta-right">
+                            ${waterInfo}
+                            ${feedInfo}
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        }).join("");
+    }
+
+    // ----- Render table -----
+    function renderTable(data) {
+        tableBody.innerHTML = data.map(p => {
+            let col1 = "", col2 = "";
+            if (currentView === "harvested") {
+                col1 = p.harvest_weight ? `${p.harvest_weight}g` : "—";
+                col2 = p.harvest_date ? new Date(p.harvest_date).toLocaleDateString() : "—";
+            } else if (currentView === "dead") {
+                col1 = p.harvest_date ? new Date(p.harvest_date).toLocaleDateString() : "—";
+                col2 = "";
+            } else {
+                col1 = `Wk ${p.current_week || "—"}`;
+                col2 = `Day ${p.current_day || "—"}`;
+            }
+
+            const waterBadge = (currentView === "living" && p.days_since_last_watering != null && p.days_since_last_watering >= 0)
+                ? `<span class="pc-water-indicator${p.days_since_last_watering > 2 ? " pc-water-warn" : ""}" style="font-size:0.72rem;margin-left:0.5rem"><i class="fa-solid fa-droplet me-1"></i>${p.days_since_last_watering}d</span>`
+                : "";
+
+            const actionsHtml = (canEdit && currentView === "living") ? `
+                <td class="text-center">
                     <div class="d-inline-flex gap-1">
-                        <button type="button" class="btn btn-sm btn-outline-secondary btn-icon-action plant-status-edit" data-id="${plant.id}" data-status-id="${statusId}" data-name="${encodedName}" data-bs-toggle="tooltip" data-bs-title="{{ .lcl.change_status }}" aria-label="{{ .lcl.change_status }}">
+                        <button type="button" class="btn btn-sm btn-outline-secondary btn-icon-action plant-status-edit" data-id="${p.id}" data-status-id="${statusIdByName.get(p.status) || ""}" data-name="${encodeURIComponent(p.name || "")}">
                             <i class="fa-solid fa-pen-to-square"></i>
                         </button>
-                        <button type="button" class="btn btn-sm btn-outline-primary btn-icon-action plant-measurement-add" data-id="${plant.id}" data-name="${encodedName}" data-bs-toggle="tooltip" data-bs-title="{{ .lcl.add_measurement }}" aria-label="{{ .lcl.add_measurement }}">
+                        <button type="button" class="btn btn-sm btn-outline-primary btn-icon-action plant-measurement-add" data-id="${p.id}" data-name="${encodeURIComponent(p.name || "")}">
                             <i class="fa-solid fa-ruler-combined"></i>
                         </button>
-                        <button type="button" class="btn btn-sm btn-outline-success btn-icon-action plant-activity-add" data-id="${plant.id}" data-name="${encodedName}" data-bs-toggle="tooltip" data-bs-title="{{ .lcl.add_activity }}" aria-label="{{ .lcl.add_activity }}">
+                        <button type="button" class="btn btn-sm btn-outline-success btn-icon-action plant-activity-add" data-id="${p.id}" data-name="${encodeURIComponent(p.name || "")}">
                             <i class="fa-solid fa-clipboard-list"></i>
                         </button>
                     </div>
+                </td>` : "";
+
+            return `<tr class="pt-row" data-href="/plant/${p.id}" style="cursor:pointer">
+                <td>
+                    <a href="/plant/${p.id}" class="pt-plant-name">${esc(p.name)}</a>
+                    ${p.clone ? '<span class="pc-clone-badge ms-1" style="font-size:0.65rem">Clone</span>' : ""}
+                    ${waterBadge}
                 </td>
-            `;
-        };
+                <td class="pt-cell-strain">
+                    ${esc(p.strain_name || "")}
+                    ${p.strain_url ? ` <a href="${esc(p.strain_url)}" target="_blank" class="text-muted" style="font-size:0.75rem"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>` : ""}
+                    <div class="pt-short-desc">${esc(p.breeder_name || "")}</div>
+                </td>
+                <td>${esc(p.zone_name || "")}</td>
+                <td>${statusBadge(p.status)}</td>
+                <td>${col1}</td>
+                <td${currentView === 'dead' ? ' style="display:none"' : ''}>${col2}</td>
+                ${actionsHtml}
+            </tr>`;
+        }).join("");
+    }
 
-        const attachQuickActionHandlers = () => {
-            if (!canEditStatus) {
-                return;
-            }
-
-            document.querySelectorAll(".plant-status-edit").forEach(button => {
-                button.addEventListener("click", (event) => {
-                    event.stopPropagation();
-                    const plantId = Number(button.dataset.id);
-                    const statusId = button.dataset.statusId ? Number(button.dataset.statusId) : null;
-                    const plantName = decodeURIComponent(button.dataset.name || "");
-                    if (!quickStatusModal) {
-                        return;
-                    }
-
-                    quickStatusPlantIdInput.value = plantId ? String(plantId) : "";
-                    quickStatusPlantNameInput.value = plantName;
-                    if (statusId) {
-                        quickStatusSelect.value = String(statusId);
-                    }
-                    quickStatusDate.value = formatDateTimeLocal(new Date());
-                    quickStatusModal.show();
-                });
-            });
-
-            document.querySelectorAll(".plant-measurement-add").forEach(button => {
-                button.addEventListener("click", (event) => {
-                    event.stopPropagation();
-                    const plantId = Number(button.dataset.id);
-                    const plantName = decodeURIComponent(button.dataset.name || "");
-                    if (!quickMeasurementModal || !plantId) {
-                        return;
-                    }
-                    quickMeasurementPlantIdInput.value = String(plantId);
-                    quickMeasurementPlantNameInput.value = plantName;
-                    quickMeasurementValue.value = "";
-                    quickMeasurementDate.value = formatDateTimeLocal(new Date());
-                    quickMeasurementModal.show();
-                });
-            });
-
-            document.querySelectorAll(".plant-activity-add").forEach(button => {
-                button.addEventListener("click", (event) => {
-                    event.stopPropagation();
-                    const plantId = Number(button.dataset.id);
-                    const plantName = decodeURIComponent(button.dataset.name || "");
-                    if (!quickActivityModal || !plantId) {
-                        return;
-                    }
-                    quickActivityPlantIdInput.value = String(plantId);
-                    quickActivityPlantNameInput.value = plantName;
-                    quickActivityNote.value = "";
-                    quickActivityDate.value = formatDateTimeLocal(new Date());
-                    quickActivityModal.show();
-                });
-            });
-        };
-
-        if (canEditStatus && quickStatusForm) {
-            quickStatusForm.addEventListener("submit", (event) => {
-                event.preventDefault();
-                const plantId = Number(quickStatusPlantIdInput.value);
-                const statusId = Number(quickStatusSelect.value);
-                const date = quickStatusDate.value;
-
-                if (!plantId || !statusId) {
-                    return;
-                }
-
-                const payload = {
-                    plant_id: plantId,
-                    status_id: statusId,
-                    date: date || formatDateTimeLocal(new Date()),
-                };
-
-                fetch("/plant/status", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify(payload),
-                })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(statusUpdateError);
-                        }
-                        return response.json();
-                    })
-                    .then(() => {
-                        if (quickStatusModal) {
-                            quickStatusModal.hide();
-                        }
-                        fetchPlants(currentView);
-                    })
-                    .catch(err => {
-                        console.error("Error updating status:", err);
-                        uiMessages.showToast(statusUpdateError || uiMessages.t('failed_to_update_status') || 'Failed to update status', 'danger');
-                    });
-            });
+    // ----- Layout switching -----
+    function syncLayoutVisibility() {
+        if (currentLayout === "cards") {
+            cardsContainer.style.display = "";
+            tableWrap.style.display = "none";
+        } else {
+            cardsContainer.style.display = "none";
+            tableWrap.style.display = "";
         }
+    }
 
-        if (canEditStatus && quickMeasurementForm) {
-            quickMeasurementForm.addEventListener("submit", (event) => {
-                event.preventDefault();
-                const plantId = Number(quickMeasurementPlantIdInput.value);
-                const metricId = Number(quickMeasurementMetric.value);
-                const value = Number(quickMeasurementValue.value);
-                const date = quickMeasurementDate.value;
-
-                if (!plantId || !metricId || Number.isNaN(value)) {
-                    return;
-                }
-
-                const payload = {
-                    plant_id: plantId,
-                    metric_id: metricId,
-                    value: value,
-                    date: date || formatDateTimeLocal(new Date()),
-                };
-
-                fetch("/plantMeasurement", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify(payload),
-                })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(measurementAddError);
-                        }
-                        return response.json();
-                    })
-                    .then(() => {
-                        if (quickMeasurementModal) {
-                            quickMeasurementModal.hide();
-                        }
-                        fetchPlants(currentView);
-                    })
-                    .catch(err => {
-                        console.error("Error adding measurement:", err);
-                        uiMessages.showToast(measurementAddError || uiMessages.t('failed_to_add_measurement') || 'Failed to add measurement', 'danger');
-                    });
-            });
-        }
-
-        if (canEditStatus && quickActivityForm) {
-            quickActivityForm.addEventListener("submit", (event) => {
-                event.preventDefault();
-                const plantId = Number(quickActivityPlantIdInput.value);
-                const activityId = Number(quickActivityName.value);
-                const note = quickActivityNote.value;
-                const date = quickActivityDate.value;
-
-                if (!plantId || !activityId) {
-                    return;
-                }
-
-                const payload = {
-                    plant_id: plantId,
-                    activity_id: activityId,
-                    note: note,
-                    date: date || formatDateTimeLocal(new Date()),
-                };
-
-                fetch("/plantActivity", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify(payload),
-                })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(activityAddError);
-                        }
-                        return response.json();
-                    })
-                    .then(() => {
-                        if (quickActivityModal) {
-                            quickActivityModal.hide();
-                        }
-                        fetchPlants(currentView);
-                    })
-                    .catch(err => {
-                        console.error("Error adding activity:", err);
-                        uiMessages.showToast(activityAddError || uiMessages.t('failed_to_add_activity') || 'Failed to add activity', 'danger');
-                    });
-            });
-        }
-
-        const updateTable = () => {
-            const searchTerm = searchPlants.value.toLowerCase();
-            let filteredPlants = plantsData.filter(plant =>
-                plant.name.toLowerCase().includes(searchTerm) ||
-                plant.strain_name.toLowerCase().includes(searchTerm) ||
-                plant.breeder_name.toLowerCase().includes(searchTerm)
-            );
-
-            // Sort filtered data
-            if (sortColumn) {
-                filteredPlants.sort((a, b) => {
-                    const valA = a[sortColumn];
-                    const valB = b[sortColumn];
-                    if (valA < valB) return sortDirection === "asc" ? -1 : 1;
-                    if (valA > valB) return sortDirection === "asc" ? 1 : -1;
-                    return 0;
-                });
-            }
-
-            if (currentView === "dead") {
-                headerDynamic2.style.display = "none";
-            } else {
-                headerDynamic2.style.display = "table-cell";
-            }
-
-            // Generate table rows
-            plantsTableBody.innerHTML = filteredPlants.map(plant => {
-                let column1 = "";
-                let column2 = "";
-
-                if (currentView === "harvested") {
-                    column1 = plant.harvest_weight ? `${plant.harvest_weight} g` : "-";
-                    //Append total days to harvest date from plant.status_date and plant.start_dt
-                    column2 = plant.harvest_date ? new Date(plant.harvest_date).toLocaleDateString() + " (" + Math.floor((new Date(plant.harvest_date) - new Date(plant.start_dt)) / (1000 * 60 * 60 * 24) +1) + " days)" : "-";
-                } else if (currentView === "dead") {
-                    column1 = plant.harvest_date ? new Date(plant.harvest_date).toLocaleDateString()  + " (" + Math.floor((new Date(plant.harvest_date) - new Date(plant.start_dt)) / (1000 * 60 * 60 * 24) +1) + " days)" : "-";
-                } else {
-                    column1 = plant.current_week || "-";
-                    column2 = plant.current_day || "-";
-                }
-
-                return `
-                <tr class="clickable-row" data-id="${plant.id}">
-                    <th scope="row">${plant.name}</th>
-                    <td>
-                        ${plant.strain_name}
-                        ${plant.strain_url ? `<a href="${plant.strain_url}" target="_blank" class="strain-url"><i class="fa-solid fa-link"></i></a>` : "&nbsp;"}
-                    </td>
-                    <td>${plant.breeder_name}</td>
-                    <td>${plant.status}</td>
-                    <td>${plant.start_dt ? new Date(plant.start_dt).toLocaleDateString() : "-"}</td>
-                    <td>${column1}</td>
-                    <td${currentView === 'dead' ? ' style="display: none;"' : ''}>${column2}</td>
-                    ${renderQuickActionsCell(plant)}
-                </tr>
-            `;
-            }).join("");
-
-            // Add click events for rows
-            document.querySelectorAll(".clickable-row").forEach(row => {
-                row.addEventListener("click", (event) => {
-                    if (event.target.closest(".strain-url") ||
-                        event.target.closest(".plant-status-edit") ||
-                        event.target.closest(".plant-measurement-add") ||
-                        event.target.closest(".plant-activity-add")) {
-                        return;
-                    }
-
-                    const plantId = row.getAttribute("data-id");
-                    if (plantId) window.location.href = `/plant/${plantId}`;
-                });
-            });
-            attachQuickActionHandlers();
-            initTooltips();
-        };
-
-        // Handle view button click
-        viewButtons.forEach(button => {
-            button.addEventListener("click", () => {
-                currentView = button.dataset.view; // Update current view
-                setActiveButton(button); // Update active button visually
-                fetchPlants(currentView); // Fetch plants based on selected view
-            });
+    layoutButtons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            currentLayout = btn.dataset.layout;
+            localStorage.setItem("plantsLayout", currentLayout);
+            layoutButtons.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            syncLayoutVisibility();
         });
-
-        // Handle column sorting
-        document.querySelectorAll(".sortable").forEach(header => {
-            header.addEventListener("click", () => {
-                const column = header.getAttribute("data-sort");
-                if (sortColumn === column) {
-                    // Toggle sort direction if already sorted by this column
-                    sortDirection = sortDirection === "asc" ? "desc" : "asc";
-                } else {
-                    // Set new column and reset direction
-                    sortColumn = column;
-                    sortDirection = "asc";
-                }
-                document.querySelectorAll(".sortable").forEach(item => {
-                    item.classList.remove("asc", "desc");
-                });
-                header.classList.add(sortDirection);
-                updateTable();
-            });
-        });
-
-        searchPlants.addEventListener("input", updateTable);
-
-        /// Fetch initial data and set active button
-        setActiveButton(document.querySelector('.view-button.active'));
-        fetchPlants(currentView);
     });
+
+    // ----- Card click delegation -----
+    cardsContainer.addEventListener("click", (e) => {
+        // Quick action button clicks should not navigate
+        if (e.target.closest(".pc-action-btn")) return;
+        const card = e.target.closest(".pc-card-link");
+        if (card && card.dataset.href) {
+            window.location = card.dataset.href;
+        }
+    });
+
+    // ----- Table row click delegation -----
+    tableWrap.addEventListener("click", (e) => {
+        if (e.target.closest(".btn-icon-action") || e.target.closest("a")) return;
+        const row = e.target.closest(".pt-row");
+        if (row && row.dataset.href) {
+            window.location = row.dataset.href;
+        }
+    });
+
+    // ----- Helpers -----
+    function esc(str) {
+        if (!str) return "";
+        const d = document.createElement("div");
+        d.textContent = str;
+        return d.innerHTML;
+    }
+
+    function debounce(fn, ms) {
+        let t;
+        return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+    }
+
+    function formatDateTimeLocal(date) {
+        const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+        return offsetDate.toISOString().slice(0, 19);
+    }
+
+    // ----- Quick action modal handling -----
+    const quickStatusModalEl = document.getElementById("quickStatusModal");
+    const quickStatusForm = document.getElementById("quickStatusForm");
+    const quickStatusPlantIdInput = document.getElementById("quickStatusPlantId");
+    const quickStatusPlantNameInput = document.getElementById("quickStatusPlantName");
+    const quickStatusSelect = document.getElementById("quickStatusSelect");
+    const quickStatusDate = document.getElementById("quickStatusDate");
+    const quickStatusModal = quickStatusModalEl && window.bootstrap ? new bootstrap.Modal(quickStatusModalEl) : null;
+
+    const quickMeasurementModalEl = document.getElementById("quickMeasurementModal");
+    const quickMeasurementForm = document.getElementById("quickMeasurementForm");
+    const quickMeasurementPlantIdInput = document.getElementById("quickMeasurementPlantId");
+    const quickMeasurementPlantNameInput = document.getElementById("quickMeasurementPlantName");
+    const quickMeasurementModal = quickMeasurementModalEl && window.bootstrap ? new bootstrap.Modal(quickMeasurementModalEl) : null;
+
+    const quickActivityModalEl = document.getElementById("quickActivityModal");
+    const quickActivityForm = document.getElementById("quickActivityForm");
+    const quickActivityPlantIdInput = document.getElementById("quickActivityPlantId");
+    const quickActivityPlantNameInput = document.getElementById("quickActivityPlantName");
+    const quickActivityModal = quickActivityModalEl && window.bootstrap ? new bootstrap.Modal(quickActivityModalEl) : null;
+
+    // Delegate quick action handlers (works for both card and table views)
+    document.addEventListener("click", (e) => {
+        const statusBtn = e.target.closest(".plant-status-edit");
+        if (statusBtn && quickStatusModal) {
+            e.stopPropagation();
+            quickStatusPlantIdInput.value = statusBtn.dataset.id;
+            quickStatusPlantNameInput.value = decodeURIComponent(statusBtn.dataset.name || "");
+            if (statusBtn.dataset.statusId) quickStatusSelect.value = statusBtn.dataset.statusId;
+            quickStatusDate.value = formatDateTimeLocal(new Date());
+            quickStatusModal.show();
+            return;
+        }
+
+        const measBtn = e.target.closest(".plant-measurement-add");
+        if (measBtn && quickMeasurementModal) {
+            e.stopPropagation();
+            quickMeasurementPlantIdInput.value = measBtn.dataset.id;
+            quickMeasurementPlantNameInput.value = decodeURIComponent(measBtn.dataset.name || "");
+            document.getElementById("quickMeasurementValue").value = "";
+            document.getElementById("quickMeasurementDate").value = formatDateTimeLocal(new Date());
+            quickMeasurementModal.show();
+            return;
+        }
+
+        const actBtn = e.target.closest(".plant-activity-add");
+        if (actBtn && quickActivityModal) {
+            e.stopPropagation();
+            quickActivityPlantIdInput.value = actBtn.dataset.id;
+            quickActivityPlantNameInput.value = decodeURIComponent(actBtn.dataset.name || "");
+            document.getElementById("quickActivityNote").value = "";
+            document.getElementById("quickActivityDate").value = formatDateTimeLocal(new Date());
+            quickActivityModal.show();
+            return;
+        }
+    });
+
+    // Quick status form submission
+    if (canEdit && quickStatusForm) {
+        quickStatusForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const plantId = Number(quickStatusPlantIdInput.value);
+            const statusId = Number(quickStatusSelect.value);
+            const date = quickStatusDate.value;
+            if (!plantId || !statusId) return;
+
+            fetch("/plant/status", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ plant_id: plantId, status_id: statusId, date: date || formatDateTimeLocal(new Date()) }),
+            })
+            .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+            .then(() => { if (quickStatusModal) quickStatusModal.hide(); fetchPlants(currentView); })
+            .catch(() => uiMessages.showToast("{{ .lcl.failed_to_change_status }}" || "Failed to update status", "danger"));
+        });
+    }
+
+    // Quick measurement form submission
+    if (canEdit && quickMeasurementForm) {
+        quickMeasurementForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const plantId = Number(quickMeasurementPlantIdInput.value);
+            const metricId = Number(document.getElementById("quickMeasurementMetric").value);
+            const value = Number(document.getElementById("quickMeasurementValue").value);
+            const date = document.getElementById("quickMeasurementDate").value;
+            if (!plantId || !metricId || Number.isNaN(value)) return;
+
+            fetch("/plantMeasurement", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ plant_id: plantId, metric_id: metricId, value: value, date: date || formatDateTimeLocal(new Date()) }),
+            })
+            .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+            .then(() => { if (quickMeasurementModal) quickMeasurementModal.hide(); fetchPlants(currentView); })
+            .catch(() => uiMessages.showToast("{{ .lcl.failed_to_add_measurement }}" || "Failed to add measurement", "danger"));
+        });
+    }
+
+    // Quick activity form submission
+    if (canEdit && quickActivityForm) {
+        quickActivityForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const plantId = Number(quickActivityPlantIdInput.value);
+            const activityId = Number(document.getElementById("quickActivityName").value);
+            const note = document.getElementById("quickActivityNote").value;
+            const date = document.getElementById("quickActivityDate").value;
+            if (!plantId || !activityId) return;
+
+            fetch("/plantActivity", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ plant_id: plantId, activity_id: activityId, note: note, date: date || formatDateTimeLocal(new Date()) }),
+            })
+            .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+            .then(() => { if (quickActivityModal) quickActivityModal.hide(); fetchPlants(currentView); })
+            .catch(() => uiMessages.showToast("{{ .lcl.failed_to_add_activity }}" || "Failed to add activity", "danger"));
+        });
+    }
+
+    // ----- Table header sort click -----
+    document.querySelectorAll(".pt-sortable").forEach(th => {
+        th.style.cursor = "pointer";
+        th.addEventListener("click", () => {
+            const sortKey = th.dataset.sort;
+            if (tableSort.key === sortKey) {
+                tableSort.asc = !tableSort.asc;
+            } else {
+                tableSort.key = sortKey;
+                tableSort.asc = true;
+            }
+            // Update sort icons
+            document.querySelectorAll(".pt-sortable i").forEach(icon => {
+                icon.className = "fa-solid fa-sort ms-1 text-muted";
+            });
+            const icon = th.querySelector("i");
+            if (icon) icon.className = `fa-solid fa-sort-${tableSort.asc ? "up" : "down"} ms-1`;
+
+            // Also sync the dropdown sort value if there's a matching option
+            const mappedSort = {
+                "name": tableSort.asc ? "name-asc" : "name-desc",
+                "strain": tableSort.asc ? "strain-asc" : "strain-desc",
+                "zone": null,
+                "status": null,
+                "col1": tableSort.asc ? "day-asc" : "day-desc",
+                "col2": tableSort.asc ? "day-asc" : "day-desc",
+            }[sortKey];
+            if (mappedSort && sortBy.querySelector(`option[value="${mappedSort}"]`)) {
+                sortBy.value = mappedSort;
+            }
+            applyFilters();
+        });
+    });
+
+    // ----- Event listeners -----
+    searchInput.addEventListener("input", debounce(applyFilters, 200));
+    filterZone.addEventListener("change", applyFilters);
+    filterBreeder.addEventListener("change", applyFilters);
+    filterStatus.addEventListener("change", applyFilters);
+    sortBy.addEventListener("change", () => {
+        // When dropdown sort is used, clear table header sort
+        tableSort = { key: null, asc: true };
+        document.querySelectorAll(".pt-sortable i").forEach(icon => {
+            icon.className = "fa-solid fa-sort ms-1 text-muted";
+        });
+        applyFilters();
+    });
+
+    clearBtn.addEventListener("click", () => {
+        searchInput.value = "";
+        filterZone.value = "";
+        filterBreeder.value = "";
+        filterStatus.value = "";
+        sortBy.value = "name-asc";
+        tableSort = { key: null, asc: true };
+        document.querySelectorAll(".pt-sortable i").forEach(icon => {
+            icon.className = "fa-solid fa-sort ms-1 text-muted";
+        });
+        applyFilters();
+    });
+
+    viewButtons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            currentView = btn.dataset.view;
+            viewButtons.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            // Reset table sort on view switch
+            tableSort = { key: null, asc: true };
+            document.querySelectorAll(".pt-sortable i").forEach(icon => {
+                icon.className = "fa-solid fa-sort ms-1 text-muted";
+            });
+            fetchPlants(currentView);
+        });
+    });
+
+    // ----- Initial load -----
+    fetchPlants(currentView);
+});
 </script>
 
-
-
-
-<!--Embed the footer.html template at this location-->
 {{ template "common/footer.html" .}}
 
 {{ end }}

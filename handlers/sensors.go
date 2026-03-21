@@ -42,7 +42,7 @@ func GetSensors() []map[string]interface{} {
 	// Query for sensor data
 	rows, err := db.Query(`
         SELECT 
-            s.id, s.name, z.name AS zone, s.source, s.device, s.type, s.show, s.create_dt, s.update_dt, s.zone_id, s.unit
+            s.id, s.name, z.name AS zone, s.source, s.device, s.type, s.visibility, s.create_dt, s.update_dt, s.zone_id, s.unit
         FROM sensors s
         LEFT JOIN zones z ON s.zone_id = z.id
         ORDER BY s.source, s.device, s.type, s.name
@@ -58,11 +58,10 @@ func GetSensors() []map[string]interface{} {
 
 	for rows.Next() {
 		var id, zoneId int
-		var name, zone, source, device, sensorType, createDT, updateDT, unit string
-		var show bool // SQLite represents booleans as integers
+		var name, zone, source, device, sensorType, createDT, updateDT, unit, visibility string
 
 		// Scan the row data
-		err := rows.Scan(&id, &name, &zone, &source, &device, &sensorType, &show, &createDT, &updateDT, &zoneId, &unit)
+		err := rows.Scan(&id, &name, &zone, &source, &device, &sensorType, &visibility, &createDT, &updateDT, &zoneId, &unit)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Error scanning row")
 			continue
@@ -70,17 +69,17 @@ func GetSensors() []map[string]interface{} {
 
 		// Build a map for each sensor
 		sensors = append(sensors, map[string]interface{}{
-			"id":        id,
-			"name":      name,
-			"zone":      zone,
-			"source":    source,
-			"device":    device,
-			"type":      sensorType,
-			"visible":   show, // Convert to boolean
-			"create_dt": createDT,
-			"update_dt": updateDT,
-			"zone_id":   zoneId,
-			"unit":      unit,
+			"id":         id,
+			"name":       name,
+			"zone":       zone,
+			"source":     source,
+			"device":     device,
+			"type":       sensorType,
+			"visibility": visibility,
+			"create_dt":  createDT,
+			"update_dt":  updateDT,
+			"zone_id":    zoneId,
+			"unit":       unit,
 		})
 	}
 
@@ -689,7 +688,7 @@ LEFT JOIN rolling_averages ra ON ra.sensor_id = s.id
 WHERE sd.id = (
     SELECT MAX(id) FROM sensor_data WHERE sensor_id = s.id
 )
-AND s.show
+AND s.visibility IN ('zone_plant', 'zone')
 ORDER BY z.name, s.device, s.type;
 
 `)
@@ -728,11 +727,92 @@ ORDER BY z.name, s.device, s.type;
 		})
 	}
 
+	// --- Enrich sensors with active plant names ---
+	// Build a sensorID → plant name lookup from active plants only.
+	// A plant is "active" when its most recent status belongs to an active
+	// plant_status (active = 1). Sensors linked to terminal/inactive plants
+	// will not show the plant name on the dashboard.
+	sensorPlantMap := buildActivePlantSensorMap(db, fieldLogger)
+	for _, devices := range newCache {
+		for _, sensors := range devices {
+			for _, sensor := range sensors {
+				sID, ok := sensor["id"].(int)
+				if ok {
+					if plantName, found := sensorPlantMap[sID]; found {
+						sensor["plant_name"] = plantName
+					}
+				}
+			}
+		}
+	}
+
 	// Update the global cache and timestamp
 	sensorCache = newCache
 	cacheLastUpdatedTime = time.Now()
 
 	return sensorCache
+}
+
+// buildActivePlantSensorMap returns a map of sensor ID → plant name for all
+// sensors that are directly linked to an active plant (most recent status has
+// plant_status.active = 1). This is used to enrich the dashboard display with
+// plant names for plant-specific sensors like soil probes.
+func buildActivePlantSensorMap(db *sql.DB, fieldLogger *logrus.Entry) map[int]string {
+	result := make(map[int]string)
+
+	// Subquery approach: for each plant, check if its latest status is active,
+	// then return plant name + sensors JSON. Works across both Postgres and SQLite.
+	var orderExpr string
+	if model.IsPostgres() {
+		orderExpr = "EXTRACT(EPOCH FROM psl.date)"
+	} else {
+		orderExpr = "strftime('%s', psl.date)"
+	}
+
+	query := fmt.Sprintf(`
+		SELECT p.id, p.name, p.sensors
+		FROM plant p
+		WHERE (
+			SELECT ps.active
+			FROM plant_status_log psl
+			JOIN plant_status ps ON psl.status_id = ps.id
+			WHERE psl.plant_id = p.id
+			ORDER BY %s DESC
+			LIMIT 1
+		) = 1
+		AND p.sensors IS NOT NULL
+		AND p.sensors != '[]'
+	`, orderExpr)
+
+	rows, err := db.Query(query)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Error querying active plants for sensor map")
+		return result
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var plantID int
+		var plantName, sensorsJSON string
+		if err := rows.Scan(&plantID, &plantName, &sensorsJSON); err != nil {
+			fieldLogger.WithError(err).Error("Error scanning active plant sensor row")
+			continue
+		}
+
+		var sensorIDs []int
+		if err := json.Unmarshal([]byte(sensorsJSON), &sensorIDs); err != nil {
+			fieldLogger.WithError(err).Error("Error unmarshalling plant sensors JSON")
+			continue
+		}
+
+		for _, sid := range sensorIDs {
+			// If multiple active plants link the same sensor, last one wins.
+			// In practice soil sensors are 1:1 with plants.
+			result[sid] = plantName
+		}
+	}
+
+	return result
 }
 
 func GetGroupedSensors() map[string]map[string]map[string][]types.Sensor {
@@ -753,7 +833,7 @@ func GetGroupedSensors() map[string]map[string]map[string][]types.Sensor {
             s.unit
         FROM sensors s
         JOIN zones z ON s.zone_id = z.id
-        WHERE s.show = 1
+        WHERE s.visibility IN ('zone_plant', 'zone')
         ORDER BY z.name, s.device, s.type, s.name
     `)
 	if err != nil {
@@ -790,13 +870,15 @@ func GetGroupedSensors() map[string]map[string]map[string][]types.Sensor {
 
 func EditSensor(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "EditSensor")
+	// Note: source, device, and type are the immutable identity key used for
+	// matching incoming sensor data. They must never be changed after creation
+	// to avoid silently breaking data ingestion.
 	var input struct {
-		ID      int    `json:"id"`
-		Name    string `json:"name"`
-		Device  string `json:"device"`
-		Visible bool   `json:"visible"`
-		ZoneID  int    `json:"zone_id"`
-		Unit    string `json:"unit"`
+		ID         int    `json:"id"`
+		Name       string `json:"name"`
+		Visibility string `json:"visibility"`
+		ZoneID     int    `json:"zone_id"`
+		Unit       string `json:"unit"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -810,12 +892,15 @@ func EditSensor(c *gin.Context) {
 		apiBadRequest(c, err.Error())
 		return
 	}
-	if err := utils.ValidateStringLength("device", input.Device, utils.MaxDeviceLength); err != nil {
+	if err := utils.ValidateStringLength("unit", input.Unit, utils.MaxUnitLength); err != nil {
 		apiBadRequest(c, err.Error())
 		return
 	}
-	if err := utils.ValidateStringLength("unit", input.Unit, utils.MaxUnitLength); err != nil {
-		apiBadRequest(c, err.Error())
+
+	// Validate visibility value
+	validVisibility := map[string]bool{"zone_plant": true, "zone": true, "plant": true, "hide": true}
+	if !validVisibility[input.Visibility] {
+		apiBadRequest(c, "Invalid visibility value")
 		return
 	}
 
@@ -825,8 +910,8 @@ func EditSensor(c *gin.Context) {
 		return
 	}
 
-	_, err = db.Exec("UPDATE sensors SET name = $1, show = $2, zone_id = $3, unit = $4, device = $5 WHERE id = $6",
-		input.Name, input.Visible, input.ZoneID, input.Unit, input.Device, input.ID)
+	_, err = db.Exec("UPDATE sensors SET name = $1, visibility = $2, zone_id = $3, unit = $4 WHERE id = $5",
+		input.Name, input.Visibility, input.ZoneID, input.Unit, input.ID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error updating sensor")
 		apiInternalError(c, "api_failed_to_update_sensor")
@@ -1011,8 +1096,8 @@ func IngestSensorData(c *gin.Context) {
 	if errors.Is(err, sql.ErrNoRows) {
 		// Create a new sensor if it doesn't exist
 		err = db.QueryRow(`
-            INSERT INTO sensors (name, source, device, type, zone_id, unit, show)
-            VALUES ($1, $2, $3, $4, $5, $6, true)
+            INSERT INTO sensors (name, source, device, type, zone_id, unit, visibility)
+            VALUES ($1, $2, $3, $4, $5, $6, 'zone_plant')
             RETURNING id`,
 			payload.Name, payload.Source, payload.Device, payload.Type, payload.ZoneID, payload.Unit).Scan(&sensorID)
 

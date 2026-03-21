@@ -97,6 +97,33 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 		})
 	})
 
+	r.GET("/plant/new", func(c *gin.Context) {
+		// Redirect to login if not authenticated
+		if sessions.Default(c).Get("logged_in") == nil {
+			c.Redirect(http.StatusFound, "/login")
+			return
+		}
+		lang := utils.GetLanguage(c)
+		translations := utils.TranslationService.GetTranslations(lang)
+		currentPath, _ := c.Get("currentPath")
+		c.HTML(http.StatusOK, "views/plant-add.html", gin.H{
+			"title":           "Add Plant",
+			"currentPath":     currentPath,
+			"version":         version,
+			"zones":           config.Zones,
+			"strains":         config.Strains,
+			"statuses":        config.Statuses,
+			"breeders":        config.Breeders,
+			"plants":          handlers.GetLivingPlants(),
+			"activities":      config.Activities,
+			"loggedIn":        sessions.Default(c).Get("logged_in"),
+			"lcl":             translations,
+			"languages":       utils.AvailableLanguages,
+			"currentLanguage": lang,
+			"csrfToken":       c.GetString("csrf_token"),
+		})
+	})
+
 	r.GET("/plant/:id", func(c *gin.Context) {
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
@@ -259,6 +286,31 @@ func AddExternalApiRoutes(r *gin.RouterGroup) {
 }
 
 func AddProtectedRoutes(r *gin.RouterGroup, version string) {
+	r.GET("/plant/:id/edit", func(c *gin.Context) {
+		lang := utils.GetLanguage(c)
+		translations := utils.TranslationService.GetTranslations(lang)
+		currentPath, _ := c.Get("currentPath")
+		c.HTML(http.StatusOK, "views/plant-edit.html", gin.H{
+			"title":           "Edit Plant",
+			"currentPath":     currentPath,
+			"version":         version,
+			"plant":           handlers.GetPlant(c.Param("id")),
+			"zones":           config.Zones,
+			"strains":         config.Strains,
+			"statuses":        config.Statuses,
+			"breeders":        config.Breeders,
+			"measurements":    config.Metrics,
+			"sensors":         handlers.GetSensors(),
+			"plants":          handlers.GetLivingPlants(),
+			"activities":      config.Activities,
+			"loggedIn":        sessions.Default(c).Get("logged_in"),
+			"lcl":             translations,
+			"languages":       utils.AvailableLanguages,
+			"currentLanguage": lang,
+			"csrfToken":       c.GetString("csrf_token"),
+		})
+	})
+
 	r.GET("/strain/:id/edit", func(c *gin.Context) {
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)

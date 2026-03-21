@@ -113,7 +113,7 @@ type Sensor struct {
 	Source   string `json:"source"`
 	Device   string `json:"device"`
 	Type     string `json:"type"`
-	Show     bool   `json:"show"`
+	Visibility string `json:"visibility"`
 	Unit     string `json:"unit"`
 	CreateDT string `json:"create_dt"`
 	UpdateDT string `json:"update_dt"`
@@ -129,11 +129,12 @@ type SensorData struct {
 }
 
 type SensorDataResponse struct {
-	ID    uint      `json:"id"`
-	Name  string    `json:"name"`
-	Unit  string    `json:"unit"`
-	Value float64   `json:"value"`
-	Date  time.Time `json:"date"`
+	ID        uint      `json:"id"`
+	Name      string    `json:"name"`
+	Unit      string    `json:"unit"`
+	Value     float64   `json:"value"`
+	Date      time.Time `json:"date"`
+	Inherited bool      `json:"inherited"` // true if sensor is inherited from the plant's zone rather than directly linked
 }
 
 type Settings struct {

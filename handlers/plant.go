@@ -391,7 +391,7 @@ func GetPlant(id string) types.Plant {
 	currentWeek := int((diff.Hours() / 24 / 7) + 1)
 
 	// --- Load related data via focused sub-functions ---
-	sensorList := loadPlantSensors(db, plantID)
+	sensorList := loadPlantSensors(db, plantID, zoneID)
 	measurements := loadPlantMeasurements(db, plantID)
 	activities := loadPlantActivities(db, plantID)
 	statusHistory := loadPlantStatusHistory(db, plantID)
@@ -420,11 +420,14 @@ func GetPlant(id string) types.Plant {
 	return plant
 }
 
-// loadPlantSensors fetches the linked sensor IDs from the plant's JSON column
+// loadPlantSensors fetches the linked sensor IDs from the plant's JSON column,
+// merges in zone-inherited sensors (non-Soil sensors from the plant's zone),
 // and returns each sensor's details with its latest reading.
-func loadPlantSensors(db *sql.DB, plantID uint) []types.SensorDataResponse {
+// Directly-linked sensors take priority over zone-inherited ones (no duplicates).
+func loadPlantSensors(db *sql.DB, plantID uint, zoneID int) []types.SensorDataResponse {
 	fieldLogger := logger.Log.WithField("func", "loadPlantSensors")
 
+	// 1. Load directly-linked sensor IDs from the plant's JSON column
 	var sensorsJSON string
 	err := db.QueryRow("SELECT sensors FROM plant WHERE id = $1", plantID).Scan(&sensorsJSON)
 	if err != nil {
@@ -432,32 +435,90 @@ func loadPlantSensors(db *sql.DB, plantID uint) []types.SensorDataResponse {
 		return nil
 	}
 
-	var sensorIDs []int
-	if err := json.Unmarshal([]byte(sensorsJSON), &sensorIDs); err != nil {
+	var directIDs []int
+	if err := json.Unmarshal([]byte(sensorsJSON), &directIDs); err != nil {
 		fieldLogger.WithError(err).Error("Failed to deserialize sensor IDs")
 		return nil
 	}
 
+	// Build a set of directly-linked IDs for deduplication
+	directSet := make(map[int]bool, len(directIDs))
+	for _, id := range directIDs {
+		directSet[id] = true
+	}
+
+	// 2. Load zone-inherited sensors: non-Soil, visible sensors from the plant's zone
+	var zoneSensors []struct {
+		ID   int
+		Name string
+		Unit string
+	}
+	if zoneID > 0 {
+		rows, err := db.Query(`SELECT id, name, unit FROM sensors WHERE zone_id = $1 AND visibility IN ('zone_plant', 'plant') AND type NOT LIKE 'Soil.%'`, zoneID)
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to query zone sensors")
+		} else {
+			defer rows.Close()
+			for rows.Next() {
+				var s struct {
+					ID   int
+					Name string
+					Unit string
+				}
+				if err := rows.Scan(&s.ID, &s.Name, &s.Unit); err != nil {
+					fieldLogger.WithError(err).Error("Failed to scan zone sensor")
+					continue
+				}
+				zoneSensors = append(zoneSensors, s)
+			}
+		}
+	}
+
+	// Helper to fetch latest reading for a sensor
+	fetchLatest := func(sensorID int) (float64, time.Time, bool) {
+		var sd types.SensorData
+		err := db.QueryRow("SELECT id, value, create_dt FROM sensor_data WHERE sensor_id = $1 ORDER BY create_dt DESC LIMIT 1", sensorID).Scan(&sd.ID, &sd.Value, &sd.CreateDT)
+		if err != nil {
+			return 0, time.Time{}, false
+		}
+		return sd.Value, sd.CreateDT.Local(), true
+	}
+
+	// 3. Build the merged sensor list: directly-linked first
 	var sensorList []types.SensorDataResponse
-	for _, sensorID := range sensorIDs {
+	for _, sensorID := range directIDs {
 		var sensor types.SensorDataResponse
 		err := db.QueryRow("SELECT id, name, unit FROM sensors WHERE id = $1", sensorID).Scan(&sensor.ID, &sensor.Name, &sensor.Unit)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to query sensor details")
 			continue
 		}
-
-		var sensorData types.SensorData
-		err = db.QueryRow("SELECT id, value, create_dt FROM sensor_data WHERE sensor_id = $1 ORDER BY create_dt DESC LIMIT 1", sensorID).Scan(&sensorData.ID, &sensorData.Value, &sensorData.CreateDT)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to query sensor data")
-			continue
+		if val, dt, ok := fetchLatest(sensorID); ok {
+			sensor.Value = val
+			sensor.Date = dt
 		}
-
-		sensor.Value = sensorData.Value
-		sensor.Date = sensorData.CreateDT.Local()
+		sensor.Inherited = false
 		sensorList = append(sensorList, sensor)
 	}
+
+	// 4. Append zone-inherited sensors that aren't already directly linked
+	for _, zs := range zoneSensors {
+		if directSet[zs.ID] {
+			continue // already included as a direct link
+		}
+		sensor := types.SensorDataResponse{
+			ID:        uint(zs.ID),
+			Name:      zs.Name,
+			Unit:      zs.Unit,
+			Inherited: true,
+		}
+		if val, dt, ok := fetchLatest(zs.ID); ok {
+			sensor.Value = val
+			sensor.Date = dt
+		}
+		sensorList = append(sensorList, sensor)
+	}
+
 	return sensorList
 }
 
