@@ -17,6 +17,7 @@ import (
 	"isley/utils"
 	"isley/watcher"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -191,13 +192,28 @@ func main() {
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("X-XSS-Protection", "1; mode=block")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+
+		// Build connect-src dynamically so the HLS player can reach
+		// user-configured stream servers (e.g. Owncast).
+		connectSrc := "'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com"
+		for _, s := range config.Streams {
+			if parsed, err := url.Parse(s.URL); err == nil && parsed.Host != "" {
+				origin := parsed.Scheme + "://" + parsed.Host
+				if !strings.Contains(connectSrc, origin) {
+					connectSrc += " " + origin
+				}
+			}
+		}
+
 		c.Header("Content-Security-Policy",
 			"default-src 'self'; "+
 				"script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "+
 				"style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; "+
 				"font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "+
 				"img-src 'self' data: blob:; "+
-				"connect-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com")
+				"worker-src 'self' blob:; "+
+				"media-src 'self' blob:; "+
+				"connect-src "+connectSrc)
 		c.Next()
 	})
 

@@ -1,20 +1,22 @@
 package utils
 
 import (
-	"context"
+	"bytes"
 	"embed"
 	"fmt"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
 	"image/color"
+	"io"
 	"io/fs"
 	"isley/logger"
 	"math"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -453,42 +455,194 @@ func ListLogosHandler(c *gin.Context) {
 	}
 }
 
+// maxFrameSize limits the amount of data read for a single image frame
+// to prevent memory exhaustion from malicious or malformed responses.
+const maxFrameSize = 50 * 1024 * 1024 // 50 MB
+
 func GrabWebcamImage(rawURL string, outputPath string) error {
 	logger.Log.WithFields(logrus.Fields{
 		"url":        rawURL,
 		"outputPath": outputPath,
 	}).Info("Capturing image from webcam")
 
-	// Validate URL before passing to ffmpeg
+	// Validate URL
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil || parsedURL.Host == "" {
 		return fmt.Errorf("invalid webcam URL")
 	}
 	scheme := strings.ToLower(parsedURL.Scheme)
-	allowedSchemes := map[string]bool{"http": true, "https": true, "rtsp": true, "rtmp": true}
-	if !allowedSchemes[scheme] {
+
+	switch scheme {
+	case "http", "https":
+		return grabHTTPFrame(rawURL, outputPath)
+	case "rtsp", "rtmp":
+		return fmt.Errorf("protocol %s requires ffmpeg which is not installed; use an HTTP/HTTPS snapshot URL instead", scheme)
+	default:
 		return fmt.Errorf("disallowed URL scheme: %s", scheme)
 	}
+}
 
-	// Use ffmpeg with a timeout to capture an image
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(
-		ctx, "ffmpeg", "-y", "-i", rawURL, "-vframes", "1", "-q:v", "2", outputPath,
-	)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		logger.Log.WithFields(logrus.Fields{
-			"error":  err,
-			"output": string(output),
-		}).Error("Failed to capture image from webcam")
-		return fmt.Errorf("failed to capture image: %w", err)
+// hlsThumbnailPaths lists well-known thumbnail endpoints served by common
+// streaming software (Owncast, etc.).  When the configured stream URL points
+// at an HLS playlist we try these paths on the same origin before giving up.
+var hlsThumbnailPaths = []string{
+	"/thumbnail.jpg",
+	"/thumbnail.png",
+	"/preview.jpg",
+}
+
+// grabHTTPFrame fetches a single image from an HTTP/HTTPS URL.
+// It handles three common webcam/stream scenarios:
+//   - Direct image URLs (snapshot endpoints that return JPEG/PNG)
+//   - MJPEG streams (multipart/x-mixed-replace) where the first frame is extracted
+//   - HLS streams (.m3u8) where we fall back to a server thumbnail endpoint
+func grabHTTPFrame(rawURL string, outputPath string) error {
+	// Detect HLS playlist URLs before making any request — these will never
+	// return an image directly, so jump straight to thumbnail fallback.
+	if isHLSURL(rawURL) {
+		return grabHLSThumbnail(rawURL, outputPath)
 	}
 
-	logger.Log.WithFields(logrus.Fields{
-		"outputPath": outputPath,
-	}).Info("Image captured successfully")
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
 
+	resp, err := client.Get(rawURL)
+	if err != nil {
+		return fmt.Errorf("failed to fetch stream: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("stream returned HTTP %d", resp.StatusCode)
+	}
+
+	contentType := resp.Header.Get("Content-Type")
+
+	// MJPEG streams use multipart/x-mixed-replace with a boundary
+	if strings.HasPrefix(contentType, "multipart/x-mixed-replace") {
+		return grabMJPEGFrame(resp, outputPath)
+	}
+
+	// If the server returned an HLS playlist content type, try thumbnails
+	if strings.Contains(contentType, "mpegurl") || strings.Contains(contentType, "apple.mpegurl") {
+		resp.Body.Close()
+		return grabHLSThumbnail(rawURL, outputPath)
+	}
+
+	// Treat everything else as a direct image (snapshot URL)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxFrameSize))
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Verify it's a valid image before writing to disk
+	_, _, err = image.DecodeConfig(bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("response is not a valid image: %w", err)
+	}
+
+	if err := os.WriteFile(outputPath, body, 0644); err != nil {
+		return fmt.Errorf("failed to write image: %w", err)
+	}
+
+	logger.Log.WithField("outputPath", outputPath).Info("Image captured successfully")
+	return nil
+}
+
+// isHLSURL returns true if the URL path looks like an HLS playlist.
+func isHLSURL(rawURL string) bool {
+	lower := strings.ToLower(rawURL)
+	return strings.Contains(lower, ".m3u8") || strings.Contains(lower, ".m3u")
+}
+
+// grabHLSThumbnail attempts to fetch a thumbnail image from the same origin
+// as an HLS stream URL. Streaming servers like Owncast serve a preview
+// thumbnail at well-known paths alongside the HLS endpoint.
+func grabHLSThumbnail(hlsURL string, outputPath string) error {
+	parsed, err := url.Parse(hlsURL)
+	if err != nil {
+		return fmt.Errorf("invalid HLS URL: %w", err)
+	}
+
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+	}
+
+	baseURL := fmt.Sprintf("%s://%s", parsed.Scheme, parsed.Host)
+
+	for _, thumbPath := range hlsThumbnailPaths {
+		thumbURL := baseURL + thumbPath
+		logger.Log.WithField("url", thumbURL).Debug("Trying HLS thumbnail fallback")
+
+		resp, err := client.Get(thumbURL)
+		if err != nil {
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			continue
+		}
+
+		body, err := io.ReadAll(io.LimitReader(resp.Body, maxFrameSize))
+		resp.Body.Close()
+		if err != nil {
+			continue
+		}
+
+		// Verify it's actually an image
+		_, _, err = image.DecodeConfig(bytes.NewReader(body))
+		if err != nil {
+			continue
+		}
+
+		if err := os.WriteFile(outputPath, body, 0644); err != nil {
+			return fmt.Errorf("failed to write image: %w", err)
+		}
+
+		logger.Log.WithFields(logrus.Fields{
+			"outputPath":   outputPath,
+			"thumbnailURL": thumbURL,
+		}).Info("Image captured from HLS server thumbnail")
+		return nil
+	}
+
+	return fmt.Errorf("HLS stream detected but no thumbnail endpoint found at %s (tried %v); configure a direct image snapshot URL instead", baseURL, hlsThumbnailPaths)
+}
+
+// grabMJPEGFrame extracts the first JPEG frame from an MJPEG
+// (multipart/x-mixed-replace) stream.
+func grabMJPEGFrame(resp *http.Response, outputPath string) error {
+	contentType := resp.Header.Get("Content-Type")
+	_, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return fmt.Errorf("failed to parse MJPEG content type: %w", err)
+	}
+	boundary := params["boundary"]
+	if boundary == "" {
+		return fmt.Errorf("no boundary found in MJPEG content type")
+	}
+
+	reader := multipart.NewReader(resp.Body, boundary)
+
+	// Read just the first part (first frame)
+	part, err := reader.NextPart()
+	if err != nil {
+		return fmt.Errorf("failed to read MJPEG frame: %w", err)
+	}
+	defer part.Close()
+
+	body, err := io.ReadAll(io.LimitReader(part, maxFrameSize))
+	if err != nil {
+		return fmt.Errorf("failed to read MJPEG frame data: %w", err)
+	}
+
+	if err := os.WriteFile(outputPath, body, 0644); err != nil {
+		return fmt.Errorf("failed to write image: %w", err)
+	}
+
+	logger.Log.WithField("outputPath", outputPath).Info("Image captured successfully from MJPEG stream")
 	return nil
 }
 

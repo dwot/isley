@@ -17,13 +17,14 @@ RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-w -s" -o /app/isle
 FROM alpine:3.23
 WORKDIR /app
 
-# Install tzdata for runtime configuration, ffmpeg for video processing,
-# and su-exec for lightweight privilege drop in the entrypoint.
+# Install tzdata for timezone support and su-exec for lightweight privilege
+# drop in the entrypoint. ffmpeg was removed to eliminate CVE exposure;
+# stream frame capture now uses native Go HTTP/MJPEG handling.
 # Versions are pinned transitively via the alpine:3.23 base image.
 # Log installed versions for build auditing and reproducibility.
-RUN apk add --no-cache tzdata ffmpeg su-exec \
+RUN apk add --no-cache tzdata su-exec \
     && echo "--- Installed package versions ---" \
-    && apk info -v tzdata ffmpeg su-exec
+    && apk info -v tzdata su-exec
 
 # Copy the built application and entrypoint
 COPY --from=builder /app/isley /app/isley
