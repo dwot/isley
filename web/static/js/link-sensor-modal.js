@@ -20,7 +20,6 @@ document.addEventListener("DOMContentLoaded", () => {
         })
             .then(response => {
                 if (!response.ok) throw new Error("{{ .lcl.failed_to_link_sensors }}");
-                //alert("Sensors linked successfully!");
                 location.reload();
             })
             .catch(error => {
@@ -28,4 +27,33 @@ document.addEventListener("DOMContentLoaded", () => {
                 uiMessages.showToast(uiMessages.t('failed_to_link_sensors') || '{{ .lcl.failed_to_link_sensors }}', 'danger');
             });
     });
+
+    // Handle Unlink All Sensors
+    const unlinkAllBtn = document.getElementById("unlinkAllSensorsBtn");
+    if (unlinkAllBtn) {
+        unlinkAllBtn.addEventListener("click", () => {
+            const msg = uiMessages.t('confirm_unlink_all_sensors') || 'Unlink all sensors from this plant?';
+            const doUnlink = (window.uiMessages && typeof uiMessages.showConfirm === "function")
+                ? uiMessages.showConfirm(msg)
+                : Promise.resolve(confirm(msg));
+
+            doUnlink.then(confirmed => {
+                if (!confirmed) return;
+                const plantId = document.getElementById("plantId").value;
+                fetch("/plant/link-sensors", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ plant_id: plantId, sensor_ids: [] }),
+                })
+                    .then(response => {
+                        if (!response.ok) throw new Error("Failed");
+                        location.reload();
+                    })
+                    .catch(error => {
+                        console.error("Error:", error);
+                        uiMessages.showToast(uiMessages.t('failed_to_link_sensors') || 'Failed to unlink sensors', 'danger');
+                    });
+            });
+        });
+    }
 });
