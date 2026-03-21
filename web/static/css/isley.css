@@ -1196,6 +1196,8 @@ body.dark-mode .sc-card-link:hover .sc-card {
 }
 .st-th-name { min-width: 180px; }
 .st-th-lineage { min-width: 150px; }
+.st-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.st-sortable:hover { color: var(--bs-primary); }
 
 /* Empty state */
 .strains-empty {

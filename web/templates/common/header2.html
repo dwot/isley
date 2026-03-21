@@ -15,8 +15,8 @@
     <ul class="nav nav-pills">
         {{ if .loggedIn }}
         <li class="nav-item">
-            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addMultiPlantActivityModal">
-                <i class="fa fa-plus"></i>
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addMultiPlantActivityModal" title="{{ .lcl.multiple_action_desc }}">
+                <i class="fa-solid fa-hand-holding-droplet"></i>
             </button>
         </li>
         {{ end }}

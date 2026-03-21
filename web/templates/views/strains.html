@@ -90,12 +90,12 @@
         <table class="table table-hover strains-table">
             <thead>
                 <tr>
-                    <th class="st-th-name">{{ .lcl.title_strain }}</th>
-                    <th class="st-th-breeder">{{ .lcl.breeder }}</th>
+                    <th class="st-th-name st-sortable" data-sort="name">{{ .lcl.title_strain }} <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
+                    <th class="st-th-breeder st-sortable" data-sort="breeder">{{ .lcl.breeder }} <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
                     <th class="st-th-lineage">Lineage</th>
                     <th class="st-th-type">Type</th>
-                    <th class="st-th-ratio">Indica/Sativa</th>
-                    <th class="st-th-seeds">Seeds</th>
+                    <th class="st-th-ratio st-sortable" data-sort="indica">Indica/Sativa <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
+                    <th class="st-th-seeds st-sortable" data-sort="seeds">Seeds <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
                 </tr>
             </thead>
             <tbody id="strainsTableBody">
@@ -128,6 +128,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let currentView = "in-stock";
     let currentLayout = localStorage.getItem("strainsLayout") || "cards";
     let allStrains = [];
+    let tableSort = { key: null, asc: true };
 
     // Set initial layout button state
     layoutButtons.forEach(b => {
@@ -189,8 +190,16 @@ document.addEventListener("DOMContentLoaded", () => {
             data = data.filter(s => !s.autoflower);
         }
 
-        const [key, dir] = sort.split("-");
-        const asc = dir === "asc";
+        // Use table header sort if active, otherwise use dropdown
+        let key, asc;
+        if (tableSort.key) {
+            key = tableSort.key;
+            asc = tableSort.asc;
+        } else {
+            const [k, d] = sort.split("-");
+            key = k;
+            asc = d === "asc";
+        }
         data.sort((a, b) => {
             let va, vb;
             switch (key) {
@@ -368,17 +377,60 @@ document.addEventListener("DOMContentLoaded", () => {
         return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
     }
 
+    // ----- Table header sort click -----
+    document.querySelectorAll(".st-sortable").forEach(th => {
+        th.style.cursor = "pointer";
+        th.addEventListener("click", () => {
+            const sortKey = th.dataset.sort;
+            if (tableSort.key === sortKey) {
+                tableSort.asc = !tableSort.asc;
+            } else {
+                tableSort.key = sortKey;
+                tableSort.asc = true;
+            }
+            // Update sort icons
+            document.querySelectorAll(".st-sortable i").forEach(icon => {
+                icon.className = "fa-solid fa-sort ms-1 text-muted";
+            });
+            const icon = th.querySelector("i");
+            if (icon) icon.className = `fa-solid fa-sort-${tableSort.asc ? "up" : "down"} ms-1`;
+
+            // Sync dropdown sort value if there's a matching option
+            const mappedSort = {
+                "name": tableSort.asc ? "name-asc" : "name-desc",
+                "breeder": tableSort.asc ? "breeder-asc" : null,
+                "indica": tableSort.asc ? null : "indica-desc",
+                "seeds": tableSort.asc ? "seeds-asc" : "seeds-desc",
+            }[sortKey];
+            if (mappedSort && sortBy.querySelector(`option[value="${mappedSort}"]`)) {
+                sortBy.value = mappedSort;
+            }
+            applyFilters();
+        });
+    });
+
     // ----- Event listeners -----
     searchInput.addEventListener("input", debounce(applyFilters, 200));
     filterBreeder.addEventListener("change", applyFilters);
     filterType.addEventListener("change", applyFilters);
-    sortBy.addEventListener("change", applyFilters);
+    sortBy.addEventListener("change", () => {
+        // When dropdown sort is used, clear table header sort
+        tableSort = { key: null, asc: true };
+        document.querySelectorAll(".st-sortable i").forEach(icon => {
+            icon.className = "fa-solid fa-sort ms-1 text-muted";
+        });
+        applyFilters();
+    });
 
     clearBtn.addEventListener("click", () => {
         searchInput.value = "";
         filterBreeder.value = "";
         filterType.value = "";
         sortBy.value = "name-asc";
+        tableSort = { key: null, asc: true };
+        document.querySelectorAll(".st-sortable i").forEach(icon => {
+            icon.className = "fa-solid fa-sort ms-1 text-muted";
+        });
         applyFilters();
     });
 
@@ -387,6 +439,11 @@ document.addEventListener("DOMContentLoaded", () => {
             currentView = btn.dataset.view;
             viewButtons.forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
+            // Reset table sort on view switch
+            tableSort = { key: null, asc: true };
+            document.querySelectorAll(".st-sortable i").forEach(icon => {
+                icon.className = "fa-solid fa-sort ms-1 text-muted";
+            });
             fetchStrains(currentView);
         });
     });

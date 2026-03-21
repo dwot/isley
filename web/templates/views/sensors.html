@@ -91,7 +91,7 @@
                 <td>{{ .device }}</td>
                 <td>{{ .type }}</td>
                 <td>{{ .unit }}</td>
-                <td>{{ if eq .visibility "zone_plant" }}{{ .lcl.vis_zone_plant }}{{ else if eq .visibility "zone" }}{{ .lcl.vis_zone }}{{ else if eq .visibility "plant" }}{{ .lcl.vis_plant }}{{ else }}{{ .lcl.title_hide }}{{ end }}</td>
+                <td>{{ if eq .visibility "zone_plant" }}{{ $.lcl.vis_zone_plant }}{{ else if eq .visibility "zone" }}{{ $.lcl.vis_zone }}{{ else if eq .visibility "plant" }}{{ $.lcl.vis_plant }}{{ else }}{{ $.lcl.title_hide }}{{ end }}</td>
                 <td>{{ formatStringDate .create_dt }}</td>
                 <td>{{ formatStringDate .update_dt }}</td>
             </tr>
