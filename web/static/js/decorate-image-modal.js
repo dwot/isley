@@ -167,10 +167,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // Logo preview
+    // Logo preview — validate the path to prevent injection
     logoDropdown.addEventListener("change", () => {
-        if (logoDropdown.value) {
-            logoPreview.src = `/${logoDropdown.value}`;
+        const logoPath = logoDropdown.value;
+        if (logoPath && /^[a-zA-Z0-9_\-\/. ]+$/.test(logoPath) && !logoPath.includes("..")) {
+            logoPreview.src = `/${logoPath}`;
             logoPreview.style.display = "block";
         } else {
             logoPreview.style.display = "none";

@@ -49,7 +49,15 @@ const (
 // dimension limits before the caller loads it into memory.  It uses
 // image.DecodeConfig which only reads the header, not the full pixel data.
 func validateImageFile(path string) error {
-	fi, err := os.Stat(path)
+	// Sanitise the path to prevent directory traversal attacks.
+	// filepath.Clean collapses ".." segments, and we verify the result
+	// stays under the working directory.
+	cleaned := filepath.Clean(path)
+	if strings.Contains(cleaned, "..") {
+		return fmt.Errorf("invalid image path: directory traversal not allowed")
+	}
+
+	fi, err := os.Stat(cleaned)
 	if err != nil {
 		return fmt.Errorf("cannot stat image: %w", err)
 	}
@@ -57,7 +65,7 @@ func validateImageFile(path string) error {
 		return fmt.Errorf("image file too large: %d bytes (max %d)", fi.Size(), maxImageFileSize)
 	}
 
-	f, err := os.Open(path)
+	f, err := os.Open(cleaned)
 	if err != nil {
 		return fmt.Errorf("cannot open image for validation: %w", err)
 	}

@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func GenerateAPIKey() string {
@@ -30,10 +32,34 @@ func GenerateAPIKey() string {
 	return hex.EncodeToString(bytes)
 }
 
-// HashAPIKey returns the SHA-256 hex digest of the given plaintext API key.
+// HashAPIKey returns a bcrypt hash of the given plaintext API key.
+// bcrypt is preferred over fast hashes like SHA-256 for secret storage
+// because its adaptive cost factor resists brute-force attacks.
 func HashAPIKey(plaintext string) string {
-	h := sha256.Sum256([]byte(plaintext))
-	return hex.EncodeToString(h[:])
+	hash, err := bcrypt.GenerateFromPassword([]byte(plaintext), bcrypt.DefaultCost)
+	if err != nil {
+		logger.Log.WithError(err).Error("Failed to hash API key")
+		return ""
+	}
+	return string(hash)
+}
+
+// CheckAPIKey compares a plaintext API key against a stored hash.
+// It supports bcrypt hashes (preferred), legacy SHA-256 hex digests,
+// and plaintext matches for backward compatibility.
+func CheckAPIKey(plaintext, stored string) bool {
+	// Try bcrypt first (hashes start with "$2a$" or "$2b$")
+	if strings.HasPrefix(stored, "$2a$") || strings.HasPrefix(stored, "$2b$") {
+		return bcrypt.CompareHashAndPassword([]byte(stored), []byte(plaintext)) == nil
+	}
+	// Fall back to SHA-256 hex comparison for legacy hashes (64 hex chars)
+	if len(stored) == 64 {
+		h := sha256.Sum256([]byte(plaintext))
+		incomingHex := hex.EncodeToString(h[:])
+		return subtle.ConstantTimeCompare([]byte(incomingHex), []byte(stored)) == 1
+	}
+	// Fall back to direct comparison for very old plaintext keys
+	return subtle.ConstantTimeCompare([]byte(plaintext), []byte(stored)) == 1
 }
 
 func SaveSettings(c *gin.Context) {
@@ -124,8 +150,10 @@ func SaveSettings(c *gin.Context) {
 	// Only update if a non-empty value is explicitly provided (backward compat).
 	if settings.APIKey != "" {
 		apiKeyToStore := settings.APIKey
-		// Hash plaintext keys; skip if already a SHA-256 hex digest (64 chars).
-		if len(settings.APIKey) != 64 {
+		// Hash plaintext keys; skip if already a bcrypt hash or legacy SHA-256 hex digest.
+		isBcrypt := strings.HasPrefix(settings.APIKey, "$2a$") || strings.HasPrefix(settings.APIKey, "$2b$")
+		isSHA256 := len(settings.APIKey) == 64
+		if !isBcrypt && !isSHA256 {
 			apiKeyToStore = HashAPIKey(settings.APIKey)
 		}
 		err = UpdateSetting("api_key", apiKeyToStore)

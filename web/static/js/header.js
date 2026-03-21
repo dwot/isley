@@ -11,9 +11,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // Handle language selection
     langMenu.addEventListener("click", (e) => {
         const selectedLang = e.target.closest(".lang-select")?.getAttribute("data-lang");
-        if (selectedLang) {
+        if (selectedLang && /^[a-zA-Z-]+$/.test(selectedLang)) {
             localStorage.setItem("language", selectedLang); // Save preference
-            window.location.href = `/?lang=${selectedLang}`; // Reload page with new language
+            window.location.href = `/?lang=${encodeURIComponent(selectedLang)}`; // Reload page with new language
         }
     });
 });

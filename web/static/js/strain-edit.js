@@ -132,7 +132,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 })
                 .then(id => {
                     // Redirect back to the strain detail page
-                    window.location.href = `/strain/${id}`;
+                    if (id && /^\d+$/.test(String(id))) {
+                        window.location.href = `/strain/${id}`;
+                    }
                 })
                 .catch(error => {
                     console.error("Error updating strain:", error);

@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll(".clickable-row").forEach(row => {
         row.addEventListener("click", () => {
             const plantId = row.getAttribute("data-id");
-            if (plantId) {
+            if (plantId && /^\d+$/.test(plantId)) {
                 window.location.href = `/plant/${plantId}`;
             }
         });
@@ -47,7 +47,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const sensorData = await sensorResponse.json();
         const streamData = await streamResponse.json();
-        sensorsOverview.innerHTML = "";
+        while (sensorsOverview.firstChild) sensorsOverview.removeChild(sensorsOverview.firstChild);
         sensorsOverview.classList.add("p-3");
 
         Object.keys(sensorData).forEach((zone) => {
@@ -230,7 +230,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         document.querySelectorAll(".sensor-row").forEach((row) => {
             row.addEventListener("click", () => {
                 const sensorId = row.getAttribute("data-id");
-                if (sensorId) {
+                if (sensorId && /^\d+$/.test(sensorId)) {
                     window.location.href = `/graph/${sensorId}`;
                 }
             });

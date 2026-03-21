@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/subtle"
 	"embed"
 	"encoding/hex"
@@ -658,16 +657,10 @@ func AuthMiddlewareApi() gin.HandlerFunc {
 				return
 			}
 
-			// Hash the incoming key and compare against the stored hash.
-			// Also accept a direct match for backward compatibility with
-			// keys that were stored before hashing was introduced.
-			incomingHash := sha256.Sum256([]byte(apiKey))
-			incomingHashHex := hex.EncodeToString(incomingHash[:])
-
-			hashMatch := subtle.ConstantTimeCompare([]byte(incomingHashHex), []byte(storedAPIKey)) == 1
-			legacyMatch := subtle.ConstantTimeCompare([]byte(apiKey), []byte(storedAPIKey)) == 1
-
-			if !hashMatch && !legacyMatch {
+			// Validate the incoming key against the stored hash.
+			// CheckAPIKey handles bcrypt (preferred), legacy SHA-256, and
+			// plaintext matches for backward compatibility.
+			if !handlers.CheckAPIKey(apiKey, storedAPIKey) {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 					"error": "Invalid API key",
 				})
