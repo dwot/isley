@@ -1,5 +1,5 @@
 # BUILD PHASE
-FROM golang:1.25.0-alpine3.21 AS builder
+FROM golang:1.25.8-alpine3.23 AS builder
 WORKDIR /build
 
 COPY go.mod go.sum ./
@@ -14,12 +14,12 @@ ARG TARGETARCH
 RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-w -s" -o /app/isley
 
 # IMAGE PHASE
-FROM alpine:3.21
+FROM alpine:3.23
 WORKDIR /app
 
 # Install tzdata for runtime configuration, ffmpeg for video processing,
 # and su-exec for lightweight privilege drop in the entrypoint.
-# Versions are pinned transitively via the alpine:3.21 base image.
+# Versions are pinned transitively via the alpine:3.23 base image.
 # Log installed versions for build auditing and reproducibility.
 RUN apk add --no-cache tzdata ffmpeg su-exec \
     && echo "--- Installed package versions ---" \
