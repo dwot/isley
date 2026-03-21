@@ -129,80 +129,6 @@
             </div>
             {{ end }}
 
-            <!-- Recent Activities (hidden if none) -->
-            {{ if .plant.Activities }}
-            <div class="card mb-4 plant-section-card">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="card-title mb-0 text-primary">
-                            <i class="fa-solid fa-clipboard-list me-1"></i> {{ .lcl.title_activities }}
-                            <span class="badge bg-secondary ms-1" style="font-size:0.7rem">{{ len .plant.Activities }}</span>
-                        </h6>
-                        {{ if .loggedIn }}
-                        <button class="btn btn-sm btn-outline-success py-0 px-2" data-bs-toggle="modal" data-bs-target="#addActivityModal" style="font-size:0.75rem">
-                            <i class="fa-solid fa-plus me-1"></i>{{ .lcl.title_add }}
-                        </button>
-                        {{ end }}
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover mb-0 plant-mini-table">
-                            <tbody>
-                            {{ range $i, $a := .plant.Activities }}
-                            <tr class="clickable-row activity-row{{ if ge $i 5 }} plant-row-hidden{{ end }}" data-activity='{{ json $a }}'>
-                                <td class="text-muted plant-mini-date">{{ formatDate $a.Date }}</td>
-                                <td>{{ $a.Name }}</td>
-                                <td class="text-muted plant-mini-note">{{ preview $a.Note }}</td>
-                            </tr>
-                            {{ end }}
-                            </tbody>
-                        </table>
-                    </div>
-                    {{ if gt (len .plant.Activities) 5 }}
-                    <button class="btn btn-sm btn-link text-muted plant-expand-btn mt-2 p-0" data-target="activity">
-                        <i class="fa-solid fa-chevron-down me-1"></i> Show all {{ len .plant.Activities }} activities
-                    </button>
-                    {{ end }}
-                </div>
-            </div>
-            {{ end }}
-
-            <!-- Recent Measurements (hidden if none) -->
-            {{ if .plant.Measurements }}
-            <div class="card mb-4 plant-section-card">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="card-title mb-0 text-primary">
-                            <i class="fa-solid fa-ruler-combined me-1"></i> {{ .lcl.title_measurements }}
-                            <span class="badge bg-secondary ms-1" style="font-size:0.7rem">{{ len .plant.Measurements }}</span>
-                        </h6>
-                        {{ if .loggedIn }}
-                        <button class="btn btn-sm btn-outline-primary py-0 px-2" data-bs-toggle="modal" data-bs-target="#addMeasurementModal" style="font-size:0.75rem">
-                            <i class="fa-solid fa-plus me-1"></i>{{ .lcl.title_add }}
-                        </button>
-                        {{ end }}
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover mb-0 plant-mini-table">
-                            <tbody>
-                            {{ range $i, $m := .plant.Measurements }}
-                            <tr class="clickable-row measurement-row{{ if ge $i 5 }} plant-row-hidden{{ end }}" data-measurement='{{ json $m }}'>
-                                <td class="text-muted plant-mini-date">{{ formatDate $m.Date }}</td>
-                                <td>{{ $m.Name }}</td>
-                                <td class="text-end fw-semibold">{{ $m.Value }}</td>
-                            </tr>
-                            {{ end }}
-                            </tbody>
-                        </table>
-                    </div>
-                    {{ if gt (len .plant.Measurements) 5 }}
-                    <button class="btn btn-sm btn-link text-muted plant-expand-btn mt-2 p-0" data-target="measurement">
-                        <i class="fa-solid fa-chevron-down me-1"></i> Show all {{ len .plant.Measurements }} measurements
-                    </button>
-                    {{ end }}
-                </div>
-            </div>
-            {{ end }}
-
             <!-- Image Gallery (hidden if none) -->
             {{ if .plant.Images }}
             <div id="gallery" class="mb-4">
@@ -326,8 +252,63 @@
                         </li>
                         {{ end }}
                     </ul>
+
+                    <!-- Measurements (grouped by name, inline) -->
+                    {{ if .plant.Measurements }}
+                    <hr>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0 text-primary" style="font-size:0.85rem">
+                            <i class="fa-solid fa-ruler-combined me-1"></i>{{ .lcl.title_measurements }}
+                        </h6>
+                        {{ if .loggedIn }}
+                        <button class="btn btn-sm btn-outline-primary py-0 px-2" data-bs-toggle="modal" data-bs-target="#addMeasurementModal" style="font-size:0.7rem">
+                            <i class="fa-solid fa-plus me-1"></i>{{ .lcl.title_add }}
+                        </button>
+                        {{ end }}
+                    </div>
+                    <div id="measurementGroupList" data-measurements='{{ json .plant.Measurements }}'>
+                        <!-- JS populates grouped measurements here -->
+                    </div>
+                    {{ end }}
                 </div>
             </div>
+
+            <!-- Activities (sidebar) -->
+            {{ if .plant.Activities }}
+            <div class="card plant-infobox mb-3 plant-section-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="card-title mb-0 text-primary">
+                            <i class="fa-solid fa-clipboard-list me-1"></i> {{ .lcl.title_activities }}
+                            <span class="badge bg-secondary ms-1" style="font-size:0.7rem">{{ len .plant.Activities }}</span>
+                        </h6>
+                        {{ if .loggedIn }}
+                        <button class="btn btn-sm btn-outline-success py-0 px-2" data-bs-toggle="modal" data-bs-target="#addActivityModal" style="font-size:0.75rem">
+                            <i class="fa-solid fa-plus me-1"></i>{{ .lcl.title_add }}
+                        </button>
+                        {{ end }}
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0 plant-mini-table">
+                            <tbody>
+                            {{ range $i, $a := .plant.Activities }}
+                            <tr class="clickable-row activity-row{{ if ge $i 5 }} plant-row-hidden{{ end }}" data-activity='{{ json $a }}'>
+                                <td class="text-muted plant-mini-date">{{ formatDate $a.Date }}</td>
+                                <td>{{ $a.Name }}</td>
+                                <td class="text-muted plant-mini-note">{{ preview $a.Note }}</td>
+                            </tr>
+                            {{ end }}
+                            </tbody>
+                        </table>
+                    </div>
+                    {{ if gt (len .plant.Activities) 5 }}
+                    <button class="btn btn-sm btn-link text-muted plant-expand-btn mt-2 p-0" data-target="activity">
+                        <i class="fa-solid fa-chevron-down me-1"></i> Show all {{ len .plant.Activities }} activities
+                    </button>
+                    {{ end }}
+                </div>
+            </div>
+            {{ end }}
 
         </div>
     </div>
@@ -592,6 +573,94 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Initialize hidden rows
     document.querySelectorAll(".plant-row-hidden").forEach(r => r.style.display = "none");
+
+    // ===== Grouped Measurements =====
+    const mGroupEl = document.getElementById("measurementGroupList");
+    if (mGroupEl) {
+        let measurements = [];
+        try {
+            let raw = JSON.parse(mGroupEl.dataset.measurements || "[]");
+            if (typeof raw === "string") raw = JSON.parse(raw);
+            measurements = Array.isArray(raw) ? raw : [];
+        } catch(e) { /* empty */ }
+
+        // Group by name, keep order of first appearance
+        const grouped = new Map();
+        measurements.forEach(m => {
+            const name = m.name || m.Name;
+            if (!grouped.has(name)) grouped.set(name, []);
+            grouped.get(name).push(m);
+        });
+
+        mGroupEl.innerHTML = "";
+
+        grouped.forEach((entries, name) => {
+            // entries are sorted newest-first from the server
+            const latest = entries[0];
+            const latestVal = latest.value ?? latest.Value;
+            const latestDate = new Date(latest.date || latest.Date);
+            const dateStr = !isNaN(latestDate.getTime())
+                ? latestDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+                : "";
+
+            const row = document.createElement("div");
+            row.className = "pm-group";
+
+            // Summary row (always visible)
+            const summary = document.createElement("div");
+            summary.className = "pm-summary";
+            summary.innerHTML =
+                `<span class="pm-name">${name}</span>` +
+                `<span class="pm-latest">` +
+                    `<strong class="pm-val">${latestVal}</strong>` +
+                    `<span class="pm-date">${dateStr}</span>` +
+                `</span>`;
+
+            row.appendChild(summary);
+
+            // History rows (hidden by default)
+            if (entries.length > 1) {
+                const histWrap = document.createElement("div");
+                histWrap.className = "pm-history";
+                histWrap.style.display = "none";
+
+                entries.forEach((m, idx) => {
+                    const mVal = m.value ?? m.Value;
+                    const mDate = new Date(m.date || m.Date);
+                    const mDateStr = !isNaN(mDate.getTime())
+                        ? mDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+                        : "";
+                    const hRow = document.createElement("div");
+                    hRow.className = "pm-history-row clickable-row measurement-row";
+                    hRow.dataset.measurement = JSON.stringify(m);
+                    hRow.innerHTML =
+                        `<span class="pm-hist-date">${mDateStr}</span>` +
+                        `<span class="pm-hist-val">${mVal}</span>`;
+                    histWrap.appendChild(hRow);
+                });
+
+                row.appendChild(histWrap);
+
+                // Toggle on click
+                const toggle = document.createElement("span");
+                toggle.className = "pm-toggle";
+                toggle.innerHTML = `<i class="fa-solid fa-chevron-down fa-xs"></i> ${entries.length}`;
+                toggle.title = `${entries.length} entries`;
+                summary.appendChild(toggle);
+
+                summary.style.cursor = "pointer";
+                summary.addEventListener("click", () => {
+                    const open = histWrap.style.display !== "none";
+                    histWrap.style.display = open ? "none" : "";
+                    toggle.innerHTML = open
+                        ? `<i class="fa-solid fa-chevron-down fa-xs"></i> ${entries.length}`
+                        : `<i class="fa-solid fa-chevron-up fa-xs"></i> ${entries.length}`;
+                });
+            }
+
+            mGroupEl.appendChild(row);
+        });
+    }
 });
 </script>
 
