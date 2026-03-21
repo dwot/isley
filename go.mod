@@ -1,6 +1,6 @@
 module isley
 
-go 1.25.0
+go 1.25.8
 
 require (
 	github.com/fogleman/gg v1.3.0

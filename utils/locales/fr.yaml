@@ -2,6 +2,8 @@
 # Produced with AI software, not tested
 sensors_overview: "Aperçu des capteurs"
 no_sensors_yet: "Aucun capteur trouvé. Scannez ou ajoutez des capteurs pour commencer."
+no_sensors_match: "Aucun capteur ne correspond à vos filtres."
+search_sensors: "Rechercher des capteurs"
 website: "Site web"
 change_password: "Changer le mot de passe"
 plants_overview: "Aperçu des plantes"

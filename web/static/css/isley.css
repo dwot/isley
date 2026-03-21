@@ -1208,6 +1208,119 @@ body.dark-mode .sc-card-link:hover .sc-card {
     padding: 3rem 1rem;
 }
 
+/* ===== Sensors Listing Page ===== */
+.sensors-controls {
+    margin-bottom: 1.5rem;
+}
+.sensors-controls-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+}
+.sensors-search-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 180px;
+    max-width: 320px;
+}
+.sensors-search-icon {
+    position: absolute;
+    left: 0.65rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-muted);
+    font-size: 0.8rem;
+    pointer-events: none;
+}
+.sensors-search-wrap .form-control {
+    padding-left: 2rem;
+    background: var(--color-input-bg);
+    color: var(--color-input-fg);
+    border-color: var(--color-input-border);
+}
+.sensors-action-buttons {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.sensors-filters-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+.sensors-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+.sensors-filter-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+.sensors-filter-group .form-select {
+    min-width: 120px;
+    font-size: 0.85rem;
+    background: var(--color-input-bg);
+    color: var(--color-input-fg);
+    border-color: var(--color-input-border);
+}
+.sensors-result-count {
+    font-size: 0.82rem;
+}
+.sensors-table-wrap {
+    overflow-x: auto;
+}
+.sensors-table {
+    font-size: 0.9rem;
+    background: var(--color-table-bg);
+}
+.sensors-table thead th {
+    background: var(--color-table-th);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-muted);
+    white-space: nowrap;
+    padding: 0.6rem 0.75rem;
+    border-bottom: 2px solid var(--color-card-border);
+}
+.sensors-table td {
+    padding: 0.6rem 0.75rem;
+    vertical-align: middle;
+    border-color: var(--color-card-border);
+}
+.sn-row:hover {
+    background: var(--color-row-hover);
+}
+.sn-sensor-name {
+    font-weight: 600;
+    color: var(--color-accent);
+}
+.sn-th-name { min-width: 160px; }
+.sn-th-zone { min-width: 100px; }
+.sn-th-source { min-width: 100px; }
+.sn-th-device { min-width: 100px; }
+.sn-th-type { min-width: 80px; }
+.sn-th-unit { min-width: 60px; }
+.sn-th-visibility { min-width: 100px; }
+.sn-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.sn-sortable:hover { color: var(--bs-primary); }
+.sensors-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1rem;
+}
+
 /* ===== Strain Edit Page ===== */
 .strain-preview-card {
     max-height: calc(100vh - 2rem);
