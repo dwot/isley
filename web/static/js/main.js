@@ -1,242 +1,346 @@
 /*
-Clickable rows for plant cards
- */
-document.addEventListener("DOMContentLoaded", () => {
-    // Add click event to rows
-    document.querySelectorAll(".clickable-row").forEach(row => {
-        row.addEventListener("click", () => {
-            const plantId = row.getAttribute("data-id");
-            if (plantId && /^\d+$/.test(plantId)) {
-                window.location.href = `/plant/${plantId}`;
-            }
-        });
-    });
-});
-
-/*
-Dynamic loading of sensor data and video streams
+ * main.js — Isley Dashboard
+ * Renders the zone-based dashboard with sensors, streams, and plants.
  */
 document.addEventListener("DOMContentLoaded", async () => {
-    // Get the current Theme from storage
-    const theme = localStorage.getItem("isley-theme") || "dark";
-    const themeTextClass = theme === "dark" ? "text-light" : "text-dark";
-    const themeBgClass = theme === "dark" ? "bg-dark" : "bg-light";
 
-    const sensorsOverview = document.getElementById("sensorsOverview");
+    /* ── Translations ──────────────────────────────────────────── */
+    let lcl = {};
+    try {
+        const resp = await fetch("/api/translations");
+        if (resp.ok) lcl = await resp.json();
+    } catch (_) { /* fallback to empty */ }
 
-    // Define titles for each group
-    const groupTitles = {
-        Other:"Environment Sensors",
-        ACIP: "AC Infinity Devices" ,
-        Soil: "EcoWitt Soil Sensors",
+    const t = (key, fallback) => lcl[key] || fallback || key;
+
+    /* Status label map (lowercase status → localised label) */
+    const statusLabels = {
+        germinating: t("germinating_label", "Germinating"),
+        planted:     t("planted_label", "Planted"),
+        seedling:    t("seedling_label", "Seedling"),
+        veg:         t("veg_label", "Veg"),
+        flower:      t("flower_label", "Flower"),
+        drying:      t("drying_label", "Drying"),
+        curing:      t("curing_label", "Curing"),
+        success:     t("success_label", "Success"),
+        dead:        t("dead_label", "Dead"),
     };
 
-    // Create spinner element
-    const spinner = document.createElement("div");
-    spinner.classList.add("spinner-border", "text-primary");
-    spinner.setAttribute("role", "status");
-    spinner.innerHTML = `<span class="visually-hidden">Loading ...</span>`;
-    sensorsOverview.appendChild(spinner);
+    /* Sensor group titles & icons */
+    const groupMeta = {
+        Other: { title: t("title_group_other", "Environment Sensors"), icon: "fa-temperature-half" },
+        ACIP:  { title: t("title_group_acip", "AC Infinity Devices"),  icon: "fa-fan" },
+        Soil:  { title: t("title_group_soil", "EcoWitt Soil Sensors"), icon: "fa-droplet" },
+    };
+
+    /* ── Fetch data ────────────────────────────────────────────── */
+    let plants = [], sensorData = {}, streamData = {};
 
     try {
-        // Fetch sensor and stream data concurrently
-        const [sensorResponse, streamResponse] = await Promise.all([
+        const [pResp, sResp, stResp] = await Promise.all([
+            fetch("/plants/living"),
             fetch("/sensors/grouped"),
-            fetch("/streams")
+            fetch("/streams"),
         ]);
+        if (pResp.ok)  plants = await pResp.json();
+        if (sResp.ok)  sensorData = await sResp.json();
+        if (stResp.ok) streamData = await stResp.json();
+        if (!Array.isArray(plants)) plants = [];
+    } catch (e) {
+        console.error("Dashboard fetch error:", e);
+    }
 
-        const sensorData = await sensorResponse.json();
-        const streamData = await streamResponse.json();
-        while (sensorsOverview.firstChild) sensorsOverview.removeChild(sensorsOverview.firstChild);
-        sensorsOverview.classList.add("p-3");
+    /* ── Build unified zone map ────────────────────────────────── */
+    const zoneMap = {};                       // zoneName → { sensors, streams, plants }
 
-        Object.keys(sensorData).forEach((zone) => {
-            const zoneContainer = document.createElement("div");
-            zoneContainer.classList.add("mb-5");
+    // Sensors — grouped by zone → device → sensor[]
+    for (const [zone, devices] of Object.entries(sensorData)) {
+        if (!zoneMap[zone]) zoneMap[zone] = { sensors: {}, streams: [], plants: [] };
+        zoneMap[zone].sensors = devices;
+    }
 
-            const showZoneHeader = Object.keys(sensorData).length > 0;
-            if (showZoneHeader) {
-                const zoneHeader = document.createElement('h4');
-                zoneHeader.className = 'text-secondary mb-3';
-                zoneHeader.textContent = zone;
-                zoneContainer.appendChild(zoneHeader);
+    // Streams
+    for (const [zone, streams] of Object.entries(streamData)) {
+        if (!zoneMap[zone]) zoneMap[zone] = { sensors: {}, streams: [], plants: [] };
+        zoneMap[zone].streams = streams.filter(s => s.visible !== false);
+    }
+
+    // Plants
+    for (const p of plants) {
+        const zone = p.zone_name || "Unassigned";
+        if (!zoneMap[zone]) zoneMap[zone] = { sensors: {}, streams: [], plants: [] };
+        zoneMap[zone].plants.push(p);
+    }
+
+    /* ── Nothing at all? Show empty state ─────────────────────── */
+    const zoneNames = Object.keys(zoneMap);
+    if (zoneNames.length === 0 && plants.length === 0) {
+        document.getElementById("dashEmpty").style.display = "";
+        return;
+    }
+
+    /* ── Summary bar ───────────────────────────────────────────── */
+    const summaryEl = document.getElementById("dashSummary");
+    const totalPlants = plants.length;
+    const inFlower = plants.filter(p => (p.status || "").toLowerCase() === "flower");
+    const needWater = plants.filter(p => p.days_since_last_watering >= 3);
+    let totalSensors = 0;
+    for (const z of Object.values(zoneMap)) {
+        for (const devSensors of Object.values(z.sensors)) {
+            totalSensors += devSensors.length;
+        }
+    }
+    const avgFlowerDays = inFlower.length > 0
+        ? Math.round(inFlower.reduce((s, p) => s + (p.flowering_days || 0), 0) / inFlower.length)
+        : 0;
+
+    summaryEl.innerHTML = `
+        ${summaryCard(t("dash_active_plants", "Active Plants"), totalPlants,
+            `${t("dash_across_zones", "across")} ${zoneNames.length} ${t("dash_zones", "zones")}`)}
+        ${summaryCard(t("dash_in_flower", "In Flower"), inFlower.length,
+            inFlower.length ? `${t("dash_avg_days", "avg")} ${avgFlowerDays} ${t("dash_days", "days")}` : "")}
+        ${summaryCard(t("dash_need_water", "Need Water"), needWater.length,
+            needWater.length ? t("dash_last_watered", "last watered 3+ days ago") : "", needWater.length > 0)}
+        ${summaryCard(t("dash_active_sensors", "Active Sensors"), totalSensors, "")}
+    `;
+
+    /* ── Render zones ──────────────────────────────────────────── */
+    const zonesEl = document.getElementById("dashZones");
+
+    for (const zoneName of zoneNames) {
+        const z = zoneMap[zoneName];
+        const section = el("div", "dash-zone");
+
+        /* Zone header */
+        const plantCount = z.plants.length;
+        let sensorCount = 0;
+        for (const devSensors of Object.values(z.sensors)) sensorCount += devSensors.length;
+
+        section.appendChild(zoneHeader(zoneName, plantCount, sensorCount));
+
+        /* Zone content grid */
+        const content = el("div", "dash-zone-content");
+        const hasStreams = z.streams.length > 0;
+        if (hasStreams) content.classList.add("has-stream");
+
+        /* Streams column */
+        if (hasStreams) {
+            const streamsCol = el("div", "dash-streams-col");
+            for (const stream of z.streams) {
+                streamsCol.appendChild(streamCard(stream));
             }
+            content.appendChild(streamsCol);
+        }
 
-            // --- Add Video Feeds ---
-            if (streamData[zone] && streamData[zone].length > 0) {
-                const videoContainer = document.createElement("div");
-                videoContainer.classList.add("row", "g-3");
+        /* Data panel */
+        const dataPanel = el("div", "dash-zone-data");
 
-                let streamCount = 0;
-                streamData[zone].forEach((stream, index) => {
-                    if (stream.visible === false) {
-                        return;
-                    } else {
-                        streamCount++;
-                    }
-                });
-                let classItem = "col-12 col-md-6 mb-3";
-                if (streamCount === 1) {
-                    classItem = "col-12 mb-3";
-                }
-
-                streamData[zone].forEach((stream, index) => {
-                    if (stream.visible === false) {
-                        return;
-                    }
-                    const videoId = `${zone.replace(/\s+/g, '-')}-video-${index}`;
-                    const imageUrl = `/uploads/streams/stream_${stream.id}_latest.jpg`;
-
-                    const divOuter = document.createElement('div');
-                    divOuter.className = classItem;
-                    const divInner = document.createElement('div');
-                    divInner.id = `${videoId}-container`;
-                    const img = document.createElement('img');
-                    img.id = `${videoId}-img`;
-                    img.src = imageUrl;
-                    img.alt = `Screengrab of ${stream.name}`;
-                    img.className = 'img-fluid rounded shadow-sm';
-                    img.style.cursor = 'pointer';
-                    divInner.appendChild(img);
-                    divOuter.appendChild(divInner);
-                    videoContainer.appendChild(divOuter);
-
-                    // Attach event listener AFTER ensuring the element is rendered
-                    setTimeout(() => {
-                        if (stream.url.endsWith('.m3u8')) {
-                            const imageElement = document.getElementById(`${videoId}-img`);
-                            if (imageElement) { // Check if the element exists
-                                imageElement.addEventListener("click", () => {
-                                    const container = document.getElementById(`${videoId}-container`);
-                                    const video = document.createElement('video');
-                                    video.id = `${videoId}-player`;
-                                    video.className = 'video-js vjs-default-skin';
-                                    video.controls = true;
-                                    video.preload = 'auto';
-                                    video.width = 480;
-                                    video.height = 270;
-                                    const source = document.createElement('source');
-                                    source.setAttribute('src', stream.url);
-                                    source.setAttribute('type', 'application/vnd.apple.mpegurl');
-                                    video.appendChild(source);
-                                    container.innerHTML = '';
-                                    container.appendChild(video);
-                                    videojs(`${videoId}-player`, { fluid: true, liveui: true }).ready(function() {
-                                        this.play();
-                                    });
-                                });
-                            } else {
-                                console.error(`Element ${videoId}-img not found.`);
-                            }
-                        }
-                    }, 0); // Delay execution until next render cycle
-                });
-
-                zoneContainer.appendChild(videoContainer);
+        /* Sensor groups */
+        const sensorGroups = { Other: [], ACIP: [], Soil: [] };
+        for (const devSensors of Object.values(z.sensors)) {
+            for (const sensor of devSensors) {
+                if ((sensor.type || "").startsWith("Soil")) sensorGroups.Soil.push(sensor);
+                else if ((sensor.type || "").startsWith("ACIP")) sensorGroups.ACIP.push(sensor);
+                else sensorGroups.Other.push(sensor);
             }
+        }
+
+        for (const groupKey of ["Other", "ACIP", "Soil"]) {
+            const sensors = sensorGroups[groupKey];
+            if (sensors.length === 0) continue;
+
+            const groupIds = sensors.map(s => s.id).join(",");
+            const meta = groupMeta[groupKey];
+
+            const groupDiv = el("div");
+            groupDiv.appendChild(groupHeader(meta.icon, meta.title,
+                `/graph/${groupIds}`, t("dash_view_graphs", "View graphs")));
+
+            const strip = el("div", "dash-sensor-strip");
+            for (const sensor of sensors) {
+                strip.appendChild(sensorChip(sensor));
+            }
+            groupDiv.appendChild(strip);
+            dataPanel.appendChild(groupDiv);
+        }
+
+        /* Plants */
+        if (z.plants.length > 0) {
+            const plantsDiv = el("div");
+            plantsDiv.appendChild(groupHeader("fa-cannabis",
+                t("title_plants", "Plants"),
+                "/plants", t("dash_view_all", "View all")));
+
+            const grid = el("div", "dash-plants-grid");
+            for (const plant of z.plants) {
+                grid.appendChild(plantCard(plant));
+            }
+            plantsDiv.appendChild(grid);
+            dataPanel.appendChild(plantsDiv);
+        }
+
+        content.appendChild(dataPanel);
+        section.appendChild(content);
+        zonesEl.appendChild(section);
+    }
 
 
-            // --- Process Sensors ---
-            const sensorGroups = { Other: [], ACIP: [], Soil: [] };
-            Object.keys(sensorData[zone]).forEach((device) => {
-                sensorData[zone][device].forEach((sensor) => {
-                    if (sensor.type.startsWith("Soil")) {
-                        sensorGroups.Soil.push(sensor);
-                    } else if (sensor.type.startsWith("ACIP")) {
-                        sensorGroups.ACIP.push(sensor);
-                    } else {
-                        sensorGroups.Other.push(sensor);
-                    }
-                });
-            });
+    /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       Helper functions
+       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-            const cardRow = document.createElement("div");
-            cardRow.classList.add("row", "g-4");
+    function el(tag, cls) {
+        const e = document.createElement(tag);
+        if (cls) e.className = cls;
+        return e;
+    }
 
-            Object.keys(sensorGroups).forEach((group) => {
-                if (sensorGroups[group].length > 0) {
-                    const groupSensorIds = sensorGroups[group].map(sensor => sensor.id).join(",");
+    function summaryCard(label, value, sub, warn) {
+        return `<div class="dash-summary-stat">
+            <span class="dash-summary-label">${esc(label)}</span>
+            <span class="dash-summary-value"${warn ? ' style="color:#f59e0b"' : ''}>${value}</span>
+            ${sub ? `<span class="dash-summary-sub">${esc(sub)}</span>` : ''}
+        </div>`;
+    }
 
-                    const colDiv = document.createElement('div');
-                    colDiv.className = 'col-12 col-md-4';
+    function zoneHeader(name, plantCount, sensorCount) {
+        const div = el("div", "dash-zone-header");
+        div.innerHTML = `
+            <div class="dash-zone-icon"><i class="fa-solid fa-tent-arrows-down"></i></div>
+            <span class="dash-zone-name">${esc(name)}</span>
+            <div class="dash-zone-meta">
+                ${plantCount > 0 ? `<span class="dash-zone-meta-item"><i class="fa-solid fa-seedling"></i> ${plantCount} ${t("title_plants", "plants").toLowerCase()}</span>` : ''}
+                ${sensorCount > 0 ? `<span class="dash-zone-meta-item"><i class="fa-solid fa-microchip"></i> ${sensorCount} ${t("title_sensors", "sensors").toLowerCase()}</span>` : ''}
+            </div>
+        `;
+        return div;
+    }
 
-                    const cardDiv = document.createElement('div');
-                    cardDiv.className = `card h-100 ${themeTextClass} ${themeBgClass}`;
+    function streamCard(stream) {
+        const card = el("div", "dash-stream-card");
+        const imageUrl = `/uploads/streams/stream_${stream.id}_latest.jpg`;
+        const videoId = `stream-${stream.id}`;
 
-                    const cardHeader = document.createElement('div');
-                    cardHeader.className = 'card-header text-uppercase';
-                    const headerLink = document.createElement('a');
-                    headerLink.href = `/graph/${groupSensorIds}`;
-                    headerLink.className = themeTextClass;
-                    headerLink.textContent = groupTitles[group] || group;
-                    cardHeader.appendChild(headerLink);
+        card.innerHTML = `
+            <div class="dash-stream-thumb" id="${videoId}-container">
+                <img id="${videoId}-img" src="${imageUrl}" alt="${esc(stream.name)}" loading="lazy"
+                     onerror="this.style.display='none'">
+                <div class="dash-stream-play"><i class="fa-solid fa-circle-play"></i></div>
+            </div>
+            <div class="dash-stream-label">
+                <span class="dash-stream-name">${esc(stream.name)}</span>
+                <div class="dash-stream-live"></div>
+            </div>
+        `;
 
-                    const cardBody = document.createElement('div');
-                    cardBody.className = 'card-body';
-
-                    sensorGroups[group].forEach((sensor) => {
-                        const sensorRow = document.createElement('div');
-                        sensorRow.className = 'd-flex justify-content-between align-items-center sensor-row';
-                        sensorRow.dataset.id = sensor.id;
-                        sensorRow.style.cursor = 'pointer';
-
-                        const nameSpan = document.createElement('span');
-                        // Show plant name prefix for sensors linked to active plants
-                        if (sensor.plant_name) {
-                            const plantBadge = document.createElement('small');
-                            plantBadge.className = 'text-info me-1';
-                            plantBadge.textContent = sensor.plant_name + ' \u2014';
-                            nameSpan.appendChild(plantBadge);
-                            nameSpan.appendChild(document.createTextNode(' ' + sensor.name));
-                        } else {
-                            nameSpan.textContent = sensor.name;
-                        }
-
-                        const valueDiv = document.createElement('div');
-                        valueDiv.className = 'text-end';
-
-                        const strong = document.createElement('strong');
-                        strong.textContent = `${Number(sensor.value).toFixed(2)} `;
-                        const unitText = document.createTextNode(sensor.unit);
-                        strong.appendChild(unitText);
-
-                        const icon = document.createElement('i');
-                        icon.className = `fa ${
-                            sensor.trend === "up" ? "fa-arrow-up text-success" :
-                            sensor.trend === "down" ? "fa-arrow-down text-danger" :
-                            "fa-minus text-muted"
-                        }`;
-
-                        valueDiv.appendChild(strong);
-                        valueDiv.appendChild(icon);
-                        sensorRow.appendChild(nameSpan);
-                        sensorRow.appendChild(valueDiv);
-                        cardBody.appendChild(sensorRow);
+        /* Click to expand HLS */
+        setTimeout(() => {
+            const thumb = document.getElementById(`${videoId}-container`);
+            if (!thumb) return;
+            thumb.addEventListener("click", () => {
+                if (stream.url && stream.url.endsWith('.m3u8')) {
+                    const video = document.createElement('video');
+                    video.id = `${videoId}-player`;
+                    video.className = 'video-js vjs-default-skin';
+                    video.controls = true;
+                    video.preload = 'auto';
+                    video.width = 480;
+                    video.height = 270;
+                    const source = document.createElement('source');
+                    source.setAttribute('src', stream.url);
+                    source.setAttribute('type', 'application/vnd.apple.mpegurl');
+                    video.appendChild(source);
+                    thumb.innerHTML = '';
+                    thumb.appendChild(video);
+                    videojs(`${videoId}-player`, { fluid: true, liveui: true }).ready(function () {
+                        this.play();
                     });
-
-                    cardDiv.appendChild(cardHeader);
-                    cardDiv.appendChild(cardBody);
-                    colDiv.appendChild(cardDiv);
-                    cardRow.appendChild(colDiv);
                 }
             });
+        }, 0);
 
-            zoneContainer.appendChild(cardRow);
-            sensorsOverview.appendChild(zoneContainer);
+        return card;
+    }
+
+    function groupHeader(icon, title, href, linkText) {
+        const div = el("div", "dash-group-header");
+        div.innerHTML = `
+            <span class="dash-group-title"><i class="fa-solid ${icon}"></i> ${esc(title)}</span>
+            <a href="${href}" class="dash-group-link">${esc(linkText)} <i class="fa-solid fa-arrow-right" style="font-size:0.65rem;margin-left:2px;"></i></a>
+        `;
+        return div;
+    }
+
+    function sensorChip(sensor) {
+        const chip = el("div", "dash-sensor-chip");
+        if (sensor.plant_name) chip.classList.add("linked");
+        chip.style.cursor = "pointer";
+        chip.dataset.id = sensor.id;
+
+        const val = Number(sensor.value).toFixed(2).replace(/\.?0+$/, '') || sensor.value;
+        const trendCls = sensor.trend === "up" ? "dash-trend-up"
+                       : sensor.trend === "down" ? "dash-trend-down"
+                       : "dash-trend-flat";
+        const trendIcon = sensor.trend === "up" ? "fa-arrow-up"
+                        : sensor.trend === "down" ? "fa-arrow-down"
+                        : "fa-minus";
+
+        chip.innerHTML = `
+            ${sensor.plant_name ? `<span class="dash-sensor-plant">${esc(sensor.plant_name)}</span>` : ''}
+            <span class="dash-sensor-label">${esc(sensor.name)}</span>
+            <div class="dash-sensor-value">
+                <span class="dash-sensor-reading">${val}</span>
+                <span class="dash-sensor-unit">${esc(sensor.unit || '')}</span>
+            </div>
+            <div class="dash-sensor-trend ${trendCls}"><i class="fa-solid ${trendIcon}"></i></div>
+        `;
+
+        chip.addEventListener("click", () => {
+            window.location.href = `/graph/${sensor.id}`;
         });
 
-        // Add click event to sensor rows
-        console.time("Add Click Events");
-        document.querySelectorAll(".sensor-row").forEach((row) => {
-            row.addEventListener("click", () => {
-                const sensorId = row.getAttribute("data-id");
-                if (sensorId && /^\d+$/.test(sensorId)) {
-                    window.location.href = `/graph/${sensorId}`;
-                }
-            });
-        });
+        return chip;
+    }
 
-    } catch (error) {
-        console.error("Error fetching data:", error);
+    function plantCard(plant) {
+        const link = el("a", "dash-pc");
+        link.href = `/plant/${plant.id}`;
+
+        const status = (plant.status || "").toLowerCase();
+        const statusLabel = statusLabels[status] || plant.status || "";
+        const statusCls = `dash-status-${status || 'default'}`;
+
+        const waterDays = plant.days_since_last_watering ?? 0;
+        const feedDays = plant.days_since_last_feeding ?? 0;
+        const waterCls = waterDays >= 4 ? "dash-ind-alert" : waterDays >= 3 ? "dash-ind-warn" : "dash-ind-ok";
+        const feedCls = feedDays >= 6 ? "dash-ind-alert" : feedDays >= 5 ? "dash-ind-warn" : "dash-ind-ok";
+
+        const weekDay = `${t("title_week", "Wk")} ${plant.current_week} / ${t("title_day", "Day")} ${plant.current_day}`;
+
+        const breederSep = plant.breeder_name ? ` · ${esc(plant.breeder_name)}` : '';
+
+        link.innerHTML = `
+            <div class="dash-pc-top">
+                <span class="dash-pc-name">${esc(plant.name)}</span>
+                <span class="dash-pc-status ${statusCls}">${esc(statusLabel)}</span>
+            </div>
+            <span class="dash-pc-strain">${esc(plant.strain_name || '')}${breederSep}</span>
+            <div class="dash-pc-bottom">
+                <span class="dash-pc-stat"><i class="fa-solid fa-calendar-day"></i> ${weekDay}</span>
+                <div class="dash-pc-indicators">
+                    <span class="dash-pc-ind ${waterCls}"><i class="fa-solid fa-droplet"></i> ${waterDays}d</span>
+                    <span class="dash-pc-ind ${feedCls}"><i class="fa-solid fa-flask"></i> ${feedDays}d</span>
+                </div>
+            </div>
+        `;
+
+        return link;
+    }
+
+    function esc(str) {
+        if (!str) return '';
+        const d = document.createElement('div');
+        d.textContent = str;
+        return d.innerHTML;
     }
 });
