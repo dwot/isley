@@ -26,13 +26,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         dead:        t("dead_label", "Dead"),
     };
 
-    /* Sensor group titles & icons */
-    const groupMeta = {
-        Other: { title: t("title_group_other", "Environment Sensors"), icon: "fa-temperature-half" },
-        ACIP:  { title: t("title_group_acip", "AC Infinity Devices"),  icon: "fa-fan" },
-        Soil:  { title: t("title_group_soil", "EcoWitt Soil Sensors"), icon: "fa-droplet" },
-    };
-
     /* ── Fetch data ────────────────────────────────────────────── */
     let plants = [], sensorData = {}, streamData = {};
 
@@ -51,21 +44,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     /* ── Build unified zone map ────────────────────────────────── */
-    const zoneMap = {};                       // zoneName → { sensors, streams, plants }
+    const zoneMap = {};
 
-    // Sensors — grouped by zone → device → sensor[]
     for (const [zone, devices] of Object.entries(sensorData)) {
         if (!zoneMap[zone]) zoneMap[zone] = { sensors: {}, streams: [], plants: [] };
         zoneMap[zone].sensors = devices;
     }
 
-    // Streams
     for (const [zone, streams] of Object.entries(streamData)) {
         if (!zoneMap[zone]) zoneMap[zone] = { sensors: {}, streams: [], plants: [] };
         zoneMap[zone].streams = streams.filter(s => s.visible !== false);
     }
 
-    // Plants
     for (const p of plants) {
         const zone = p.zone_name || "Unassigned";
         if (!zoneMap[zone]) zoneMap[zone] = { sensors: {}, streams: [], plants: [] };
@@ -94,15 +84,38 @@ document.addEventListener("DOMContentLoaded", async () => {
         ? Math.round(inFlower.reduce((s, p) => s + (p.flowering_days || 0), 0) / inFlower.length)
         : 0;
 
-    summaryEl.innerHTML = `
-        ${summaryCard(t("dash_active_plants", "Active Plants"), totalPlants,
-            `${t("dash_across_zones", "across")} ${zoneNames.length} ${t("dash_zones", "zones")}`)}
-        ${summaryCard(t("dash_in_flower", "In Flower"), inFlower.length,
-            inFlower.length ? `${t("dash_avg_days", "avg")} ${avgFlowerDays} ${t("dash_days", "days")}` : "")}
-        ${summaryCard(t("dash_need_water", "Need Water"), needWater.length,
-            needWater.length ? t("dash_last_watered", "last watered 3+ days ago") : "", needWater.length > 0)}
-        ${summaryCard(t("dash_active_sensors", "Active Sensors"), totalSensors, "")}
-    `;
+    /* Build summary cards — only show relevant stats */
+    let summaryHTML = summaryCard(
+        t("dash_active_plants", "Active Plants"), totalPlants,
+        `${t("dash_across_zones", "across")} ${zoneNames.length} ${t("dash_zones", "zones")}`
+    );
+
+    if (inFlower.length > 0) {
+        summaryHTML += summaryCard(t("dash_in_flower", "In Flower"), inFlower.length,
+            `${t("dash_avg_days", "avg")} ${avgFlowerDays} ${t("dash_days", "days")}`);
+    } else {
+        /* Show dominant status instead of "In Flower: 0" */
+        const statusCounts = {};
+        plants.forEach(p => {
+            const s = (p.status || "unknown").toLowerCase();
+            statusCounts[s] = (statusCounts[s] || 0) + 1;
+        });
+        const dominant = Object.entries(statusCounts).sort((a, b) => b[1] - a[1])[0];
+        if (dominant) {
+            const lbl = statusLabels[dominant[0]] || dominant[0];
+            summaryHTML += summaryCard(lbl, dominant[1],
+                totalPlants > dominant[1] ? `of ${totalPlants} plants` : "");
+        }
+    }
+
+    if (needWater.length > 0) {
+        summaryHTML += summaryCard(t("dash_need_water", "Need Water"), needWater.length,
+            t("dash_last_watered", "last watered 3+ days ago"), true);
+    }
+
+    summaryHTML += summaryCard(t("dash_active_sensors", "Active Sensors"), totalSensors, "");
+    summaryEl.innerHTML = summaryHTML;
+
 
     /* ── Render zones ──────────────────────────────────────────── */
     const zonesEl = document.getElementById("dashZones");
@@ -111,11 +124,28 @@ document.addEventListener("DOMContentLoaded", async () => {
         const z = zoneMap[zoneName];
         const section = el("div", "dash-zone");
 
-        /* Zone header */
-        const plantCount = z.plants.length;
-        let sensorCount = 0;
-        for (const devSensors of Object.values(z.sensors)) sensorCount += devSensors.length;
+        /* Flatten all sensors for this zone */
+        const allSensors = [];
+        for (const devSensors of Object.values(z.sensors)) {
+            for (const sensor of devSensors) allSensors.push(sensor);
+        }
 
+        /* Separate linked sensors (for plant cards) from unlinked */
+        const linkedByPlant = {};   // plant_name → sensor[]
+        const unlinkedSensors = [];
+        for (const sensor of allSensors) {
+            if (sensor.plant_name) {
+                if (!linkedByPlant[sensor.plant_name]) linkedByPlant[sensor.plant_name] = [];
+                linkedByPlant[sensor.plant_name].push(sensor);
+            } else {
+                unlinkedSensors.push(sensor);
+            }
+        }
+
+        const plantCount = z.plants.length;
+        const sensorCount = allSensors.length;
+
+        /* Zone header */
         section.appendChild(zoneHeader(zoneName, plantCount, sensorCount));
 
         /* Zone content grid */
@@ -135,36 +165,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         /* Data panel */
         const dataPanel = el("div", "dash-zone-data");
 
-        /* Sensor groups */
-        const sensorGroups = { Other: [], ACIP: [], Soil: [] };
-        for (const devSensors of Object.values(z.sensors)) {
-            for (const sensor of devSensors) {
-                if ((sensor.type || "").startsWith("Soil")) sensorGroups.Soil.push(sensor);
-                else if ((sensor.type || "").startsWith("ACIP")) sensorGroups.ACIP.push(sensor);
-                else sensorGroups.Other.push(sensor);
-            }
-        }
-
-        for (const groupKey of ["Other", "ACIP", "Soil"]) {
-            const sensors = sensorGroups[groupKey];
-            if (sensors.length === 0) continue;
-
-            const groupIds = sensors.map(s => s.id).join(",");
-            const meta = groupMeta[groupKey];
-
-            const groupDiv = el("div");
-            groupDiv.appendChild(groupHeader(meta.icon, meta.title,
-                `/graph/${groupIds}`, t("dash_view_graphs", "View graphs")));
-
-            const strip = el("div", "dash-sensor-strip");
-            for (const sensor of sensors) {
-                strip.appendChild(sensorChip(sensor));
-            }
-            groupDiv.appendChild(strip);
-            dataPanel.appendChild(groupDiv);
-        }
-
-        /* Plants */
+        /* ── PLANTS FIRST ── */
         if (z.plants.length > 0) {
             const plantsDiv = el("div");
             plantsDiv.appendChild(groupHeader("fa-cannabis",
@@ -173,10 +174,27 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             const grid = el("div", "dash-plants-grid");
             for (const plant of z.plants) {
-                grid.appendChild(plantCard(plant));
+                const plantSensors = linkedByPlant[plant.name] || [];
+                grid.appendChild(plantCard(plant, plantSensors));
             }
             plantsDiv.appendChild(grid);
             dataPanel.appendChild(plantsDiv);
+        }
+
+        /* ── SENSORS SECOND (single unified strip) ── */
+        if (unlinkedSensors.length > 0) {
+            const sensorDiv = el("div");
+            const allIds = unlinkedSensors.map(s => s.id).join(",");
+            sensorDiv.appendChild(groupHeader("fa-microchip",
+                t("title_sensors", "Sensors"),
+                `/graph/${allIds}`, t("dash_view_graphs", "View graphs")));
+
+            const strip = el("div", "dash-sensor-strip");
+            for (const sensor of unlinkedSensors) {
+                strip.appendChild(sensorChip(sensor));
+            }
+            sensorDiv.appendChild(strip);
+            dataPanel.appendChild(sensorDiv);
         }
 
         content.appendChild(dataPanel);
@@ -233,7 +251,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             </div>
         `;
 
-        /* Click to expand HLS */
         setTimeout(() => {
             const thumb = document.getElementById(`${videoId}-container`);
             if (!thumb) return;
@@ -273,7 +290,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     function sensorChip(sensor) {
         const chip = el("div", "dash-sensor-chip");
-        if (sensor.plant_name) chip.classList.add("linked");
         chip.style.cursor = "pointer";
         chip.dataset.id = sensor.id;
 
@@ -285,9 +301,19 @@ document.addEventListener("DOMContentLoaded", async () => {
                         : sensor.trend === "down" ? "fa-arrow-down"
                         : "fa-minus";
 
+        /* Type indicator dot */
+        let typeDot = "";
+        if ((sensor.type || "").startsWith("ACIP")) {
+            typeDot = `<span class="dash-sensor-type-dot dash-dot-acip" title="AC Infinity"></span>`;
+        } else if ((sensor.type || "").startsWith("Soil")) {
+            typeDot = `<span class="dash-sensor-type-dot dash-dot-soil" title="EcoWitt Soil"></span>`;
+        }
+
         chip.innerHTML = `
-            ${sensor.plant_name ? `<span class="dash-sensor-plant">${esc(sensor.plant_name)}</span>` : ''}
-            <span class="dash-sensor-label">${esc(sensor.name)}</span>
+            <div class="dash-sensor-label-row">
+                ${typeDot}
+                <span class="dash-sensor-label">${esc(sensor.name)}</span>
+            </div>
             <div class="dash-sensor-value">
                 <span class="dash-sensor-reading">${val}</span>
                 <span class="dash-sensor-unit">${esc(sensor.unit || '')}</span>
@@ -302,7 +328,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         return chip;
     }
 
-    function plantCard(plant) {
+    function plantCard(plant, linkedSensors) {
         const link = el("a", "dash-pc");
         link.href = `/plant/${plant.id}`;
 
@@ -316,8 +342,27 @@ document.addEventListener("DOMContentLoaded", async () => {
         const feedCls = feedDays >= 6 ? "dash-ind-alert" : feedDays >= 5 ? "dash-ind-warn" : "dash-ind-ok";
 
         const weekDay = `${t("title_week", "Wk")} ${plant.current_week} / ${t("title_day", "Day")} ${plant.current_day}`;
-
         const breederSep = plant.breeder_name ? ` · ${esc(plant.breeder_name)}` : '';
+
+        /* Build inline sensor badges for linked sensors */
+        let sensorBadgesHTML = '';
+        if (linkedSensors && linkedSensors.length > 0) {
+            const badges = linkedSensors.map(s => {
+                const sv = Number(s.value).toFixed(0);
+                const unit = esc(s.unit || '');
+                const tCls = s.trend === "up" ? "dash-trend-up"
+                           : s.trend === "down" ? "dash-trend-down"
+                           : "dash-trend-flat";
+                const tIco = s.trend === "up" ? "fa-arrow-up"
+                           : s.trend === "down" ? "fa-arrow-down"
+                           : "fa-minus";
+                return `<span class="dash-pc-sensor" title="${esc(s.name)}">
+                    <i class="fa-solid fa-droplet"></i> ${sv}${unit}
+                    <i class="fa-solid ${tIco} ${tCls}"></i>
+                </span>`;
+            }).join('');
+            sensorBadgesHTML = `<div class="dash-pc-sensors">${badges}</div>`;
+        }
 
         link.innerHTML = `
             <div class="dash-pc-top">
@@ -325,6 +370,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 <span class="dash-pc-status ${statusCls}">${esc(statusLabel)}</span>
             </div>
             <span class="dash-pc-strain">${esc(plant.strain_name || '')}${breederSep}</span>
+            ${sensorBadgesHTML}
             <div class="dash-pc-bottom">
                 <span class="dash-pc-stat"><i class="fa-solid fa-calendar-day"></i> ${weekDay}</span>
                 <div class="dash-pc-indicators">
