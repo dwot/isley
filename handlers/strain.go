@@ -517,11 +517,17 @@ func getStrainsBySeedCount(inStock bool) ([]types.Strain, error) {
 	if !inStock {
 		op = "="
 	}
+	// string_agg is PostgreSQL-only; SQLite uses GROUP_CONCAT.
+	aggExpr := "coalesce(GROUP_CONCAT(sl.parent_name, ', '), '')"
+	if model.IsPostgres() {
+		aggExpr = "coalesce(string_agg(sl.parent_name, ', ' ORDER BY sl.parent_name), '')"
+	}
+
 	query := `
 		SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id,
 		       s.indica, s.sativa, s.autoflower, s.seed_count, s.description,
 		       coalesce(s.short_desc, ''), coalesce(s.cycle_time, 0), coalesce(s.url, ''),
-		       coalesce(string_agg(sl.parent_name, ', ' ORDER BY sl.parent_name), '')
+		       ` + aggExpr + `
 		FROM strain s
 		JOIN breeder b ON s.breeder_id = b.id
 		LEFT JOIN strain_lineage sl ON sl.strain_id = s.id

@@ -278,10 +278,16 @@ func GetDescendants(strainID int) []gin.H {
 		return nil
 	}
 
+	// string_agg is PostgreSQL-only; SQLite uses GROUP_CONCAT.
+	aggExpr := "GROUP_CONCAT(sl2.parent_name, ', ')"
+	if model.IsPostgres() {
+		aggExpr = "string_agg(sl2.parent_name, ', ' ORDER BY sl2.parent_name)"
+	}
+
 	rows, err := db.Query(`
 		SELECT DISTINCT s.id, s.name, b.name as breeder,
 			COALESCE((
-				SELECT string_agg(sl2.parent_name, ', ' ORDER BY sl2.parent_name)
+				SELECT `+aggExpr+`
 				FROM strain_lineage sl2
 				WHERE sl2.strain_id = s.id
 				AND (sl2.parent_strain_id IS NULL OR sl2.parent_strain_id != $1)
