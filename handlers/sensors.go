@@ -489,13 +489,13 @@ func ScanEcoWittSensors(c *gin.Context) {
 		input.ZoneID = &zoneID // Set the created zone ID
 	}
 
-	url := "http://" + input.ServerAddress + "/get_livedata_info"
-
-	// Validate the input server address
+	// Validate the input server address before constructing the request URL
 	if !ValidateServerAddress(input.ServerAddress) {
 		fieldLogger.Error("Invalid server address")
 		return
 	}
+
+	url := "http://" + input.ServerAddress + "/get_livedata_info"
 
 	reqBody := bytes.NewBuffer([]byte(""))
 	req, err := http.NewRequest("GET", url, reqBody)

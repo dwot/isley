@@ -75,7 +75,9 @@ document.addEventListener("DOMContentLoaded", () => {
             return response.json();
         })
         .then(() => {
-            window.location.href = `/plant/${plantId}`;
+            if (plantId && /^\d+$/.test(String(plantId))) {
+                window.location.href = `/plant/${plantId}`;
+            }
         })
         .catch(error => {
             submitBtn.classList.remove("is-loading");
@@ -119,7 +121,4 @@ document.addEventListener("DOMContentLoaded", () => {
             })
             .catch(error => {
                 console.error("Error:", error);
-                uiMessages.showToast(uiMessages.t('api_failed_to_delete_plant') || 'Failed to delete plant', 'danger');
-            });
-    }
-});
+                uiMessage
