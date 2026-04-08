@@ -48,19 +48,27 @@ func HashAPIKey(plaintext string) string {
 // CheckAPIKey compares a plaintext API key against a stored hash.
 // It supports bcrypt hashes (preferred), legacy SHA-256 hex digests,
 // and plaintext matches for backward compatibility.
-func CheckAPIKey(plaintext, stored string) bool {
+// Returns (match bool, legacy bool) — legacy is true when the key matched
+// via SHA-256 or plaintext so the caller can auto-upgrade to bcrypt.
+func CheckAPIKey(plaintext, stored string) (match bool, legacy bool) {
 	// Try bcrypt first (hashes start with "$2a$" or "$2b$")
 	if strings.HasPrefix(stored, "$2a$") || strings.HasPrefix(stored, "$2b$") {
-		return bcrypt.CompareHashAndPassword([]byte(stored), []byte(plaintext)) == nil
+		return bcrypt.CompareHashAndPassword([]byte(stored), []byte(plaintext)) == nil, false
 	}
 	// Fall back to SHA-256 hex comparison for legacy hashes (64 hex chars)
 	if len(stored) == 64 {
 		h := sha256.Sum256([]byte(plaintext))
 		incomingHex := hex.EncodeToString(h[:])
-		return subtle.ConstantTimeCompare([]byte(incomingHex), []byte(stored)) == 1
+		if subtle.ConstantTimeCompare([]byte(incomingHex), []byte(stored)) == 1 {
+			return true, true
+		}
+		return false, false
 	}
 	// Fall back to direct comparison for very old plaintext keys
-	return subtle.ConstantTimeCompare([]byte(plaintext), []byte(stored)) == 1
+	if subtle.ConstantTimeCompare([]byte(plaintext), []byte(stored)) == 1 {
+		return true, true
+	}
+	return false, false
 }
 
 func SaveSettings(c *gin.Context) {
@@ -188,7 +196,7 @@ func SaveSettings(c *gin.Context) {
 	}
 
 	if settings.MaxBackupSizeMB != "" {
-		if mb, convErr := strconv.Atoi(settings.MaxBackupSizeMB); convErr == nil && mb >= 100 {
+		if mb, convErr := strconv.Atoi(settings.MaxBackupSizeMB); convErr == nil && mb >= MinBackupSizeMB {
 			err = UpdateSetting(db, "max_backup_size_mb", settings.MaxBackupSizeMB)
 			if err != nil {
 				fieldLogger.WithError(err).Error("Failed to save max backup size setting")
@@ -289,7 +297,7 @@ func GetSettings(db *sql.DB) types.SettingsData {
 		case "stream_grab_interval":
 			iValue, err := strconv.Atoi(value)
 			if err != nil {
-				iValue = 3000
+				iValue = DefaultStreamGrabIntervalMs
 			}
 			settingsData.StreamGrabInterval = iValue
 		case "api_key":
@@ -744,7 +752,7 @@ func GetSetting(db *sql.DB, name string) (string, error) {
 func UploadLogo(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "UploadLogo")
 	// Parse the multipart form data
-	err := c.Request.ParseMultipartForm(10 << 20) // Limit to 10 MB
+	err := c.Request.ParseMultipartForm(MaxMultipartFormSize) // Limit to 10 MB
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to parse form data")
 		apiBadRequest(c, "api_failed_to_parse_form")
@@ -954,7 +962,7 @@ func LoadSettings() {
 
 	strMaxBackupSize, err := GetSetting(db, "max_backup_size_mb")
 	if err == nil {
-		if mb, err := strconv.Atoi(strMaxBackupSize); err == nil && mb >= 100 {
+		if mb, err := strconv.Atoi(strMaxBackupSize); err == nil && mb >= MinBackupSizeMB {
 			config.MaxBackupSize = int64(mb) * 1024 * 1024
 		}
 	}
@@ -973,13 +981,13 @@ func LoadSettings() {
 func GetLogs(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "GetLogs")
 
-	linesParam := c.DefaultQuery("lines", "200")
+	linesParam := c.DefaultQuery("lines", strconv.Itoa(DefaultLogLines))
 	n, err := strconv.Atoi(linesParam)
-	if err != nil || n < 1 {
-		n = 200
+	if err != nil || n < MinLogLines {
+		n = DefaultLogLines
 	}
-	if n > 2000 {
-		n = 2000
+	if n > MaxLogLines {
+		n = MaxLogLines
 	}
 
 	fileParam := c.DefaultQuery("file", "app")

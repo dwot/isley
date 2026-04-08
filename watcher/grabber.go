@@ -1,6 +1,7 @@
 package watcher
 
 import (
+	"context"
 	"fmt"
 	"isley/config"
 	"isley/logger"
@@ -13,19 +14,18 @@ import (
 // retries for unresponsive streams instead of hammering them every interval.
 var streamBackoff = map[uint]int{}
 
-const maxBackoffMultiplier = 10 // cap at 10× the normal interval
+const (
+	maxBackoffMultiplier      = 10 // cap at 10× the normal interval
+	defaultStreamGrabInterval = 60 // seconds between stream image captures
+)
 
-func Grab() {
+func Grab(ctx context.Context) {
+	defer WG.Done()
 	logger.Log.Info("Started Stream Grabber")
-	interval := 60
+	interval := defaultStreamGrabInterval
 
 	for {
-		if config.RestoreInProgress.Load() {
-			logger.Log.Debug("Backup restore in progress, skipping stream grab")
-			time.Sleep(time.Duration(interval) * time.Second)
-			continue
-		}
-		if config.StreamGrabEnabled == 1 {
+		if !config.RestoreInProgress.Load() && config.StreamGrabEnabled == 1 {
 			for _, stream := range config.Streams {
 				// If this stream has consecutive failures, skip cycles proportionally
 				if failures, ok := streamBackoff[stream.ID]; ok && failures > 0 {
@@ -67,6 +67,13 @@ func Grab() {
 		if config.StreamGrabInterval > 0 {
 			interval = config.StreamGrabInterval
 		}
-		time.Sleep(time.Duration(interval) * time.Second)
+
+		// Wait for either the grab interval or context cancellation
+		select {
+		case <-ctx.Done():
+			logger.Log.Info("Stream Grabber shutting down")
+			return
+		case <-time.After(time.Duration(interval) * time.Second):
+		}
 	}
 }

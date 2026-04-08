@@ -28,7 +28,7 @@ import (
 var (
 	sensorCache          map[string]map[string][]map[string]interface{}
 	cacheLastUpdatedTime time.Time
-	cacheMutex           sync.Mutex
+	cacheMutex           sync.RWMutex
 )
 
 func GetSensors(db *sql.DB) []map[string]interface{} {
@@ -128,8 +128,7 @@ func ScanACInfinitySensors(c *gin.Context) {
 	req.Header.Add("User-Agent", "okhttp/3.10.0")
 	req.Header.Add("Content-Encoding", "gzip")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error sending request")
 		return
@@ -205,16 +204,16 @@ func ScanACInfinitySensors(c *gin.Context) {
 					switch deviceData.DeviceInfo.Unit {
 					case 0:
 						// Fahrenheit default for temperature-like types
-						if sensor.SensorType == 1 || sensor.SensorType == 4 || sensor.SensorType == 5 {
+						if isTemperatureSensor(sensor.SensorType) {
 							unit = "\u00b0F"
 						}
 					case 1:
-						if sensor.SensorType == 1 || sensor.SensorType == 4 || sensor.SensorType == 5 {
+						if isTemperatureSensor(sensor.SensorType) {
 							unit = "\u00b0C"
 						}
 					}
 					// Known percent/humidity-like types
-					if sensor.SensorType == 2 || sensor.SensorType == 6 {
+					if isHumiditySensor(sensor.SensorType) {
 						unit = "%"
 					}
 					name := fmt.Sprintf("ACI (%s) sensor %d.%d", device, sensor.AccessPort, sensor.SensorType)
@@ -367,8 +366,7 @@ func DumpACInfinityJSON(c *gin.Context) {
 	req.Header.Add("User-Agent", "okhttp/3.10.0")
 	req.Header.Add("Content-Encoding", "gzip")
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error sending request")
 		apiError(c, http.StatusBadGateway, "api_error_sending_request_aci")
@@ -508,7 +506,7 @@ func ScanEcoWittSensors(c *gin.Context) {
 
 	// Create a restricted HTTP client
 	client := &http.Client{
-		Timeout: 5 * time.Second,
+		Timeout: HTTPTimeoutShort,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},

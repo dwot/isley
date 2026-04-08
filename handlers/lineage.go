@@ -42,7 +42,7 @@ func GetLineage(db *sql.DB, strainID int) []types.StrainLineage {
 
 // GetAncestryTree recursively builds the full ancestry tree for a strain
 func GetAncestryTree(db *sql.DB, strainID int, depth int) []types.StrainLineage {
-	if depth > 10 {
+	if depth > MaxAncestryDepth {
 		return nil // safety limit to prevent infinite recursion
 	}
 

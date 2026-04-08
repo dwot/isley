@@ -535,7 +535,7 @@ func loadPlantSensors(db *sql.DB, plantID uint, zoneID int) []types.SensorDataRe
 func loadPlantMeasurements(db *sql.DB, plantID uint) []types.Measurement {
 	fieldLogger := logger.Log.WithField("func", "loadPlantMeasurements")
 
-	rows, err := db.Query("SELECT m.id, me.name, m.value, m.date FROM plant_measurements m LEFT OUTER JOIN metric me ON me.id = m.metric_id WHERE m.plant_id = $1 ORDER BY date DESC LIMIT 500", plantID)
+	rows, err := db.Query(fmt.Sprintf("SELECT m.id, me.name, m.value, m.date FROM plant_measurements m LEFT OUTER JOIN metric me ON me.id = m.metric_id WHERE m.plant_id = $1 ORDER BY date DESC LIMIT %d", PlantHistoryLimit), plantID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query measurements")
 		return nil
@@ -561,7 +561,7 @@ func loadPlantMeasurements(db *sql.DB, plantID uint) []types.Measurement {
 func loadPlantActivities(db *sql.DB, plantID uint) []types.PlantActivity {
 	fieldLogger := logger.Log.WithField("func", "loadPlantActivities")
 
-	rows, err := db.Query("SELECT pa.id, a.id AS activity_id, a.name, pa.note, pa.date FROM plant_activity pa LEFT OUTER JOIN activity a ON a.id = pa.activity_id WHERE pa.plant_id = $1 ORDER BY date DESC LIMIT 500", plantID)
+	rows, err := db.Query(fmt.Sprintf("SELECT pa.id, a.id AS activity_id, a.name, pa.note, pa.date FROM plant_activity pa LEFT OUTER JOIN activity a ON a.id = pa.activity_id WHERE pa.plant_id = $1 ORDER BY date DESC LIMIT %d", PlantHistoryLimit), plantID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query activities")
 		return nil
@@ -587,7 +587,7 @@ func loadPlantActivities(db *sql.DB, plantID uint) []types.PlantActivity {
 func loadPlantStatusHistory(db *sql.DB, plantID uint) []types.Status {
 	fieldLogger := logger.Log.WithField("func", "loadPlantStatusHistory")
 
-	rows, err := db.Query("SELECT psl.id, ps.status, psl.date, psl.status_id FROM plant_status_log psl LEFT OUTER JOIN plant_status ps ON psl.status_id = ps.id WHERE psl.plant_id = $1 ORDER BY date DESC LIMIT 500", plantID)
+	rows, err := db.Query(fmt.Sprintf("SELECT psl.id, ps.status, psl.date, psl.status_id FROM plant_status_log psl LEFT OUTER JOIN plant_status ps ON psl.status_id = ps.id WHERE psl.plant_id = $1 ORDER BY date DESC LIMIT %d", PlantHistoryLimit), plantID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query status history")
 		return nil
@@ -622,7 +622,7 @@ func loadPlantImages(db *sql.DB, plantID uint) (types.PlantImage, []types.PlantI
 		fieldLogger.WithError(err).Error("Failed to query latest image")
 		latestImage = types.PlantImage{
 			ID: 0, PlantID: plantID, ImagePath: "/static/img/winston.hat.jpg",
-			ImageDescription: "Placeholder", ImageOrder: 100,
+			ImageDescription: "Placeholder", ImageOrder: DefaultPlantImageOrder,
 			ImageDate: time.Now(), CreatedAt: time.Now(), UpdatedAt: time.Now(),
 		}
 	} else {
@@ -661,10 +661,10 @@ func loadPlantImages(db *sql.DB, plantID uint) (types.PlantImage, []types.PlantI
 // deriveActivityDates scans activities to find the most recent water and feed dates.
 func deriveActivityDates(activities []types.PlantActivity) (lastWater, lastFeed time.Time) {
 	for _, a := range activities {
-		if a.ActivityId == 1 && a.Date.After(lastWater) {
+		if a.ActivityId == ActivityWater && a.Date.After(lastWater) {
 			lastWater = a.Date
 		}
-		if a.ActivityId == 2 && a.Date.After(lastFeed) {
+		if a.ActivityId == ActivityFeed && a.Date.After(lastFeed) {
 			lastFeed = a.Date
 		}
 	}

@@ -43,6 +43,17 @@ const (
 	// maxImageFileSize is the largest file size (in bytes) we'll attempt to
 	// process.  50 MB is generous for any reasonable photograph.
 	maxImageFileSize = 50 * 1024 * 1024 // 50 MB
+
+	// httpTimeoutLong is used for image/stream downloads that may be slow.
+	httpTimeoutLong = 30 * time.Second
+	// httpTimeoutMedium is used for HLS thumbnail probes.
+	httpTimeoutMedium = 15 * time.Second
+)
+
+// Shared HTTP clients for image operations — reuse enables connection pooling.
+var (
+	imageClient     = &http.Client{Timeout: httpTimeoutLong}
+	thumbnailClient = &http.Client{Timeout: httpTimeoutMedium}
 )
 
 // validateImageFile checks that the file at path is within acceptable size and
@@ -511,11 +522,7 @@ func grabHTTPFrame(rawURL string, outputPath string) error {
 		return grabHLSThumbnail(rawURL, outputPath)
 	}
 
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-
-	resp, err := client.Get(rawURL)
+	resp, err := imageClient.Get(rawURL)
 	if err != nil {
 		return fmt.Errorf("failed to fetch stream: %w", err)
 	}
@@ -573,17 +580,13 @@ func grabHLSThumbnail(hlsURL string, outputPath string) error {
 		return fmt.Errorf("invalid HLS URL: %w", err)
 	}
 
-	client := &http.Client{
-		Timeout: 15 * time.Second,
-	}
-
 	baseURL := fmt.Sprintf("%s://%s", parsed.Scheme, parsed.Host)
 
 	for _, thumbPath := range hlsThumbnailPaths {
 		thumbURL := baseURL + thumbPath
 		logger.Log.WithField("url", thumbURL).Debug("Trying HLS thumbnail fallback")
 
-		resp, err := client.Get(thumbURL)
+		resp, err := thumbnailClient.Get(thumbURL)
 		if err != nil {
 			continue
 		}

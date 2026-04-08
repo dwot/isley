@@ -24,8 +24,8 @@ func ACILoginHandler(c *gin.Context) {
 	}
 
 	// Enforce password length limit for AC Infinity API
-	if len(req.Password) > 25 {
-		req.Password = req.Password[:25]
+	if len(req.Password) > MaxACIPasswordLength {
+		req.Password = req.Password[:MaxACIPasswordLength]
 	}
 
 	// Properly encode form data
@@ -46,9 +46,8 @@ func ACILoginHandler(c *gin.Context) {
 	httpRequest.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
 	httpRequest.Header.Set("User-Agent", "ACController/1.8.2 (com.acinfinity.humiture; build:489; iOS 16.5.1) Alamofire/5.4.4")
 
-	// Send the request
-	client := &http.Client{}
-	resp, err := client.Do(httpRequest)
+	// Send the request using the shared HTTP client
+	resp, err := httpClient.Do(httpRequest)
 	if err != nil {
 		logger.Log.WithError(err).Error("Failed to connect to AC Infinity API")
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": T(c, "api_failed_to_connect_aci")})
@@ -78,7 +77,7 @@ func ACILoginHandler(c *gin.Context) {
 		return
 	}
 
-	if aciResponse.Code != 200 {
+	if aciResponse.Code != ACISuccessCode {
 		logger.Log.WithFields(logrus.Fields{
 			"code":    aciResponse.Code,
 			"message": aciResponse.Msg,

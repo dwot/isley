@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"embed"
@@ -17,8 +18,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gin-contrib/sessions"
@@ -124,13 +127,18 @@ func main() {
 			"(e.g. 90 days) in Settings to prevent unbounded database growth.")
 	}
 
+	// Create a cancellable context for graceful shutdown of background goroutines.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// Start the PruneSensorData and wait for it to complete before starting the main watcher Watch function. This ensures that old sensor data is pruned before we start grabbing new data.
 	if err := watcher.PruneSensorData(); err != nil {
 		logger.Log.WithError(err).Error("Initial sensor data prune failed")
 	} else {
 		logger.Log.Info("Initial sensor data prune completed")
 	}
-	go watcher.Watch()
+	watcher.WG.Add(1)
+	go watcher.Watch(ctx)
 
 	// Default to release mode in production; override with GIN_MODE=debug
 	if os.Getenv("GIN_MODE") == "" {
@@ -154,12 +162,40 @@ func main() {
 	r.Use(gin.Recovery())
 	r.Use(gin.LoggerWithWriter(logger.AccessWriter))
 
-	// Security headers
+	// Security headers with per-request CSP nonce.
+	//
+	// Each response gets a unique nonce that is added to the CSP header and
+	// made available to templates via {{ .cspNonce }}. Inline <script> and
+	// <style> blocks can opt in by adding nonce="{{ .cspNonce }}".
+	//
+	// Migration plan (tracked in TODO.md):
+	//   Phase 1 (done) — generate nonce and include 'nonce-…' alongside
+	//     'unsafe-inline' so existing pages keep working while templates
+	//     are incrementally updated.
+	//   Phase 2 — add nonce="{{ .cspNonce }}" to each inline <script> block
+	//     (8 blocks across footer, strains, plants, plant, sensors, settings,
+	//     strain, strain-edit) and the 1 inline <style> in settings.
+	//   Phase 3 — add 'nonce-...' to script-src and style-src in the CSP
+	//     header (nonce is already generated and passed to templates).
+	//     NOTE: adding a nonce causes CSP Level 3 browsers to ignore
+	//     'unsafe-inline', so ALL inline scripts/styles must have nonce
+	//     attributes BEFORE the nonce appears in the header.
+	//   Phase 4 — refactor inline onclick handlers (16 total) to
+	//     addEventListener in external JS files.
+	//   Phase 5 — remove 'unsafe-inline' from script-src.
+	//   Phase 6 — audit for 'unsafe-eval' usage (likely Chart.js or
+	//     template literals) and remove if possible.
 	r.Use(func(c *gin.Context) {
 		c.Header("X-Frame-Options", "DENY")
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("X-XSS-Protection", "1; mode=block")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+
+		// Generate a per-request nonce for CSP.
+		nonceBytes := make([]byte, 16)
+		_, _ = rand.Read(nonceBytes)
+		nonce := fmt.Sprintf("%x", nonceBytes)
+		c.Set("cspNonce", nonce)
 
 		// Build connect-src dynamically so the HLS player can reach
 		// user-configured stream servers (e.g. Owncast).
@@ -310,7 +346,8 @@ func main() {
 	// Load settings (PollingInterval, ACIEnabled, etc.)
 	handlers.LoadSettings()
 
-	go watcher.Grab()
+	watcher.WG.Add(1)
+	go watcher.Grab(ctx)
 
 	r.Static("/uploads", "./uploads")
 
@@ -386,6 +423,7 @@ func main() {
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
 			"csrfToken":       csrfToken,
+			"cspNonce":        c.GetString("cspNonce"),
 		})
 	})
 
@@ -438,6 +476,7 @@ func main() {
 				"languages":       utils.AvailableLanguages,
 				"currentLanguage": lang,
 				"csrfToken":       csrfToken,
+				"cspNonce":        c.GetString("cspNonce"),
 			})
 		})
 
@@ -459,8 +498,40 @@ func main() {
 		routes.AddExternalApiRoutes(apiProtected)
 	}
 
-	// Start the server
-	logger.Log.Fatal(r.Run(":" + port))
+	// Start the HTTP server in a goroutine so we can handle shutdown signals.
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: r,
+	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Log.WithError(err).Fatal("HTTP server error")
+		}
+	}()
+
+	logger.Log.WithField("port", port).Info("Server started")
+
+	// Wait for interrupt signal (SIGINT or SIGTERM) to gracefully shut down.
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Log.Info("Shutdown signal received, stopping gracefully...")
+
+	// Cancel watcher goroutines and wait for them to finish.
+	cancel()
+	watcher.WG.Wait()
+	logger.Log.Info("Background goroutines stopped")
+
+	// Give the HTTP server a few seconds to finish in-flight requests.
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Log.WithError(err).Error("HTTP server forced to shutdown")
+	}
+
+	logger.Log.Info("Server exited cleanly")
 }
 
 func handleHealth(c *gin.Context) {

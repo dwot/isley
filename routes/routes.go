@@ -26,6 +26,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
 			"csrfToken":       c.GetString("csrf_token"),
+			"cspNonce":        c.GetString("cspNonce"),
 			"pollInterval":    config.PollingInterval,
 		})
 	})
@@ -57,6 +58,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
 			"csrfToken":       c.GetString("csrf_token"),
+			"cspNonce":        c.GetString("cspNonce"),
 		})
 	})
 
@@ -77,6 +79,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
 			"csrfToken":       c.GetString("csrf_token"),
+			"cspNonce":        c.GetString("cspNonce"),
 		})
 	})
 
@@ -96,6 +99,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
 			"csrfToken":       c.GetString("csrf_token"),
+			"cspNonce":        c.GetString("cspNonce"),
 		})
 	})
 
@@ -123,6 +127,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
 			"csrfToken":       c.GetString("csrf_token"),
+			"cspNonce":        c.GetString("cspNonce"),
 		})
 	})
 
@@ -148,6 +153,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
 			"csrfToken":       c.GetString("csrf_token"),
+			"cspNonce":        c.GetString("cspNonce"),
 		})
 	})
 
@@ -173,6 +179,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
 			"csrfToken":       c.GetString("csrf_token"),
+			"cspNonce":        c.GetString("cspNonce"),
 		})
 	})
 
@@ -191,6 +198,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
 			"csrfToken":       c.GetString("csrf_token"),
+			"cspNonce":        c.GetString("cspNonce"),
 		})
 	})
 
@@ -319,6 +327,7 @@ func AddProtectedRoutes(r *gin.RouterGroup, version string) {
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
 			"csrfToken":       c.GetString("csrf_token"),
+			"cspNonce":        c.GetString("cspNonce"),
 		})
 	})
 
@@ -339,6 +348,7 @@ func AddProtectedRoutes(r *gin.RouterGroup, version string) {
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
 			"csrfToken":       c.GetString("csrf_token"),
+			"cspNonce":        c.GetString("cspNonce"),
 		})
 	})
 
@@ -363,6 +373,7 @@ func AddProtectedRoutes(r *gin.RouterGroup, version string) {
 			"currentLanguage": lang,
 			"dbDriver":        model.GetDriver(),
 			"csrfToken":       c.GetString("csrf_token"),
+			"cspNonce":        c.GetString("cspNonce"),
 		})
 	})
 
@@ -384,6 +395,7 @@ func AddProtectedRoutes(r *gin.RouterGroup, version string) {
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
 			"csrfToken":       c.GetString("csrf_token"),
+			"cspNonce":        c.GetString("cspNonce"),
 		})
 	})
 

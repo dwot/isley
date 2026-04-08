@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"fmt"
 	"isley/config"
 	"isley/logger"
 	"isley/model/types"
@@ -15,15 +16,40 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Cache structure
+// ---------------------------------------------------------------------------
+// Sensor data cache with LRU eviction
+// ---------------------------------------------------------------------------
+
+// maxCacheEntries caps the number of entries in sensorDataCache.
+// Each entry holds a single chart query result, so 256 entries is generous
+// for typical usage while preventing unbounded memory growth.
+const maxCacheEntries = 256
+
 var (
-	sensorDataCache = make(map[string]cachedEntry)
-	sdCacheMutex    sync.Mutex
+	sensorDataCache = make(map[string]cachedEntry, maxCacheEntries)
+	sdCacheOrder    []string // tracks insertion order for LRU eviction
+	sdCacheMutex    sync.RWMutex
 )
 
 type cachedEntry struct {
 	data      []types.SensorData
 	timestamp time.Time
+}
+
+// sdCachePut inserts or updates a cache entry, evicting the oldest entries
+// when the cache exceeds maxCacheEntries. Caller must hold sdCacheMutex write lock.
+func sdCachePut(key string, entry cachedEntry) {
+	if _, exists := sensorDataCache[key]; !exists {
+		sdCacheOrder = append(sdCacheOrder, key)
+	}
+	sensorDataCache[key] = entry
+
+	// Evict oldest entries if over capacity
+	for len(sensorDataCache) > maxCacheEntries {
+		oldest := sdCacheOrder[0]
+		sdCacheOrder = sdCacheOrder[1:]
+		delete(sensorDataCache, oldest)
+	}
 }
 
 func ChartHandler(c *gin.Context) {
@@ -49,9 +75,9 @@ func ChartHandler(c *gin.Context) {
 
 	cacheKey := generateCacheKey(sensor, timeMinutes, startDate, endDate)
 
-	sdCacheMutex.Lock()
+	sdCacheMutex.RLock()
 	cached, found := sensorDataCache[cacheKey]
-	sdCacheMutex.Unlock()
+	sdCacheMutex.RUnlock()
 
 	if found && time.Since(cached.timestamp) < time.Duration(config.PollingInterval/10)*time.Second {
 		sensorLogger.Info("Serving data from cache")
@@ -81,10 +107,10 @@ func ChartHandler(c *gin.Context) {
 	}
 
 	sdCacheMutex.Lock()
-	sensorDataCache[cacheKey] = cachedEntry{
+	sdCachePut(cacheKey, cachedEntry{
 		data:      sensorData,
 		timestamp: time.Now().In(time.Local),
-	}
+	})
 	sdCacheMutex.Unlock()
 
 	sensorLogger.Info("Returning queried sensor data")
@@ -111,7 +137,7 @@ func querySensorHistoryByTime(db *sql.DB, sensor string, timeMinutes string) ([]
 	}
 
 	// For ranges >24 hours, use the hourly rollup table for much better performance
-	if timeMinutesInt > 60*24 {
+	if timeMinutesInt > RollupThresholdMinutes {
 		timeThreshold := time.Now().In(time.UTC).Add(-time.Duration(timeMinutesInt) * time.Minute).Format(utils.LayoutDB)
 		query := `SELECT 0, sd.sensor_id, sd.avg_val, sd.bucket, s.name
 			FROM sensor_data_hourly sd
@@ -141,7 +167,7 @@ func querySensorHistoryByTime(db *sql.DB, sensor string, timeMinutes string) ([]
 
 	// For ranges ≤24 hours, use raw sensor_data for full resolution
 	timeThreshold := time.Now().In(time.UTC).Add(-time.Duration(timeMinutesInt) * time.Minute).Format(utils.LayoutDB)
-	query := "SELECT sd.id, sd.sensor_id, sd.value, sd.create_dt, s.name FROM sensor_data sd left outer join sensors s on s.id = sd.sensor_id WHERE sd.sensor_id = $1 AND sd.create_dt > $2 ORDER BY sd.create_dt LIMIT 10000"
+	query := fmt.Sprintf("SELECT sd.id, sd.sensor_id, sd.value, sd.create_dt, s.name FROM sensor_data sd left outer join sensors s on s.id = sd.sensor_id WHERE sd.sensor_id = $1 AND sd.create_dt > $2 ORDER BY sd.create_dt LIMIT %d", MaxRawDataRows)
 	rows, err := db.Query(query, sensorInt, timeThreshold)
 	if err != nil {
 		sensorLogger.WithError(err).Error("Failed to execute query")
@@ -198,7 +224,7 @@ func querySensorHistoryByDateRange(db *sql.DB, sensor string, startDate string, 
 	endParsed, _ := time.Parse(utils.LayoutDB, endDateUTC)
 	rangeHours := endParsed.Sub(startParsed).Hours()
 
-	if rangeHours > 24 {
+	if rangeHours > RollupThresholdHours {
 		query := `SELECT 0, sd.sensor_id, sd.avg_val, sd.bucket, s.name
 			FROM sensor_data_hourly sd
 			LEFT OUTER JOIN sensors s ON s.id = sd.sensor_id
@@ -225,7 +251,7 @@ func querySensorHistoryByDateRange(db *sql.DB, sensor string, startDate string, 
 	}
 
 	// For short ranges (≤24h), use raw sensor_data for full resolution
-	query := "SELECT sd.id, sd.sensor_id, sd.value, sd.create_dt, s.name FROM sensor_data sd left outer join sensors s on s.id = sd.sensor_id WHERE sd.sensor_id = $1 AND sd.create_dt BETWEEN $2 AND $3 ORDER BY sd.create_dt LIMIT 10000"
+	query := fmt.Sprintf("SELECT sd.id, sd.sensor_id, sd.value, sd.create_dt, s.name FROM sensor_data sd left outer join sensors s on s.id = sd.sensor_id WHERE sd.sensor_id = $1 AND sd.create_dt BETWEEN $2 AND $3 ORDER BY sd.create_dt LIMIT %d", MaxRawDataRows)
 	rows, err := db.Query(query, sensorInt, startDateUTC, endDateUTC)
 	if err != nil {
 		sensorLogger.WithError(err).Error(err)

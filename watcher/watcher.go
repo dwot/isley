@@ -1,6 +1,7 @@
 package watcher
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,23 +11,38 @@ import (
 	"isley/model/types"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	// httpClientTimeout is the default timeout for outbound sensor API requests.
+	httpClientTimeout = 10 * time.Second
+	// pruneInterval is how often the sensor data pruner runs.
+	pruneInterval = 24 * time.Hour
+	// rollupInterval is how often hourly rollups are refreshed.
+	rollupInterval = 10 * time.Minute
+)
+
 // httpClient is a shared client for all outbound sensor API requests.
 // Reusing a single client enables TCP connection pooling and avoids the
 // overhead of a fresh TLS handshake / TCP connection on every poll cycle.
-var httpClient = &http.Client{Timeout: 10 * time.Second}
+var httpClient = &http.Client{Timeout: httpClientTimeout}
 
-func Watch() {
+// WG tracks running watcher goroutines so main can wait for them to finish
+// during graceful shutdown.
+var WG sync.WaitGroup
+
+func Watch(ctx context.Context) {
+	defer WG.Done()
 	logger.Log.Info("Started Sensor Watcher")
 
-	pruneTicker := time.NewTicker(24 * time.Hour)
+	pruneTicker := time.NewTicker(pruneInterval)
 	defer pruneTicker.Stop()
 
-	rollupTicker := time.NewTicker(10 * time.Minute)
+	rollupTicker := time.NewTicker(rollupInterval)
 	defer rollupTicker.Stop()
 
 	// Run an initial rollup at startup to backfill if needed
@@ -37,37 +53,42 @@ func Watch() {
 	for {
 		if config.RestoreInProgress.Load() {
 			logger.Log.Debug("Backup restore in progress, skipping sensor poll")
-			time.Sleep(time.Duration(config.PollingInterval) * time.Second)
-			continue
-		}
-		if config.ACIEnabled == 1 && config.ACIToken != "" {
-			updateACISensorData(config.ACIToken)
-		}
-		if config.ECEnabled == 1 && len(config.ECDevices) > 0 {
-			for _, ecServer := range config.ECDevices {
-				updateEcoWittSensorData(ecServer)
+		} else {
+			if config.ACIEnabled == 1 && config.ACIToken != "" {
+				updateACISensorData(config.ACIToken)
+			}
+			if config.ECEnabled == 1 && len(config.ECDevices) > 0 {
+				for _, ecServer := range config.ECDevices {
+					updateEcoWittSensorData(ecServer)
+				}
+			}
+
+			select {
+			case <-pruneTicker.C:
+				if err := PruneSensorData(); err != nil {
+					logger.Log.WithError(err).Error("Scheduled sensor data prune failed")
+				} else {
+					logger.Log.Info("Scheduled sensor data prune completed")
+				}
+			default:
+			}
+
+			select {
+			case <-rollupTicker.C:
+				if err := RefreshHourlyRollups(); err != nil {
+					logger.Log.WithError(err).Error("Scheduled hourly rollup failed")
+				}
+			default:
 			}
 		}
 
+		// Wait for either the polling interval or context cancellation
 		select {
-		case <-pruneTicker.C:
-			if err := PruneSensorData(); err != nil {
-				logger.Log.WithError(err).Error("Scheduled sensor data prune failed")
-			} else {
-				logger.Log.Info("Scheduled sensor data prune completed")
-			}
-		default:
+		case <-ctx.Done():
+			logger.Log.Info("Sensor Watcher shutting down")
+			return
+		case <-time.After(time.Duration(config.PollingInterval) * time.Second):
 		}
-
-		select {
-		case <-rollupTicker.C:
-			if err := RefreshHourlyRollups(); err != nil {
-				logger.Log.WithError(err).Error("Scheduled hourly rollup failed")
-			}
-		default:
-		}
-
-		time.Sleep(time.Duration(config.PollingInterval) * time.Second)
 	}
 }
 

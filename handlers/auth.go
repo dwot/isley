@@ -45,7 +45,7 @@ func IsLoginRateLimited(ip string) bool {
 	}
 	recent = append(recent, now)
 	loginAttempts[ip] = recent
-	return len(recent) > 5
+	return len(recent) > MaxLoginAttempts
 }
 
 // ---------------------------------------------------------------------------
@@ -69,7 +69,7 @@ func GenerateCSRFToken() string {
 // ValidatePasswordComplexity checks that a password meets minimum security
 // requirements. Returns an empty string on success or an error message.
 func ValidatePasswordComplexity(password string) string {
-	if len(password) < 8 {
+	if len(password) < MinPasswordLength {
 		return "Password must be at least 8 characters long"
 	}
 	return ""
@@ -237,11 +237,20 @@ func AuthMiddlewareApi() gin.HandlerFunc {
 			// Validate the incoming key against the stored hash.
 			// CheckAPIKey handles bcrypt (preferred), legacy SHA-256, and
 			// plaintext matches for backward compatibility.
-			if !CheckAPIKey(apiKey, storedAPIKey) {
+			match, legacy := CheckAPIKey(apiKey, storedAPIKey)
+			if !match {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 					"error": "Invalid API key",
 				})
 				return
+			}
+
+			// Auto-upgrade legacy keys (SHA-256 or plaintext) to bcrypt.
+			if legacy {
+				if newHash := HashAPIKey(apiKey); newHash != "" {
+					UpdateSetting(db, "api_key", newHash)
+					logger.Log.Info("Auto-upgraded legacy API key to bcrypt")
+				}
 			}
 
 		} else if loggedIn == nil || !loggedIn.(bool) {

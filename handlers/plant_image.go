@@ -30,7 +30,7 @@ func UploadPlantImages(c *gin.Context) {
 	fileLogger = logger.Log.WithField("plantID", plantID)
 
 	// Parse the multipart form data
-	err = c.Request.ParseMultipartForm(10 << 20) // Limit to 10 MB
+	err = c.Request.ParseMultipartForm(MaxMultipartFormSize) // Limit to 10 MB
 	if err != nil {
 		fileLogger.WithError(err).Error("Failed to parse multipart form data")
 		apiBadRequest(c, "api_failed_to_parse_form")
