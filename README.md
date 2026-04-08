@@ -11,11 +11,11 @@
 [![License](https://img.shields.io/github/license/dwot/isley)](LICENSE)
 [![Issues](https://img.shields.io/github/issues/dwot/isley)](https://github.com/dwot/isley/issues)
 
-[🌐 Official Site](https://isley.dwot.io) · [🐛 Report a Bug](https://github.com/dwot/isley/issues) · [💡 Request a Feature](https://github.com/dwot/isley/issues)
+[🌐 Official Site](https://dwot.github.io/isley) · [🐛 Report a Bug](https://github.com/dwot/isley/issues) · [💡 Request a Feature](https://github.com/dwot/isley/issues)
 
 ---
 
-![Isley Dashboard](https://isley.dwot.io/images/dashboard.png?raw=true)
+![Isley Dashboard](docs/images/dashboard.png)
 
 </div>
 
@@ -521,7 +521,7 @@ services:
 - Isley is in **active development** 🚧 — breaking changes may occasionally occur between releases.
 - Found a bug or have a feature request? [Open an issue](https://github.com/dwot/isley/issues) — contributions welcome.
 
-🌐 For screenshots, feature highlights, and the latest news: [isley.dwot.io](https://isley.dwot.io)
+🌐 For screenshots, feature highlights, and the latest news: [dwot.github.io/isley](https://dwot.github.io/isley)
 
 ---
 

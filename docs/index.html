@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Isley — Self-Hosted Cannabis Grow Journal</title>
+    <meta name="description" content="Track, trend, and elevate your grow — all in one place. Self-hosted grow journal with environmental monitoring, seed inventory, and harvest tracking.">
+    <link rel="icon" href="images/isley_logo.png" type="image/png">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-card: #1c2333;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent: #4caf50;
+            --accent-light: #81c784;
+            --link: #58a6ff;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+        }
+
+        /* Hero */
+        .hero {
+            background: linear-gradient(135deg, rgba(13,17,23,0.85) 0%, rgba(22,27,34,0.9) 100%),
+                        url('images/header.png') center/cover no-repeat;
+            min-height: 80vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .hero h1 {
+            font-size: 4rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.25rem;
+        }
+
+        .hero h1 .leaf {
+            display: inline-block;
+            margin-right: 0.25rem;
+        }
+
+        .hero .tagline {
+            font-size: 1.4rem;
+            color: var(--accent-light);
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .hero .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto 2rem;
+        }
+
+        .btn-hero {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            padding: 0.75rem 2rem;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .btn-hero:hover {
+            background: var(--accent-light);
+            color: #000;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary-hero {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--text-secondary);
+            padding: 0.75rem 2rem;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary-hero:hover {
+            border-color: var(--accent);
+            color: var(--accent-light);
+        }
+
+        /* Section styling */
+        section {
+            padding: 5rem 0;
+        }
+
+        .section-title {
+            font-size: 2rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .section-subtitle {
+            text-align: center;
+            color: var(--text-secondary);
+            margin-bottom: 3rem;
+            font-size: 1.1rem;
+        }
+
+        .section-alt {
+            background-color: var(--bg-secondary);
+        }
+
+        /* Feature cards */
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 2rem;
+            height: 100%;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(76,175,80,0.3);
+        }
+
+        .feature-icon {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        .feature-card h5 {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-bottom: 0;
+        }
+
+        /* Screenshot gallery */
+        .screenshot-card {
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.08);
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+            background: var(--bg-card);
+        }
+
+        .screenshot-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+        }
+
+        .screenshot-card img {
+            width: 100%;
+            display: block;
+        }
+
+        .screenshot-card .caption {
+            padding: 0.75rem 1rem;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            text-align: center;
+            font-weight: 500;
+        }
+
+        /* Quick start */
+        .code-block {
+            background: #0d1117;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 8px;
+            padding: 1.5rem;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            color: #c9d1d9;
+            position: relative;
+        }
+
+        .code-block .comment { color: #8b949e; }
+        .code-block .key { color: #7ee787; }
+        .code-block .value { color: #a5d6ff; }
+        .code-block .string { color: #a5d6ff; }
+
+        /* Integration badges */
+        .integration-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--bg-card);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 8px;
+            padding: 0.6rem 1.2rem;
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        /* Footer */
+        footer {
+            background-color: var(--bg-secondary);
+            border-top: 1px solid rgba(255,255,255,0.05);
+            padding: 2rem 0;
+        }
+
+        footer a {
+            color: var(--link);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Modal */
+        .modal-content {
+            background: var(--bg-secondary);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .modal-header {
+            border-bottom-color: rgba(255,255,255,0.08);
+        }
+
+        .modal-body img {
+            max-width: 100%;
+            border-radius: 4px;
+        }
+
+        .btn-close {
+            filter: invert(1);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.5rem; }
+            .hero .tagline { font-size: 1.1rem; }
+            section { padding: 3rem 0; }
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- Hero -->
+<header class="hero">
+    <div>
+        <h1><span class="leaf">🌱</span> Isley</h1>
+        <p class="tagline">Self-Hosted Cannabis Grow Journal</p>
+        <p class="subtitle">Track, trend, and elevate your grow — all in one place. Environmental monitoring, seed inventory, harvest tracking, and more.</p>
+        <div class="d-flex gap-3 justify-content-center flex-wrap">
+            <a href="https://github.com/dwot/isley" class="btn-hero">
+                <i class="fab fa-github"></i> View on GitHub
+            </a>
+            <a href="https://github.com/dwot/isley#-quick-start" class="btn-secondary-hero">
+                <i class="fas fa-rocket"></i> Quick Start
+            </a>
+        </div>
+    </div>
+</header>
+
+<!-- Features -->
+<section>
+    <div class="container">
+        <h2 class="section-title">Everything you need to manage your grow</h2>
+        <p class="section-subtitle">One self-hosted tool to replace the vendor apps, spreadsheets, and notepads</p>
+        <div class="row g-4">
+            <div class="col-md-4 col-sm-6">
+                <div class="feature-card">
+                    <span class="feature-icon">📒</span>
+                    <h5>Grow Logs</h5>
+                    <p>Track plant growth, watering, and feeding with custom activity types. Timestamped activity logs per plant.</p>
+                </div>
+            </div>
+            <div class="col-md-4 col-sm-6">
+                <div class="feature-card">
+                    <span class="feature-icon">🌡️</span>
+                    <h5>Environmental Monitoring</h5>
+                    <p>Real-time sensor data from AC Infinity and EcoWitt, plus a custom HTTP ingest API for any hardware.</p>
+                </div>
+            </div>
+            <div class="col-md-4 col-sm-6">
+                <div class="feature-card">
+                    <span class="feature-icon">🌱</span>
+                    <h5>Seed Inventory</h5>
+                    <p>Manage strains, breeders, and seed stock with Indica/Sativa ratios, lineage, and autoflower tracking.</p>
+                </div>
+            </div>
+            <div class="col-md-4 col-sm-6">
+                <div class="feature-card">
+                    <span class="feature-icon">📈</span>
+                    <h5>Graphs &amp; Charts</h5>
+                    <p>Visualize sensor data over time with configurable retention windows and interactive zoom.</p>
+                </div>
+            </div>
+            <div class="col-md-4 col-sm-6">
+                <div class="feature-card">
+                    <span class="feature-icon">📊</span>
+                    <h5>Harvest Tracking</h5>
+                    <p>Record harvest dates, yields, and full cycle times. Compare results across grows.</p>
+                </div>
+            </div>
+            <div class="col-md-4 col-sm-6">
+                <div class="feature-card">
+                    <span class="feature-icon">📸</span>
+                    <h5>Image Uploads &amp; Webcams</h5>
+                    <p>Attach photos with captions, overlays, and watermarks. Periodic snapshots from camera streams via FFmpeg.</p>
+                </div>
+            </div>
+            <div class="col-md-4 col-sm-6">
+                <div class="feature-card">
+                    <span class="feature-icon">💾</span>
+                    <h5>Backup &amp; Restore</h5>
+                    <p>Cross-database portable backups with optional image bundling. Migrate between SQLite and PostgreSQL.</p>
+                </div>
+            </div>
+            <div class="col-md-4 col-sm-6">
+                <div class="feature-card">
+                    <span class="feature-icon">🌍</span>
+                    <h5>Internationalization</h5>
+                    <p>Available in English, German, Spanish, and French. Contribute translations on GitHub.</p>
+                </div>
+            </div>
+            <div class="col-md-4 col-sm-6">
+                <div class="feature-card">
+                    <span class="feature-icon">🔓</span>
+                    <h5>Guest Mode &amp; API</h5>
+                    <p>Optional read-only access for visitors. HTTP API for custom sensors, OBS overlays, and home automation.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Screenshots -->
+<section class="section-alt">
+    <div class="container">
+        <h2 class="section-title">See Isley in action</h2>
+        <p class="section-subtitle">A few views from the app</p>
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="screenshot-card" data-bs-toggle="modal" data-bs-target="#screenshotModal">
+                    <img src="images/dashboard.png" alt="Dashboard">
+                    <div class="caption">Dashboard — zones, sensors, and plants at a glance</div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="screenshot-card" data-bs-toggle="modal" data-bs-target="#screenshotModal">
+                    <img src="images/plant_detail.png" alt="Plant Detail">
+                    <div class="caption">Plant Detail — timeline, linked sensors, and image gallery</div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="screenshot-card" data-bs-toggle="modal" data-bs-target="#screenshotModal">
+                    <img src="images/strains.png" alt="Strains">
+                    <div class="caption">Seed Inventory — strains, breeders, and lineage</div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="screenshot-card" data-bs-toggle="modal" data-bs-target="#screenshotModal">
+                    <img src="images/sensors.png" alt="Sensors">
+                    <div class="caption">Sensor Management — AC Infinity, EcoWitt, and custom</div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="screenshot-card" data-bs-toggle="modal" data-bs-target="#screenshotModal">
+                    <img src="images/graphs.png" alt="Graphs">
+                    <div class="caption">Sensor Graphs — interactive charts with time range selection</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Screenshot Modal -->
+<div class="modal fade" id="screenshotModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <h5 class="modal-title" id="screenshotModalLabel">Screenshot</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center p-2">
+                <img src="" alt="Screenshot" id="screenshotModalImg" style="max-width:100%">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Start -->
+<section>
+    <div class="container">
+        <h2 class="section-title">Up and running in minutes</h2>
+        <p class="section-subtitle">Deploy with Docker Compose — PostgreSQL recommended for production</p>
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="code-block">
+<span class="comment"># docker-compose.yml</span>
+<span class="key">version</span>: <span class="string">'3.8'</span>
+
+<span class="key">services</span>:
+  <span class="key">isley</span>:
+    <span class="key">image</span>: <span class="value">dwot/isley:latest</span>
+    <span class="key">ports</span>:
+      - <span class="string">"8080:8080"</span>
+    <span class="key">environment</span>:
+      - <span class="value">ISLEY_DB_DRIVER=postgres</span>
+      - <span class="value">ISLEY_DB_HOST=postgres</span>
+      - <span class="value">ISLEY_DB_PORT=5432</span>
+      - <span class="value">ISLEY_DB_USER=isley</span>
+      - <span class="value">ISLEY_DB_PASSWORD=supersecret</span>
+      - <span class="value">ISLEY_DB_NAME=isleydb</span>
+    <span class="key">depends_on</span>:
+      - <span class="value">postgres</span>
+    <span class="key">volumes</span>:
+      - <span class="value">isley-uploads:/app/uploads</span>
+
+  <span class="key">postgres</span>:
+    <span class="key">image</span>: <span class="value">postgres:16.8-alpine</span>
+    <span class="key">environment</span>:
+      - <span class="value">POSTGRES_DB=isleydb</span>
+      - <span class="value">POSTGRES_USER=isley</span>
+      - <span class="value">POSTGRES_PASSWORD=supersecret</span>
+    <span class="key">volumes</span>:
+      - <span class="value">postgres-data:/var/lib/postgresql/data</span>
+
+<span class="key">volumes</span>:
+  <span class="value">postgres-data</span>:
+  <span class="value">isley-uploads</span>:
+                </div>
+
+                <div class="text-center mt-4">
+                    <p class="text-secondary">
+                        Run <code class="text-light">docker-compose up -d</code> then visit <code class="text-light">http://localhost:8080</code><br>
+                        Default login: <code class="text-light">admin</code> / <code class="text-light">isley</code> — you'll be prompted to change your password.
+                    </p>
+                    <a href="https://github.com/dwot/isley#-quick-start" class="btn-secondary-hero mt-2" style="display:inline-flex">
+                        <i class="fas fa-book"></i> Full Setup Guide
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Integrations -->
+<section class="section-alt">
+    <div class="container text-center">
+        <h2 class="section-title">Sensor Integrations</h2>
+        <p class="section-subtitle">Connect your hardware or push data from any device</p>
+        <div class="d-flex gap-3 justify-content-center flex-wrap">
+            <div class="integration-badge">
+                <i class="fas fa-fan text-info"></i> AC Infinity
+            </div>
+            <div class="integration-badge">
+                <i class="fas fa-cloud-sun text-warning"></i> EcoWitt
+            </div>
+            <div class="integration-badge">
+                <i class="fas fa-microchip text-success"></i> Custom HTTP API
+            </div>
+            <div class="integration-badge">
+                <i class="fas fa-home text-primary"></i> Home Assistant
+            </div>
+            <div class="integration-badge">
+                <i class="fas fa-project-diagram text-danger"></i> Node-RED
+            </div>
+        </div>
+        <p class="mt-3" style="color:var(--text-secondary); font-size:0.9rem;">
+            Any device that can make an HTTP POST can push sensor data into Isley.
+        </p>
+    </div>
+</section>
+
+<!-- Tech stack -->
+<section>
+    <div class="container text-center">
+        <div class="d-flex gap-4 justify-content-center flex-wrap align-items-center" style="opacity:0.6">
+            <img src="https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white&style=flat-square" alt="Go">
+            <img src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white&style=flat-square" alt="Docker">
+            <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white&style=flat-square" alt="PostgreSQL">
+            <img src="https://img.shields.io/badge/SQLite-supported-003B57?logo=sqlite&logoColor=white&style=flat-square" alt="SQLite">
+            <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT License">
+        </div>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer>
+    <div class="container text-center">
+        <p style="color:var(--text-secondary); margin-bottom:0.5rem;">
+            Made with <i class="fas fa-heart" style="color:var(--accent)"></i> by <a href="https://github.com/dwot">dwot</a>
+        </p>
+        <p style="color:var(--text-secondary); font-size:0.85rem; margin-bottom:0;">
+            <a href="https://github.com/dwot/isley">GitHub</a>
+            &nbsp;&middot;&nbsp;
+            <a href="https://github.com/dwot/isley/issues">Report a Bug</a>
+            &nbsp;&middot;&nbsp;
+            <a href="https://github.com/dwot/isley/issues">Request a Feature</a>
+        </p>
+    </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Screenshot modal
+    document.querySelectorAll('.screenshot-card').forEach(card => {
+        card.addEventListener('click', () => {
+            const img = card.querySelector('img');
+            const caption = card.querySelector('.caption');
+            document.getElementById('screenshotModalImg').src = img.src;
+            document.getElementById('screenshotModalLabel').textContent = caption ? caption.textContent : 'Screenshot';
+        });
+    });
+</script>
+
+</body>
+</html>
