@@ -148,40 +148,42 @@ document.addEventListener("DOMContentLoaded", async () => {
         /* Zone header */
         section.appendChild(zoneHeader(zoneName, plantCount, sensorCount));
 
-        /* Zone content grid */
+        /* Zone content */
         const content = el("div", "dash-zone-content");
-        const hasStreams = z.streams.length > 0;
-        if (hasStreams) content.classList.add("has-stream");
 
-        /* Streams column */
-        if (hasStreams) {
-            const streamsCol = el("div", "dash-streams-col");
-            for (const stream of z.streams) {
-                streamsCol.appendChild(streamCard(stream));
+        const hasPlants  = z.plants.length > 0;
+        const hasStreams  = z.streams.length > 0;
+
+        /* ── TOP SECTION: stream + plants in a unified grid ── */
+        if (hasPlants || hasStreams) {
+            const topDiv = el("div");
+            /* Header: show "Plants" if we have plants, otherwise "Live" */
+            if (hasPlants) {
+                topDiv.appendChild(groupHeader("fa-cannabis",
+                    t("title_plants", "Plants"),
+                    "/plants", t("dash_view_all", "View all")));
             }
-            content.appendChild(streamsCol);
-        }
 
-        /* Data panel */
-        const dataPanel = el("div", "dash-zone-data");
+            const grid = el("div", "dash-top-grid");
 
-        /* ── PLANTS FIRST ── */
-        if (z.plants.length > 0) {
-            const plantsDiv = el("div");
-            plantsDiv.appendChild(groupHeader("fa-cannabis",
-                t("title_plants", "Plants"),
-                "/plants", t("dash_view_all", "View all")));
+            /* Stream cards flow into the same grid as plant cards */
+            for (const stream of z.streams) {
+                const wrapper = el("div", "dash-top-stream");
+                wrapper.appendChild(streamCard(stream));
+                grid.appendChild(wrapper);
+            }
 
-            const grid = el("div", "dash-plants-grid");
+            /* Plant cards */
             for (const plant of z.plants) {
                 const plantSensors = linkedByPlant[plant.name] || [];
                 grid.appendChild(plantCard(plant, plantSensors));
             }
-            plantsDiv.appendChild(grid);
-            dataPanel.appendChild(plantsDiv);
+
+            topDiv.appendChild(grid);
+            content.appendChild(topDiv);
         }
 
-        /* ── SENSORS SECOND (single unified strip) ── */
+        /* ── SENSORS SECTION (sub-grouped, flowing) ── */
         if (unlinkedSensors.length > 0) {
             const sensorDiv = el("div");
             const allIds = unlinkedSensors.map(s => s.id).join(",");
@@ -189,15 +191,49 @@ document.addEventListener("DOMContentLoaded", async () => {
                 t("title_sensors", "Sensors"),
                 `/graph/${allIds}`, t("dash_view_graphs", "View graphs")));
 
-            const strip = el("div", "dash-sensor-strip");
+            /* Bucket by type */
+            const buckets = { Other: [], ACIP: [], Soil: [] };
             for (const sensor of unlinkedSensors) {
-                strip.appendChild(sensorChip(sensor));
+                if ((sensor.type || "").startsWith("Soil")) buckets.Soil.push(sensor);
+                else if ((sensor.type || "").startsWith("ACIP")) buckets.ACIP.push(sensor);
+                else buckets.Other.push(sensor);
             }
-            sensorDiv.appendChild(strip);
-            dataPanel.appendChild(sensorDiv);
+
+            const bucketMeta = {
+                Other: t("title_group_other", "Environment"),
+                ACIP:  t("title_group_acip", "AC Infinity"),
+                Soil:  t("title_group_soil", "Soil"),
+            };
+
+            const sensorWrap = el("div", "dash-sensor-groups");
+            const activeBuckets = ["Other", "ACIP", "Soil"].filter(k => buckets[k].length > 0);
+            const needLabels = activeBuckets.length > 1;
+
+            for (const key of activeBuckets) {
+                const sensors = buckets[key];
+
+                const group = el("div", "dash-sensor-bucket");
+                /* Proportional flex-grow based on sensor count */
+                group.style.flexGrow = sensors.length;
+
+                if (needLabels) {
+                    const label = el("div", "dash-sensor-sublabel");
+                    label.textContent = bucketMeta[key];
+                    group.appendChild(label);
+                }
+
+                const strip = el("div", "dash-sensor-strip");
+                for (const sensor of sensors) {
+                    strip.appendChild(sensorChip(sensor));
+                }
+                group.appendChild(strip);
+                sensorWrap.appendChild(group);
+            }
+
+            sensorDiv.appendChild(sensorWrap);
+            content.appendChild(sensorDiv);
         }
 
-        content.appendChild(dataPanel);
         section.appendChild(content);
         zonesEl.appendChild(section);
     }

@@ -2600,14 +2600,23 @@ body.dark-mode .pc-card-link:hover .pc-card {
     gap: 0.35rem;
 }
 
-/* Zone content grid */
+/* Zone content — stacked sections */
 .dash-zone-content {
-    display: grid;
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 1rem;
 }
-.dash-zone-content.has-stream {
-    grid-template-columns: minmax(280px, 1fr) 2fr;
+
+/* Unified top grid: stream cards + plant cards flow together */
+.dash-top-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 0.65rem;
+    align-items: start;
+}
+/* Stream card wrapper inside the top grid */
+.dash-top-stream {
+    min-width: 0;
 }
 
 /* Stream card */
@@ -2677,19 +2686,7 @@ body.dark-mode .pc-card-link:hover .pc-card {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }
 }
-/* Multiple streams stack */
-.dash-streams-col {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-/* Zone data panel */
-.dash-zone-data {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
+/* Zone data panel (no longer used, sensors are direct children of content) */
 
 /* Sensor group header */
 .dash-group-header {
@@ -2722,19 +2719,50 @@ body.dark-mode .pc-card-link:hover .pc-card {
 }
 
 /* Sensor chips */
+/* Sensor sub-groups — flow horizontally on wide screens, wrap on narrow */
+.dash-sensor-groups {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+/* Each bucket (sublabel + strip) is a flex item; flex-grow set dynamically
+   in JS proportional to sensor count. Basis is small so buckets can sit
+   side-by-side on desktop, wrapping naturally on narrow screens. */
+.dash-sensor-bucket {
+    flex: 1 1 200px;
+    min-width: 0;
+}
+
+.dash-sensor-sublabel {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-muted);
+    opacity: 0.7;
+    padding: 0.3rem 0 0.1rem;
+    border-bottom: 1px solid var(--color-card-border);
+    margin-bottom: 0.35rem;
+}
+.dash-sensor-sublabel:first-child {
+    padding-top: 0;
+}
+
 .dash-sensor-strip {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
-    gap: 0.65rem;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.5rem;
 }
+
 .dash-sensor-chip {
     background: var(--color-card);
     border: 1px solid var(--color-card-border);
-    border-radius: 10px;
-    padding: 0.65rem 0.75rem;
+    border-radius: 9px;
+    padding: 0.5rem 0.65rem;
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
+    gap: 0.1rem;
     cursor: pointer;
     transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
 }
@@ -2815,7 +2843,7 @@ body.dark-mode .pc-card-link:hover .pc-card {
     opacity: 0.15;
 }
 
-/* Plant mini-cards */
+/* Plant mini-cards (legacy class, grid now handled by .dash-top-grid) */
 .dash-plants-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
@@ -2956,15 +2984,12 @@ body.dark-mode .pc-card-link:hover .pc-card {
 }
 
 /* Dashboard responsive */
-@media (max-width: 900px) {
-    .dash-zone-content.has-stream {
-        grid-template-columns: 1fr;
-    }
-}
 @media (max-width: 700px) {
     .dash-summary { flex-direction: column; }
     .dash-sensor-strip { grid-template-columns: repeat(2, 1fr); }
+    .dash-top-grid { grid-template-columns: 1fr; }
     .dash-plants-grid { grid-template-columns: 1fr; }
+    .dash-sensor-groups { flex-direction: column; }
     .dash-zone-header { flex-wrap: wrap; }
     .dash-zone-meta { margin-left: 0; margin-top: 0.35rem; width: 100%; }
 }
