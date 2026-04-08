@@ -150,3 +150,13 @@ function mdLink() {
     ta.focus();
     ta.dispatchEvent(new Event('input'));
 }
+
+// Attach markdown toolbar buttons via event delegation (replaces inline onclick)
+document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".md-btn");
+    if (!btn) return;
+    const action = btn.dataset.mdAction;
+    if (action === "wrap") mdWrap(btn.dataset.mdBefore, btn.dataset.mdAfter);
+    else if (action === "prefix") mdPrefix(btn.dataset.mdPrefix);
+    else if (action === "link") mdLink();
+});

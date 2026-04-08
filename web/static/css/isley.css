@@ -1,3 +1,12 @@
+/* FontAwesome SVG sizing fallback — prevents oversized icons if CSP blocks
+   FA's dynamically injected <style> element (which has no nonce). */
+.svg-inline--fa {
+    display: var(--fa-display, inline-block);
+    height: 1em;
+    overflow: visible;
+    vertical-align: -0.125em;
+}
+
 :root {
     /* Light mode (default) */
     --color-bg: #f8f9fa;

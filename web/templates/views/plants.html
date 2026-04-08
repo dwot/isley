@@ -232,7 +232,7 @@
 </div>
 {{ end }}
 
-<script>
+<script nonce="{{ .cspNonce }}">
 document.addEventListener("DOMContentLoaded", () => {
     const cardsContainer = document.getElementById("plantsCards");
     const tableWrap = document.getElementById("plantsTable");

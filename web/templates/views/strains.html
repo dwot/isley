@@ -110,7 +110,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ .cspNonce }}">
 document.addEventListener("DOMContentLoaded", () => {
     const cardsContainer = document.getElementById("strainsCards");
     const tableWrap = document.getElementById("strainsTable");
@@ -129,6 +129,12 @@ document.addEventListener("DOMContentLoaded", () => {
     let currentLayout = localStorage.getItem("strainsLayout") || "cards";
     let allStrains = [];
     let tableSort = { key: null, asc: true };
+
+    // Delegated click handler for strain table rows (replaces inline onclick)
+    tableBody.addEventListener("click", (e) => {
+        const row = e.target.closest("tr[data-strain-id]");
+        if (row) window.location = "/strain/" + row.dataset.strainId;
+    });
 
     // Set initial layout button state
     layoutButtons.forEach(b => {
@@ -306,7 +312,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 ? ` <a href="${esc(s.url)}" target="_blank" class="text-muted" style="font-size:0.75rem"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>`
                 : "";
 
-            return `<tr class="st-row" onclick="window.location='/strain/${s.id}'" style="cursor:pointer">
+            return `<tr class="st-row" data-strain-id="${s.id}" style="cursor:pointer">
                 <td>
                     <a href="/strain/${s.id}" class="st-strain-name">${esc(s.name)}</a>${extLink}
                     ${s.short_desc ? `<div class="st-short-desc">${esc(s.short_desc)}</div>` : ""}

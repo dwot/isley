@@ -149,7 +149,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ .cspNonce }}">
     var currentStrainID = {{ .strain.ID }};
     var currentStrainName = "{{ .strain.Name | js }}";
 </script>

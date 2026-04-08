@@ -280,7 +280,7 @@
 <!-- Embed sensor data for client-side rendering (hidden div so browser decodes HTML entities cleanly) -->
 <div id="sensorData" hidden>{{ json .sensors }}</div>
 
-<script>
+<script nonce="{{ .cspNonce }}">
 document.addEventListener("DOMContentLoaded", () => {
     const tableBody = document.getElementById("sensorsTableBody");
     const emptyState = document.getElementById("emptyState");

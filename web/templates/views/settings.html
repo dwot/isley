@@ -4,7 +4,7 @@
 <!--Embed the header.html template at this location-->
 
 {{ template "common/header.html" .}}
-<style>
+<style nonce="{{ .cspNonce }}">
 .nav-tabs .nav-link.active {
 background-color: #0d6efd; /* Primary color */
 color: #fff; /* Text color */
@@ -171,11 +171,11 @@ color: #0d6efd; /* Primary color */
                         <!-- Generate / Regenerate button -->
                         <div id="apiKeyActions">
                             {{ if eq .settings.APIKey "********" }}
-                            <button class="btn btn-outline-warning btn-sm" type="button" onclick="generateNewAPIKey()">
+                            <button class="btn btn-outline-warning btn-sm" type="button" id="btnGenerateAPIKey">
                                 <i class="fa fa-sync me-1"></i> Regenerate API Key
                             </button>
                             {{ else }}
-                            <button class="btn btn-primary btn-sm" type="button" onclick="generateNewAPIKey()">
+                            <button class="btn btn-primary btn-sm" type="button" id="btnGenerateAPIKey">
                                 <i class="fa fa-key me-1"></i> Generate API Key
                             </button>
                             {{ end }}
@@ -189,7 +189,7 @@ color: #0d6efd; /* Primary color */
                             </div>
                             <div class="input-group">
                                 <input type="text" class="form-control font-monospace" id="apiKeyDisplay" readonly>
-                                <button class="btn btn-outline-secondary" type="button" onclick="copyAPIKey()" aria-label="{{ .lcl.copy }}">
+                                <button class="btn btn-outline-secondary" type="button" id="btnCopyAPIKey" aria-label="{{ .lcl.copy }}">
                                     <i class="fa fa-clipboard me-1"></i> Copy
                                 </button>
                             </div>
@@ -965,10 +965,16 @@ color: #0d6efd; /* Primary color */
     </div>
 </div>
 
-<script>
+<script nonce="{{ .cspNonce }}">
     document.addEventListener("DOMContentLoaded", () => {
         const pollingSlider = document.getElementById("pollingInterval");
         const pollingValue = document.getElementById("pollingValue");
+
+        // Attach API key button listeners (replaces inline onclick)
+        const genBtn = document.getElementById("btnGenerateAPIKey");
+        if (genBtn) genBtn.addEventListener("click", generateNewAPIKey);
+        const copyBtn = document.getElementById("btnCopyAPIKey");
+        if (copyBtn) copyBtn.addEventListener("click", copyAPIKey);
 
         // Update display when slider is adjusted
         pollingSlider.addEventListener("input", () => {
@@ -1610,8 +1616,10 @@ color: #0d6efd; /* Primary color */
 
                     // Switch button to "Regenerate"
                     document.getElementById('apiKeyActions').innerHTML =
-                        '<button class="btn btn-outline-warning btn-sm" type="button" onclick="generateNewAPIKey()">' +
+                        '<button class="btn btn-outline-warning btn-sm" type="button" id="btnGenerateAPIKey">' +
                         '<i class="fa fa-sync me-1"></i> Regenerate API Key</button>';
+                    // Re-attach listener to the dynamically inserted button
+                    document.getElementById('btnGenerateAPIKey').addEventListener('click', generateNewAPIKey);
                 }
             })
             .catch(error => console.error('Error:', error));

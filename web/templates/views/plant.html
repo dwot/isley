@@ -325,7 +325,7 @@
 {{ template "modals/measurement-edit-modal.html" . }}
 {{ template "modals/activity-edit-modal.html" . }}
 
-<script>
+<script nonce="{{ .cspNonce }}">
 document.addEventListener("DOMContentLoaded", () => {
     // ===== Timeline =====
     const card = document.getElementById("timelineCard");

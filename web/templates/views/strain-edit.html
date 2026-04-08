@@ -153,11 +153,11 @@
                             </h2>
                             <!-- Markdown toolbar -->
                             <div class="btn-group btn-group-sm" role="toolbar" aria-label="Markdown formatting">
-                                <button type="button" class="btn btn-outline-secondary" title="Bold" onclick="mdWrap('**','**')"><i class="fa-solid fa-bold"></i></button>
-                                <button type="button" class="btn btn-outline-secondary" title="Italic" onclick="mdWrap('*','*')"><i class="fa-solid fa-italic"></i></button>
-                                <button type="button" class="btn btn-outline-secondary" title="Heading" onclick="mdPrefix('### ')"><i class="fa-solid fa-heading"></i></button>
-                                <button type="button" class="btn btn-outline-secondary" title="Link" onclick="mdLink()"><i class="fa-solid fa-link"></i></button>
-                                <button type="button" class="btn btn-outline-secondary" title="List" onclick="mdPrefix('- ')"><i class="fa-solid fa-list"></i></button>
+                                <button type="button" class="btn btn-outline-secondary md-btn" title="Bold" data-md-action="wrap" data-md-before="**" data-md-after="**"><i class="fa-solid fa-bold"></i></button>
+                                <button type="button" class="btn btn-outline-secondary md-btn" title="Italic" data-md-action="wrap" data-md-before="*" data-md-after="*"><i class="fa-solid fa-italic"></i></button>
+                                <button type="button" class="btn btn-outline-secondary md-btn" title="Heading" data-md-action="prefix" data-md-prefix="### "><i class="fa-solid fa-heading"></i></button>
+                                <button type="button" class="btn btn-outline-secondary md-btn" title="Link" data-md-action="link"><i class="fa-solid fa-link"></i></button>
+                                <button type="button" class="btn btn-outline-secondary md-btn" title="List" data-md-action="prefix" data-md-prefix="- "><i class="fa-solid fa-list"></i></button>
                             </div>
                         </div>
                         <textarea class="form-control font-monospace" id="editStrainDescription" rows="16" style="resize: vertical;">{{ .strain.Description }}</textarea>
@@ -191,7 +191,7 @@
     </form>
 </div>
 
-<script>
+<script nonce="{{ .cspNonce }}">
     var currentStrainID = {{ .strain.ID }};
 </script>
 <script src="/static/js/strain-edit.js"></script>

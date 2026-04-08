@@ -236,6 +236,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 document.getElementById("spinnerOverlay").remove();
             });
     });
+
+    // Attach delete-image button listener (replaces inline onclick)
+    const delBtn = document.getElementById("btnDeleteImage");
+    if (delBtn) delBtn.addEventListener("click", confirmDeleteImage);
 });
 
 function confirmDeleteImage() {
