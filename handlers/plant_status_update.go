@@ -63,7 +63,7 @@ func UpdatePlantStatus(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Invalid input")
-		apiBadRequest(c, "api_bad_request")
+		apiBadRequest(c, "api_invalid_input")
 		return
 	}
 
@@ -78,12 +78,7 @@ func UpdatePlantStatus(c *gin.Context) {
 		return
 	}
 
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to connect to database")
-		apiInternalError(c, "api_database_error")
-		return
-	}
+	db := DBFromContext(c)
 
 	updated, newID, err := updatePlantStatusLog(db, input.PlantID, input.StatusID, input.Date)
 	if err != nil {

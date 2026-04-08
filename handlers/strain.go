@@ -54,7 +54,7 @@ func AddBreederHandler(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&breeder); err != nil {
 		fieldLogger.WithError(err).Error("Failed to add breeder")
-		apiBadRequest(c, "Invalid payload")
+		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
 	if err := utils.ValidateRequiredString("breeder_name", breeder.Name, utils.MaxNameLength); err != nil {
@@ -63,15 +63,11 @@ func AddBreederHandler(c *gin.Context) {
 	}
 
 	// Add breeder to database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to add breeder")
-		return
-	}
+	db := DBFromContext(c)
 
 	// Insert new breeder and return new id
 	var id int
-	err = db.QueryRow("INSERT INTO breeder (name) VALUES ($1) RETURNING id", breeder.Name).Scan(&id)
+	err := db.QueryRow("INSERT INTO breeder (name) VALUES ($1) RETURNING id", breeder.Name).Scan(&id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to add breeder")
 		apiInternalError(c, "api_failed_to_add_breeder")
@@ -89,7 +85,7 @@ func UpdateBreederHandler(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&breeder); err != nil {
 		fieldLogger.WithError(err).Error("Failed to update breeder")
-		apiBadRequest(c, "Invalid payload")
+		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
 	if err := utils.ValidateRequiredString("breeder_name", breeder.Name, utils.MaxNameLength); err != nil {
@@ -98,14 +94,10 @@ func UpdateBreederHandler(c *gin.Context) {
 	}
 
 	// Update breeder in database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to update breeder")
-		return
-	}
+	db := DBFromContext(c)
 
 	// Update breeder in database
-	_, err = db.Exec("UPDATE breeder SET name = $1 WHERE id = $2", breeder.Name, id)
+	_, err := db.Exec("UPDATE breeder SET name = $1 WHERE id = $2", breeder.Name, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update breeder")
 		apiInternalError(c, "api_failed_to_update_breeder")
@@ -123,11 +115,7 @@ func DeleteBreederHandler(c *gin.Context) {
 	id := c.Param("id")
 
 	// Delete breeder from database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete breeder")
-		return
-	}
+	db := DBFromContext(c)
 
 	// Delete any plants associated with this breeder
 	rows, err := db.Query("SELECT p.id FROM plant p LEFT OUTER JOIN strain s on s.id = p.strain_id WHERE s.breeder_id = $1", id)
@@ -270,12 +258,8 @@ func AddStrainHandler(c *gin.Context) {
 	}
 
 	// Open the database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		apiInternalError(c, "api_internal_server_error")
-		return
-	}
+	db := DBFromContext(c)
+
 	// Check for new breeder and insert if needed
 	var breederID int
 	if req.BreederID == nil {
@@ -316,7 +300,7 @@ func AddStrainHandler(c *gin.Context) {
 		autoflowerInt = 0
 	}
 	var id int
-	err = db.QueryRow(stmt, req.Name, breederID, req.Indica, req.Sativa, autoflowerInt, req.SeedCount, req.Description, req.CycleTime, req.Url, req.ShortDescription).Scan(&id)
+	err := db.QueryRow(stmt, req.Name, breederID, req.Indica, req.Sativa, autoflowerInt, req.SeedCount, req.Description, req.CycleTime, req.Url, req.ShortDescription).Scan(&id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert strain")
 		apiInternalError(c, "api_failed_to_add_strain")
@@ -339,12 +323,8 @@ func GetStrainHandler(c *gin.Context) {
 	}
 
 	// Open the database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		apiInternalError(c, "api_failed_to_connect_db")
-		return
-	}
+	db := DBFromContext(c)
+
 	var strain types.Strain
 
 	err = db.QueryRow(`
@@ -403,12 +383,7 @@ func UpdateStrainHandler(c *gin.Context) {
 	}
 
 	// Open the database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		apiInternalError(c, "api_failed_to_connect_db")
-		return
-	}
+	db := DBFromContext(c)
 
 	// Determine the breeder ID
 	var breederID int
@@ -471,12 +446,7 @@ func DeleteStrainHandler(c *gin.Context) {
 	}
 
 	// Open the database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		apiInternalError(c, "api_failed_to_connect_db")
-		return
-	}
+	db := DBFromContext(c)
 
 	result, err := db.Exec(`DELETE FROM strain WHERE id = $1`, id)
 	if err != nil {
@@ -581,11 +551,7 @@ func PlantsByStrainHandler(context *gin.Context) {
 	fieldLogger = fieldLogger.WithField("strainID", strainID)
 	fieldLogger.Info("Fetching plants for strain")
 
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return
-	}
+	db := DBFromContext(context)
 
 	// Query plants with the given strain ID
 	rows, err := db.Query(`SELECT id, name FROM plant WHERE strain_id = $1 ORDER BY name ASC`, strainID)

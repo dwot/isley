@@ -6,7 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"isley/logger"
-	model "isley/model"
 )
 
 func EditStatus(c *gin.Context) {
@@ -21,7 +20,7 @@ func EditStatus(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Invalid input")
-		apiBadRequest(c, "Invalid input")
+		apiBadRequest(c, "api_invalid_input")
 		return
 	}
 
@@ -30,15 +29,10 @@ func EditStatus(c *gin.Context) {
 		"date": input.Date,
 	})
 
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to connect to database")
-		apiInternalError(c, "api_database_error")
-		return
-	}
+	db := DBFromContext(c)
 
 	query := `UPDATE plant_status_log SET date = $1 WHERE id = $2`
-	_, err = db.Exec(query, input.Date, input.ID)
+	_, err := db.Exec(query, input.Date, input.ID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update status in database")
 		apiInternalError(c, "api_failed_to_update_status")
@@ -57,16 +51,11 @@ func DeleteStatus(c *gin.Context) {
 	id := c.Param("id")
 	fieldLogger = fieldLogger.WithField("id", id)
 
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to connect to database")
-		apiInternalError(c, "api_database_error")
-		return
-	}
+	db := DBFromContext(c)
 
 	// Find the plant_id for this status entry
 	var plantID int
-	err = db.QueryRow(`SELECT plant_id FROM plant_status_log WHERE id = $1`, id).Scan(&plantID)
+	err := db.QueryRow(`SELECT plant_id FROM plant_status_log WHERE id = $1`, id).Scan(&plantID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			fieldLogger.WithError(err).Warn("Status id not found")

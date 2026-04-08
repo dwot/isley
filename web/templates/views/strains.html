@@ -47,32 +47,32 @@
             <div class="strains-filter-group">
                 <label class="strains-filter-label">{{ .lcl.breeder }}</label>
                 <select id="filterBreeder" class="form-select form-select-sm">
-                    <option value="">All</option>
+                    <option value="">{{ .lcl.filter_all }}</option>
                 </select>
             </div>
             <div class="strains-filter-group">
-                <label class="strains-filter-label">Type</label>
+                <label class="strains-filter-label">{{ .lcl.title_type }}</label>
                 <select id="filterType" class="form-select form-select-sm">
-                    <option value="">All</option>
+                    <option value="">{{ .lcl.filter_all }}</option>
                     <option value="auto">{{ .lcl.autoflower }}</option>
-                    <option value="photo">Photoperiod</option>
+                    <option value="photo">{{ .lcl.photoperiod }}</option>
                 </select>
             </div>
             <div class="strains-filter-group">
-                <label class="strains-filter-label">Sort by</label>
+                <label class="strains-filter-label">{{ .lcl.sort_by }}</label>
                 <select id="sortBy" class="form-select form-select-sm">
-                    <option value="name-asc">Name A–Z</option>
-                    <option value="name-desc">Name Z–A</option>
-                    <option value="breeder-asc">Breeder A–Z</option>
-                    <option value="indica-desc">Most Indica</option>
-                    <option value="sativa-desc">Most Sativa</option>
-                    <option value="seeds-desc">Most Seeds</option>
-                    <option value="seeds-asc">Fewest Seeds</option>
+                    <option value="name-asc">{{ .lcl.sort_name_asc }}</option>
+                    <option value="name-desc">{{ .lcl.sort_name_desc }}</option>
+                    <option value="breeder-asc">{{ .lcl.sort_breeder_asc }}</option>
+                    <option value="indica-desc">{{ .lcl.sort_most_indica }}</option>
+                    <option value="sativa-desc">{{ .lcl.sort_most_sativa }}</option>
+                    <option value="seeds-desc">{{ .lcl.sort_most_seeds }}</option>
+                    <option value="seeds-asc">{{ .lcl.sort_fewest_seeds }}</option>
                 </select>
             </div>
             <div class="strains-filter-group">
-                <button id="clearFilters" class="btn btn-sm btn-outline-secondary" title="Clear all filters">
-                    <i class="fa-solid fa-filter-circle-xmark me-1"></i> Clear
+                <button id="clearFilters" class="btn btn-sm btn-outline-secondary" title="{{ .lcl.filter_clear_all }}">
+                    <i class="fa-solid fa-filter-circle-xmark me-1"></i> {{ .lcl.filter_clear }}
                 </button>
             </div>
             <div class="strains-result-count ms-auto">

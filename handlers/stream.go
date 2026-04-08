@@ -55,7 +55,7 @@ func AddStreamHandler(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&stream); err != nil {
 		fieldLogger.WithError(err).Error("Failed to add stream")
-		apiBadRequest(c, "Invalid payload")
+		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
 	if err := utils.ValidateRequiredString("stream_name", stream.Name, utils.MaxNameLength); err != nil {
@@ -68,15 +68,11 @@ func AddStreamHandler(c *gin.Context) {
 	}
 
 	// Add stream to database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to add stream")
-		return
-	}
+	db := DBFromContext(c)
 
 	// Insert new stream and return new id
 	var id int
-	err = db.QueryRow("INSERT INTO streams (name, url, zone_id, visible) VALUES ($1, $2, $3, $4) RETURNING id", stream.Name, stream.URL, stream.ZoneID, stream.Visible).Scan(&id)
+	err := db.QueryRow("INSERT INTO streams (name, url, zone_id, visible) VALUES ($1, $2, $3, $4) RETURNING id", stream.Name, stream.URL, stream.ZoneID, stream.Visible).Scan(&id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to add stream")
 		apiInternalError(c, "api_failed_to_add_stream")
@@ -104,7 +100,7 @@ func UpdateStreamHandler(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&stream); err != nil {
 		fieldLogger.WithError(err).Error("Failed to update stream")
-		apiBadRequest(c, "Invalid payload")
+		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
 	if err := utils.ValidateRequiredString("stream_name", stream.Name, utils.MaxNameLength); err != nil {
@@ -117,11 +113,7 @@ func UpdateStreamHandler(c *gin.Context) {
 	}
 
 	// Update stream in database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to update stream")
-		return
-	}
+	db := DBFromContext(c)
 
 	//convert visible to int
 	var visibleInt int
@@ -132,7 +124,7 @@ func UpdateStreamHandler(c *gin.Context) {
 	}
 
 	// Update stream in database
-	_, err = db.Exec("UPDATE streams SET name = $1, url = $2, zone_id = $3, visible = $4 WHERE id = $5", stream.Name, stream.URL, stream.ZoneID, visibleInt, id)
+	_, err := db.Exec("UPDATE streams SET name = $1, url = $2, zone_id = $3, visible = $4 WHERE id = $5", stream.Name, stream.URL, stream.ZoneID, visibleInt, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update stream")
 		apiInternalError(c, "api_failed_to_update_stream")
@@ -150,14 +142,10 @@ func DeleteStreamHandler(c *gin.Context) {
 	id := c.Param("id")
 
 	// Delete stream from database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete stream")
-		return
-	}
+	db := DBFromContext(c)
 
 	// Delete stream from database
-	_, err = db.Exec("DELETE FROM streams WHERE id = $1", id)
+	_, err := db.Exec("DELETE FROM streams WHERE id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete stream")
 		apiInternalError(c, "api_failed_to_delete_stream")
@@ -172,12 +160,7 @@ func DeleteStreamHandler(c *gin.Context) {
 
 func GetStreamsByZoneHandler(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "GetStreamsByZoneHandler")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		apiInternalError(c, "api_failed_to_open_database")
-		return
-	}
+	db := DBFromContext(c)
 
 	rows, err := db.Query("SELECT s.id, s.name, s.url, z.name as zone_name, visible FROM streams s left outer join zones z on s.zone_id = z.id")
 	if err != nil {

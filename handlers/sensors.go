@@ -97,7 +97,7 @@ func ScanACInfinitySensors(c *gin.Context) {
 	// Bind the JSON payload to the input struct
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Invalid input")
-		apiBadRequest(c, "Invalid input")
+		apiBadRequest(c, "api_invalid_input")
 		return
 	}
 	// Validate string lengths
@@ -110,18 +110,14 @@ func ScanACInfinitySensors(c *gin.Context) {
 		zoneID, err := CreateNewZone(input.NewZone)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
-			apiInternalError(c, "Failed to create new zone")
+			apiInternalError(c, "api_zone_creation_failed")
 			return
 		}
 		input.ZoneID = &zoneID // Set the created zone ID
 	}
 
 	// Init the db
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error opening database")
-		return
-	}
+	db := DBFromContext(c)
 
 	// Query settings table and write result to console
 	url := "https://www.acinfinityserver.com/api/user/devInfoListAll?userId=" + config.ACIToken
@@ -476,7 +472,7 @@ func ScanEcoWittSensors(c *gin.Context) {
 	// Bind the JSON payload to the input struct
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Invalid input")
-		apiBadRequest(c, "Invalid input")
+		apiBadRequest(c, "api_invalid_input")
 		return
 	}
 	// Validate string lengths
@@ -493,17 +489,13 @@ func ScanEcoWittSensors(c *gin.Context) {
 		zoneID, err := CreateNewZone(input.NewZone)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
-			apiInternalError(c, "Failed to create new zone")
+			apiInternalError(c, "api_zone_creation_failed")
 			return
 		}
 		input.ZoneID = &zoneID // Set the created zone ID
 	}
 	// Init the db
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error opening database")
-		return
-	}
+	db := DBFromContext(c)
 
 	url := "http://" + input.ServerAddress + "/get_livedata_info"
 
@@ -883,7 +875,7 @@ func EditSensor(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Invalid input")
-		apiBadRequest(c, "Invalid input")
+		apiBadRequest(c, "api_invalid_input")
 		return
 	}
 
@@ -900,17 +892,13 @@ func EditSensor(c *gin.Context) {
 	// Validate visibility value
 	validVisibility := map[string]bool{"zone_plant": true, "zone": true, "plant": true, "hide": true}
 	if !validVisibility[input.Visibility] {
-		apiBadRequest(c, "Invalid visibility value")
+		apiBadRequest(c, "api_invalid_visibility")
 		return
 	}
 
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error opening database")
-		return
-	}
+	db := DBFromContext(c)
 
-	_, err = db.Exec("UPDATE sensors SET name = $1, visibility = $2, zone_id = $3, unit = $4 WHERE id = $5",
+	_, err := db.Exec("UPDATE sensors SET name = $1, visibility = $2, zone_id = $3, unit = $4 WHERE id = $5",
 		input.Name, input.Visibility, input.ZoneID, input.Unit, input.ID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error updating sensor")
@@ -1019,7 +1007,7 @@ func IngestSensorData(c *gin.Context) {
 	var payload SensorDataPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		fieldLogger.WithError(err).Error("Invalid payload")
-		apiBadRequest(c, "Invalid payload")
+		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
 
@@ -1072,23 +1060,18 @@ func IngestSensorData(c *gin.Context) {
 			zoneID, err := CreateNewZone(payload.NewZone)
 			if err != nil {
 				fieldLogger.WithError(err).Error("Failed to create new zone")
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create new zone"})
+				apiInternalError(c, "api_zone_creation_failed")
 				return
 			}
 			payload.ZoneID = &zoneID
 		}
 	}
 
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error opening database")
-		apiInternalError(c, "api_database_error")
-		return
-	}
+	db := DBFromContext(c)
 
 	// First ensure the sensor exists
 	var sensorID int
-	err = db.QueryRow(`
+	err := db.QueryRow(`
         SELECT id FROM sensors
         WHERE source = $1 AND device = $2 AND type = $3`,
 		payload.Source, payload.Device, payload.Type).Scan(&sensorID)

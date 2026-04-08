@@ -39,7 +39,7 @@ func AddPlant(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Failed to bind JSON")
-		apiBadRequest(c, "Invalid input")
+		apiBadRequest(c, "api_invalid_input")
 		return
 	}
 	// Validate string lengths
@@ -77,16 +77,12 @@ func AddPlant(c *gin.Context) {
 
 	// Insert plant, decrement seed count, and create initial status log
 	// inside a transaction so partial writes cannot occur.
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return
-	}
+	db := DBFromContext(c)
 
 	tx, err := db.Begin()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to begin transaction")
-		apiInternalError(c, "Failed to create plant")
+		apiInternalError(c, "api_failed_to_create_plant")
 		return
 	}
 	defer tx.Rollback() // no-op after Commit
@@ -95,11 +91,11 @@ func AddPlant(c *gin.Context) {
 	err = tx.QueryRow("INSERT INTO plant (name, zone_id, strain_id, description, clone, parent_plant_id, start_dt, sensors) VALUES ($1, $2, $3, '', $4, NULLIF($5, 0), $6, '[]') RETURNING id", input.Name, *input.ZoneID, *input.StrainID, input.Clone, input.ParentID, input.Date).Scan(&plantID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert plant")
-		apiInternalError(c, "Failed to create plant")
+		apiInternalError(c, "api_failed_to_create_plant")
 		return
 	} else if plantID == 0 {
 		fieldLogger.Error("Failed to retrieve plant ID")
-		apiInternalError(c, "Failed to create plant")
+		apiInternalError(c, "api_failed_to_create_plant")
 		return
 	}
 
@@ -112,20 +108,20 @@ func AddPlant(c *gin.Context) {
 		}
 		if _, err := tx.Exec(query, *input.StrainID); err != nil {
 			fieldLogger.WithError(err).Error("Failed to decrement seed count")
-			apiInternalError(c, "Failed to create plant")
+			apiInternalError(c, "api_failed_to_create_plant")
 			return
 		}
 	}
 
 	if _, err := tx.Exec("INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, $3)", plantID, input.StatusID, input.Date); err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert plant status log")
-		apiInternalError(c, "Failed to create plant")
+		apiInternalError(c, "api_failed_to_create_plant")
 		return
 	}
 
 	if err := tx.Commit(); err != nil {
 		fieldLogger.WithError(err).Error("Failed to commit transaction")
-		apiInternalError(c, "Failed to create plant")
+		apiInternalError(c, "api_failed_to_create_plant")
 		return
 	}
 
@@ -424,6 +420,7 @@ func GetPlant(id string) types.Plant {
 // merges in zone-inherited sensors (non-Soil sensors from the plant's zone),
 // and returns each sensor's details with its latest reading.
 // Directly-linked sensors take priority over zone-inherited ones (no duplicates).
+// Uses batch queries to avoid per-sensor N+1 query overhead.
 func loadPlantSensors(db *sql.DB, plantID uint, zoneID int) []types.SensorDataResponse {
 	fieldLogger := logger.Log.WithField("func", "loadPlantSensors")
 
@@ -447,76 +444,122 @@ func loadPlantSensors(db *sql.DB, plantID uint, zoneID int) []types.SensorDataRe
 		directSet[id] = true
 	}
 
-	// 2. Load zone-inherited sensors: non-Soil, visible sensors from the plant's zone
-	var zoneSensors []struct {
-		ID   int
-		Name string
-		Unit string
-	}
+	// 2. Load zone-inherited sensor IDs
+	var zoneIDs []int
 	if zoneID > 0 {
-		rows, err := db.Query(`SELECT id, name, unit FROM sensors WHERE zone_id = $1 AND visibility IN ('zone_plant', 'plant') AND type NOT LIKE 'Soil.%'`, zoneID)
+		rows, err := db.Query(`SELECT id FROM sensors WHERE zone_id = $1 AND visibility IN ('zone_plant', 'plant') AND type NOT LIKE 'Soil.%'`, zoneID)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to query zone sensors")
 		} else {
 			defer rows.Close()
 			for rows.Next() {
-				var s struct {
-					ID   int
-					Name string
-					Unit string
-				}
-				if err := rows.Scan(&s.ID, &s.Name, &s.Unit); err != nil {
-					fieldLogger.WithError(err).Error("Failed to scan zone sensor")
+				var sid int
+				if err := rows.Scan(&sid); err != nil {
 					continue
 				}
-				zoneSensors = append(zoneSensors, s)
+				zoneIDs = append(zoneIDs, sid)
 			}
 		}
 	}
 
-	// Helper to fetch latest reading for a sensor
-	fetchLatest := func(sensorID int) (float64, time.Time, bool) {
-		var sd types.SensorData
-		err := db.QueryRow("SELECT id, value, create_dt FROM sensor_data WHERE sensor_id = $1 ORDER BY create_dt DESC LIMIT 1", sensorID).Scan(&sd.ID, &sd.Value, &sd.CreateDT)
-		if err != nil {
-			return 0, time.Time{}, false
-		}
-		return sd.Value, sd.CreateDT.Local(), true
+	// 3. Collect all unique sensor IDs (direct + zone-inherited) for a single batch query
+	allIDSet := make(map[int]struct{})
+	for _, id := range directIDs {
+		allIDSet[id] = struct{}{}
+	}
+	for _, id := range zoneIDs {
+		allIDSet[id] = struct{}{}
 	}
 
-	// 3. Build the merged sensor list: directly-linked first
-	var sensorList []types.SensorDataResponse
-	for _, sensorID := range directIDs {
-		var sensor types.SensorDataResponse
-		err := db.QueryRow("SELECT id, name, unit FROM sensors WHERE id = $1", sensorID).Scan(&sensor.ID, &sensor.Name, &sensor.Unit)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to query sensor details")
+	if len(allIDSet) == 0 {
+		return nil
+	}
+
+	// 4. Batch query: fetch sensor details + latest reading + timestamp for all sensors at once
+	driver := model.GetDriver()
+	uniqueIDs := make([]interface{}, 0, len(allIDSet))
+	for sid := range allIDSet {
+		uniqueIDs = append(uniqueIDs, sid)
+	}
+	inClause, inArgs := model.BuildInClause(driver, uniqueIDs)
+
+	query := `
+		SELECT s.id, s.name, s.unit, sd.value, sd.create_dt
+		FROM sensors s
+		LEFT JOIN sensor_data sd ON s.id = sd.sensor_id
+			AND sd.id = (SELECT MAX(id) FROM sensor_data WHERE sensor_id = s.id)
+		WHERE s.id IN ` + inClause
+
+	rows, err := db.Query(query, inArgs...)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to batch-fetch sensor details and readings")
+		return nil
+	}
+	defer rows.Close()
+
+	type sensorInfo struct {
+		ID   uint
+		Name string
+		Unit string
+		Val  sql.NullFloat64
+		Date sql.NullTime
+	}
+	sensorMap := make(map[int]sensorInfo)
+	for rows.Next() {
+		var sid int
+		var s sensorInfo
+		if err := rows.Scan(&sid, &s.Name, &s.Unit, &s.Val, &s.Date); err != nil {
+			fieldLogger.WithError(err).Error("Failed to scan batch sensor row")
 			continue
 		}
-		if val, dt, ok := fetchLatest(sensorID); ok {
-			sensor.Value = val
-			sensor.Date = dt
-		}
-		sensor.Inherited = false
-		sensorList = append(sensorList, sensor)
+		s.ID = uint(sid)
+		sensorMap[sid] = s
 	}
 
-	// 4. Append zone-inherited sensors that aren't already directly linked
-	for _, zs := range zoneSensors {
-		if directSet[zs.ID] {
+	// 5. Assemble the result: directly-linked first (preserving order), then zone-inherited
+	var sensorList []types.SensorDataResponse
+
+	for _, sensorID := range directIDs {
+		s, ok := sensorMap[sensorID]
+		if !ok {
+			continue
+		}
+		resp := types.SensorDataResponse{
+			ID:        s.ID,
+			Name:      s.Name,
+			Unit:      s.Unit,
+			Inherited: false,
+		}
+		if s.Val.Valid {
+			resp.Value = s.Val.Float64
+		}
+		if s.Date.Valid {
+			resp.Date = s.Date.Time.Local()
+		}
+		sensorList = append(sensorList, resp)
+	}
+
+	for _, sensorID := range zoneIDs {
+		if directSet[sensorID] {
 			continue // already included as a direct link
 		}
-		sensor := types.SensorDataResponse{
-			ID:        uint(zs.ID),
-			Name:      zs.Name,
-			Unit:      zs.Unit,
+		s, ok := sensorMap[sensorID]
+		if !ok {
+			continue
+		}
+		resp := types.SensorDataResponse{
+			ID:        s.ID,
+			Name:      s.Name,
+			Unit:      s.Unit,
 			Inherited: true,
 		}
-		if val, dt, ok := fetchLatest(zs.ID); ok {
-			sensor.Value = val
-			sensor.Date = dt
+		if s.Val.Valid {
+			resp.Value = s.Val.Float64
 		}
-		sensorList = append(sensorList, sensor)
+		if s.Date.Valid {
+			resp.Date = s.Date.Time.Local()
+		}
+		sensorList = append(sensorList, resp)
 	}
 
 	return sensorList
@@ -711,7 +754,7 @@ func LinkSensorsToPlant(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Failed to bind JSON")
-		apiBadRequest(c, "Invalid input")
+		apiBadRequest(c, "api_invalid_input")
 		return
 	}
 
@@ -724,12 +767,7 @@ func LinkSensorsToPlant(c *gin.Context) {
 	}
 
 	// Initialize the database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		apiInternalError(c, "api_failed_to_connect_db")
-		return
-	}
+	db := DBFromContext(c)
 
 	// Update the plant with the serialized sensor IDs
 	_, err = db.Exec("UPDATE plant SET sensors = $1 WHERE id = $2", sensorIDsJSON, input.PlantID)
@@ -766,7 +804,7 @@ func UpdatePlant(c *gin.Context) {
 	// Bind JSON payload
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Failed to bind JSON")
-		apiBadRequest(c, "Invalid input")
+		apiBadRequest(c, "api_invalid_input")
 		return
 	}
 	// Validate string lengths
@@ -784,12 +822,7 @@ func UpdatePlant(c *gin.Context) {
 	}
 
 	// Init the db
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		apiInternalError(c, "Database error")
-		return
-	}
+	db := DBFromContext(c)
 
 	if input.ZoneID == nil && input.NewZone != "" {
 		// Insert new zone into the database
@@ -820,7 +853,7 @@ func UpdatePlant(c *gin.Context) {
 	}
 
 	//Update the plant
-	_, err = db.Exec("UPDATE plant SET name = $1, description = $2, zone_id = $3, strain_id = $4, clone = $5, start_dt = $6, harvest_weight = $7 WHERE id = $8", input.PlantName, input.PlantDescription, input.ZoneID, input.StrainID, isClone, input.StartDT, input.HarvestWeight, input.PlantID)
+	_, err := db.Exec("UPDATE plant SET name = $1, description = $2, zone_id = $3, strain_id = $4, clone = $5, start_dt = $6, harvest_weight = $7 WHERE id = $8", input.PlantName, input.PlantDescription, input.ZoneID, input.StrainID, isClone, input.StartDT, input.HarvestWeight, input.PlantID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update plant")
 		return
@@ -1076,11 +1109,7 @@ func LivingPlantsHandler(c *gin.Context) {
 
 // HarvestedPlantsHandler handles the /plants/harvested endpoint.
 func HarvestedPlantsHandler(c *gin.Context) {
-	db, err := model.GetDB()
-	if err != nil {
-		logger.Log.WithError(err).Error("Failed to open database")
-		return
-	}
+	db := DBFromContext(c)
 	rows, err := db.Query("SELECT id FROM plant_status WHERE active = 0 and status <> 'Dead'")
 	if err != nil {
 		logger.Log.WithError(err).Error("Failed to query plant statuses")
@@ -1109,11 +1138,7 @@ func HarvestedPlantsHandler(c *gin.Context) {
 
 // DeadPlantsHandler handles the /plants/dead endpoint.
 func DeadPlantsHandler(c *gin.Context) {
-	db, err := model.GetDB()
-	if err != nil {
-		logger.Log.WithError(err).Error("Failed to open database")
-		return
-	}
+	db := DBFromContext(c)
 
 	rows, err := db.Query("SELECT id FROM plant_status WHERE status = 'Dead'")
 	if err != nil {

@@ -4,7 +4,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"isley/logger"
-	model "isley/model"
 	"net/http"
 )
 
@@ -24,7 +23,7 @@ func CreatePlantMeasurement(c *gin.Context) {
 	// Bind JSON payload
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Invalid input")
-		apiBadRequest(c, "Invalid input")
+		apiBadRequest(c, "api_invalid_input")
 		return
 	}
 
@@ -36,14 +35,9 @@ func CreatePlantMeasurement(c *gin.Context) {
 	})
 
 	// Init the db
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		apiInternalError(c, "api_database_error")
-		return
-	}
+	db := DBFromContext(c)
 
-	_, err = db.Exec("INSERT INTO plant_measurements (plant_id, metric_id, value, date) VALUES ($1, $2, $3, $4)",
+	_, err := db.Exec("INSERT INTO plant_measurements (plant_id, metric_id, value, date) VALUES ($1, $2, $3, $4)",
 		input.PlantID, input.MetricID, input.Value, input.Date)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert measurement into database")
@@ -68,7 +62,7 @@ func EditMeasurement(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Invalid input")
-		apiBadRequest(c, "Invalid input")
+		apiBadRequest(c, "api_invalid_input")
 		return
 	}
 
@@ -78,15 +72,10 @@ func EditMeasurement(c *gin.Context) {
 		"value": input.Value,
 	})
 
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		apiInternalError(c, "api_database_error")
-		return
-	}
+	db := DBFromContext(c)
 
 	query := `UPDATE plant_measurements SET date = $1, value = $2 WHERE id = $3`
-	_, err = db.Exec(query, input.Date, input.Value, input.ID)
+	_, err := db.Exec(query, input.Date, input.Value, input.ID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update measurement in database")
 		apiInternalError(c, "api_failed_to_update_measurement")
@@ -105,15 +94,10 @@ func DeleteMeasurement(c *gin.Context) {
 	id := c.Param("id")
 	fieldLogger = fieldLogger.WithField("id", id)
 
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		apiInternalError(c, "api_database_error")
-		return
-	}
+	db := DBFromContext(c)
 
 	query := `DELETE FROM plant_measurements WHERE id = $1`
-	_, err = db.Exec(query, id)
+	_, err := db.Exec(query, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete measurement from database")
 		apiInternalError(c, "api_failed_to_delete_measurement")

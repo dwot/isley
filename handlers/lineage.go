@@ -4,6 +4,7 @@ import (
 	"isley/logger"
 	"isley/model"
 	"isley/model/types"
+	"isley/utils"
 	"net/http"
 	"strconv"
 
@@ -97,17 +98,12 @@ func AddLineageHandler(c *gin.Context) {
 		return
 	}
 
-	if req.ParentName == "" {
-		apiBadRequest(c, "api_parent_name_required")
+	if err := utils.ValidateRequiredString("parent_name", req.ParentName, utils.MaxNameLength); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
 
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		apiInternalError(c, "api_internal_error")
-		return
-	}
+	db := DBFromContext(c)
 
 	var id int
 	err = db.QueryRow(`
@@ -133,12 +129,7 @@ func DeleteLineageHandler(c *gin.Context) {
 		return
 	}
 
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		apiInternalError(c, "api_internal_error")
-		return
-	}
+	db := DBFromContext(c)
 
 	result, err := db.Exec(`DELETE FROM strain_lineage WHERE id = $1`, lineageID)
 	if err != nil {
@@ -176,12 +167,12 @@ func UpdateLineageHandler(c *gin.Context) {
 		return
 	}
 
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		apiInternalError(c, "api_internal_error")
+	if err := utils.ValidateRequiredString("parent_name", req.ParentName, utils.MaxNameLength); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
+
+	db := DBFromContext(c)
 
 	_, err = db.Exec(`
 		UPDATE strain_lineage
@@ -219,12 +210,7 @@ func SetLineageHandler(c *gin.Context) {
 		return
 	}
 
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		apiInternalError(c, "api_internal_error")
-		return
-	}
+	db := DBFromContext(c)
 
 	tx, err := db.Begin()
 	if err != nil {
@@ -244,8 +230,8 @@ func SetLineageHandler(c *gin.Context) {
 
 	// Insert new entries
 	for _, p := range req.Parents {
-		if p.ParentName == "" {
-			continue
+		if err := utils.ValidateRequiredString("parent_name", p.ParentName, utils.MaxNameLength); err != nil {
+			continue // skip entries with empty or invalid names
 		}
 		_, err = tx.Exec(`
 			INSERT INTO strain_lineage (strain_id, parent_name, parent_strain_id)
@@ -345,13 +331,11 @@ func LookupStrainByName(c *gin.Context) {
 		c.JSON(http.StatusOK, []types.Strain{})
 		return
 	}
-
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		apiInternalError(c, "api_internal_error")
-		return
+	if len(query) > utils.MaxNameLength {
+		query = query[:utils.MaxNameLength]
 	}
+
+	db := DBFromContext(c)
 
 	rows, err := db.Query(`
 		SELECT s.id, s.name, b.name as breeder

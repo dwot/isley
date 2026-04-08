@@ -50,35 +50,35 @@
             <div class="plants-filter-group" id="filterZoneGroup">
                 <label class="plants-filter-label">{{ .lcl.title_zone }}</label>
                 <select id="filterZone" class="form-select form-select-sm">
-                    <option value="">All</option>
+                    <option value="">{{ .lcl.filter_all }}</option>
                 </select>
             </div>
             <div class="plants-filter-group" id="filterBreederGroup">
                 <label class="plants-filter-label">{{ .lcl.breeder }}</label>
                 <select id="filterBreeder" class="form-select form-select-sm">
-                    <option value="">All</option>
+                    <option value="">{{ .lcl.filter_all }}</option>
                 </select>
             </div>
             <div class="plants-filter-group" id="filterStatusGroup">
                 <label class="plants-filter-label">{{ .lcl.title_status }}</label>
                 <select id="filterStatus" class="form-select form-select-sm">
-                    <option value="">All</option>
+                    <option value="">{{ .lcl.filter_all }}</option>
                 </select>
             </div>
             <div class="plants-filter-group">
-                <label class="plants-filter-label">Sort by</label>
+                <label class="plants-filter-label">{{ .lcl.sort_by }}</label>
                 <select id="sortBy" class="form-select form-select-sm">
-                    <option value="name-asc">Name A–Z</option>
-                    <option value="name-desc">Name Z–A</option>
-                    <option value="day-desc">Newest First</option>
-                    <option value="day-asc">Oldest First</option>
-                    <option value="strain-asc">Strain A–Z</option>
-                    <option value="water-desc">Needs Water</option>
+                    <option value="name-asc">{{ .lcl.sort_name_asc }}</option>
+                    <option value="name-desc">{{ .lcl.sort_name_desc }}</option>
+                    <option value="day-desc">{{ .lcl.sort_newest_first }}</option>
+                    <option value="day-asc">{{ .lcl.sort_oldest_first }}</option>
+                    <option value="strain-asc">{{ .lcl.sort_strain_asc }}</option>
+                    <option value="water-desc">{{ .lcl.sort_needs_water }}</option>
                 </select>
             </div>
             <div class="plants-filter-group">
-                <button id="clearFilters" class="btn btn-sm btn-outline-secondary" title="Clear all filters">
-                    <i class="fa-solid fa-filter-circle-xmark me-1"></i> Clear
+                <button id="clearFilters" class="btn btn-sm btn-outline-secondary" title="{{ .lcl.filter_clear_all }}">
+                    <i class="fa-solid fa-filter-circle-xmark me-1"></i> {{ .lcl.filter_clear }}
                 </button>
             </div>
             <div class="plants-result-count ms-auto">

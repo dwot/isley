@@ -41,19 +41,19 @@
             <div class="sensors-filter-group">
                 <label class="sensors-filter-label">{{ .lcl.title_zone }}</label>
                 <select id="filterZone" class="form-select form-select-sm">
-                    <option value="">All</option>
+                    <option value="">{{ .lcl.filter_all }}</option>
                 </select>
             </div>
             <div class="sensors-filter-group">
                 <label class="sensors-filter-label">{{ .lcl.title_source }}</label>
                 <select id="filterSource" class="form-select form-select-sm">
-                    <option value="">All</option>
+                    <option value="">{{ .lcl.filter_all }}</option>
                 </select>
             </div>
             <div class="sensors-filter-group">
                 <label class="sensors-filter-label">{{ .lcl.title_visibility }}</label>
                 <select id="filterVisibility" class="form-select form-select-sm">
-                    <option value="">All</option>
+                    <option value="">{{ .lcl.filter_all }}</option>
                     <option value="zone_plant">{{ .lcl.vis_zone_plant }}</option>
                     <option value="zone">{{ .lcl.vis_zone }}</option>
                     <option value="plant">{{ .lcl.vis_plant }}</option>
@@ -61,19 +61,19 @@
                 </select>
             </div>
             <div class="sensors-filter-group">
-                <label class="sensors-filter-label">Sort by</label>
+                <label class="sensors-filter-label">{{ .lcl.sort_by }}</label>
                 <select id="sortBy" class="form-select form-select-sm">
-                    <option value="name-asc">Name A–Z</option>
-                    <option value="name-desc">Name Z–A</option>
-                    <option value="zone-asc">Zone A–Z</option>
-                    <option value="source-asc">Source A–Z</option>
-                    <option value="type-asc">Type A–Z</option>
-                    <option value="updated-desc">Recently Updated</option>
+                    <option value="name-asc">{{ .lcl.sort_name_asc }}</option>
+                    <option value="name-desc">{{ .lcl.sort_name_desc }}</option>
+                    <option value="zone-asc">{{ .lcl.sort_zone_asc }}</option>
+                    <option value="source-asc">{{ .lcl.sort_source_asc }}</option>
+                    <option value="type-asc">{{ .lcl.sort_type_asc }}</option>
+                    <option value="updated-desc">{{ .lcl.sort_recently_updated }}</option>
                 </select>
             </div>
             <div class="sensors-filter-group">
-                <button id="clearFilters" class="btn btn-sm btn-outline-secondary" title="Clear all filters">
-                    <i class="fa-solid fa-filter-circle-xmark me-1"></i> Clear
+                <button id="clearFilters" class="btn btn-sm btn-outline-secondary" title="{{ .lcl.filter_clear_all }}">
+                    <i class="fa-solid fa-filter-circle-xmark me-1"></i> {{ .lcl.filter_clear }}
                 </button>
             </div>
             <div class="sensors-result-count ms-auto">

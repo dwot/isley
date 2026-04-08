@@ -73,7 +73,7 @@ func ChartHandler(c *gin.Context) {
 
 	if err != nil {
 		sensorLogger.WithError(err).Error("Failed to query sensor data")
-		apiInternalError(c, "Failed to query sensor data")
+		apiInternalError(c, "api_sensor_query_failed")
 		return
 	}
 

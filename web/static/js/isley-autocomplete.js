@@ -20,6 +20,9 @@
  *   ac.getValue();         // get current select value
  *   ac.destroy();          // tear down and restore original select
  */
+
+let _isleyAcUid = 0;
+
 class IsleyAutocomplete {
     constructor(selectEl, opts = {}) {
         if (!selectEl || selectEl.tagName !== "SELECT") {
@@ -38,9 +41,11 @@ class IsleyAutocomplete {
             maxResults: 10,
         }, opts);
 
+        this._uid = ++_isleyAcUid;
         this._items = [];
         this._newLabel = "";
         this._built = false;
+        this._activeIdx = -1;
         this._build();
     }
 
@@ -107,12 +112,20 @@ class IsleyAutocomplete {
         this.wrapper = document.createElement("div");
         this.wrapper.className = "isley-ac-wrapper position-relative";
 
-        // Text input
+        // Unique IDs for ARIA linkage
+        const listboxId = `isley-ac-listbox-${this._uid}`;
+
+        // Text input with ARIA combobox attributes
         this.input = document.createElement("input");
         this.input.type = "text";
         this.input.className = "form-control isley-ac-input";
         this.input.placeholder = this.opts.placeholder;
         this.input.autocomplete = "off";
+        this.input.setAttribute("role", "combobox");
+        this.input.setAttribute("aria-autocomplete", "list");
+        this.input.setAttribute("aria-expanded", "false");
+        this.input.setAttribute("aria-haspopup", "listbox");
+        this.input.setAttribute("aria-controls", listboxId);
 
         // Mirror the required attribute so the visible input validates
         if (this.select.required) {
@@ -129,12 +142,21 @@ class IsleyAutocomplete {
             }
         }
 
-        // Dropdown container
+        // Dropdown container with ARIA listbox role
         this.dropdown = document.createElement("div");
         this.dropdown.className = "isley-ac-dropdown";
+        this.dropdown.id = listboxId;
+        this.dropdown.setAttribute("role", "listbox");
+
+        // Screen reader live region for announcements
+        this._liveRegion = document.createElement("div");
+        this._liveRegion.setAttribute("aria-live", "polite");
+        this._liveRegion.setAttribute("aria-atomic", "true");
+        this._liveRegion.className = "visually-hidden";
 
         this.wrapper.appendChild(this.input);
         this.wrapper.appendChild(this.dropdown);
+        this.wrapper.appendChild(this._liveRegion);
 
         // Insert wrapper right after the hidden select
         this.select.parentNode.insertBefore(this.wrapper, this.select.nextSibling);
@@ -186,8 +208,7 @@ class IsleyAutocomplete {
         this.input.addEventListener("keydown", (e) => {
             if (this.dropdown.style.display !== "block") return;
             const items = this.dropdown.querySelectorAll(".isley-ac-item");
-            let active = this.dropdown.querySelector(".isley-ac-item.active");
-            let idx = Array.from(items).indexOf(active);
+            let idx = this._activeIdx;
 
             if (e.key === "ArrowDown") {
                 e.preventDefault();
@@ -199,6 +220,7 @@ class IsleyAutocomplete {
                 this._setActiveItem(items, idx);
             } else if (e.key === "Enter") {
                 e.preventDefault();
+                const active = items[this._activeIdx];
                 if (active) {
                     active.dispatchEvent(new Event("mousedown"));
                 }
@@ -244,15 +266,19 @@ class IsleyAutocomplete {
 
     _renderDropdown(matches, query) {
         this.dropdown.innerHTML = "";
+        this._activeIdx = -1;
 
         if (matches.length === 0 && !this.opts.allowNew) {
             this._hideDropdown();
             return;
         }
 
-        matches.forEach(item => {
+        matches.forEach((item, i) => {
             const div = document.createElement("div");
             div.className = "isley-ac-item";
+            div.id = `isley-ac-opt-${this._uid}-${i}`;
+            div.setAttribute("role", "option");
+            div.setAttribute("aria-selected", "false");
             div.innerHTML = this._highlightMatch(item.label, query);
             div.addEventListener("mousedown", (e) => {
                 e.preventDefault();
@@ -265,10 +291,14 @@ class IsleyAutocomplete {
         if (this.opts.allowNew && this._newLabel) {
             const sep = document.createElement("div");
             sep.className = "isley-ac-separator";
+            sep.setAttribute("role", "separator");
             this.dropdown.appendChild(sep);
 
             const addNew = document.createElement("div");
             addNew.className = "isley-ac-item isley-ac-new-item";
+            addNew.id = `isley-ac-opt-${this._uid}-new`;
+            addNew.setAttribute("role", "option");
+            addNew.setAttribute("aria-selected", "false");
             addNew.innerHTML = `<i class="fa-solid fa-plus me-1"></i> ${this._escapeHtml(this._newLabel)}`;
             addNew.addEventListener("mousedown", (e) => {
                 e.preventDefault();
@@ -278,6 +308,13 @@ class IsleyAutocomplete {
         }
 
         this.dropdown.style.display = "block";
+        this.input.setAttribute("aria-expanded", "true");
+
+        // Announce results count to screen readers
+        const count = matches.length;
+        const newOpt = (this.opts.allowNew && this._newLabel) ? 1 : 0;
+        const total = count + newOpt;
+        this._announce(`${total} result${total !== 1 ? "s" : ""} available`);
     }
 
     _selectItem(item) {
@@ -323,14 +360,32 @@ class IsleyAutocomplete {
     _hideDropdown() {
         this.dropdown.style.display = "none";
         this.dropdown.innerHTML = "";
+        this._activeIdx = -1;
+        this.input.setAttribute("aria-expanded", "false");
+        this.input.removeAttribute("aria-activedescendant");
     }
 
     _setActiveItem(items, idx) {
-        items.forEach(i => i.classList.remove("active"));
+        items.forEach(i => {
+            i.classList.remove("active");
+            i.setAttribute("aria-selected", "false");
+        });
         if (items[idx]) {
             items[idx].classList.add("active");
+            items[idx].setAttribute("aria-selected", "true");
             items[idx].scrollIntoView({ block: "nearest" });
+            this.input.setAttribute("aria-activedescendant", items[idx].id);
+            this._activeIdx = idx;
         }
+    }
+
+    /** Announce a message to screen readers via the live region */
+    _announce(message) {
+        this._liveRegion.textContent = "";
+        // Force re-announcement by clearing then setting after a tick
+        requestAnimationFrame(() => {
+            this._liveRegion.textContent = message;
+        });
     }
 
     _highlightMatch(label, query) {

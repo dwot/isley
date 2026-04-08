@@ -7,7 +7,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"io"
 	"isley/logger"
-	"isley/model"
 	"isley/utils"
 	"net/http"
 	"os"
@@ -44,12 +43,7 @@ func UploadPlantImages(c *gin.Context) {
 	descriptions := form.Value["descriptions[]"]
 	dates := form.Value["dates[]"]
 
-	db, err := model.GetDB()
-	if err != nil {
-		fileLogger.WithError(err).Error("Failed to open database")
-		apiInternalError(c, "api_database_error")
-		return
-	}
+	db := DBFromContext(c)
 	imageIDs := make([]int, 0)
 	// Process each uploaded file
 	for index, fileHeader := range files {
@@ -155,12 +149,7 @@ func DeletePlantImage(c *gin.Context) {
 	}
 	fileLogger = logger.Log.WithField("imageID", imageID)
 
-	db, err := model.GetDB()
-	if err != nil {
-		fileLogger.WithError(err).Error("Failed to open database")
-		apiInternalError(c, "api_database_error")
-		return
-	}
+	db := DBFromContext(c)
 
 	// Retrieve the image path
 	var imagePath string

@@ -67,7 +67,7 @@ func SaveSettings(c *gin.Context) {
 	var settings types.Settings
 	if err := c.ShouldBindJSON(&settings); err != nil {
 		fieldLogger.WithError(err).Error("Failed to save settings")
-		apiBadRequest(c, "Invalid settings payload")
+		apiBadRequest(c, "api_invalid_settings_payload")
 		return
 	}
 
@@ -80,7 +80,7 @@ func SaveSettings(c *gin.Context) {
 		err := UpdateSetting("api_key", hashedKey)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to save API key")
-			apiInternalError(c, "Failed to save API key")
+			apiInternalError(c, "api_failed_to_save_api_key")
 			return
 		}
 		config.APIKey = hashedKey
@@ -159,7 +159,7 @@ func SaveSettings(c *gin.Context) {
 		err = UpdateSetting("api_key", apiKeyToStore)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to save API key")
-			apiInternalError(c, "Failed to save API key")
+			apiInternalError(c, "api_failed_to_save_api_key")
 			return
 		}
 		config.APIKey = apiKeyToStore
@@ -313,7 +313,7 @@ func AddZoneHandler(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&zone); err != nil {
 		fieldLogger.WithError(err).Error("Failed to add zone")
-		apiBadRequest(c, "Invalid payload")
+		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
 	if err := utils.ValidateRequiredString("zone_name", zone.Name, utils.MaxNameLength); err != nil {
@@ -322,15 +322,11 @@ func AddZoneHandler(c *gin.Context) {
 	}
 
 	// Add zone to database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to add zone")
-		return
-	}
+	db := DBFromContext(c)
 
 	// Insert new zone and return new id
 	var id int
-	err = db.QueryRow("INSERT INTO zones (name) VALUES ($1) RETURNING id", zone.Name).Scan(&id)
+	err := db.QueryRow("INSERT INTO zones (name) VALUES ($1) RETURNING id", zone.Name).Scan(&id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to add zone")
 		apiInternalError(c, "api_failed_to_add_zone")
@@ -351,7 +347,7 @@ func AddMetricHandler(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&metric); err != nil {
 		fieldLogger.WithError(err).Error("Failed to add metric")
-		apiBadRequest(c, "Invalid payload")
+		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
 	if err := utils.ValidateRequiredString("metric_name", metric.Name, utils.MaxNameLength); err != nil {
@@ -372,14 +368,10 @@ func AddMetricHandler(c *gin.Context) {
 	// No reserved metric names; treat like other metrics
 
 	// Add metric to database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to add metric")
-		return
-	}
+	db := DBFromContext(c)
 	// Insert new metric and return new id
 	var id int
-	err = db.QueryRow("INSERT INTO metric (name, unit) VALUES ($1, $2) RETURNING id", metric.Name, metric.Unit).Scan(&id)
+	err := db.QueryRow("INSERT INTO metric (name, unit) VALUES ($1, $2) RETURNING id", metric.Name, metric.Unit).Scan(&id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to add metric")
 		apiInternalError(c, "api_failed_to_add_metric")
@@ -397,7 +389,7 @@ func AddActivityHandler(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&activity); err != nil {
 		fieldLogger.WithError(err).Error("Failed to add activity")
-		apiBadRequest(c, "Invalid payload")
+		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
 	if err := utils.ValidateRequiredString("activity_name", activity.Name, utils.MaxNameLength); err != nil {
@@ -413,15 +405,11 @@ func AddActivityHandler(c *gin.Context) {
 	}
 
 	// Add activity to database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to add activity")
-		return
-	}
+	db := DBFromContext(c)
 
 	// Insert new activity and return new id
 	var id int
-	err = db.QueryRow("INSERT INTO activity (name) VALUES ($1) RETURNING id", activity.Name).Scan(&id)
+	err := db.QueryRow("INSERT INTO activity (name) VALUES ($1) RETURNING id", activity.Name).Scan(&id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to add activity")
 		apiInternalError(c, "api_failed_to_add_activity")
@@ -439,7 +427,7 @@ func UpdateZoneHandler(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&zone); err != nil {
 		fieldLogger.WithError(err).Error("Failed to update zone")
-		apiBadRequest(c, "Invalid payload")
+		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
 	if err := utils.ValidateRequiredString("zone_name", zone.Name, utils.MaxNameLength); err != nil {
@@ -448,14 +436,10 @@ func UpdateZoneHandler(c *gin.Context) {
 	}
 
 	// Update zone in database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to update zone")
-		return
-	}
+	db := DBFromContext(c)
 
 	// Update zone in database
-	_, err = db.Exec("UPDATE zones SET name = $1 WHERE id = $2", zone.Name, id)
+	_, err := db.Exec("UPDATE zones SET name = $1 WHERE id = $2", zone.Name, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update zone")
 		apiInternalError(c, "api_failed_to_update_zone")
@@ -476,7 +460,7 @@ func UpdateMetricHandler(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&metric); err != nil {
 		fieldLogger.WithError(err).Error("Failed to update metric")
-		apiBadRequest(c, "Invalid payload")
+		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
 	if err := utils.ValidateRequiredString("metric_name", metric.Name, utils.MaxNameLength); err != nil {
@@ -489,14 +473,11 @@ func UpdateMetricHandler(c *gin.Context) {
 	}
 
 	// Update metric in database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to update metric")
-		return
-	}
+	db := DBFromContext(c)
 
 	// Check if metric exists and lock = TRUE
 	var lock bool
+	var err error
 	err = db.QueryRow("SELECT lock FROM metric WHERE id = $1", id).Scan(&lock)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update metric")
@@ -530,7 +511,7 @@ func UpdateActivityHandler(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&activity); err != nil {
 		fieldLogger.WithError(err).Error("Failed to update activity")
-		apiBadRequest(c, "Invalid payload")
+		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
 	if err := utils.ValidateRequiredString("activity_name", activity.Name, utils.MaxNameLength); err != nil {
@@ -539,14 +520,11 @@ func UpdateActivityHandler(c *gin.Context) {
 	}
 
 	// Update activity in database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to update activity")
-		return
-	}
+	db := DBFromContext(c)
 
 	// Check lock but do not block updates; log a warning if locked
 	var lock bool
+	var err error
 	err = db.QueryRow("SELECT lock FROM activity WHERE id = $1", id).Scan(&lock)
 	if err != nil {
 		fieldLogger.WithError(err).Warn("Failed to check activity lock; proceeding with update")
@@ -572,13 +550,10 @@ func DeleteZoneHandler(c *gin.Context) {
 	id := c.Param("id")
 
 	// Delete zone from database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete zone")
-		return
-	}
+	db := DBFromContext(c)
 
 	//Build a list of plants associated with this zoen to delete first
+	var err error
 	rows, err := db.Query("SELECT id FROM plant WHERE zone_id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete plants")
@@ -665,14 +640,11 @@ func DeleteMetricHandler(c *gin.Context) {
 	id := c.Param("id")
 
 	// Delete metric from database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete metric")
-		return
-	}
+	db := DBFromContext(c)
 
 	// Check if metric exists and lock = TRUE
 	var lock bool
+	var err error
 	err = db.QueryRow("SELECT lock FROM metric WHERE id = $1", id).Scan(&lock)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete metric")
@@ -712,15 +684,11 @@ func DeleteActivityHandler(c *gin.Context) {
 	id := c.Param("id")
 
 	// Delete activity from database
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete activity")
-		apiInternalError(c, "api_failed_to_delete_activity")
-		return
-	}
+	db := DBFromContext(c)
 
 	// Check lock but do not block deletion; log a warning if locked
 	var lock bool
+	var err error
 	err = db.QueryRow("SELECT lock FROM activity WHERE id = $1", id).Scan(&lock)
 	if err != nil {
 		fieldLogger.WithError(err).Warn("Failed to check activity lock; proceeding with deletion")
