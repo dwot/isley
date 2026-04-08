@@ -27,6 +27,11 @@ func Watch() {
 	defer pruneTicker.Stop()
 
 	for {
+		if config.RestoreInProgress.Load() {
+			logger.Log.Debug("Backup restore in progress, skipping sensor poll")
+			time.Sleep(time.Duration(config.PollingInterval) * time.Second)
+			continue
+		}
 		if config.ACIEnabled == 1 && config.ACIToken != "" {
 			updateACISensorData(config.ACIToken)
 		}

@@ -5,6 +5,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"isley/config"
 	"isley/handlers"
+	"isley/model"
 	"isley/utils"
 	"net/http"
 )
@@ -275,6 +276,15 @@ func AddProtectedApiRoutes(r *gin.RouterGroup) {
 	r.POST("/settings/upload-logo", handlers.UploadLogo)
 	r.GET("/settings/logs", handlers.GetLogs)
 	r.GET("/settings/logs/download", handlers.DownloadLogs)
+	r.POST("/settings/backup/create", handlers.CreateBackup)
+	r.GET("/settings/backup/status", handlers.GetBackupStatus)
+	r.GET("/settings/backup/list", handlers.ListBackups)
+	r.GET("/settings/backup/download/:name", handlers.DownloadBackup)
+	r.DELETE("/settings/backup/:name", handlers.DeleteBackup)
+	r.POST("/settings/backup/restore", handlers.ImportBackup)
+	r.GET("/settings/backup/restore/status", handlers.GetRestoreStatus)
+	r.GET("/settings/backup/sqlite/download", handlers.DownloadSQLiteDB)
+	r.POST("/settings/backup/sqlite/upload", handlers.UploadSQLiteDB)
 	r.POST("/record-multi-activity", handlers.RecordMultiPlantActivity)
 	r.POST("/settings", handlers.SaveSettings)
 }
@@ -350,6 +360,7 @@ func AddProtectedRoutes(r *gin.RouterGroup, version string) {
 			"lcl":             translations,
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
+			"dbDriver":        model.GetDriver(),
 			"csrfToken":       c.GetString("csrf_token"),
 		})
 	})

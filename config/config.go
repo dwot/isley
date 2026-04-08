@@ -2,7 +2,12 @@ package config
 
 import (
 	"isley/model/types"
+	"sync/atomic"
 )
+
+// RestoreInProgress is set to true while a backup restore is running.
+// Watchers check this flag and skip their iteration to avoid DB contention.
+var RestoreInProgress atomic.Bool
 
 var (
 	PollingInterval    = 60 // Default polling interval in seconds

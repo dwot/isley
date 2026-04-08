@@ -49,6 +49,11 @@ color: #0d6efd; /* Primary color */
                 &#128220; Logs
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="backup-tab" data-bs-toggle="tab" data-bs-target="#backup-content" type="button" role="tab" aria-controls="backup-content" aria-selected="false">
+                &#128230; Backup
+            </button>
+        </li>
         <li class="nav-item ms-auto" role="presentation">
             <a class="btn btn-sm btn-outline-secondary" href="/change-password">&#128274; {{ .lcl.change_password }}</a>
         </li>
@@ -433,6 +438,154 @@ color: #0d6efd; /* Primary color */
         </div>
 
         <!-- Logs Tab -->
+        <!-- Backup Tab -->
+        <div class="tab-pane fade" id="backup-content" role="tabpanel" aria-labelledby="backup-tab">
+            <!-- Create Backup Card -->
+            <div class="card mb-4 shadow-sm mt-4 border-start border-4 border-primary">
+                <div class="card-header bg-light text-dark">
+                    <h5 class="card-title mb-0"><i class="fa fa-plus-circle me-2"></i>Create Backup</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 align-items-end mb-3">
+                        <div class="col-auto">
+                            <label class="form-label fw-semibold">Sensor History</label>
+                            <select id="backupSensorDays" class="form-select form-select-sm" style="width:auto">
+                                <option value="-1">No sensor data</option>
+                                <option value="7">Last 7 days</option>
+                                <option value="30">Last 30 days</option>
+                                <option value="90">Last 90 days</option>
+                                <option value="0" selected>All sensor data</option>
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="backupIncludeImages">
+                                <label class="form-check-label" for="backupIncludeImages">Include images</label>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-primary" id="createBackupBtn">
+                                <i class="fa fa-archive me-1"></i> Create Backup
+                            </button>
+                        </div>
+                    </div>
+                    <div id="createBackupStatus" style="display:none">
+                        <div class="progress mb-2">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width:100%">Creating backup...</div>
+                        </div>
+                    </div>
+                    <small class="text-muted">Backups are saved on the server. Excluding sensor data and images keeps backups small and fast.</small>
+                </div>
+            </div>
+
+            <!-- Backup Files Card -->
+            <div class="card mb-4 shadow-sm border-start border-4 border-success">
+                <div class="card-header bg-light text-dark d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0"><i class="fa fa-archive me-2"></i>Available Backups</h5>
+                    <button class="btn btn-sm btn-outline-secondary" id="refreshBackupsBtn">
+                        <i class="fa fa-sync"></i>
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div id="backupListLoading" class="text-center p-3"><em>Loading...</em></div>
+                    <table class="table table-sm table-hover mb-0" id="backupListTable" style="display:none">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Filename</th>
+                                <th>Size</th>
+                                <th>Created</th>
+                                <th style="width:140px">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="backupListBody"></tbody>
+                    </table>
+                    <div id="backupListEmpty" class="text-center text-muted p-3" style="display:none">No backups yet. Create one above.</div>
+                </div>
+            </div>
+
+            <!-- Import Card -->
+            <div class="card mb-4 shadow-sm border-start border-4 border-warning">
+                <div class="card-header bg-light text-dark">
+                    <h5 class="card-title mb-0"><i class="fa fa-upload me-2"></i>Restore Backup</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3"><strong>Warning:</strong> Restoring a backup replaces <em>all</em> data in this instance. Sensor polling is paused during restore.</p>
+                    {{ if eq .dbDriver "sqlite" }}
+                    <div class="alert alert-warning alert-sm mb-3">
+                        <i class="fa fa-exclamation-triangle me-1"></i>
+                        <strong>SQLite performance note:</strong> Importing sensor data into SQLite can be very slow for large datasets.
+                        Use the <strong>Skip sensor data</strong> option below, or use <strong>SQLite File Transfer</strong> for a much faster full clone.
+                    </div>
+                    {{ end }}
+                    <div id="backupDropArea" class="border border-warning rounded p-4 text-center mb-3" style="cursor:pointer;border-style:dashed!important">
+                        <p class="mb-1"><i class="fa fa-file-archive fa-2x text-warning"></i></p>
+                        <p class="mb-0">Drag &amp; drop an Isley backup .zip here, or click to browse</p>
+                        <input type="file" id="backupFileInput" accept=".zip" style="display:none">
+                    </div>
+                    <div id="backupFileInfo" class="mb-3" style="display:none">
+                        <span class="badge bg-secondary" id="backupFileName"></span>
+                        <button type="button" class="btn btn-sm btn-link text-danger" id="backupClearBtn">Clear</button>
+                    </div>
+                    {{ if eq .dbDriver "sqlite" }}
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="skipSensorData">
+                        <label class="form-check-label" for="skipSensorData">
+                            Skip sensor data <span class="text-muted small">(recommended for SQLite &mdash; dramatically faster import)</span>
+                        </label>
+                    </div>
+                    {{ end }}
+                    <button class="btn btn-warning" id="importBackupBtn" disabled>
+                        <i class="fa fa-upload me-1"></i> Restore Backup
+                    </button>
+                    <div id="backupProgress" class="mt-3" style="display:none">
+                        <div id="restorePhaseText" class="text-muted small mb-1"></div>
+                        <div class="progress">
+                            <div id="restoreProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-warning" role="progressbar" style="width:100%">Restoring...</div>
+                        </div>
+                        <div id="restoreDetailText" class="text-muted small mt-1"></div>
+                    </div>
+                    <div id="backupResult" class="mt-3" style="display:none"></div>
+                </div>
+            </div>
+
+            {{ if eq .dbDriver "sqlite" }}
+            <!-- SQLite File Transfer Card -->
+            <div class="card mb-4 shadow-sm border-start border-4 border-info">
+                <div class="card-header bg-light text-dark">
+                    <h5 class="card-title mb-0"><i class="fa fa-database me-2"></i>SQLite File Transfer</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">Transfer the raw SQLite database file directly. This is the fastest way to clone or restore a SQLite instance &mdash; no row-by-row import needed.</p>
+                    <div class="row">
+                        <div class="col-md-6 mb-3 mb-md-0">
+                            <h6>Download Current Database</h6>
+                            <p class="text-muted small">Download the .db file to use on another instance or as a backup.</p>
+                            <a class="btn btn-outline-info" href="/settings/backup/sqlite/download">
+                                <i class="fa fa-download me-1"></i> Download .db File
+                            </a>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Upload Database File</h6>
+                            <p class="text-muted small">Replace this instance's database with an uploaded .db file.</p>
+                            <div id="sqliteDropArea" class="border border-info rounded p-3 text-center mb-2" style="cursor:pointer;border-style:dashed!important">
+                                <p class="mb-0 small"><i class="fa fa-database me-1 text-info"></i> Drag &amp; drop a .db file here, or click to browse</p>
+                                <input type="file" id="sqliteFileInput" accept=".db" style="display:none">
+                            </div>
+                            <div id="sqliteFileInfo" class="mb-2" style="display:none">
+                                <span class="badge bg-secondary" id="sqliteFileName"></span>
+                                <button type="button" class="btn btn-sm btn-link text-danger" id="sqliteClearBtn">Clear</button>
+                            </div>
+                            <button class="btn btn-info" id="uploadSqliteBtn" disabled>
+                                <i class="fa fa-upload me-1"></i> Replace Database
+                            </button>
+                            <div id="sqliteResult" class="mt-2" style="display:none"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {{ end }}
+        </div>
+
         <div class="tab-pane fade" id="logs-content" role="tabpanel" aria-labelledby="logs-tab">
             <div class="card mb-4 shadow-sm mt-4">
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
@@ -1502,6 +1655,361 @@ color: #0d6efd; /* Primary color */
         logLineCount.addEventListener("change", loadLogs);
         logFileSelect.addEventListener("change", () => { updateDownloadHref(); loadLogs(); });
         updateDownloadHref();
+    });
+
+    // ---- Backup Management ----
+    document.addEventListener("DOMContentLoaded", function () {
+        // --- Create Backup ---
+        const createBtn = document.getElementById("createBackupBtn");
+        const createStatus = document.getElementById("createBackupStatus");
+        const sensorDays = document.getElementById("backupSensorDays");
+        const includeImages = document.getElementById("backupIncludeImages");
+
+        createBtn.addEventListener("click", () => {
+            const params = new URLSearchParams({
+                images: includeImages.checked,
+                sensor_days: sensorDays.value,
+            });
+            createBtn.disabled = true;
+            createStatus.style.display = "block";
+
+            fetch("/settings/backup/create?" + params.toString(), { method: "POST" })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    createStatus.innerHTML = '<div class="alert alert-danger alert-sm mb-0">' + data.error + '</div>';
+                    createBtn.disabled = false;
+                    return;
+                }
+                // Poll for completion
+                pollBackupStatus();
+            })
+            .catch(err => {
+                createStatus.innerHTML = '<div class="alert alert-danger alert-sm mb-0">' + err.message + '</div>';
+                createBtn.disabled = false;
+            });
+        });
+
+        function pollBackupStatus() {
+            fetch("/settings/backup/status")
+            .then(r => r.json())
+            .then(status => {
+                if (status.in_progress) {
+                    setTimeout(pollBackupStatus, 2000);
+                } else {
+                    createBtn.disabled = false;
+                    if (status.error) {
+                        createStatus.innerHTML = '<div class="alert alert-danger alert-sm mb-0">Backup failed: ' + status.error + '</div>';
+                    } else {
+                        createStatus.innerHTML = '<div class="alert alert-success alert-sm mb-0">Backup created: ' + (status.filename || 'done') + '</div>';
+                        setTimeout(() => { createStatus.style.display = "none"; }, 5000);
+                        loadBackupList();
+                    }
+                }
+            })
+            .catch(() => setTimeout(pollBackupStatus, 3000));
+        }
+
+        // --- Backup List ---
+        const listLoading = document.getElementById("backupListLoading");
+        const listTable = document.getElementById("backupListTable");
+        const listBody = document.getElementById("backupListBody");
+        const listEmpty = document.getElementById("backupListEmpty");
+        const refreshBtn = document.getElementById("refreshBackupsBtn");
+
+        function loadBackupList() {
+            listLoading.style.display = "block";
+            listTable.style.display = "none";
+            listEmpty.style.display = "none";
+
+            fetch("/settings/backup/list")
+            .then(r => r.json())
+            .then(backups => {
+                listLoading.style.display = "none";
+                if (!backups || backups.length === 0) {
+                    listEmpty.style.display = "block";
+                    return;
+                }
+                listTable.style.display = "table";
+                listBody.innerHTML = "";
+                backups.forEach(b => {
+                    const tr = document.createElement("tr");
+                    const created = new Date(b.created_at).toLocaleString();
+                    tr.innerHTML =
+                        '<td><code style="font-size:0.8rem">' + b.name + '</code></td>' +
+                        '<td>' + b.size_mb + ' MB</td>' +
+                        '<td>' + created + '</td>' +
+                        '<td>' +
+                            '<a class="btn btn-sm btn-outline-primary me-1" href="/settings/backup/download/' + encodeURIComponent(b.name) + '"><i class="fa fa-download"></i></a>' +
+                            '<button class="btn btn-sm btn-outline-danger backup-delete-btn" data-name="' + b.name + '"><i class="fa fa-trash"></i></button>' +
+                        '</td>';
+                    listBody.appendChild(tr);
+                });
+
+                // Wire delete buttons
+                document.querySelectorAll(".backup-delete-btn").forEach(btn => {
+                    btn.addEventListener("click", () => {
+                        const name = btn.dataset.name;
+                        if (!confirm("Delete backup " + name + "?")) return;
+                        fetch("/settings/backup/" + encodeURIComponent(name), { method: "DELETE" })
+                        .then(() => loadBackupList());
+                    });
+                });
+            })
+            .catch(() => {
+                listLoading.style.display = "none";
+                listEmpty.style.display = "block";
+                listEmpty.textContent = "Failed to load backups.";
+            });
+        }
+
+        refreshBtn.addEventListener("click", loadBackupList);
+        // Load list when backup tab is shown
+        const backupTab = document.getElementById("backup-tab");
+        backupTab.addEventListener("shown.bs.tab", loadBackupList);
+
+        // --- Import / Restore ---
+        const dropArea = document.getElementById("backupDropArea");
+        const fileInput = document.getElementById("backupFileInput");
+        const fileInfo = document.getElementById("backupFileInfo");
+        const fileName = document.getElementById("backupFileName");
+        const clearBtn = document.getElementById("backupClearBtn");
+        const importBtn = document.getElementById("importBackupBtn");
+        const progress = document.getElementById("backupProgress");
+        const result = document.getElementById("backupResult");
+        let selectedFile = null;
+
+        dropArea.addEventListener("click", () => fileInput.click());
+        dropArea.addEventListener("dragover", (e) => { e.preventDefault(); dropArea.classList.add("bg-light"); });
+        dropArea.addEventListener("dragleave", () => dropArea.classList.remove("bg-light"));
+        dropArea.addEventListener("drop", (e) => {
+            e.preventDefault();
+            dropArea.classList.remove("bg-light");
+            if (e.dataTransfer.files.length) selectFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener("change", () => { if (fileInput.files.length) selectFile(fileInput.files[0]); });
+
+        function selectFile(file) {
+            if (!file.name.endsWith(".zip")) {
+                result.style.display = "block";
+                result.innerHTML = '<div class="alert alert-danger mb-0">Please select a .zip backup file.</div>';
+                return;
+            }
+            selectedFile = file;
+            fileName.textContent = file.name + " (" + (file.size / 1024 / 1024).toFixed(1) + " MB)";
+            fileInfo.style.display = "inline";
+            importBtn.disabled = false;
+            result.style.display = "none";
+        }
+
+        clearBtn.addEventListener("click", () => {
+            selectedFile = null;
+            fileInput.value = "";
+            fileInfo.style.display = "none";
+            importBtn.disabled = true;
+            result.style.display = "none";
+        });
+
+        const phaseText = document.getElementById("restorePhaseText");
+        const progressBar = document.getElementById("restoreProgressBar");
+        const detailText = document.getElementById("restoreDetailText");
+
+        importBtn.addEventListener("click", () => {
+            if (!selectedFile) return;
+            if (!confirm("This will REPLACE all data in this Isley instance with the backup contents. Are you sure?")) return;
+
+            const formData = new FormData();
+            formData.append("backup", selectedFile);
+            const skipSensorEl = document.getElementById("skipSensorData");
+            if (skipSensorEl && skipSensorEl.checked) {
+                formData.append("skip_sensor_data", "true");
+            }
+
+            importBtn.disabled = true;
+            progress.style.display = "block";
+            result.style.display = "none";
+            phaseText.textContent = "Uploading backup...";
+            progressBar.style.width = "100%";
+            progressBar.textContent = "Uploading...";
+            detailText.textContent = "";
+
+            fetch("/settings/backup/restore", {
+                method: "POST",
+                body: formData,
+            })
+            .then(r => r.json().then(data => ({ok: r.ok, status: r.status, data})))
+            .then(({ok, status, data}) => {
+                if (status === 202) {
+                    // Async restore started — poll for progress
+                    pollRestoreStatus();
+                } else if (!ok) {
+                    progress.style.display = "none";
+                    result.style.display = "block";
+                    result.innerHTML = '<div class="alert alert-danger mb-0">Restore failed: ' +
+                        (data.error || data.message || "Unknown error") + '</div>';
+                    importBtn.disabled = false;
+                }
+            })
+            .catch(err => {
+                progress.style.display = "none";
+                result.style.display = "block";
+                result.innerHTML = '<div class="alert alert-danger mb-0">Network error: ' + err.message + '</div>';
+                importBtn.disabled = false;
+            });
+        });
+
+        function pollRestoreStatus() {
+            fetch("/settings/backup/restore/status")
+            .then(r => r.json())
+            .then(status => {
+                if (status.error) {
+                    progress.style.display = "none";
+                    result.style.display = "block";
+                    result.innerHTML = '<div class="alert alert-danger mb-0">Restore failed: ' + status.error + '</div>';
+                    importBtn.disabled = false;
+                    return;
+                }
+
+                if (status.in_progress) {
+                    // Update progress UI based on phase
+                    const phase = status.phase || "working";
+                    if (phase === "truncating") {
+                        phaseText.textContent = "Clearing existing data...";
+                        progressBar.style.width = "100%";
+                        progressBar.textContent = "Truncating tables...";
+                        detailText.textContent = "";
+                    } else if (phase === "restoring" && status.total_batches > 0) {
+                        // Batched large table (sensor_data)
+                        const pct = Math.round((status.batch_num / status.total_batches) * 100);
+                        phaseText.textContent = "Restoring " + status.current_table + "...";
+                        progressBar.classList.remove("progress-bar-animated");
+                        progressBar.style.width = pct + "%";
+                        progressBar.textContent = "Batch " + status.batch_num + " / " + status.total_batches;
+                        const done = (status.total_tables || 0) - (status.tables_left || 0) - 1;
+                        detailText.textContent = Math.max(0, done) + " of " + (status.total_tables || 0) + " tables complete";
+                    } else if (phase === "restoring") {
+                        phaseText.textContent = "Restoring " + (status.current_table || "data") + "...";
+                        progressBar.style.width = "100%";
+                        progressBar.textContent = "Restoring...";
+                        const done = (status.total_tables || 0) - (status.tables_left || 0);
+                        detailText.textContent = done + " of " + (status.total_tables || 0) + " tables complete";
+                    } else if (phase === "sequences") {
+                        phaseText.textContent = "Resetting sequences...";
+                        progressBar.style.width = "95%";
+                        progressBar.textContent = "Almost done...";
+                        detailText.textContent = "";
+                    } else if (phase === "extracting") {
+                        phaseText.textContent = "Extracting uploaded files...";
+                        progressBar.style.width = "98%";
+                        progressBar.textContent = "Extracting files...";
+                        detailText.textContent = "";
+                    }
+                    setTimeout(pollRestoreStatus, 1000);
+                } else {
+                    // Complete
+                    if (status.phase === "complete") {
+                        progress.style.display = "none";
+                        result.style.display = "block";
+                        result.innerHTML = '<div class="alert alert-success mb-0">' +
+                            '<strong>Restore complete!</strong> ' + (status.tables || 0) + ' tables, ' +
+                            (status.files || 0) + ' files restored. Reloading page...</div>';
+                        setTimeout(() => location.reload(), 2000);
+                    } else {
+                        progress.style.display = "none";
+                        result.style.display = "block";
+                        result.innerHTML = '<div class="alert alert-warning mb-0">Restore finished with unknown status.</div>';
+                        importBtn.disabled = false;
+                    }
+                }
+            })
+            .catch(() => {
+                // Network blip — keep polling
+                setTimeout(pollRestoreStatus, 2000);
+            });
+        }
+
+        // --- SQLite File Upload ---
+        const sqliteDropArea = document.getElementById("sqliteDropArea");
+        const sqliteFileInput = document.getElementById("sqliteFileInput");
+        const sqliteFileInfo = document.getElementById("sqliteFileInfo");
+        const sqliteFileName = document.getElementById("sqliteFileName");
+        const sqliteClearBtn = document.getElementById("sqliteClearBtn");
+        const uploadSqliteBtn = document.getElementById("uploadSqliteBtn");
+        const sqliteResult = document.getElementById("sqliteResult");
+        let selectedSqliteFile = null;
+
+        if (sqliteDropArea) {
+            sqliteDropArea.addEventListener("click", () => sqliteFileInput.click());
+            sqliteDropArea.addEventListener("dragover", (e) => { e.preventDefault(); sqliteDropArea.classList.add("bg-light"); });
+            sqliteDropArea.addEventListener("dragleave", () => sqliteDropArea.classList.remove("bg-light"));
+            sqliteDropArea.addEventListener("drop", (e) => {
+                e.preventDefault();
+                sqliteDropArea.classList.remove("bg-light");
+                if (e.dataTransfer.files.length) selectSqliteFile(e.dataTransfer.files[0]);
+            });
+            sqliteFileInput.addEventListener("change", () => { if (sqliteFileInput.files.length) selectSqliteFile(sqliteFileInput.files[0]); });
+
+            function selectSqliteFile(file) {
+                if (!file.name.endsWith(".db")) {
+                    sqliteResult.style.display = "block";
+                    sqliteResult.innerHTML = '<div class="alert alert-danger mb-0">Please select a .db SQLite file.</div>';
+                    return;
+                }
+                selectedSqliteFile = file;
+                sqliteFileName.textContent = file.name + " (" + (file.size / 1024 / 1024).toFixed(1) + " MB)";
+                sqliteFileInfo.style.display = "inline";
+                uploadSqliteBtn.disabled = false;
+                sqliteResult.style.display = "none";
+            }
+
+            sqliteClearBtn.addEventListener("click", () => {
+                selectedSqliteFile = null;
+                sqliteFileInput.value = "";
+                sqliteFileInfo.style.display = "none";
+                uploadSqliteBtn.disabled = true;
+                sqliteResult.style.display = "none";
+            });
+
+            uploadSqliteBtn.addEventListener("click", () => {
+                if (!selectedSqliteFile) return;
+                if (!confirm("This will REPLACE the entire database with the uploaded file. All current data will be lost. Are you sure?")) return;
+
+                const formData = new FormData();
+                formData.append("database", selectedSqliteFile);
+
+                uploadSqliteBtn.disabled = true;
+                sqliteResult.style.display = "none";
+                progress.style.display = "block";
+                phaseText.textContent = "Uploading database file...";
+                progressBar.style.width = "100%";
+                progressBar.classList.add("progress-bar-animated");
+                progressBar.textContent = "Uploading...";
+                detailText.textContent = "";
+
+                fetch("/settings/backup/sqlite/upload", {
+                    method: "POST",
+                    body: formData,
+                })
+                .then(r => r.json().then(data => ({ok: r.ok, status: r.status, data})))
+                .then(({ok, status, data}) => {
+                    if (status === 202) {
+                        pollRestoreStatus();
+                    } else if (!ok) {
+                        progress.style.display = "none";
+                        sqliteResult.style.display = "block";
+                        sqliteResult.innerHTML = '<div class="alert alert-danger mb-0">Upload failed: ' +
+                            (data.error || data.message || "Unknown error") + '</div>';
+                        uploadSqliteBtn.disabled = false;
+                    }
+                })
+                .catch(err => {
+                    progress.style.display = "none";
+                    sqliteResult.style.display = "block";
+                    sqliteResult.innerHTML = '<div class="alert alert-danger mb-0">Network error: ' + err.message + '</div>';
+                    uploadSqliteBtn.disabled = false;
+                });
+            });
+        }
     });
 
 </script>

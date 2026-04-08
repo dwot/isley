@@ -98,6 +98,15 @@ func GetDB() (*sql.DB, error) {
 	return db, nil
 }
 
+// CloseDB closes the current database connection. Used during SQLite file
+// replacement to release the file lock before swapping the .db file.
+func CloseDB() error {
+	if db != nil {
+		return db.Close()
+	}
+	return nil
+}
+
 func GetDriver() string {
 	return dbDriver
 }

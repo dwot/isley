@@ -20,6 +20,11 @@ func Grab() {
 	interval := 60
 
 	for {
+		if config.RestoreInProgress.Load() {
+			logger.Log.Debug("Backup restore in progress, skipping stream grab")
+			time.Sleep(time.Duration(interval) * time.Second)
+			continue
+		}
 		if config.StreamGrabEnabled == 1 {
 			for _, stream := range config.Streams {
 				// If this stream has consecutive failures, skip cycles proportionally
