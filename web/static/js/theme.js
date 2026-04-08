@@ -2,7 +2,7 @@
     const THEME_KEY = 'isley-theme';
 
     function setTheme(theme) {
-        document.body.setAttribute('data-bs-theme', theme);
+        document.documentElement.setAttribute('data-bs-theme', theme);
         localStorage.setItem(THEME_KEY, theme);
 
         var themeIcon = document.getElementById('themeToggleIcon');
@@ -13,7 +13,7 @@
     }
 
     function toggleTheme() {
-        var current = document.body.getAttribute('data-bs-theme') || 'dark';
+        var current = document.documentElement.getAttribute('data-bs-theme') || 'dark';
         setTheme(current === 'dark' ? 'light' : 'dark');
     }
 
