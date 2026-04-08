@@ -2714,6 +2714,36 @@ header .nav-link.active::after {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }
 }
+/* Active player state — remove pointer cursor, let Video.js own clicks */
+.dash-stream-thumb--playing {
+    cursor: default;
+}
+/* Stop / collapse button overlaid on the active player */
+.dash-stream-stop {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 10;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s, background 0.15s;
+}
+.dash-stream-thumb:hover .dash-stream-stop {
+    opacity: 1;
+}
+.dash-stream-stop:hover {
+    background: rgba(220, 53, 69, 0.85);
+}
 /* Zone data panel (no longer used, sensors are direct children of content) */
 
 /* Sensor group header */

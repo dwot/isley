@@ -455,47 +455,125 @@ document.addEventListener("DOMContentLoaded", async () => {
         return div;
     }
 
+    /* ── Stream player instance registry ─────────────────────── */
+    const activePlayers = {};   // videoId → Video.js player instance
+
+    function disposePlayer(videoId) {
+        const player = activePlayers[videoId];
+        if (player) {
+            try { player.dispose(); } catch (_) { /* already disposed */ }
+            delete activePlayers[videoId];
+        }
+    }
+
+    // Dispose all players on page unload to prevent orphaned connections.
+    window.addEventListener("beforeunload", () => {
+        for (const id of Object.keys(activePlayers)) disposePlayer(id);
+    });
+
     function streamCard(stream) {
         const card = el("div", "dash-stream-card");
         const imageUrl = `/uploads/streams/stream_${stream.id}_latest.jpg`;
         const videoId = `stream-${stream.id}`;
 
-        card.innerHTML = `
-            <div class="dash-stream-thumb" id="${videoId}-container">
-                <img id="${videoId}-img" src="${imageUrl}" alt="${esc(stream.name)}" loading="lazy"
-                     onerror="this.style.display='none'">
-                <div class="dash-stream-play"><i class="fa-solid fa-circle-play"></i></div>
-            </div>
-            <div class="dash-stream-label">
-                <span class="dash-stream-name">${esc(stream.name)}</span>
-                <div class="dash-stream-live"></div>
-            </div>
+        // Build thumbnail state
+        const thumb = el("div", "dash-stream-thumb");
+        thumb.id = `${videoId}-container`;
+
+        const img = document.createElement("img");
+        img.id = `${videoId}-img`;
+        img.src = imageUrl;
+        img.alt = esc(stream.name);
+        img.loading = "lazy";
+        img.addEventListener("error", () => { img.style.display = "none"; });
+        thumb.appendChild(img);
+
+        const playOverlay = el("div", "dash-stream-play");
+        playOverlay.innerHTML = '<i class="fa-solid fa-circle-play"></i>';
+        thumb.appendChild(playOverlay);
+
+        const label = el("div", "dash-stream-label");
+        label.innerHTML = `
+            <span class="dash-stream-name">${esc(stream.name)}</span>
+            <div class="dash-stream-live"></div>
         `;
 
-        setTimeout(() => {
-            const thumb = document.getElementById(`${videoId}-container`);
-            if (!thumb) return;
-            thumb.addEventListener("click", () => {
-                if (stream.url && stream.url.endsWith('.m3u8')) {
-                    const video = document.createElement('video');
-                    video.id = `${videoId}-player`;
-                    video.className = 'video-js vjs-default-skin';
-                    video.controls = true;
-                    video.preload = 'auto';
-                    video.width = 480;
-                    video.height = 270;
-                    const source = document.createElement('source');
-                    source.setAttribute('src', stream.url);
-                    source.setAttribute('type', 'application/vnd.apple.mpegurl');
-                    video.appendChild(source);
-                    thumb.innerHTML = '';
-                    thumb.appendChild(video);
-                    videojs(`${videoId}-player`, { fluid: true, liveui: true }).ready(function () {
-                        this.play();
-                    });
+        card.appendChild(thumb);
+        card.appendChild(label);
+
+        // Restore thumbnail state (dispose player, rebuild thumb contents)
+        function collapsePlayer() {
+            disposePlayer(videoId);
+            thumb.innerHTML = "";
+            thumb.classList.remove("dash-stream-thumb--playing");
+
+            const newImg = document.createElement("img");
+            // Cache-bust so we get the latest grab after streaming
+            newImg.src = imageUrl + "?t=" + Date.now();
+            newImg.alt = esc(stream.name);
+            newImg.loading = "lazy";
+            newImg.addEventListener("error", () => { newImg.style.display = "none"; });
+            thumb.appendChild(newImg);
+
+            const newOverlay = el("div", "dash-stream-play");
+            newOverlay.innerHTML = '<i class="fa-solid fa-circle-play"></i>';
+            thumb.appendChild(newOverlay);
+        }
+
+        // Click handler: toggle between thumbnail and player
+        thumb.addEventListener("click", (e) => {
+            // If the player is active, ignore clicks on the thumb itself
+            // (Video.js has its own controls). Only the stop button fires collapse.
+            if (activePlayers[videoId]) return;
+
+            if (!stream.url || !stream.url.endsWith('.m3u8')) return;
+
+            // Dispose any OTHER active player first (single-player policy)
+            for (const id of Object.keys(activePlayers)) disposePlayer(id);
+            // Also collapse other thumbs back to thumbnail state
+            document.querySelectorAll(".dash-stream-thumb--playing").forEach(el => {
+                const otherId = el.id?.replace("-container", "");
+                if (otherId && otherId !== videoId) {
+                    // Trigger that card's collapse via a custom event
+                    el.dispatchEvent(new CustomEvent("stream-collapse"));
                 }
             });
-        }, 0);
+
+            thumb.classList.add("dash-stream-thumb--playing");
+            thumb.innerHTML = "";
+
+            const video = document.createElement("video");
+            video.id = `${videoId}-player`;
+            video.className = "video-js vjs-default-skin";
+            video.controls = true;
+            video.preload = "auto";
+            video.setAttribute("playsinline", "");
+            thumb.appendChild(video);
+
+            // Stop button (overlaid top-right)
+            const stopBtn = document.createElement("button");
+            stopBtn.className = "dash-stream-stop";
+            stopBtn.title = "Stop stream";
+            stopBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+            stopBtn.addEventListener("click", (ev) => {
+                ev.stopPropagation();
+                collapsePlayer();
+            });
+            thumb.appendChild(stopBtn);
+
+            const player = videojs(`${videoId}-player`, {
+                fluid: true,
+                liveui: true,
+                responsive: true,
+            });
+            activePlayers[videoId] = player;
+
+            player.src({ src: stream.url, type: "application/vnd.apple.mpegurl" });
+            player.ready(function () { this.play(); });
+        });
+
+        // Listen for collapse events from other cards enforcing single-player
+        thumb.addEventListener("stream-collapse", collapsePlayer);
 
         return card;
     }
