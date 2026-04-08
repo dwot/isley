@@ -124,7 +124,7 @@ func CreateBackup(c *gin.Context) {
 	backupMu.Lock()
 	if currentBackup.InProgress {
 		backupMu.Unlock()
-		c.JSON(http.StatusConflict, gin.H{"error": "A backup is already in progress"})
+		c.JSON(http.StatusConflict, gin.H{"error": T(c, "api_backup_in_progress")})
 		return
 	}
 	currentBackup = BackupStatus{InProgress: true}
@@ -153,7 +153,7 @@ func CreateBackup(c *gin.Context) {
 		}
 	}()
 
-	c.JSON(http.StatusAccepted, gin.H{"message": "Backup started"})
+	c.JSON(http.StatusAccepted, gin.H{"message": T(c, "api_backup_started")})
 }
 
 // GetBackupStatus returns the state of any in-progress backup.
@@ -469,7 +469,7 @@ func DeleteBackup(c *gin.Context) {
 // Only available when the active driver is SQLite.
 func DownloadSQLiteDB(c *gin.Context) {
 	if !model.IsSQLite() {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "SQLite file download is only available when running SQLite"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": T(c, "api_sqlite_download_only")})
 		return
 	}
 
@@ -494,14 +494,14 @@ func UploadSQLiteDB(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("handler", "UploadSQLiteDB")
 
 	if !model.IsSQLite() {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "SQLite file upload is only available when running SQLite"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": T(c, "api_sqlite_upload_only")})
 		return
 	}
 
 	restoreMu.Lock()
 	if currentRestore.InProgress {
 		restoreMu.Unlock()
-		c.JSON(http.StatusConflict, gin.H{"error": "A restore is already in progress"})
+		c.JSON(http.StatusConflict, gin.H{"error": T(c, "api_restore_in_progress")})
 		return
 	}
 	currentRestore = RestoreStatus{InProgress: true, Phase: "uploading"}
@@ -550,7 +550,7 @@ func UploadSQLiteDB(c *gin.Context) {
 
 	go runSQLiteFileRestore(body)
 
-	c.JSON(http.StatusAccepted, gin.H{"message": "SQLite file restore started"})
+	c.JSON(http.StatusAccepted, gin.H{"message": T(c, "api_restore_started")})
 }
 
 // runSQLiteFileRestore replaces the current SQLite file with the uploaded one.
@@ -634,7 +634,7 @@ func ImportBackup(c *gin.Context) {
 	restoreMu.Lock()
 	if currentRestore.InProgress {
 		restoreMu.Unlock()
-		c.JSON(http.StatusConflict, gin.H{"error": "A restore is already in progress"})
+		c.JSON(http.StatusConflict, gin.H{"error": T(c, "api_restore_in_progress")})
 		return
 	}
 	currentRestore = RestoreStatus{InProgress: true, Phase: "uploading"}
@@ -737,7 +737,7 @@ func ImportBackup(c *gin.Context) {
 	// Launch the restore in a background goroutine and return 202
 	go runRestore(payload, body)
 
-	c.JSON(http.StatusAccepted, gin.H{"message": "Restore started"})
+	c.JSON(http.StatusAccepted, gin.H{"message": T(c, "api_restore_started")})
 }
 
 // updateRestoreStatus safely updates the current restore status fields.
