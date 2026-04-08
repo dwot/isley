@@ -26,6 +26,14 @@ func Watch() {
 	pruneTicker := time.NewTicker(24 * time.Hour)
 	defer pruneTicker.Stop()
 
+	rollupTicker := time.NewTicker(10 * time.Minute)
+	defer rollupTicker.Stop()
+
+	// Run an initial rollup at startup to backfill if needed
+	if err := RefreshHourlyRollups(); err != nil {
+		logger.Log.WithError(err).Error("Initial hourly rollup failed")
+	}
+
 	for {
 		if config.RestoreInProgress.Load() {
 			logger.Log.Debug("Backup restore in progress, skipping sensor poll")
@@ -47,6 +55,14 @@ func Watch() {
 				logger.Log.WithError(err).Error("Scheduled sensor data prune failed")
 			} else {
 				logger.Log.Info("Scheduled sensor data prune completed")
+			}
+		default:
+		}
+
+		select {
+		case <-rollupTicker.C:
+			if err := RefreshHourlyRollups(); err != nil {
+				logger.Log.WithError(err).Error("Scheduled hourly rollup failed")
 			}
 		default:
 		}
