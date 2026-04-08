@@ -2,12 +2,11 @@
 <!--index.html - Dashboard-->
 
 {{ template "common/header.html" .}}
-<meta http-equiv="refresh" content="300">
 <script src="https://cdn.jsdelivr.net/npm/video.js@8.21.0/dist/video.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/video.js@8.21.0/dist/video-js.min.css">
 {{ template "common/header2.html" .}}
 
-<div class="container">
+<div class="container" data-poll-interval="{{ .pollInterval }}">
     <h1 class="visually-hidden">{{ .lcl.title_dashboard }}</h1>
 
     <!-- Summary Bar -->

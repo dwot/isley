@@ -26,6 +26,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"languages":       utils.AvailableLanguages,
 			"currentLanguage": lang,
 			"csrfToken":       c.GetString("csrf_token"),
+			"pollInterval":    config.PollingInterval,
 		})
 	})
 

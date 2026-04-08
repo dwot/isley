@@ -2967,6 +2967,25 @@ body.dark-mode .pc-card-link:hover .pc-card {
 .dash-status-dead        { background: linear-gradient(135deg, #6b7280, #4b5563); color: #fff; }
 .dash-status-default     { background: var(--color-btn-secondary-bg); color: var(--color-fg); }
 
+/* ── Live-update transition animations ────────────────────── */
+@keyframes dash-pulse {
+    0%   { background-color: transparent; }
+    20%  { background-color: rgba(77, 154, 255, 0.12); }
+    100% { background-color: transparent; }
+}
+.dash-updated {
+    animation: dash-pulse 1.2s ease-out;
+}
+.dash-badge-updated {
+    animation: dash-pulse 1.2s ease-out;
+}
+.dash-sensor-reading,
+.dash-sensor-unit,
+.dash-sensor-trend,
+.dash-summary-value {
+    transition: opacity 0.3s ease;
+}
+
 /* Empty state */
 .dash-empty {
     text-align: center;

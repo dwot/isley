@@ -1,6 +1,7 @@
 /*
  * main.js — Isley Dashboard
  * Renders the zone-based dashboard with sensors, streams, and plants.
+ * Uses polling to smoothly update sensor readings in-place.
  */
 document.addEventListener("DOMContentLoaded", async () => {
 
@@ -26,216 +27,400 @@ document.addEventListener("DOMContentLoaded", async () => {
         dead:        t("dead_label", "Dead"),
     };
 
+    /* ── Polling interval from server config ───────────────────── */
+    const container = document.querySelector(".container[data-poll-interval]");
+    const pollInterval = Math.max(15, parseInt(container?.dataset.pollInterval || "60", 10)) * 1000;
+
     /* ── Fetch data ────────────────────────────────────────────── */
     let plants = [], sensorData = {}, streamData = {};
 
-    try {
-        const [pResp, sResp, stResp] = await Promise.all([
-            fetch("/plants/living"),
-            fetch("/sensors/grouped"),
-            fetch("/streams"),
-        ]);
-        if (pResp.ok)  plants = await pResp.json();
-        if (sResp.ok)  sensorData = await sResp.json();
-        if (stResp.ok) streamData = await stResp.json();
-        if (!Array.isArray(plants)) plants = [];
-    } catch (e) {
-        console.error("Dashboard fetch error:", e);
+    async function fetchAllData() {
+        try {
+            const [pResp, sResp, stResp] = await Promise.all([
+                fetch("/plants/living"),
+                fetch("/sensors/grouped"),
+                fetch("/streams"),
+            ]);
+            if (pResp.ok)  plants = await pResp.json();
+            if (sResp.ok)  sensorData = await sResp.json();
+            if (stResp.ok) streamData = await stResp.json();
+            if (!Array.isArray(plants)) plants = [];
+        } catch (e) {
+            console.error("Dashboard fetch error:", e);
+        }
+    }
+
+    async function fetchSensorData() {
+        try {
+            const resp = await fetch("/sensors/grouped");
+            if (resp.ok) sensorData = await resp.json();
+        } catch (e) {
+            console.error("Sensor poll error:", e);
+        }
+    }
+
+    async function fetchPlantData() {
+        try {
+            const resp = await fetch("/plants/living");
+            if (resp.ok) {
+                const data = await resp.json();
+                if (Array.isArray(data)) plants = data;
+            }
+        } catch (e) {
+            console.error("Plant poll error:", e);
+        }
     }
 
     /* ── Build unified zone map ────────────────────────────────── */
-    const zoneMap = {};
+    function buildZoneMap() {
+        const zoneMap = {};
 
-    for (const [zone, devices] of Object.entries(sensorData)) {
-        if (!zoneMap[zone]) zoneMap[zone] = { sensors: {}, streams: [], plants: [] };
-        zoneMap[zone].sensors = devices;
+        for (const [zone, devices] of Object.entries(sensorData)) {
+            if (!zoneMap[zone]) zoneMap[zone] = { sensors: {}, streams: [], plants: [] };
+            zoneMap[zone].sensors = devices;
+        }
+
+        for (const [zone, streams] of Object.entries(streamData)) {
+            if (!zoneMap[zone]) zoneMap[zone] = { sensors: {}, streams: [], plants: [] };
+            zoneMap[zone].streams = streams.filter(s => s.visible !== false);
+        }
+
+        for (const p of plants) {
+            const zone = p.zone_name || "Unassigned";
+            if (!zoneMap[zone]) zoneMap[zone] = { sensors: {}, streams: [], plants: [] };
+            zoneMap[zone].plants.push(p);
+        }
+
+        return zoneMap;
     }
 
-    for (const [zone, streams] of Object.entries(streamData)) {
-        if (!zoneMap[zone]) zoneMap[zone] = { sensors: {}, streams: [], plants: [] };
-        zoneMap[zone].streams = streams.filter(s => s.visible !== false);
+    /* ── Build a flat lookup of all sensors by ID ──────────────── */
+    function buildSensorLookup() {
+        const lookup = {};
+        for (const devices of Object.values(sensorData)) {
+            for (const sensors of Object.values(devices)) {
+                for (const sensor of sensors) {
+                    lookup[sensor.id] = sensor;
+                }
+            }
+        }
+        return lookup;
     }
 
-    for (const p of plants) {
-        const zone = p.zone_name || "Unassigned";
-        if (!zoneMap[zone]) zoneMap[zone] = { sensors: {}, streams: [], plants: [] };
-        zoneMap[zone].plants.push(p);
-    }
+    /* ── Initial full render ───────────────────────────────────── */
+    await fetchAllData();
+    const zoneMap = buildZoneMap();
 
-    /* ── Nothing at all? Show empty state ─────────────────────── */
     const zoneNames = Object.keys(zoneMap);
     if (zoneNames.length === 0 && plants.length === 0) {
         document.getElementById("dashEmpty").style.display = "";
         return;
     }
 
-    /* ── Summary bar ───────────────────────────────────────────── */
-    const summaryEl = document.getElementById("dashSummary");
-    const totalPlants = plants.length;
-    const inFlower = plants.filter(p => (p.status || "").toLowerCase() === "flower");
-    const needWater = plants.filter(p => p.days_since_last_watering >= 3);
-    let totalSensors = 0;
-    for (const z of Object.values(zoneMap)) {
-        for (const devSensors of Object.values(z.sensors)) {
-            totalSensors += devSensors.length;
-        }
-    }
-    const avgFlowerDays = inFlower.length > 0
-        ? Math.round(inFlower.reduce((s, p) => s + (p.flowering_days || 0), 0) / inFlower.length)
-        : 0;
+    renderSummary(zoneMap, zoneNames);
+    renderZones(zoneMap, zoneNames);
 
-    /* Build summary cards — only show relevant stats */
-    let summaryHTML = summaryCard(
-        t("dash_active_plants", "Active Plants"), totalPlants,
-        `${t("dash_across_zones", "across")} ${zoneNames.length} ${t("dash_zones", "zones")}`
-    );
+    /* ── Polling loop ──────────────────────────────────────────── */
+    setInterval(async () => {
+        await Promise.all([fetchSensorData(), fetchPlantData()]);
+        updateInPlace();
+    }, pollInterval);
 
-    if (inFlower.length > 0) {
-        summaryHTML += summaryCard(t("dash_in_flower", "In Flower"), inFlower.length,
-            `${t("dash_avg_days", "avg")} ${avgFlowerDays} ${t("dash_days", "days")}`);
-    } else {
-        /* Show dominant status instead of "In Flower: 0" */
-        const statusCounts = {};
-        plants.forEach(p => {
-            const s = (p.status || "unknown").toLowerCase();
-            statusCounts[s] = (statusCounts[s] || 0) + 1;
+
+    /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       In-place update — patches DOM without rebuilding
+       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+    function updateInPlace() {
+        const sensorLookup = buildSensorLookup();
+
+        /* Update standalone sensor chips */
+        document.querySelectorAll(".dash-sensor-chip[data-id]").forEach(chip => {
+            const sensor = sensorLookup[chip.dataset.id];
+            if (!sensor) return;
+
+            const val = Number(sensor.value).toFixed(2).replace(/\.?0+$/, '') || sensor.value;
+            const readingEl = chip.querySelector(".dash-sensor-reading");
+            const unitEl = chip.querySelector(".dash-sensor-unit");
+            const trendEl = chip.querySelector(".dash-sensor-trend");
+
+            if (readingEl && readingEl.textContent !== String(val)) {
+                readingEl.textContent = val;
+                chip.classList.add("dash-updated");
+                setTimeout(() => chip.classList.remove("dash-updated"), 1200);
+            }
+
+            if (unitEl) unitEl.textContent = sensor.unit || '';
+
+            if (trendEl) {
+                const trendCls = sensor.trend === "up" ? "dash-trend-up"
+                               : sensor.trend === "down" ? "dash-trend-down"
+                               : "dash-trend-flat";
+                const trendIcon = sensor.trend === "up" ? "fa-arrow-up"
+                                : sensor.trend === "down" ? "fa-arrow-down"
+                                : "fa-minus";
+                trendEl.className = `dash-sensor-trend ${trendCls}`;
+                trendEl.innerHTML = `<i class="fa-solid ${trendIcon}"></i>`;
+            }
         });
-        const dominant = Object.entries(statusCounts).sort((a, b) => b[1] - a[1])[0];
-        if (dominant) {
-            const lbl = statusLabels[dominant[0]] || dominant[0];
-            summaryHTML += summaryCard(lbl, dominant[1],
-                totalPlants > dominant[1] ? `of ${totalPlants} plants` : "");
-        }
+
+        /* Update plant card linked-sensor badges */
+        document.querySelectorAll(".dash-pc[data-plant-id]").forEach(card => {
+            const plantId = parseInt(card.dataset.plantId, 10);
+            const plant = plants.find(p => p.id === plantId);
+            if (!plant) return;
+
+            /* Update watering/feeding indicators */
+            const waterDays = plant.days_since_last_watering ?? 0;
+            const feedDays = plant.days_since_last_feeding ?? 0;
+            const waterInd = card.querySelector(".dash-pc-ind-water");
+            const feedInd = card.querySelector(".dash-pc-ind-feed");
+
+            if (waterInd) {
+                const waterCls = waterDays >= 4 ? "dash-ind-alert" : waterDays >= 3 ? "dash-ind-warn" : "dash-ind-ok";
+                waterInd.className = `dash-pc-ind dash-pc-ind-water ${waterCls}`;
+                waterInd.innerHTML = `<i class="fa-solid fa-droplet"></i> ${waterDays}d`;
+            }
+            if (feedInd) {
+                const feedCls = feedDays >= 6 ? "dash-ind-alert" : feedDays >= 5 ? "dash-ind-warn" : "dash-ind-ok";
+                feedInd.className = `dash-pc-ind dash-pc-ind-feed ${feedCls}`;
+                feedInd.innerHTML = `<i class="fa-solid fa-flask"></i> ${feedDays}d`;
+            }
+
+            /* Update linked sensor badges */
+            const badgeContainer = card.querySelector(".dash-pc-sensors");
+            if (badgeContainer) {
+                badgeContainer.querySelectorAll(".dash-pc-sensor[data-sensor-id]").forEach(badge => {
+                    const sensor = sensorLookup[badge.dataset.sensorId];
+                    if (!sensor) return;
+
+                    const sv = Number(sensor.value).toFixed(0);
+                    const unit = esc(sensor.unit || '');
+                    const tCls = sensor.trend === "up" ? "dash-trend-up"
+                               : sensor.trend === "down" ? "dash-trend-down"
+                               : "dash-trend-flat";
+                    const tIco = sensor.trend === "up" ? "fa-arrow-up"
+                               : sensor.trend === "down" ? "fa-arrow-down"
+                               : "fa-minus";
+
+                    const newHTML = `<i class="fa-solid fa-droplet"></i> ${sv}${unit} <i class="fa-solid ${tIco} ${tCls}"></i>`;
+                    if (badge.innerHTML !== newHTML) {
+                        badge.innerHTML = newHTML;
+                        badge.classList.add("dash-badge-updated");
+                        setTimeout(() => badge.classList.remove("dash-badge-updated"), 1200);
+                    }
+                });
+            }
+        });
+
+        /* Update summary bar */
+        updateSummary();
     }
 
-    if (needWater.length > 0) {
-        summaryHTML += summaryCard(t("dash_need_water", "Need Water"), needWater.length,
-            t("dash_last_watered", "last watered 3+ days ago"), true);
+    function updateSummary() {
+        const newZoneMap = buildZoneMap();
+        const newZoneNames = Object.keys(newZoneMap);
+
+        const totalPlants = plants.length;
+        const inFlower = plants.filter(p => (p.status || "").toLowerCase() === "flower");
+        const needWater = plants.filter(p => p.days_since_last_watering >= 3);
+        let totalSensors = 0;
+        for (const z of Object.values(newZoneMap)) {
+            for (const devSensors of Object.values(z.sensors)) {
+                totalSensors += devSensors.length;
+            }
+        }
+
+        /* Update summary values by position */
+        const summaryEl = document.getElementById("dashSummary");
+        const statEls = summaryEl.querySelectorAll(".dash-summary-stat");
+
+        statEls.forEach(statEl => {
+            const labelEl = statEl.querySelector(".dash-summary-label");
+            const valueEl = statEl.querySelector(".dash-summary-value");
+            if (!labelEl || !valueEl) return;
+
+            const label = labelEl.textContent;
+            let newValue = null;
+
+            if (label === t("dash_active_plants", "Active Plants")) {
+                newValue = totalPlants;
+            } else if (label === t("dash_in_flower", "In Flower")) {
+                newValue = inFlower.length;
+            } else if (label === t("dash_need_water", "Need Water")) {
+                newValue = needWater.length;
+            } else if (label === t("dash_active_sensors", "Active Sensors")) {
+                newValue = totalSensors;
+            }
+
+            if (newValue !== null && valueEl.textContent !== String(newValue)) {
+                valueEl.textContent = newValue;
+                statEl.classList.add("dash-updated");
+                setTimeout(() => statEl.classList.remove("dash-updated"), 1200);
+            }
+        });
     }
 
-    summaryHTML += summaryCard(t("dash_active_sensors", "Active Sensors"), totalSensors, "");
-    summaryEl.innerHTML = summaryHTML;
 
+    /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       Full render functions (initial load only)
+       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-    /* ── Render zones ──────────────────────────────────────────── */
-    const zonesEl = document.getElementById("dashZones");
-
-    for (const zoneName of zoneNames) {
-        const z = zoneMap[zoneName];
-        const section = el("div", "dash-zone");
-
-        /* Flatten all sensors for this zone */
-        const allSensors = [];
-        for (const devSensors of Object.values(z.sensors)) {
-            for (const sensor of devSensors) allSensors.push(sensor);
-        }
-
-        /* Separate linked sensors (for plant cards) from unlinked */
-        const linkedByPlant = {};   // plant_name → sensor[]
-        const unlinkedSensors = [];
-        for (const sensor of allSensors) {
-            if (sensor.plant_name) {
-                if (!linkedByPlant[sensor.plant_name]) linkedByPlant[sensor.plant_name] = [];
-                linkedByPlant[sensor.plant_name].push(sensor);
-            } else {
-                unlinkedSensors.push(sensor);
+    function renderSummary(zoneMap, zoneNames) {
+        const summaryEl = document.getElementById("dashSummary");
+        const totalPlants = plants.length;
+        const inFlower = plants.filter(p => (p.status || "").toLowerCase() === "flower");
+        const needWater = plants.filter(p => p.days_since_last_watering >= 3);
+        let totalSensors = 0;
+        for (const z of Object.values(zoneMap)) {
+            for (const devSensors of Object.values(z.sensors)) {
+                totalSensors += devSensors.length;
             }
         }
+        const avgFlowerDays = inFlower.length > 0
+            ? Math.round(inFlower.reduce((s, p) => s + (p.flowering_days || 0), 0) / inFlower.length)
+            : 0;
 
-        const plantCount = z.plants.length;
-        const sensorCount = allSensors.length;
+        let summaryHTML = summaryCard(
+            t("dash_active_plants", "Active Plants"), totalPlants,
+            `${t("dash_across_zones", "across")} ${zoneNames.length} ${t("dash_zones", "zones")}`
+        );
 
-        /* Zone header */
-        section.appendChild(zoneHeader(zoneName, plantCount, sensorCount));
-
-        /* Zone content */
-        const content = el("div", "dash-zone-content");
-
-        const hasPlants  = z.plants.length > 0;
-        const hasStreams  = z.streams.length > 0;
-
-        /* ── TOP SECTION: stream + plants in a unified grid ── */
-        if (hasPlants || hasStreams) {
-            const topDiv = el("div");
-            /* Header: show "Plants" if we have plants, otherwise "Live" */
-            if (hasPlants) {
-                topDiv.appendChild(groupHeader("fa-cannabis",
-                    t("title_plants", "Plants"),
-                    "/plants", t("dash_view_all", "View all")));
+        if (inFlower.length > 0) {
+            summaryHTML += summaryCard(t("dash_in_flower", "In Flower"), inFlower.length,
+                `${t("dash_avg_days", "avg")} ${avgFlowerDays} ${t("dash_days", "days")}`);
+        } else {
+            const statusCounts = {};
+            plants.forEach(p => {
+                const s = (p.status || "unknown").toLowerCase();
+                statusCounts[s] = (statusCounts[s] || 0) + 1;
+            });
+            const dominant = Object.entries(statusCounts).sort((a, b) => b[1] - a[1])[0];
+            if (dominant) {
+                const lbl = statusLabels[dominant[0]] || dominant[0];
+                summaryHTML += summaryCard(lbl, dominant[1],
+                    totalPlants > dominant[1] ? `of ${totalPlants} plants` : "");
             }
-
-            const grid = el("div", "dash-top-grid");
-
-            /* Stream cards flow into the same grid as plant cards */
-            for (const stream of z.streams) {
-                const wrapper = el("div", "dash-top-stream");
-                wrapper.appendChild(streamCard(stream));
-                grid.appendChild(wrapper);
-            }
-
-            /* Plant cards */
-            for (const plant of z.plants) {
-                const plantSensors = linkedByPlant[plant.name] || [];
-                grid.appendChild(plantCard(plant, plantSensors));
-            }
-
-            topDiv.appendChild(grid);
-            content.appendChild(topDiv);
         }
 
-        /* ── SENSORS SECTION (sub-grouped, flowing) ── */
-        if (unlinkedSensors.length > 0) {
-            const sensorDiv = el("div");
-            const allIds = unlinkedSensors.map(s => s.id).join(",");
-            sensorDiv.appendChild(groupHeader("fa-microchip",
-                t("title_sensors", "Sensors"),
-                `/graph/${allIds}`, t("dash_view_graphs", "View graphs")));
+        if (needWater.length > 0) {
+            summaryHTML += summaryCard(t("dash_need_water", "Need Water"), needWater.length,
+                t("dash_last_watered", "last watered 3+ days ago"), true);
+        }
 
-            /* Bucket by type */
-            const buckets = { Other: [], ACIP: [], Soil: [] };
-            for (const sensor of unlinkedSensors) {
-                if ((sensor.type || "").startsWith("Soil")) buckets.Soil.push(sensor);
-                else if ((sensor.type || "").startsWith("ACIP")) buckets.ACIP.push(sensor);
-                else buckets.Other.push(sensor);
+        summaryHTML += summaryCard(t("dash_active_sensors", "Active Sensors"), totalSensors, "");
+        summaryEl.innerHTML = summaryHTML;
+    }
+
+    function renderZones(zoneMap, zoneNames) {
+        const zonesEl = document.getElementById("dashZones");
+
+        for (const zoneName of zoneNames) {
+            const z = zoneMap[zoneName];
+            const section = el("div", "dash-zone");
+
+            const allSensors = [];
+            for (const devSensors of Object.values(z.sensors)) {
+                for (const sensor of devSensors) allSensors.push(sensor);
             }
 
-            const bucketMeta = {
-                Other: t("title_group_other", "Environment"),
-                ACIP:  t("title_group_acip", "AC Infinity"),
-                Soil:  t("title_group_soil", "Soil"),
-            };
+            const linkedByPlant = {};
+            const unlinkedSensors = [];
+            for (const sensor of allSensors) {
+                if (sensor.plant_name) {
+                    if (!linkedByPlant[sensor.plant_name]) linkedByPlant[sensor.plant_name] = [];
+                    linkedByPlant[sensor.plant_name].push(sensor);
+                } else {
+                    unlinkedSensors.push(sensor);
+                }
+            }
 
-            const sensorWrap = el("div", "dash-sensor-groups");
-            const activeBuckets = ["Other", "ACIP", "Soil"].filter(k => buckets[k].length > 0);
-            const needLabels = activeBuckets.length > 1;
+            const plantCount = z.plants.length;
+            const sensorCount = allSensors.length;
 
-            for (const key of activeBuckets) {
-                const sensors = buckets[key];
+            section.appendChild(zoneHeader(zoneName, plantCount, sensorCount));
 
-                const group = el("div", "dash-sensor-bucket");
-                /* Proportional flex-grow based on sensor count */
-                group.style.flexGrow = sensors.length;
+            const content = el("div", "dash-zone-content");
 
-                if (needLabels) {
-                    const label = el("div", "dash-sensor-sublabel");
-                    label.textContent = bucketMeta[key];
-                    group.appendChild(label);
+            const hasPlants  = z.plants.length > 0;
+            const hasStreams  = z.streams.length > 0;
+
+            if (hasPlants || hasStreams) {
+                const topDiv = el("div");
+                if (hasPlants) {
+                    topDiv.appendChild(groupHeader("fa-cannabis",
+                        t("title_plants", "Plants"),
+                        "/plants", t("dash_view_all", "View all")));
                 }
 
-                const strip = el("div", "dash-sensor-strip");
-                for (const sensor of sensors) {
-                    strip.appendChild(sensorChip(sensor));
+                const grid = el("div", "dash-top-grid");
+
+                for (const stream of z.streams) {
+                    const wrapper = el("div", "dash-top-stream");
+                    wrapper.appendChild(streamCard(stream));
+                    grid.appendChild(wrapper);
                 }
-                group.appendChild(strip);
-                sensorWrap.appendChild(group);
+
+                for (const plant of z.plants) {
+                    const plantSensors = linkedByPlant[plant.name] || [];
+                    grid.appendChild(plantCard(plant, plantSensors));
+                }
+
+                topDiv.appendChild(grid);
+                content.appendChild(topDiv);
             }
 
-            sensorDiv.appendChild(sensorWrap);
-            content.appendChild(sensorDiv);
-        }
+            if (unlinkedSensors.length > 0) {
+                const sensorDiv = el("div");
+                const allIds = unlinkedSensors.map(s => s.id).join(",");
+                sensorDiv.appendChild(groupHeader("fa-microchip",
+                    t("title_sensors", "Sensors"),
+                    `/graph/${allIds}`, t("dash_view_graphs", "View graphs")));
 
-        section.appendChild(content);
-        zonesEl.appendChild(section);
+                const buckets = { Other: [], ACIP: [], Soil: [] };
+                for (const sensor of unlinkedSensors) {
+                    if ((sensor.type || "").startsWith("Soil")) buckets.Soil.push(sensor);
+                    else if ((sensor.type || "").startsWith("ACIP")) buckets.ACIP.push(sensor);
+                    else buckets.Other.push(sensor);
+                }
+
+                const bucketMeta = {
+                    Other: t("title_group_other", "Environment"),
+                    ACIP:  t("title_group_acip", "AC Infinity"),
+                    Soil:  t("title_group_soil", "Soil"),
+                };
+
+                const sensorWrap = el("div", "dash-sensor-groups");
+                const activeBuckets = ["Other", "ACIP", "Soil"].filter(k => buckets[k].length > 0);
+                const needLabels = activeBuckets.length > 1;
+
+                for (const key of activeBuckets) {
+                    const sensors = buckets[key];
+
+                    const group = el("div", "dash-sensor-bucket");
+                    group.style.flexGrow = sensors.length;
+
+                    if (needLabels) {
+                        const label = el("div", "dash-sensor-sublabel");
+                        label.textContent = bucketMeta[key];
+                        group.appendChild(label);
+                    }
+
+                    const strip = el("div", "dash-sensor-strip");
+                    for (const sensor of sensors) {
+                        strip.appendChild(sensorChip(sensor));
+                    }
+                    group.appendChild(strip);
+                    sensorWrap.appendChild(group);
+                }
+
+                sensorDiv.appendChild(sensorWrap);
+                content.appendChild(sensorDiv);
+            }
+
+            section.appendChild(content);
+            zonesEl.appendChild(section);
+        }
     }
 
 
@@ -367,6 +552,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     function plantCard(plant, linkedSensors) {
         const link = el("a", "dash-pc");
         link.href = `/plant/${plant.id}`;
+        link.dataset.plantId = plant.id;
 
         const status = (plant.status || "").toLowerCase();
         const statusLabel = statusLabels[status] || plant.status || "";
@@ -392,7 +578,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const tIco = s.trend === "up" ? "fa-arrow-up"
                            : s.trend === "down" ? "fa-arrow-down"
                            : "fa-minus";
-                return `<span class="dash-pc-sensor" title="${esc(s.name)}">
+                return `<span class="dash-pc-sensor" data-sensor-id="${s.id}" title="${esc(s.name)}">
                     <i class="fa-solid fa-droplet"></i> ${sv}${unit}
                     <i class="fa-solid ${tIco} ${tCls}"></i>
                 </span>`;
@@ -410,8 +596,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             <div class="dash-pc-bottom">
                 <span class="dash-pc-stat"><i class="fa-solid fa-calendar-day"></i> ${weekDay}</span>
                 <div class="dash-pc-indicators">
-                    <span class="dash-pc-ind ${waterCls}"><i class="fa-solid fa-droplet"></i> ${waterDays}d</span>
-                    <span class="dash-pc-ind ${feedCls}"><i class="fa-solid fa-flask"></i> ${feedDays}d</span>
+                    <span class="dash-pc-ind dash-pc-ind-water ${waterCls}"><i class="fa-solid fa-droplet"></i> ${waterDays}d</span>
+                    <span class="dash-pc-ind dash-pc-ind-feed ${feedCls}"><i class="fa-solid fa-flask"></i> ${feedDays}d</span>
                 </div>
             </div>
         `;
