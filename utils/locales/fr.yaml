@@ -423,6 +423,8 @@ api_api_key_generated: "Clé API générée avec succès. Copiez-la maintenant �
 api_breeder_deleted: "Éleveur supprimé"
 api_breeder_updated: "Éleveur mis à jour"
 api_backup_in_progress: "Une sauvegarde est déjà en cours"
+api_backup_file_too_large: "Le fichier dépasse la taille maximale autorisée pour les sauvegardes"
+api_backup_extract_too_large: "Extraction de la sauvegarde annulée — les données extraites dépassent la taille maximale autorisée"
 api_cannot_delete_last_status: "Impossible de supprimer la dernière entrée de statut d'une plante"
 api_database_error: "Erreur de base de données"
 api_database_query_error: "Erreur de requête de base de données"

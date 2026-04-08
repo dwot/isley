@@ -154,6 +154,7 @@ type Settings struct {
 	DisableAPIIngest    bool   `json:"disable_api_ingest"`
 	SensorRetentionDays string `json:"sensor_retention_days"`
 	LogLevel            string `json:"log_level"`
+	MaxBackupSizeMB     string `json:"max_backup_size_mb"`
 }
 
 type ACInfinitySettings struct {
@@ -177,6 +178,7 @@ type SettingsData struct {
 	APIIngestEnabled    bool   `json:"api_ingest_enabled"`
 	SensorRetentionDays int    `json:"sensor_retention_days"`
 	LogLevel            string `json:"log_level"`
+	MaxBackupSizeMB     int    `json:"max_backup_size_mb"`
 }
 
 type Status struct {

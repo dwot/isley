@@ -430,6 +430,8 @@ api_api_key_generated: "API key generated successfully. Copy it now — it will 
 api_breeder_deleted: "Breeder deleted"
 api_breeder_updated: "Breeder updated"
 api_backup_in_progress: "A backup is already in progress"
+api_backup_file_too_large: "File exceeds the maximum backup size limit"
+api_backup_extract_too_large: "Backup extraction aborted — extracted data exceeds the maximum allowed size"
 api_cannot_delete_last_status: "Cannot delete the last status entry for a plant"
 api_database_error: "Database error"
 api_database_query_error: "Database query error"

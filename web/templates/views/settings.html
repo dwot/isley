@@ -509,6 +509,16 @@ color: #0d6efd; /* Primary color */
                     <h5 class="card-title mb-0"><i class="fa fa-upload me-2"></i>Restore Backup</h5>
                 </div>
                 <div class="card-body">
+                    <div class="row g-3 align-items-end mb-3">
+                        <div class="col-auto">
+                            <label for="maxBackupSizeMB" class="form-label fw-semibold">Max upload size (MB)</label>
+                            <input type="number" class="form-control form-control-sm" id="maxBackupSizeMB"
+                                   min="100" step="100"
+                                   value="{{ if .settings.MaxBackupSizeMB }}{{ .settings.MaxBackupSizeMB }}{{ else }}5120{{ end }}"
+                                   style="width:140px">
+                            <small class="text-muted d-block mt-1">Minimum 100 MB. Also limits ZIP extraction size.</small>
+                        </div>
+                    </div>
                     <p class="text-muted mb-3"><strong>Warning:</strong> Restoring a backup replaces <em>all</em> data in this instance. Sensor polling is paused during restore.</p>
                     {{ if eq .dbDriver "sqlite" }}
                     <div class="alert alert-warning alert-sm mb-3">
@@ -1179,6 +1189,7 @@ color: #0d6efd; /* Primary color */
                 disable_api_ingest: document.getElementById("disableApiIngest").checked,
                 sensor_retention_days: document.getElementById("sensorRetentionDays").value,
                 log_level: document.getElementById("logLevel").value,
+                max_backup_size_mb: document.getElementById("maxBackupSizeMB").value,
             };
 
             // Send POST request to save settings
@@ -1795,6 +1806,14 @@ color: #0d6efd; /* Primary color */
                 result.innerHTML = '<div class="alert alert-danger mb-0">Please select a .zip backup file.</div>';
                 return;
             }
+            const maxMB = parseInt(document.getElementById("maxBackupSizeMB").value) || 5120;
+            if (file.size > maxMB * 1024 * 1024) {
+                result.style.display = "block";
+                result.innerHTML = '<div class="alert alert-danger mb-0">File is ' +
+                    (file.size / 1024 / 1024).toFixed(1) + ' MB — exceeds the ' + maxMB + ' MB limit. ' +
+                    'Increase the max upload size above if this backup is legitimate.</div>';
+                return;
+            }
             selectedFile = file;
             fileName.textContent = file.name + " (" + (file.size / 1024 / 1024).toFixed(1) + " MB)";
             fileInfo.style.display = "inline";
@@ -1953,6 +1972,14 @@ color: #0d6efd; /* Primary color */
                 if (!file.name.endsWith(".db")) {
                     sqliteResult.style.display = "block";
                     sqliteResult.innerHTML = '<div class="alert alert-danger mb-0">Please select a .db SQLite file.</div>';
+                    return;
+                }
+                const maxMB = parseInt(document.getElementById("maxBackupSizeMB").value) || 5120;
+                if (file.size > maxMB * 1024 * 1024) {
+                    sqliteResult.style.display = "block";
+                    sqliteResult.innerHTML = '<div class="alert alert-danger mb-0">File is ' +
+                        (file.size / 1024 / 1024).toFixed(1) + ' MB — exceeds the ' + maxMB + ' MB limit. ' +
+                        'Increase the max upload size in the Restore Backup section if this file is legitimate.</div>';
                     return;
                 }
                 selectedSqliteFile = file;

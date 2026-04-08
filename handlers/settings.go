@@ -184,6 +184,18 @@ func SaveSettings(c *gin.Context) {
 		logger.SetLevel(config.LogLevel)
 	}
 
+	if settings.MaxBackupSizeMB != "" {
+		if mb, convErr := strconv.Atoi(settings.MaxBackupSizeMB); convErr == nil && mb >= 100 {
+			err = UpdateSetting("max_backup_size_mb", settings.MaxBackupSizeMB)
+			if err != nil {
+				fieldLogger.WithError(err).Error("Failed to save max backup size setting")
+				apiInternalError(c, "api_failed_to_save_settings")
+				return
+			}
+			config.MaxBackupSize = int64(mb) * 1024 * 1024
+		}
+	}
+
 	//Load Settings
 	LoadSettings()
 
@@ -299,6 +311,8 @@ func GetSettings() types.SettingsData {
 			settingsData.SensorRetentionDays, _ = strconv.Atoi(value)
 		case "log_level":
 			settingsData.LogLevel = value
+		case "max_backup_size_mb":
+			settingsData.MaxBackupSizeMB, _ = strconv.Atoi(value)
 		default:
 			fieldLogger.WithField("name", name).Debug("Unrecognised setting skipped")
 		}
@@ -953,6 +967,13 @@ func LoadSettings() {
 	if err == nil && strLogLevel != "" {
 		config.LogLevel = strLogLevel
 		logger.SetLevel(config.LogLevel)
+	}
+
+	strMaxBackupSize, err := GetSetting("max_backup_size_mb")
+	if err == nil {
+		if mb, err := strconv.Atoi(strMaxBackupSize); err == nil && mb >= 100 {
+			config.MaxBackupSize = int64(mb) * 1024 * 1024
+		}
 	}
 
 	config.Activities = GetActivities()

@@ -519,6 +519,15 @@ func UploadSQLiteDB(c *gin.Context) {
 	defer file.Close()
 	fieldLogger.Infof("Received SQLite file: %s (%d bytes)", header.Filename, header.Size)
 
+	if header.Size > config.MaxBackupSize {
+		fieldLogger.Errorf("SQLite file too large: %d bytes (max %d)", header.Size, config.MaxBackupSize)
+		restoreMu.Lock()
+		currentRestore = RestoreStatus{}
+		restoreMu.Unlock()
+		apiBadRequest(c, "api_backup_file_too_large")
+		return
+	}
+
 	body, err := io.ReadAll(file)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to read uploaded file")
@@ -643,6 +652,15 @@ func ImportBackup(c *gin.Context) {
 	}
 	defer file.Close()
 	fieldLogger.Infof("Received backup file: %s (%d bytes)", header.Filename, header.Size)
+
+	if header.Size > config.MaxBackupSize {
+		fieldLogger.Errorf("Backup file too large: %d bytes (max %d)", header.Size, config.MaxBackupSize)
+		restoreMu.Lock()
+		currentRestore = RestoreStatus{}
+		restoreMu.Unlock()
+		apiBadRequest(c, "api_backup_file_too_large")
+		return
+	}
 
 	body, err := io.ReadAll(file)
 	if err != nil {
@@ -1031,6 +1049,10 @@ func runRestore(payload BackupPayload, zipBody []byte) {
 				fieldLogger.WithError(err).Warn("Could not clean existing uploads dir")
 			}
 
+			var extractedBytes int64
+			extractLimit := config.MaxBackupSize
+			extractAborted := false
+
 			for _, zf := range zr2.File {
 				if !strings.HasPrefix(zf.Name, "uploads/") || strings.HasSuffix(zf.Name, "/") {
 					continue
@@ -1039,6 +1061,14 @@ func runRestore(payload BackupPayload, zipBody []byte) {
 				if !strings.HasPrefix(filepath.Clean(dest), "uploads") {
 					fieldLogger.Warnf("Skipping suspicious zip entry: %s", zf.Name)
 					continue
+				}
+
+				// Check the declared uncompressed size before extraction
+				if extractedBytes+int64(zf.UncompressedSize64) > extractLimit {
+					fieldLogger.Errorf("Extraction limit exceeded: %d + %d > %d bytes",
+						extractedBytes, zf.UncompressedSize64, extractLimit)
+					extractAborted = true
+					break
 				}
 
 				if err := os.MkdirAll(filepath.Dir(dest), os.ModePerm); err != nil {
@@ -1058,12 +1088,33 @@ func runRestore(payload BackupPayload, zipBody []byte) {
 					fieldLogger.WithError(err).Errorf("Failed to create file %s", dest)
 					continue
 				}
-				if _, err := io.Copy(out, rc); err != nil {
-					fieldLogger.WithError(err).Errorf("Failed to write file %s", dest)
-				}
+
+				// Use a limited reader to enforce the cap even if the declared
+				// size in the zip header is spoofed (decompression bomb defense).
+				remaining := extractLimit - extractedBytes
+				written, copyErr := io.Copy(out, io.LimitReader(rc, remaining+1))
 				out.Close()
 				rc.Close()
+
+				if written > remaining {
+					fieldLogger.Errorf("Extraction limit exceeded during write of %s", zf.Name)
+					os.Remove(dest)
+					extractAborted = true
+					break
+				}
+
+				extractedBytes += written
+				if copyErr != nil {
+					fieldLogger.WithError(copyErr).Errorf("Failed to write file %s", dest)
+				}
 				filesRestored++
+			}
+
+			if extractAborted {
+				restoreMu.Lock()
+				currentRestore.Error = "api_backup_extract_too_large"
+				restoreMu.Unlock()
+				fieldLogger.Error("Restore aborted: extraction size limit exceeded")
 			}
 		}
 	}

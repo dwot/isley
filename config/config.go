@@ -29,4 +29,5 @@ var (
 	APIKey             = ""
 	APIIngestEnabled   = 1      // Default API ingest enabled
 	LogLevel           = "info" // Default log level
+	MaxBackupSize      = int64(5 * 1024 * 1024 * 1024) // Default 5 GB — configurable via settings
 )

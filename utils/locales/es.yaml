@@ -423,6 +423,8 @@ api_api_key_generated: "Clave API generada correctamente. Cópiela ahora — no 
 api_breeder_deleted: "Criador eliminado"
 api_breeder_updated: "Criador actualizado"
 api_backup_in_progress: "Ya hay una copia de seguridad en progreso"
+api_backup_file_too_large: "El archivo excede el límite máximo de tamaño de copia de seguridad"
+api_backup_extract_too_large: "Extracción de copia de seguridad cancelada — los datos extraídos exceden el tamaño máximo permitido"
 api_cannot_delete_last_status: "No se puede eliminar la última entrada de estado de una planta"
 api_database_error: "Error de base de datos"
 api_database_query_error: "Error en la consulta de base de datos"

@@ -425,6 +425,8 @@ api_api_key_generated: "API-Schlüssel erfolgreich generiert. Kopieren Sie ihn j
 api_breeder_deleted: "Züchter gelöscht"
 api_breeder_updated: "Züchter aktualisiert"
 api_backup_in_progress: "Eine Sicherung wird bereits durchgeführt"
+api_backup_file_too_large: "Datei überschreitet die maximale Sicherungsgröße"
+api_backup_extract_too_large: "Sicherungsextraktion abgebrochen — extrahierte Daten überschreiten die maximal zulässige Größe"
 api_cannot_delete_last_status: "Die letzte Status-Eintragung einer Pflanze kann nicht gelöscht werden"
 api_database_error: "Datenbankfehler"
 api_database_query_error: "Datenbankabfragefehler"
