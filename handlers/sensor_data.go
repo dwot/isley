@@ -1,17 +1,18 @@
 package handlers
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
+	"database/sql"
 	"isley/config"
 	"isley/logger"
-	"isley/model"
 	"isley/model/types"
 	"isley/utils"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 // Cache structure
@@ -61,10 +62,12 @@ func ChartHandler(c *gin.Context) {
 	var sensorData []types.SensorData
 	var err error
 
+	db := DBFromContext(c)
+
 	if startDate != "" && endDate != "" {
-		sensorData, err = querySensorHistoryByDateRange(sensor, startDate, endDate)
+		sensorData, err = querySensorHistoryByDateRange(db, sensor, startDate, endDate)
 	} else if timeMinutes != "" {
-		sensorData, err = querySensorHistoryByTime(sensor, timeMinutes)
+		sensorData, err = querySensorHistoryByTime(db, sensor, timeMinutes)
 	} else {
 		sensorLogger.Error("Invalid query parameters: Either minutes or start/end dates must be provided")
 		apiBadRequest(c, "api_sensor_dates_required")
@@ -88,19 +91,13 @@ func ChartHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, sensorData)
 }
 
-func querySensorHistoryByTime(sensor string, timeMinutes string) ([]types.SensorData, error) {
+func querySensorHistoryByTime(db *sql.DB, sensor string, timeMinutes string) ([]types.SensorData, error) {
 	sensorLogger := logger.Log.WithFields(logrus.Fields{
 		"function":    "querySensorHistoryByTime",
 		"sensor":      sensor,
 		"timeMinutes": timeMinutes,
 	})
 	var sensorData []types.SensorData
-
-	db, err := model.GetDB()
-	if err != nil {
-		sensorLogger.WithError(err).Error("Failed to open database")
-		return sensorData, err
-	}
 
 	sensorInt, err := strconv.Atoi(sensor)
 	if err != nil {
@@ -167,7 +164,7 @@ func querySensorHistoryByTime(sensor string, timeMinutes string) ([]types.Sensor
 }
 
 // Query sensor data by custom date range
-func querySensorHistoryByDateRange(sensor string, startDate string, endDate string) ([]types.SensorData, error) {
+func querySensorHistoryByDateRange(db *sql.DB, sensor string, startDate string, endDate string) ([]types.SensorData, error) {
 	sensorLogger := logger.Log.WithFields(logrus.Fields{
 		"function":  "querySensorHistoryByDateRange",
 		"sensor":    sensor,
@@ -176,13 +173,6 @@ func querySensorHistoryByDateRange(sensor string, startDate string, endDate stri
 	})
 
 	var sensorData []types.SensorData
-
-	// Open the database
-	db, err := model.GetDB()
-	if err != nil {
-		sensorLogger.WithError(err).Error(err)
-		return sensorData, err
-	}
 
 	// Convert sensor ID to integer
 	sensorInt, err := strconv.Atoi(sensor)

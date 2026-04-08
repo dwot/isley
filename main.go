@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"embed"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -20,7 +19,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gin-contrib/sessions"
@@ -34,39 +32,6 @@ import (
 //go:embed model/migrations/sqlite/*.sql model/migrations/postgres/*.sql web/templates/**/*.html web/static/**/* utils/fonts/* VERSION
 var embeddedFiles embed.FS
 
-var (
-	loginAttempts   = make(map[string][]time.Time)
-	loginAttemptsMu sync.Mutex
-	secureCookies   = strings.EqualFold(os.Getenv("ISLEY_SECURE_COOKIES"), "true")
-)
-
-func isLoginRateLimited(ip string) bool {
-	loginAttemptsMu.Lock()
-	defer loginAttemptsMu.Unlock()
-	now := time.Now()
-	cutoff := now.Add(-time.Minute)
-	attempts := loginAttempts[ip]
-	var recent []time.Time
-	for _, t := range attempts {
-		if t.After(cutoff) {
-			recent = append(recent, t)
-		}
-	}
-	recent = append(recent, now)
-	loginAttempts[ip] = recent
-	return len(recent) > 5
-}
-
-// generateCSRFToken creates a cryptographically random hex token.
-func generateCSRFToken() string {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		logger.Log.WithError(err).Error("Failed to generate CSRF token")
-		return ""
-	}
-	return hex.EncodeToString(b)
-}
-
 // CSRFMiddleware generates a CSRF token per session and validates it on
 // state-changing requests. JSON API calls authenticated via X-API-KEY are
 // exempt because API keys are not automatically attached by browsers.
@@ -77,7 +42,7 @@ func CSRFMiddleware() gin.HandlerFunc {
 		// Ensure every session has a CSRF token
 		token, _ := session.Get("csrf_token").(string)
 		if token == "" {
-			token = generateCSRFToken()
+			token = handlers.GenerateCSRFToken()
 			session.Set("csrf_token", token)
 			session.Save()
 		}
@@ -134,15 +99,19 @@ func main() {
 	utils.Init("en")
 
 	// Initialize default admin credentials if not present
-	present, err := handlers.ExistsSetting("auth_username")
+	db, err := model.GetDB()
+	if err != nil {
+		logger.Log.WithError(err).Fatal("Failed to open database for credential init")
+	}
+	present, err := handlers.ExistsSetting(db, "auth_username")
 	if err != nil {
 		logger.Log.WithError(err).Error("Error checking if default admin credentials are present")
 	} else {
 		if !present {
-			handlers.UpdateSetting("auth_username", "admin")
+			handlers.UpdateSetting(db, "auth_username", "admin")
 			hashedPassword, _ := utils.HashPassword("isley")
-			handlers.UpdateSetting("auth_password", hashedPassword)
-			handlers.UpdateSetting("force_password_change", "true")
+			handlers.UpdateSetting(db, "auth_password", hashedPassword)
+			handlers.UpdateSetting(db, "force_password_change", "true")
 		}
 	}
 
@@ -379,7 +348,7 @@ func main() {
 	store.Options(sessions.Options{
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   secureCookies,
+		Secure:   handlers.SecureCookies,
 		SameSite: http.SameSiteLaxMode,
 	})
 	r.Use(sessions.Sessions("isley_session", store))
@@ -421,15 +390,15 @@ func main() {
 	})
 
 	r.POST("/login", func(c *gin.Context) {
-		if isLoginRateLimited(c.ClientIP()) {
+		if handlers.IsLoginRateLimited(c.ClientIP()) {
 			c.AbortWithStatus(http.StatusTooManyRequests)
 			return
 		}
-		handleLogin(c)
+		handlers.HandleLogin(c)
 	})
 
 	r.GET("/logout", func(c *gin.Context) {
-		handleLogout(c)
+		handlers.HandleLogout(c)
 	})
 	r.GET("/favicon.ico", func(c *gin.Context) {
 		// Open the favicon from the embedded filesystem
@@ -456,9 +425,9 @@ func main() {
 	}
 
 	protected := r.Group("/")
-	protected.Use(AuthMiddleware())
+	protected.Use(handlers.AuthMiddleware())
 	{
-		protected.Use(ForcePasswordChangeMiddleware())
+		protected.Use(handlers.ForcePasswordChangeMiddleware())
 
 		protected.GET("/change-password", func(c *gin.Context) {
 			lang := utils.GetLanguage(c)
@@ -473,7 +442,7 @@ func main() {
 		})
 
 		protected.POST("/change-password", func(c *gin.Context) {
-			handleChangePassword(c)
+			handlers.HandleChangePassword(c)
 		})
 
 		routes.AddProtectedRoutes(protected, version)
@@ -484,7 +453,7 @@ func main() {
 	}
 
 	apiProtected := r.Group("/")
-	apiProtected.Use(AuthMiddlewareApi())
+	apiProtected.Use(handlers.AuthMiddlewareApi())
 	{
 		routes.AddProtectedApiRoutes(apiProtected)
 		routes.AddExternalApiRoutes(apiProtected)
@@ -499,230 +468,6 @@ func handleHealth(c *gin.Context) {
 		"status": "ok",
 	})
 	logger.Log.Info("Health check passed")
-}
-
-func handleLogin(c *gin.Context) {
-	username := c.PostForm("username")
-	password := c.PostForm("password")
-	remember := c.PostForm("remember")
-
-	storedUsername, _ := handlers.GetSetting("auth_username")
-	storedPasswordHash, _ := handlers.GetSetting("auth_password")
-	forcePasswordChange, _ := handlers.GetSetting("force_password_change")
-
-	if username != storedUsername || !utils.CheckPasswordHash(password, storedPasswordHash) {
-		lang := utils.GetLanguage(c)
-		translations := utils.TranslationService.GetTranslations(lang)
-		csrfToken, _ := c.Get("csrf_token")
-		c.HTML(http.StatusUnauthorized, "views/login.html", gin.H{
-			"Error":           "Invalid username or password",
-			"lcl":             translations,
-			"languages":       utils.AvailableLanguages,
-			"currentLanguage": lang,
-			"csrfToken":       csrfToken,
-		})
-		return
-	}
-
-	session := sessions.Default(c)
-
-	// SECURITY: Regenerate session to prevent session fixation attacks.
-	// Clear the old session data and generate a new CSRF token.
-	session.Clear()
-	session.Options(sessions.Options{
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   secureCookies,
-		SameSite: http.SameSiteLaxMode,
-	})
-
-	// If the user checked 'remember', extend session MaxAge to 14 days
-	if remember == "on" || remember == "true" {
-		session.Options(sessions.Options{
-			Path:     "/",
-			MaxAge:   14 * 24 * 60 * 60, // 14 days
-			HttpOnly: true,
-			Secure:   secureCookies,
-			SameSite: http.SameSiteLaxMode,
-		})
-	}
-
-	// Generate a fresh CSRF token for the new session
-	session.Set("csrf_token", generateCSRFToken())
-	session.Set("logged_in", true)
-	session.Set("force_password_change", forcePasswordChange == "true")
-
-	// Store current session version so it can be validated later
-	sessionVersion, _ := handlers.GetSetting("session_version")
-	session.Set("session_version", sessionVersion)
-	session.Save()
-
-	if forcePasswordChange == "true" {
-		c.Redirect(http.StatusFound, "/change-password")
-		return
-	}
-
-	c.Redirect(http.StatusFound, "/")
-}
-
-func handleLogout(c *gin.Context) {
-	session := sessions.Default(c)
-	session.Clear()
-	session.Save()
-	c.Redirect(http.StatusFound, "/login")
-}
-
-// validatePasswordComplexity checks that a password meets minimum security requirements.
-func validatePasswordComplexity(password string) string {
-	if len(password) < 8 {
-		return "Password must be at least 8 characters long"
-	}
-	return ""
-}
-
-func handleChangePassword(c *gin.Context) {
-	newPassword := c.PostForm("new_password")
-	confirmPassword := c.PostForm("confirm_password")
-
-	if newPassword != confirmPassword {
-		lang := utils.GetLanguage(c)
-		translations := utils.TranslationService.GetTranslations(lang)
-		csrfToken, _ := c.Get("csrf_token")
-		c.HTML(http.StatusBadRequest, "views/change-password.html", gin.H{
-			"Error":           "Passwords do not match",
-			"lcl":             translations,
-			"languages":       utils.AvailableLanguages,
-			"currentLanguage": lang,
-			"csrfToken":       csrfToken,
-		})
-		return
-	}
-
-	// SECURITY: Enforce password complexity requirements
-	if errMsg := validatePasswordComplexity(newPassword); errMsg != "" {
-		lang := utils.GetLanguage(c)
-		translations := utils.TranslationService.GetTranslations(lang)
-		csrfToken, _ := c.Get("csrf_token")
-		c.HTML(http.StatusBadRequest, "views/change-password.html", gin.H{
-			"Error":           errMsg,
-			"lcl":             translations,
-			"languages":       utils.AvailableLanguages,
-			"currentLanguage": lang,
-			"csrfToken":       csrfToken,
-		})
-		return
-	}
-
-	hashedPassword, _ := utils.HashPassword(newPassword)
-
-	handlers.UpdateSetting("auth_password", hashedPassword)
-	handlers.UpdateSetting("force_password_change", "false")
-
-	// SECURITY: Bump session version to invalidate all other sessions.
-	// Only the current session gets the new version, so all others become stale.
-	newVersion := fmt.Sprintf("%d", time.Now().UnixNano())
-	handlers.UpdateSetting("session_version", newVersion)
-
-	session := sessions.Default(c)
-	session.Set("force_password_change", false)
-	session.Set("session_version", newVersion)
-	session.Save()
-
-	c.Redirect(http.StatusFound, "/")
-}
-
-func AuthMiddlewareApi() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		apiKey := c.GetHeader("X-API-KEY")
-		session := sessions.Default(c)
-		loggedIn := session.Get("logged_in")
-
-		if apiKey != "" {
-			// Get stored (hashed) API key from settings
-			db, err := model.GetDB()
-			if err != nil {
-				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-					"error": "Database error",
-				})
-				return
-			}
-
-			var storedAPIKey string
-			err = db.QueryRow("SELECT value FROM settings WHERE name = 'api_key'").Scan(&storedAPIKey)
-			if err != nil {
-				logger.Log.WithError(err).Error("Error retrieving API key from database")
-				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-					"error": "Could not validate API key",
-				})
-				return
-			}
-
-			// Validate the incoming key against the stored hash.
-			// CheckAPIKey handles bcrypt (preferred), legacy SHA-256, and
-			// plaintext matches for backward compatibility.
-			if !handlers.CheckAPIKey(apiKey, storedAPIKey) {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-					"error": "Invalid API key",
-				})
-				return
-			}
-
-		} else if loggedIn == nil || !loggedIn.(bool) {
-			// If no API key is provided, check session for logged_in status
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "API key or session required",
-			})
-			return
-		}
-
-		c.Next()
-	}
-}
-
-// Middleware to enforce authentication
-func AuthMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		session := sessions.Default(c)
-		loggedIn := session.Get("logged_in")
-
-		if loggedIn == nil || !loggedIn.(bool) {
-			c.Redirect(http.StatusFound, "/login")
-			c.Abort()
-			return
-		}
-
-		// SECURITY: Validate session version to enforce invalidation on password change
-		dbVersion, _ := handlers.GetSetting("session_version")
-		sessVersion, _ := session.Get("session_version").(string)
-		if dbVersion != "" && sessVersion != dbVersion {
-			session.Clear()
-			session.Save()
-			c.Redirect(http.StatusFound, "/login")
-			c.Abort()
-			return
-		}
-
-		c.Next()
-	}
-}
-
-// Middleware to enforce password change
-func ForcePasswordChangeMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		session := sessions.Default(c)
-		forcePasswordChange := session.Get("force_password_change")
-
-		// Allow access to /change-password (both GET and POST) if force password change is required
-		if forcePasswordChange != nil && forcePasswordChange.(bool) {
-			if c.FullPath() != "/change-password" {
-				c.Redirect(http.StatusFound, "/change-password")
-				c.Abort()
-				return
-			}
-		}
-
-		c.Next()
-	}
 }
 
 func getVersion() string {

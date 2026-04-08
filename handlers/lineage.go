@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"isley/logger"
 	"isley/model"
 	"isley/model/types"
@@ -12,13 +13,8 @@ import (
 )
 
 // GetLineage returns direct parents for a strain
-func GetLineage(strainID int) []types.StrainLineage {
+func GetLineage(db *sql.DB, strainID int) []types.StrainLineage {
 	fieldLogger := logger.Log.WithField("func", "GetLineage")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return nil
-	}
 
 	rows, err := db.Query(`
 		SELECT sl.id, sl.strain_id, sl.parent_name, sl.parent_strain_id
@@ -45,19 +41,19 @@ func GetLineage(strainID int) []types.StrainLineage {
 }
 
 // GetAncestryTree recursively builds the full ancestry tree for a strain
-func GetAncestryTree(strainID int, depth int) []types.StrainLineage {
+func GetAncestryTree(db *sql.DB, strainID int, depth int) []types.StrainLineage {
 	if depth > 10 {
 		return nil // safety limit to prevent infinite recursion
 	}
 
-	parents := GetLineage(strainID)
+	parents := GetLineage(db, strainID)
 	if parents == nil {
 		return nil
 	}
 
 	for i := range parents {
 		if parents[i].ParentStrainID != nil {
-			parents[i].Children = GetAncestryTree(*parents[i].ParentStrainID, depth+1)
+			parents[i].Children = GetAncestryTree(db, *parents[i].ParentStrainID, depth+1)
 		}
 	}
 	return parents
@@ -71,7 +67,8 @@ func GetLineageHandler(c *gin.Context) {
 		return
 	}
 
-	tree := GetAncestryTree(strainID, 0)
+	db := DBFromContext(c)
+	tree := GetAncestryTree(db, strainID, 0)
 	if tree == nil {
 		tree = []types.StrainLineage{} // return empty array, not null
 	}
@@ -256,13 +253,8 @@ func SetLineageHandler(c *gin.Context) {
 
 // GetDescendants returns strains that have the given strain as a parent,
 // including the other parent names and breeder for each descendant.
-func GetDescendants(strainID int) []gin.H {
+func GetDescendants(db *sql.DB, strainID int) []gin.H {
 	fieldLogger := logger.Log.WithField("func", "GetDescendants")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return nil
-	}
 
 	// string_agg is PostgreSQL-only; SQLite uses GROUP_CONCAT.
 	aggExpr := "GROUP_CONCAT(sl2.parent_name, ', ')"
@@ -315,7 +307,8 @@ func GetDescendantsHandler(c *gin.Context) {
 		return
 	}
 
-	descendants := GetDescendants(strainID)
+	db := DBFromContext(c)
+	descendants := GetDescendants(db, strainID)
 	if descendants == nil {
 		descendants = []gin.H{}
 	}

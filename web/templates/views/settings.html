@@ -66,8 +66,8 @@ color: #0d6efd; /* Primary color */
             <form id="settingsForm" class="mt-4">
                 <!-- AC Infinity Section -->
                 <div class="card mb-4 shadow-sm border-start border-4 border-primary">
-                    <div class="card-header bg-light text-dark">
-                        <h5 class="card-title mb-0"><i class="fa fa-microchip me-2"></i>{{ .lcl.settings_ac_infinity }}</h5>
+                    <div class="card-header bg-themed">
+                        <h2 class="h5 card-title mb-0"><i class="fa fa-microchip me-2"></i>{{ .lcl.settings_ac_infinity }}</h2>
                     </div>
                     <div class="card-body">
                         <div class="form-check form-switch">
@@ -90,8 +90,8 @@ color: #0d6efd; /* Primary color */
 
                 <!-- EcoWitt Section -->
                 <div class="card mb-4 shadow-sm border-start border-4 border-success">
-                    <div class="card-header bg-light text-dark">
-                        <h5 class="card-title mb-0"><i class="fa fa-leaf me-2"></i>{{ .lcl.settings_ecowitt }}</h5>
+                    <div class="card-header bg-themed">
+                        <h2 class="h5 card-title mb-0"><i class="fa fa-leaf me-2"></i>{{ .lcl.settings_ecowitt }}</h2>
                     </div>
                     <div class="card-body">
                         <div class="form-check form-switch">
@@ -106,8 +106,8 @@ color: #0d6efd; /* Primary color */
 
                 <!-- General Settings -->
                 <div class="card mb-4 shadow-sm border-start border-4 border-info">
-                    <div class="card-header bg-light text-dark">
-                        <h5 class="card-title mb-0"><i class="fa fa-sliders me-2"></i>{{ .lcl.title_settings }}</h5>
+                    <div class="card-header bg-themed">
+                        <h2 class="h5 card-title mb-0"><i class="fa fa-sliders me-2"></i>{{ .lcl.title_settings }}</h2>
                     </div>
                     <div class="card-body">
                         <div class="form-check form-switch">
@@ -145,10 +145,10 @@ color: #0d6efd; /* Primary color */
 
                 <!-- API Settings -->
                 <div class="card mb-4 shadow-sm border-start border-4 border-warning">
-                    <div class="card-header bg-light text-dark">
-                        <h5 class="card-title mb-0">
+                    <div class="card-header bg-themed">
+                        <h2 class="h5 card-title mb-0">
                             <i class="fa fa-key me-2"></i>{{ .lcl.api }} {{ .lcl.title_settings }}
-                        </h5>
+                        </h2>
                     </div>
                     <div class="card-body">
                         <label class="form-label">{{ .lcl.api_key_label }}</label>
@@ -213,8 +213,8 @@ color: #0d6efd; /* Primary color */
 
                 <!-- Data Retention -->
                 <div class="card mb-4 shadow-sm border-start border-4 border-warning">
-                    <div class="card-header bg-light text-dark">
-                        <h5 class="card-title mb-0"><i class="fa fa-database me-2"></i>{{ .lcl.settings_data_retention }}</h5>
+                    <div class="card-header bg-themed">
+                        <h2 class="h5 card-title mb-0"><i class="fa fa-database me-2"></i>{{ .lcl.settings_data_retention }}</h2>
                     </div>
                     <div class="card-body">
                         <label for="sensorRetentionDays" class="form-label">{{ .lcl.settings_sensor_retention_label }}</label>
@@ -238,9 +238,9 @@ color: #0d6efd; /* Primary color */
         <div class="tab-pane fade" id="tables-content" role="tabpanel" aria-labelledby="tables-tab">
             <!-- Zones -->
             <div class="card mb-4 shadow-sm card-table mt-4">
-                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <div class="card-header bg-themed d-flex justify-content-between align-items-center">
                     <div>
-                        <h5 class="mb-0">&#128205; {{ .lcl.title_zones }}</h5>
+                        <h2 class="h5 mb-0">&#128205; {{ .lcl.title_zones }}</h2>
                         <small class="text-muted">{{ .lcl.settings_zones_desc }}</small>
                     </div>
                     <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addZoneModal">
@@ -249,7 +249,7 @@ color: #0d6efd; /* Primary color */
                 </div>
                 <div class="card-body">
                     <table class="table table-striped table-hover mb-0">
-                        <thead class="table-dark">
+                        <thead class="bg-themed">
                         <tr>
                             <th>{{ .lcl.title_zone }}</th>
                         </tr>
@@ -267,9 +267,9 @@ color: #0d6efd; /* Primary color */
 
             <!-- Activities -->
             <div class="card mb-4 shadow-sm card-table">
-                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <div class="card-header bg-themed d-flex justify-content-between align-items-center">
                     <div>
-                        <h5 class="mb-0">&#9997; {{ .lcl.title_activities }}</h5>
+                        <h2 class="h5 mb-0">&#9997; {{ .lcl.title_activities }}</h2>
                         <small class="text-muted">{{ .lcl.settings_activities_desc }}</small>
                     </div>
                     <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addActivityModal">
@@ -278,7 +278,7 @@ color: #0d6efd; /* Primary color */
                 </div>
                 <div class="card-body">
                     <table class="table table-striped table-hover mb-0">
-                        <thead class="table-dark">
+                        <thead class="bg-themed">
                         <tr>
                             <th>{{ .lcl.title_activity }}</th>
                         </tr>
@@ -296,9 +296,9 @@ color: #0d6efd; /* Primary color */
 
             <!-- Metrics -->
             <div class="card mb-4 shadow-sm card-table">
-                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <div class="card-header bg-themed d-flex justify-content-between align-items-center">
                     <div>
-                        <h5 class="mb-0">&#128200; {{ .lcl.title_metrics }}</h5>
+                        <h2 class="h5 mb-0">&#128200; {{ .lcl.title_metrics }}</h2>
                         <small class="text-muted">{{ .lcl.settings_metrics_desc }}</small>
                     </div>
                     <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addMetricModal">
@@ -307,7 +307,7 @@ color: #0d6efd; /* Primary color */
                 </div>
                 <div class="card-body">
                     <table class="table table-striped table-hover mb-0">
-                        <thead class="table-dark">
+                        <thead class="bg-themed">
                         <tr>
                             <th>{{ .lcl.title_metric }}</th>
                             <th>{{ .lcl.title_unit }}</th>
@@ -327,9 +327,9 @@ color: #0d6efd; /* Primary color */
 
             <!-- Breeders -->
             <div class="card mb-4 shadow-sm card-table">
-                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <div class="card-header bg-themed d-flex justify-content-between align-items-center">
                     <div>
-                        <h5 class="mb-0">&#127807; {{ .lcl.breeders }}</h5>
+                        <h2 class="h5 mb-0">&#127807; {{ .lcl.breeders }}</h2>
                         <small class="text-muted">{{ .lcl.settings_breeders_desc }}</small>
                     </div>
                     <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addBreederModal">
@@ -338,7 +338,7 @@ color: #0d6efd; /* Primary color */
                 </div>
                 <div class="card-body">
                     <table class="table table-striped table-hover mb-0">
-                        <thead class="table-dark">
+                        <thead class="bg-themed">
                         <tr>
                             <th>{{ .lcl.breeder }}</th>
                         </tr>
@@ -358,8 +358,8 @@ color: #0d6efd; /* Primary color */
         <!-- Appearance Tab -->
         <div class="tab-pane fade" id="logo-content" role="tabpanel" aria-labelledby="logo-tab">
             <div class="card mb-4 shadow-sm mt-4">
-                <div class="card-header bg-light text-dark">
-                    <h5 class="card-title mb-0"><i class="fa fa-image me-2"></i>{{ .lcl.set_logo_image }}</h5>
+                <div class="card-header bg-themed">
+                    <h2 class="h5 card-title mb-0"><i class="fa fa-image me-2"></i>{{ .lcl.set_logo_image }}</h2>
                 </div>
                 <div class="card-body">
                     <small class="text-muted d-block mb-3">
@@ -377,8 +377,8 @@ color: #0d6efd; /* Primary color */
         <div class="tab-pane fade" id="streams-content" role="tabpanel" aria-labelledby="streams-tab">
             <!-- Stream Capture Settings (inputs linked to settingsForm via form attribute) -->
             <div class="card mb-4 shadow-sm border-start border-4 border-primary mt-4">
-                <div class="card-header bg-light text-dark">
-                    <h5 class="card-title mb-0"><i class="fa fa-camera me-2"></i>&#128249; Stream Capture Settings</h5>
+                <div class="card-header bg-themed">
+                    <h2 class="h5 card-title mb-0"><i class="fa fa-camera me-2"></i>&#128249; Stream Capture Settings</h2>
                 </div>
                 <div class="card-body">
                     <div class="form-check form-switch">
@@ -408,15 +408,15 @@ color: #0d6efd; /* Primary color */
 
             <!-- Streams Table -->
             <div class="card mb-4 shadow-sm card-table">
-                <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">&#128249; {{ .lcl.title_streams }}</h5>
+                <div class="card-header bg-themed d-flex justify-content-between align-items-center">
+                    <h2 class="h5 mb-0">&#128249; {{ .lcl.title_streams }}</h2>
                     <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addStreamModal">
                         <i class="fa-solid fa-plus"></i> {{ .lcl.add_stream }}
                     </button>
                 </div>
                 <div class="card-body">
                     <table class="table table-striped table-hover mb-0">
-                        <thead class="table-dark">
+                        <thead class="bg-themed">
                         <tr>
                             <th>{{ .lcl.stream_name }}</th>
                             <th>{{ .lcl.stream_zone }}</th>
@@ -442,8 +442,8 @@ color: #0d6efd; /* Primary color */
         <div class="tab-pane fade" id="backup-content" role="tabpanel" aria-labelledby="backup-tab">
             <!-- Create Backup Card -->
             <div class="card mb-4 shadow-sm mt-4 border-start border-4 border-primary">
-                <div class="card-header bg-light text-dark">
-                    <h5 class="card-title mb-0"><i class="fa fa-plus-circle me-2"></i>{{ .lcl.backup_create_title }}</h5>
+                <div class="card-header bg-themed">
+                    <h2 class="h5 card-title mb-0"><i class="fa fa-plus-circle me-2"></i>{{ .lcl.backup_create_title }}</h2>
                 </div>
                 <div class="card-body">
                     <div class="row g-3 align-items-end mb-3">
@@ -480,8 +480,8 @@ color: #0d6efd; /* Primary color */
 
             <!-- Backup Files Card -->
             <div class="card mb-4 shadow-sm border-start border-4 border-success">
-                <div class="card-header bg-light text-dark d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0"><i class="fa fa-archive me-2"></i>{{ .lcl.backup_list_title }}</h5>
+                <div class="card-header bg-themed d-flex justify-content-between align-items-center">
+                    <h2 class="h5 card-title mb-0"><i class="fa fa-archive me-2"></i>{{ .lcl.backup_list_title }}</h2>
                     <button class="btn btn-sm btn-outline-secondary" id="refreshBackupsBtn">
                         <i class="fa fa-sync"></i>
                     </button>
@@ -489,7 +489,7 @@ color: #0d6efd; /* Primary color */
                 <div class="card-body p-0">
                     <div id="backupListLoading" class="text-center p-3"><em>{{ .lcl.backup_loading }}</em></div>
                     <table class="table table-sm table-hover mb-0" id="backupListTable" style="display:none">
-                        <thead class="table-light">
+                        <thead class="bg-themed">
                             <tr>
                                 <th>{{ .lcl.backup_col_filename }}</th>
                                 <th>{{ .lcl.backup_col_size }}</th>
@@ -505,8 +505,8 @@ color: #0d6efd; /* Primary color */
 
             <!-- Import Card -->
             <div class="card mb-4 shadow-sm border-start border-4 border-warning">
-                <div class="card-header bg-light text-dark">
-                    <h5 class="card-title mb-0"><i class="fa fa-upload me-2"></i>{{ .lcl.backup_restore_title }}</h5>
+                <div class="card-header bg-themed">
+                    <h2 class="h5 card-title mb-0"><i class="fa fa-upload me-2"></i>{{ .lcl.backup_restore_title }}</h2>
                 </div>
                 <div class="card-body">
                     <div class="row g-3 align-items-end mb-3">
@@ -560,21 +560,21 @@ color: #0d6efd; /* Primary color */
             {{ if eq .dbDriver "sqlite" }}
             <!-- SQLite File Transfer Card -->
             <div class="card mb-4 shadow-sm border-start border-4 border-info">
-                <div class="card-header bg-light text-dark">
-                    <h5 class="card-title mb-0"><i class="fa fa-database me-2"></i>{{ .lcl.backup_sqlite_title }}</h5>
+                <div class="card-header bg-themed">
+                    <h2 class="h5 card-title mb-0"><i class="fa fa-database me-2"></i>{{ .lcl.backup_sqlite_title }}</h2>
                 </div>
                 <div class="card-body">
                     <p class="text-muted mb-3">{{ .lcl.backup_sqlite_desc }}</p>
                     <div class="row">
                         <div class="col-md-6 mb-3 mb-md-0">
-                            <h6>{{ .lcl.backup_sqlite_download_title }}</h6>
+                            <h3 class="h6">{{ .lcl.backup_sqlite_download_title }}</h3>
                             <p class="text-muted small">{{ .lcl.backup_sqlite_download_desc }}</p>
                             <a class="btn btn-outline-info" href="/settings/backup/sqlite/download">
                                 <i class="fa fa-download me-1"></i> {{ .lcl.backup_sqlite_download_btn }}
                             </a>
                         </div>
                         <div class="col-md-6">
-                            <h6>{{ .lcl.backup_sqlite_upload_title }}</h6>
+                            <h3 class="h6">{{ .lcl.backup_sqlite_upload_title }}</h3>
                             <p class="text-muted small">{{ .lcl.backup_sqlite_upload_desc }}</p>
                             <div id="sqliteDropArea" class="border border-info rounded p-3 text-center mb-2" style="cursor:pointer;border-style:dashed!important">
                                 <p class="mb-0 small"><i class="fa fa-database me-1 text-info"></i> {{ .lcl.backup_sqlite_drop_text }}</p>
@@ -597,8 +597,8 @@ color: #0d6efd; /* Primary color */
 
         <div class="tab-pane fade" id="logs-content" role="tabpanel" aria-labelledby="logs-tab">
             <div class="card mb-4 shadow-sm mt-4">
-                <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0"><i class="fa fa-file-alt me-2"></i>&#128220; {{ .lcl.settings_app_logs }}</h5>
+                <div class="card-header bg-themed d-flex justify-content-between align-items-center">
+                    <h2 class="h5 card-title mb-0"><i class="fa fa-file-alt me-2"></i>&#128220; {{ .lcl.settings_app_logs }}</h2>
                     <div class="d-flex gap-2 align-items-center">
                         <select id="logFileSelect" class="form-select form-select-sm" style="width:auto">
                             <option value="app" selected>{{ .lcl.settings_app_log }}</option>
@@ -1824,11 +1824,11 @@ color: #0d6efd; /* Primary color */
         let selectedFile = null;
 
         dropArea.addEventListener("click", () => fileInput.click());
-        dropArea.addEventListener("dragover", (e) => { e.preventDefault(); dropArea.classList.add("bg-light"); });
-        dropArea.addEventListener("dragleave", () => dropArea.classList.remove("bg-light"));
+        dropArea.addEventListener("dragover", (e) => { e.preventDefault(); dropArea.classList.add("drop-highlight"); });
+        dropArea.addEventListener("dragleave", () => dropArea.classList.remove("drop-highlight"));
         dropArea.addEventListener("drop", (e) => {
             e.preventDefault();
-            dropArea.classList.remove("bg-light");
+            dropArea.classList.remove("drop-highlight");
             if (e.dataTransfer.files.length) selectFile(e.dataTransfer.files[0]);
         });
         fileInput.addEventListener("change", () => { if (fileInput.files.length) selectFile(fileInput.files[0]); });
@@ -1992,11 +1992,11 @@ color: #0d6efd; /* Primary color */
 
         if (sqliteDropArea) {
             sqliteDropArea.addEventListener("click", () => sqliteFileInput.click());
-            sqliteDropArea.addEventListener("dragover", (e) => { e.preventDefault(); sqliteDropArea.classList.add("bg-light"); });
-            sqliteDropArea.addEventListener("dragleave", () => sqliteDropArea.classList.remove("bg-light"));
+            sqliteDropArea.addEventListener("dragover", (e) => { e.preventDefault(); sqliteDropArea.classList.add("drop-highlight"); });
+            sqliteDropArea.addEventListener("dragleave", () => sqliteDropArea.classList.remove("drop-highlight"));
             sqliteDropArea.addEventListener("drop", (e) => {
                 e.preventDefault();
-                sqliteDropArea.classList.remove("bg-light");
+                sqliteDropArea.classList.remove("drop-highlight");
                 if (e.dataTransfer.files.length) selectSqliteFile(e.dataTransfer.files[0]);
             });
             sqliteFileInput.addEventListener("change", () => { if (sqliteFileInput.files.length) selectSqliteFile(sqliteFileInput.files[0]); });

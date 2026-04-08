@@ -52,9 +52,11 @@ func AddPlant(c *gin.Context) {
 		return
 	}
 
+	db := DBFromContext(c)
+
 	if input.ZoneID == nil && input.NewZone != "" {
 		// Insert new zone into the database
-		zoneID, err := CreateNewZone(input.NewZone)
+		zoneID, err := CreateNewZone(db, input.NewZone)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
 			apiInternalError(c, "api_failed_to_create_new_zone")
@@ -66,7 +68,7 @@ func AddPlant(c *gin.Context) {
 	// Handle new strain creation
 	if input.StrainID == nil && input.NewStrain != nil {
 		// Insert new strain into the database
-		strainID, err := CreateNewStrain(input.NewStrain)
+		strainID, err := CreateNewStrain(db, input.NewStrain)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new strain")
 			apiInternalError(c, "api_failed_to_create_new_strain")
@@ -77,8 +79,6 @@ func AddPlant(c *gin.Context) {
 
 	// Insert plant, decrement seed count, and create initial status log
 	// inside a transaction so partial writes cannot occur.
-	db := DBFromContext(c)
-
 	tx, err := db.Begin()
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to begin transaction")
@@ -128,14 +128,8 @@ func AddPlant(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"id": plantID, "message": T(c, "api_plant_added")})
 }
 
-func GetActivities() []types.Activity {
+func GetActivities(db *sql.DB) []types.Activity {
 	fieldLogger := logger.Log.WithField("func", "GetActivities")
-	// Init the db
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return nil
-	}
 
 	rows, err := db.Query("SELECT id, name FROM activity")
 	if err != nil {
@@ -157,14 +151,8 @@ func GetActivities() []types.Activity {
 	return activities
 }
 
-func GetMetrics() []types.Metric {
+func GetMetrics(db *sql.DB) []types.Metric {
 	fieldLogger := logger.Log.WithField("func", "GetMetrics")
-	// Init the db
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return nil
-	}
 
 	rows, err := db.Query("SELECT id, name, unit FROM metric")
 	if err != nil {
@@ -186,14 +174,8 @@ func GetMetrics() []types.Metric {
 	return measurements
 }
 
-func GetStatuses() []types.Status {
+func GetStatuses(db *sql.DB) []types.Status {
 	fieldLogger := logger.Log.WithField("func", "GetStatuses")
-	// Init the db
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return nil
-	}
 
 	rows, err := db.Query("SELECT id, status FROM plant_status ORDER BY status_order")
 	if err != nil {
@@ -216,18 +198,12 @@ func GetStatuses() []types.Status {
 
 }
 
-func CreateNewStrain(newStrain *struct {
+func CreateNewStrain(db *sql.DB, newStrain *struct {
 	Name       string `json:"name"`
 	BreederId  int    `json:"breeder_id"`
 	NewBreeder string `json:"new_breeder"`
 }) (int, error) {
 	fieldLogger := logger.Log.WithField("func", "CreateNewStrain")
-	// Init the db
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return 0, err
-	}
 	var breederId int
 
 	// Check if a new breeder needs to be added
@@ -239,7 +215,7 @@ func CreateNewStrain(newStrain *struct {
 			return 0, fmt.Errorf("failed to insert new breeder: %w", err)
 		}
 
-		config.Breeders = GetBreeders()
+		config.Breeders = GetBreeders(db)
 	} else {
 		// Use the existing breeder ID
 		breederId = newStrain.BreederId
@@ -249,7 +225,7 @@ func CreateNewStrain(newStrain *struct {
 	var id int
 	// Use numeric autoflower flag to be consistent with other handlers
 	autoflowerInt := 1 // default true
-	err = db.QueryRow(
+	err := db.QueryRow(
 		`INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
 		newStrain.Name, breederId, 50, 50, autoflowerInt, "", 0).Scan(&id)
@@ -258,7 +234,7 @@ func CreateNewStrain(newStrain *struct {
 		return 0, fmt.Errorf("failed to insert new strain: %w", err)
 	}
 
-	config.Strains = GetStrains()
+	config.Strains = GetStrains(db)
 
 	return id, nil
 }
@@ -267,7 +243,8 @@ func DeletePlant(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "DeletePlant")
 	id := c.Param("id")
 
-	err := DeletePlantById(id)
+	db := DBFromContext(c)
+	err := DeletePlantById(db, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete plant")
 		apiInternalError(c, "api_failed_to_delete_plant")
@@ -277,13 +254,8 @@ func DeletePlant(c *gin.Context) {
 	apiOK(c, "api_plant_deleted")
 }
 
-func DeletePlantById(id string) error {
+func DeletePlantById(db *sql.DB, id string) error {
 	fieldLogger := logger.Log.WithField("func", "DeletePlantById")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return err
-	}
 
 	tx, err := db.Begin()
 	if err != nil {
@@ -317,15 +289,9 @@ func DeletePlantById(id string) error {
 	return nil
 }
 
-func GetPlant(id string) types.Plant {
+func GetPlant(db *sql.DB, id string) types.Plant {
 	fieldLogger := logger.Log.WithField("func", "GetPlant")
 	var plant types.Plant
-
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return plant
-	}
 
 	// --- Load base plant data via single JOIN query ---
 	var orderByExpr string
@@ -371,7 +337,7 @@ func GetPlant(id string) types.Plant {
 	var harvestWeight float64
 	var parentID uint
 
-	err = db.QueryRow(query, id).Scan(&plantID, &name, &description, &isClone, &startDT,
+	err := db.QueryRow(query, id).Scan(&plantID, &name, &description, &isClone, &startDT,
 		&strainName, &breederName, &zoneName, &zoneID, &status, &statusID,
 		&sensors, &strainID, &harvestWeight, &cycleTime, &strainURL,
 		&autoflower, &parentID, &parentName)
@@ -826,7 +792,7 @@ func UpdatePlant(c *gin.Context) {
 
 	if input.ZoneID == nil && input.NewZone != "" {
 		// Insert new zone into the database
-		zoneID, err := CreateNewZone(input.NewZone)
+		zoneID, err := CreateNewZone(db, input.NewZone)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
 			apiInternalError(c, "api_failed_to_create_new_zone")
@@ -838,7 +804,7 @@ func UpdatePlant(c *gin.Context) {
 	// Handle new strain creation
 	if input.StrainID == nil && input.NewStrain != nil {
 		// Insert new strain into the database
-		strainID, err := CreateNewStrain(input.NewStrain)
+		strainID, err := CreateNewStrain(db, input.NewStrain)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new strain")
 			apiInternalError(c, "api_failed_to_create_new_strain")
@@ -873,7 +839,7 @@ func UpdatePlant(c *gin.Context) {
 	c.JSON(http.StatusCreated, input)
 }
 
-func getPlantsByStatus(statuses []int) ([]types.PlantListResponse, error) {
+func getPlantsByStatus(db *sql.DB, statuses []int) ([]types.PlantListResponse, error) {
 	fieldLogger := logger.Log.WithField("func", "getPlantsByStatus")
 	// Generate placeholders for the number of statuses
 	placeholders := make([]string, len(statuses))
@@ -1015,13 +981,6 @@ ORDER BY p.start_dt, p.name;
 `
 	}
 
-	// Open the database connection
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return nil, err
-	}
-
 	// Execute the query
 	rows, err := db.Query(query, args...)
 	if err != nil {
@@ -1073,13 +1032,8 @@ ORDER BY p.start_dt, p.name;
 	return plants, nil
 }
 
-func GetLivingPlants() []types.PlantListResponse {
+func GetLivingPlants(db *sql.DB) []types.PlantListResponse {
 	//Load status ids from database where active = 1
-	db, err := model.GetDB()
-	if err != nil {
-		logger.Log.WithError(err).Error("Failed to open database")
-		return nil
-	}
 	rows, err := db.Query("SELECT id FROM plant_status WHERE active = 1")
 	if err != nil {
 		logger.Log.WithError(err).Error("Failed to query plant statuses")
@@ -1097,13 +1051,14 @@ func GetLivingPlants() []types.PlantListResponse {
 		statuses = append(statuses, status)
 	}
 
-	result, _ := getPlantsByStatus(statuses)
+	result, _ := getPlantsByStatus(db, statuses)
 	return result
 }
 
 // LivingPlantsHandler handles the /plants/living endpoint.
 func LivingPlantsHandler(c *gin.Context) {
-	plants := GetLivingPlants()
+	db := DBFromContext(c)
+	plants := GetLivingPlants(db)
 	c.JSON(http.StatusOK, plants)
 }
 
@@ -1127,7 +1082,7 @@ func HarvestedPlantsHandler(c *gin.Context) {
 		statuses = append(statuses, status)
 	}
 
-	plants, err := getPlantsByStatus(statuses)
+	plants, err := getPlantsByStatus(db, statuses)
 	if err != nil {
 		apiInternalError(c, "api_failed_to_retrieve_plants")
 		return
@@ -1156,7 +1111,7 @@ func DeadPlantsHandler(c *gin.Context) {
 		}
 		statuses = append(statuses, status)
 	}
-	plants, err := getPlantsByStatus(statuses)
+	plants, err := getPlantsByStatus(db, statuses)
 	if err != nil {
 		apiInternalError(c, "api_failed_to_retrieve_plants")
 		return

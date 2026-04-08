@@ -444,7 +444,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const visLabel = visLabels[s.visibility] || s.visibility;
             const visBadgeClass = s.visibility === "hide" ? "bg-secondary" :
                                   s.visibility === "zone_plant" ? "bg-success" :
-                                  s.visibility === "zone" ? "bg-info" : "bg-warning text-dark";
+                                  s.visibility === "zone" ? "bg-info" : "bg-warning";
 
             return `<tr class="sn-row" data-sensor='${esc(JSON.stringify(s))}' style="cursor:pointer">
                 <td>

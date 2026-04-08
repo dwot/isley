@@ -1,10 +1,10 @@
 package handlers
 
 import (
+	"database/sql"
 	"fmt"
 	"isley/config"
 	"isley/logger"
-	model "isley/model"
 	"isley/model/types"
 	"isley/utils"
 	"net/http"
@@ -13,14 +13,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func GetStreams() []types.Stream {
+func GetStreams(db *sql.DB) []types.Stream {
 	streams := []types.Stream{}
 	fieldLogger := logger.Log.WithField("func", "GetStreams")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return streams
-	}
 	rows, err := db.Query("SELECT s.id, s.name, url, zone_id, visible, z.name as zone_name FROM streams s left outer join zones z on s.zone_id = z.id")
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to read stream")
@@ -79,7 +74,7 @@ func AddStreamHandler(c *gin.Context) {
 		return
 	}
 
-	streams := GetStreams()
+	streams := GetStreams(db)
 	config.Streams = streams
 
 	latestFileName := fmt.Sprintf("stream_%d_latest%s", id, filepath.Ext(".jpg"))
@@ -131,7 +126,7 @@ func UpdateStreamHandler(c *gin.Context) {
 		return
 	}
 
-	streams := GetStreams()
+	streams := GetStreams(db)
 	config.Streams = streams
 
 	c.JSON(http.StatusOK, gin.H{"message": T(c, "api_stream_updated"), "streams": streams})
@@ -152,7 +147,7 @@ func DeleteStreamHandler(c *gin.Context) {
 		return
 	}
 
-	streams := GetStreams()
+	streams := GetStreams(db)
 	config.Streams = streams
 
 	c.JSON(http.StatusOK, gin.H{"message": T(c, "api_stream_deleted"), "streams": streams})
@@ -187,15 +182,10 @@ func GetStreamsByZoneHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, streamsByZone)
 }
 
-func DeleteStreamByID(id string) error {
+func DeleteStreamByID(db *sql.DB, id string) error {
 	fieldLogger := logger.Log.WithField("func", "DeleteStreamByID")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error opening database")
-		return err
-	}
 
-	_, err = db.Exec("DELETE FROM streams WHERE id = $1", id)
+	_, err := db.Exec("DELETE FROM streams WHERE id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error deleting sensor")
 		return err

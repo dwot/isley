@@ -18,14 +18,8 @@ import (
 // Breeder helpers & handlers
 // ---------------------------------------------------------------------------
 
-func GetBreeders() []types.Breeder {
+func GetBreeders(db *sql.DB) []types.Breeder {
 	fieldLogger := logger.Log.WithField("func", "GetBreeders")
-	// Init the db
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return nil
-	}
 
 	rows, err := db.Query("SELECT id, name FROM breeder")
 	if err != nil {
@@ -105,7 +99,7 @@ func UpdateBreederHandler(c *gin.Context) {
 	}
 
 	//Reload Config
-	config.Breeders = GetBreeders()
+	config.Breeders = GetBreeders(db)
 
 	apiOK(c, "api_breeder_updated")
 }
@@ -141,7 +135,7 @@ func DeleteBreederHandler(c *gin.Context) {
 	}
 
 	for _, plantId := range plantList {
-		DeletePlantById(strconv.Itoa(plantId))
+		DeletePlantById(db, strconv.Itoa(plantId))
 	}
 
 	// Delete any strains associated with this breeder
@@ -160,7 +154,7 @@ func DeleteBreederHandler(c *gin.Context) {
 	}
 
 	//Reload Config
-	config.Breeders = GetBreeders()
+	config.Breeders = GetBreeders(db)
 
 	apiOK(c, "api_breeder_deleted")
 }
@@ -169,14 +163,8 @@ func DeleteBreederHandler(c *gin.Context) {
 // Strain helpers & handlers
 // ---------------------------------------------------------------------------
 
-func GetStrains() []types.Strain {
+func GetStrains(db *sql.DB) []types.Strain {
 	fieldLogger := logger.Log.WithField("func", "GetStrains")
-	// Init the db
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return nil
-	}
 
 	rows, err := db.Query("SELECT s.id, s.name, b.id as breeder_id, b.name as breeder, s.indica, s.sativa, s.autoflower, s.description, coalesce(s.short_desc, ''), s.seed_count FROM strain s left outer join breeder b on s.breeder_id = b.id ORDER BY s.name ASC")
 	if err != nil {
@@ -198,17 +186,12 @@ func GetStrains() []types.Strain {
 	return strains
 }
 
-func GetStrain(id string) types.Strain {
+func GetStrain(db *sql.DB, id string) types.Strain {
 	fieldLogger := logger.Log.WithField("func", "GetStrain")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return types.Strain{}
-	}
 
 	var strain types.Strain
 	//join in breeder name
-	err = db.QueryRow(`
+	err := db.QueryRow(`
 		SELECT s.id, s.name, coalesce(s.short_desc, ''), b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count, s.description, coalesce(s.cycle_time, 0), coalesce(s.url, '')
 		FROM strain s
 		JOIN breeder b ON s.breeder_id = b.id
@@ -281,7 +264,7 @@ func AddStrainHandler(c *gin.Context) {
 			return
 		}
 
-		config.Breeders = GetBreeders()
+		config.Breeders = GetBreeders(db)
 	} else {
 		// Use existing breeder ID
 		breederID = *req.BreederID
@@ -307,7 +290,7 @@ func AddStrainHandler(c *gin.Context) {
 		return
 	}
 
-	config.Strains = GetStrains()
+	config.Strains = GetStrains(db)
 
 	// Respond with success
 	c.JSON(http.StatusCreated, gin.H{"id": id, "message": T(c, "api_strain_added")})
@@ -407,7 +390,7 @@ func UpdateStrainHandler(c *gin.Context) {
 			return
 		}
 
-		config.Breeders = GetBreeders()
+		config.Breeders = GetBreeders(db)
 	} else {
 		breederID = *req.BreederID
 	}
@@ -466,7 +449,8 @@ func DeleteStrainHandler(c *gin.Context) {
 }
 
 func InStockStrainsHandler(c *gin.Context) {
-	strains, err := getStrainsBySeedCount(true)
+	db := DBFromContext(c)
+	strains, err := getStrainsBySeedCount(db, true)
 	if err != nil {
 		apiInternalError(c, "api_failed_to_fetch_strains")
 		return
@@ -474,14 +458,15 @@ func InStockStrainsHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, strains)
 }
 func OutOfStockStrainsHandler(c *gin.Context) {
-	strains, err := getStrainsBySeedCount(false)
+	db := DBFromContext(c)
+	strains, err := getStrainsBySeedCount(db, false)
 	if err != nil {
 		apiInternalError(c, "api_failed_to_fetch_strains")
 		return
 	}
 	c.JSON(http.StatusOK, strains)
 }
-func getStrainsBySeedCount(inStock bool) ([]types.Strain, error) {
+func getStrainsBySeedCount(db *sql.DB, inStock bool) ([]types.Strain, error) {
 	fieldLogger := logger.Log.WithField("func", "getStrainsBySeedCount")
 	op := ">"
 	if !inStock {
@@ -506,12 +491,6 @@ func getStrainsBySeedCount(inStock bool) ([]types.Strain, error) {
 		         s.seed_count, s.description, s.short_desc, s.cycle_time, s.url
 		ORDER BY s.name ASC
 	`
-
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return nil, err
-	}
 
 	rows, err := db.Query(query)
 	if err != nil {

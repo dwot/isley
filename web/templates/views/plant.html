@@ -99,9 +99,9 @@
                  data-days-label="{{ .lcl.title_days }}">
                 <div class="card-body px-3 py-3">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="card-title mb-0 text-primary">
+                        <h2 class="h5 card-title mb-0 text-primary">
                             <i class="fa-solid fa-timeline me-1"></i> Timeline
-                        </h5>
+                        </h2>
                         <span class="growth-total-pill" id="growthTotalPill">
                             <span>{{ .lcl.total_days }}</span>
                             <strong id="growthTotalDays">0</strong>
@@ -166,9 +166,9 @@
             <!-- Plant Info Card -->
             <div class="card plant-infobox mb-3">
                 <div class="card-body">
-                    <h5 class="card-title text-primary text-center mb-3">
+                    <h2 class="h5 card-title text-primary text-center mb-3">
                         <i class="fa-solid fa-leaf me-1"></i> {{ .lcl.plant_details }}
-                    </h5>
+                    </h2>
 
                     <hr>
 
@@ -259,9 +259,9 @@
                     {{ if .plant.Measurements }}
                     <hr>
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="mb-0 text-primary" style="font-size:0.85rem">
+                        <h3 class="h6 mb-0 text-primary" style="font-size:0.85rem">
                             <i class="fa-solid fa-ruler-combined me-1"></i>{{ .lcl.title_measurements }}
-                        </h6>
+                        </h3>
                         {{ if .loggedIn }}
                         <button class="btn btn-sm btn-outline-primary py-0 px-2" data-bs-toggle="modal" data-bs-target="#addMeasurementModal" style="font-size:0.7rem">
                             <i class="fa-solid fa-plus me-1"></i>{{ .lcl.title_add }}
@@ -280,10 +280,10 @@
             <div class="card plant-infobox mb-3 plant-section-card">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="card-title mb-0 text-primary">
+                        <h3 class="h6 card-title mb-0 text-primary">
                             <i class="fa-solid fa-clipboard-list me-1"></i> {{ .lcl.title_activities }}
                             <span class="badge bg-secondary ms-1" style="font-size:0.7rem">{{ len .plant.Activities }}</span>
-                        </h6>
+                        </h3>
                         {{ if .loggedIn }}
                         <button class="btn btn-sm btn-outline-success py-0 px-2" data-bs-toggle="modal" data-bs-target="#addActivityModal" style="font-size:0.75rem">
                             <i class="fa-solid fa-plus me-1"></i>{{ .lcl.title_add }}

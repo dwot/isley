@@ -38,7 +38,7 @@
     --color-success-bg: #d4edda;
 }
 
-body.dark-mode {
+[data-bs-theme="dark"] {
     --color-bg: #121212;
     --color-fg: #ffffff;
     --color-accent: #4d9aff;
@@ -80,6 +80,25 @@ body.dark-mode {
 body {
     background-color: var(--color-bg);
     color: var(--color-fg);
+}
+
+/* Theme-aware utility classes that replace hardcoded Bootstrap bg-light/text-dark etc. */
+.bg-themed {
+    background-color: var(--color-table-header);
+    color: var(--color-fg);
+}
+
+.table-themed thead {
+    background-color: var(--color-table-th);
+    color: var(--color-fg);
+}
+
+.text-themed {
+    color: var(--color-fg) !important;
+}
+
+.drop-highlight {
+    background-color: var(--color-row-hover);
 }
 
 header .nav-item {
@@ -487,20 +506,20 @@ th, td {
     }
 }
 
-body.dark-mode .growth-history-card {
+[data-bs-theme="dark"] .growth-history-card {
     --growth-accent-soft: rgba(79, 125, 255, 0.25);
     --growth-row-bg: rgba(255, 255, 255, 0.04);
     --growth-row-bg-hover: rgba(255, 255, 255, 0.08);
 }
-body.dark-mode .growth-total-pill {
+[data-bs-theme="dark"] .growth-total-pill {
     background: rgba(18, 18, 18, 0.8);
 }
-body.dark-mode .growth-stage-pill {
+[data-bs-theme="dark"] .growth-stage-pill {
     border-color: rgba(122, 168, 255, 0.5);
     background: rgba(122, 168, 255, 0.2);
     color: #cfe0ff;
 }
-body.dark-mode .growth-timeline-duration {
+[data-bs-theme="dark"] .growth-timeline-duration {
     border-color: rgba(122, 168, 255, 0.5);
     background: rgba(122, 168, 255, 0.2);
     color: #cfe0ff;
@@ -843,10 +862,10 @@ header .nav-link.active::after {
 .strain-sativa-text {
     color: #22c55e;
 }
-body.dark-mode .strain-indica-text {
+[data-bs-theme="dark"] .strain-indica-text {
     color: #c4b5fd;
 }
-body.dark-mode .strain-sativa-text {
+[data-bs-theme="dark"] .strain-sativa-text {
     color: #6ee7b7;
 }
 
@@ -1008,7 +1027,7 @@ body.dark-mode .strain-sativa-text {
     width: 100%;
     min-height: 165px;
 }
-body.dark-mode .sc-card-link:hover .sc-card {
+[data-bs-theme="dark"] .sc-card-link:hover .sc-card {
     box-shadow: 0 2px 12px rgba(77, 154, 255, 0.15);
 }
 
@@ -1463,7 +1482,7 @@ body.dark-mode .sc-card-link:hover .sc-card {
     color: #c0392b;
     text-decoration: none;
 }
-body.dark-mode .lineage-link-missing {
+[data-bs-theme="dark"] .lineage-link-missing {
     color: #e74c3c;
 }
 .lineage-link-missing:hover {
@@ -1530,7 +1549,7 @@ body.dark-mode .lineage-link-missing {
     color: #c0392b;
     background: rgba(192, 57, 43, 0.15);
 }
-body.dark-mode .lineage-unmatched {
+[data-bs-theme="dark"] .lineage-unmatched {
     color: #e74c3c;
     background: rgba(231, 76, 60, 0.15);
 }
@@ -1754,7 +1773,7 @@ body.dark-mode .lineage-unmatched {
     width: 100%;
     min-height: 155px;
 }
-body.dark-mode .pc-card-link:hover .pc-card {
+[data-bs-theme="dark"] .pc-card-link:hover .pc-card {
     box-shadow: 0 2px 12px rgba(77, 154, 255, 0.15);
 }
 

@@ -49,6 +49,7 @@ Isley doesn't try to revolutionize your grow — it centralizes your tools so yo
 | ⚙️ | **Customizable Settings** | Define custom zones, activities, metrics, and camera streams |
 | 🌍 | **Internationalization** | Available in English, German, Spanish, and French |
 | 🔓 | **Guest Mode** | Optional read-only access for unauthenticated visitors |
+| 💾 | **Backup & Restore** | Cross-database portable backups with optional image bundling and sensor data filtering |
 | 📱 | **Mobile-Friendly** | Responsive layout for desktop and mobile |
 
 ---
@@ -56,7 +57,6 @@ Isley doesn't try to revolutionize your grow — it centralizes your tools so yo
 ## 🛠️ Coming Soon
 
 - **🔔 Alerts and Notifications** — Set custom thresholds and get notified when conditions go out of range.
-- **📦 Export and Backup** — Download your full grow history for offline archiving.
 
 ---
 
@@ -406,6 +406,52 @@ docker compose -f docker-compose.sqlite.yml start
 ```
 
 > **Tip:** Automate backups with a cron job. For PostgreSQL, `pg_dump` can run while the database is online with no downtime.
+
+### Built-in Backup & Restore
+
+Isley includes a built-in backup system accessible from the **Settings > Backup** tab. It produces portable `.zip` archives that work across database backends — you can back up a SQLite instance and restore it onto PostgreSQL, or vice versa.
+
+#### Creating a backup
+
+Navigate to **Settings > Backup** and choose your options before clicking **Create Backup**:
+
+| Option | Values | Effect |
+|---|---|---|
+| **Sensor History** | All, Last 7/30/90 days, None | Controls how much sensor data is included. Excluding sensor data keeps backups small and fast. |
+| **Include Images** | On / Off | Bundles uploaded plant photos and stream snapshots into the archive. Can significantly increase backup size. |
+
+Backups run asynchronously — you can navigate away and return later. Completed archives appear in the **Available Backups** table for download or deletion.
+
+#### What's included
+
+A backup archive contains a `backup.json` file with a full export of all application data (plants, strains, breeders, zones, activities, metrics, sensors, sensor readings, status history, measurements, images metadata, and streams), plus an optional `uploads/` directory with image files. The manifest records the Isley version, source database driver, creation timestamp, and the options used.
+
+#### Restoring a backup
+
+Upload a `.zip` archive in the **Restore Backup** section. The restore process replaces all existing data and runs through several phases: clearing existing tables, inserting data, resetting sequences (PostgreSQL), and extracting image files. A progress indicator shows the current phase and table-level progress throughout.
+
+For SQLite users, a **Skip sensor data** option is available to dramatically speed up imports when sensor history isn't needed.
+
+> **Warning:** Restoring a backup is destructive — it replaces all data in the current instance. Sensor polling is paused automatically during the restore.
+
+#### Cross-database portability
+
+Backups are stored as JSON, not SQL, so they are database-agnostic. A backup created on SQLite can be restored onto PostgreSQL and vice versa. Foreign keys, auto-increment sequences, and driver-specific optimizations are handled automatically during restore.
+
+#### SQLite file transfer
+
+SQLite users have an additional option under **SQLite File Transfer**: download or upload the raw `.db` database file directly. This is the fastest way to clone or migrate a SQLite instance since it bypasses row-by-row import entirely. The uploaded file is validated by checking the SQLite magic header before replacing the active database.
+
+#### Upload size limits
+
+The maximum upload size defaults to **5 GB** and applies to both backup archive uploads and SQLite file uploads. It also caps the total bytes extracted from a backup archive to defend against decompression bombs. You can adjust this limit in the **Restore Backup** section of Settings — the minimum is 100 MB.
+
+#### Limitations
+
+- **Full backups only** — every backup is a complete export; incremental or delta backups are not supported.
+- **SQLite restore performance** — importing large sensor datasets into SQLite is significantly slower than PostgreSQL due to SQLite's single-writer architecture. Use the **Skip sensor data** toggle or the **SQLite File Transfer** feature for faster restores.
+- **Memory usage** — backup archives are read into memory during restore. Very large backups (multi-GB with images) will temporarily consume a corresponding amount of RAM.
+- **No scheduled backups** — backups must be triggered manually from the UI or API. For automated backups, use the Docker volume approach described above or call the `POST /settings/backup/create` endpoint from a cron job.
 
 ---
 

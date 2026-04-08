@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
+	"database/sql"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -71,13 +72,15 @@ func SaveSettings(c *gin.Context) {
 		return
 	}
 
+	db := DBFromContext(c)
+
 	// Generate new API key if requested
 	if settings.APIKey == "generate" {
 		plaintextKey := GenerateAPIKey()
 		hashedKey := HashAPIKey(plaintextKey)
 
 		// Store the hashed key in the database
-		err := UpdateSetting("api_key", hashedKey)
+		err := UpdateSetting(db, "api_key", hashedKey)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to save API key")
 			apiInternalError(c, "api_failed_to_save_api_key")
@@ -103,7 +106,7 @@ func SaveSettings(c *gin.Context) {
 			dbVal = "1"
 			cfgVal = 1
 		}
-		if err := UpdateSetting(key, dbVal); err != nil {
+		if err := UpdateSetting(db, key, dbVal); err != nil {
 			return err
 		}
 		*configField = cfgVal
@@ -130,7 +133,7 @@ func SaveSettings(c *gin.Context) {
 		}
 	}
 
-	err := UpdateSetting("polling_interval", settings.PollingInterval)
+	err := UpdateSetting(db, "polling_interval", settings.PollingInterval)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to save settings")
 		apiInternalError(c, "api_failed_to_save_settings")
@@ -138,7 +141,7 @@ func SaveSettings(c *gin.Context) {
 	}
 	config.PollingInterval, _ = strconv.Atoi(settings.PollingInterval)
 
-	err = UpdateSetting("stream_grab_interval", settings.StreamGrabInterval)
+	err = UpdateSetting(db, "stream_grab_interval", settings.StreamGrabInterval)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to save settings")
 		apiInternalError(c, "api_failed_to_save_settings")
@@ -156,7 +159,7 @@ func SaveSettings(c *gin.Context) {
 		if !isBcrypt && !isSHA256 {
 			apiKeyToStore = HashAPIKey(settings.APIKey)
 		}
-		err = UpdateSetting("api_key", apiKeyToStore)
+		err = UpdateSetting(db, "api_key", apiKeyToStore)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to save API key")
 			apiInternalError(c, "api_failed_to_save_api_key")
@@ -165,7 +168,7 @@ func SaveSettings(c *gin.Context) {
 		config.APIKey = apiKeyToStore
 	}
 
-	err = UpdateSetting("sensor_retention_days", settings.SensorRetentionDays)
+	err = UpdateSetting(db, "sensor_retention_days", settings.SensorRetentionDays)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to save sensor retention setting")
 		apiInternalError(c, "api_failed_to_save_settings")
@@ -174,7 +177,7 @@ func SaveSettings(c *gin.Context) {
 		config.SensorRetention, _ = strconv.Atoi(settings.SensorRetentionDays)
 	}
 
-	err = UpdateSetting("log_level", settings.LogLevel)
+	err = UpdateSetting(db, "log_level", settings.LogLevel)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to save log level setting")
 		apiInternalError(c, "api_failed_to_save_settings")
@@ -186,7 +189,7 @@ func SaveSettings(c *gin.Context) {
 
 	if settings.MaxBackupSizeMB != "" {
 		if mb, convErr := strconv.Atoi(settings.MaxBackupSizeMB); convErr == nil && mb >= 100 {
-			err = UpdateSetting("max_backup_size_mb", settings.MaxBackupSizeMB)
+			err = UpdateSetting(db, "max_backup_size_mb", settings.MaxBackupSizeMB)
 			if err != nil {
 				fieldLogger.WithError(err).Error("Failed to save max backup size setting")
 				apiInternalError(c, "api_failed_to_save_settings")
@@ -202,14 +205,8 @@ func SaveSettings(c *gin.Context) {
 	apiOK(c, "api_settings_saved")
 }
 
-func UpdateSetting(name string, value string) error {
+func UpdateSetting(db *sql.DB, name string, value string) error {
 	fieldLogger := logger.Log.WithField("func", "UpdateSetting")
-	// Init the db
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return err
-	}
 	existId := 0
 	// Query settings table and write result to console
 	rows, err := db.Query("SELECT * FROM settings where name = $1", name)
@@ -253,13 +250,8 @@ func UpdateSetting(name string, value string) error {
 	return nil
 }
 
-func GetSettings() types.SettingsData {
+func GetSettings(db *sql.DB) types.SettingsData {
 	fieldLogger := logger.Log.WithField("func", "GetSettings")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return types.SettingsData{}
-	}
 
 	settingsData := types.SettingsData{}
 
@@ -460,7 +452,7 @@ func UpdateZoneHandler(c *gin.Context) {
 		return
 	}
 	//Reload Config
-	config.Zones = GetZones()
+	config.Zones = GetZones(db)
 
 	apiOK(c, "api_zone_updated")
 }
@@ -512,7 +504,7 @@ func UpdateMetricHandler(c *gin.Context) {
 	}
 
 	//Reload Config
-	config.Metrics = GetMetrics()
+	config.Metrics = GetMetrics(db)
 
 	apiOK(c, "api_metric_updated")
 }
@@ -555,7 +547,7 @@ func UpdateActivityHandler(c *gin.Context) {
 	}
 
 	//Reload Config
-	config.Activities = GetActivities()
+	config.Activities = GetActivities(db)
 
 	apiOK(c, "api_activity_updated")
 }
@@ -587,7 +579,7 @@ func DeleteZoneHandler(c *gin.Context) {
 	}
 
 	for _, plantId := range plantList {
-		DeletePlantById(fmt.Sprintf("%d", plantId))
+		DeletePlantById(db, fmt.Sprintf("%d", plantId))
 	}
 
 	//Build a list of sensors associated with this zoen to delete first
@@ -610,7 +602,7 @@ func DeleteZoneHandler(c *gin.Context) {
 	}
 
 	for _, sensorId := range sensorList {
-		DeleteSensorByID(fmt.Sprintf("%d", sensorId))
+		DeleteSensorByID(db, fmt.Sprintf("%d", sensorId))
 	}
 
 	// Build a list of streams associated with this zone to delete first
@@ -632,7 +624,7 @@ func DeleteZoneHandler(c *gin.Context) {
 		streamList = append(streamList, streamId)
 	}
 	for _, streamId := range streamList {
-		DeleteStreamByID(fmt.Sprintf("%d", streamId))
+		DeleteStreamByID(db, fmt.Sprintf("%d", streamId))
 	}
 
 	// Delete zone from database
@@ -644,7 +636,7 @@ func DeleteZoneHandler(c *gin.Context) {
 	}
 
 	//Reload Config
-	config.Zones = GetZones()
+	config.Zones = GetZones(db)
 
 	apiOK(c, "api_zone_deleted")
 }
@@ -688,7 +680,7 @@ func DeleteMetricHandler(c *gin.Context) {
 	}
 
 	//Reload Config
-	config.Metrics = GetMetrics()
+	config.Metrics = GetMetrics(db)
 
 	apiOK(c, "api_metric_deleted")
 }
@@ -727,21 +719,16 @@ func DeleteActivityHandler(c *gin.Context) {
 	}
 
 	//Reload Config
-	config.Activities = GetActivities()
+	config.Activities = GetActivities(db)
 
 	apiOK(c, "api_activity_deleted")
 }
 
-func GetSetting(name string) (string, error) {
+func GetSetting(db *sql.DB, name string) (string, error) {
 	fieldLogger := logger.Log.WithField("func", "GetSetting")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return "", err
-	}
 
 	var value string
-	err = db.QueryRow("SELECT value FROM settings WHERE name = $1", name).Scan(&value)
+	err := db.QueryRow("SELECT value FROM settings WHERE name = $1", name).Scan(&value)
 	if err != nil {
 		if err.Error() == "sql: no rows in result set" {
 			fieldLogger.WithField("name", name).Debug("Setting not found")
@@ -826,7 +813,8 @@ func UploadLogo(c *gin.Context) {
 	}
 
 	// Update the database with the new logo path
-	err = UpdateSetting("logo_image", fileName)
+	db := DBFromContext(c)
+	err = UpdateSetting(db, "logo_image", fileName)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update logo setting")
 		apiInternalError(c, "api_failed_to_update_logo")
@@ -836,15 +824,9 @@ func UploadLogo(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": T(c, "api_logo_uploaded"), "path": savePath})
 }
 
-func LoadEcDevices() ([]string, error) {
+func LoadEcDevices(db *sql.DB) ([]string, error) {
 	fieldLogger := logger.Log.WithField("func", "LoadEcDevices")
 	var ecDevices []string
-	// Init the db
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return ecDevices, err
-	}
 
 	//Iterate over sensors table, looking for distinct device with type ecowitt
 	rows, err := db.Query("SELECT DISTINCT device FROM sensors WHERE source = 'ecowitt'")
@@ -867,16 +849,11 @@ func LoadEcDevices() ([]string, error) {
 	return ecDevices, nil
 }
 
-func ExistsSetting(s string) (bool, error) {
+func ExistsSetting(db *sql.DB, s string) (bool, error) {
 	fieldLogger := logger.Log.WithField("func", "ExistsSetting")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
-		return false, err
-	}
 
 	var value string
-	err = db.QueryRow("SELECT value FROM settings WHERE name = $1", s).Scan(&value)
+	err := db.QueryRow("SELECT value FROM settings WHERE name = $1", s).Scan(&value)
 	if err != nil {
 		if err.Error() == "sql: no rows in result set" {
 			return false, nil
@@ -894,59 +871,65 @@ func ExistsSetting(s string) (bool, error) {
 func LoadSettings() {
 	fieldLogger := logger.Log.WithField("func", "LoadSettings")
 
-	strPollingInterval, err := GetSetting("polling_interval")
+	db, err := model.GetDB()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to open database")
+		return
+	}
+
+	strPollingInterval, err := GetSetting(db, "polling_interval")
 	if err == nil {
 		if iPollingInterval, err := strconv.Atoi(strPollingInterval); err == nil {
 			config.PollingInterval = iPollingInterval
 		}
 	}
 
-	strACIEnabled, err := GetSetting("aci.enabled")
+	strACIEnabled, err := GetSetting(db, "aci.enabled")
 	if err == nil {
 		if iACIEnabled, err := strconv.Atoi(strACIEnabled); err == nil {
 			config.ACIEnabled = iACIEnabled
 		}
 	}
 
-	strECEnabled, err := GetSetting("ec.enabled")
+	strECEnabled, err := GetSetting(db, "ec.enabled")
 	if err == nil {
 		if iECEnabled, err := strconv.Atoi(strECEnabled); err == nil {
 			config.ECEnabled = iECEnabled
 		}
 	}
 
-	strACIToken, err := GetSetting("aci.token")
+	strACIToken, err := GetSetting(db, "aci.token")
 	if err == nil {
 		config.ACIToken = strACIToken
 	}
 
-	strECDevices, err := LoadEcDevices()
+	strECDevices, err := LoadEcDevices(db)
 	if err == nil {
 		config.ECDevices = strECDevices
 	}
 
-	strGuestMode, err := GetSetting("guest_mode")
+	strGuestMode, err := GetSetting(db, "guest_mode")
 	if err == nil {
 		if iGuestMode, err := strconv.Atoi(strGuestMode); err == nil {
 			config.GuestMode = iGuestMode
 		}
 	}
 
-	strStreamGrabEnabled, err := GetSetting("stream_grab_enabled")
+	strStreamGrabEnabled, err := GetSetting(db, "stream_grab_enabled")
 	if err == nil {
 		if iStreamGrabEnabled, err := strconv.Atoi(strStreamGrabEnabled); err == nil {
 			config.StreamGrabEnabled = iStreamGrabEnabled
 		}
 	}
 
-	strStreamGrabInterval, err := GetSetting("stream_grab_interval")
+	strStreamGrabInterval, err := GetSetting(db, "stream_grab_interval")
 	if err == nil {
 		if iStreamGrabInterval, err := strconv.Atoi(strStreamGrabInterval); err == nil {
 			config.StreamGrabInterval = iStreamGrabInterval
 		}
 	}
 
-	strAPIKey, err := GetSetting("api_key")
+	strAPIKey, err := GetSetting(db, "api_key")
 	if err == nil {
 		fieldLogger.Debug("API key setting loaded")
 
@@ -956,33 +939,33 @@ func LoadSettings() {
 		fieldLogger.WithError(err).Error("Failed to get API key setting")
 	}
 
-	strSensorRetention, err := GetSetting("sensor_retention_days")
+	strSensorRetention, err := GetSetting(db, "sensor_retention_days")
 	if err == nil {
 		if iSensorRetention, err := strconv.Atoi(strSensorRetention); err == nil {
 			config.SensorRetention = iSensorRetention
 		}
 	}
 
-	strLogLevel, err := GetSetting("log_level")
+	strLogLevel, err := GetSetting(db, "log_level")
 	if err == nil && strLogLevel != "" {
 		config.LogLevel = strLogLevel
 		logger.SetLevel(config.LogLevel)
 	}
 
-	strMaxBackupSize, err := GetSetting("max_backup_size_mb")
+	strMaxBackupSize, err := GetSetting(db, "max_backup_size_mb")
 	if err == nil {
 		if mb, err := strconv.Atoi(strMaxBackupSize); err == nil && mb >= 100 {
 			config.MaxBackupSize = int64(mb) * 1024 * 1024
 		}
 	}
 
-	config.Activities = GetActivities()
-	config.Metrics = GetMetrics()
-	config.Statuses = GetStatuses()
-	config.Zones = GetZones()
-	config.Strains = GetStrains()
-	config.Breeders = GetBreeders()
-	config.Streams = GetStreams()
+	config.Activities = GetActivities(db)
+	config.Metrics = GetMetrics(db)
+	config.Statuses = GetStatuses(db)
+	config.Zones = GetZones(db)
+	config.Strains = GetStrains(db)
+	config.Breeders = GetBreeders(db)
+	config.Streams = GetStreams(db)
 }
 // Breeder CRUD handlers have been moved to strain.go
 // Stream CRUD handlers have been moved to stream.go

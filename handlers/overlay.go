@@ -15,9 +15,10 @@ import (
 // readings embedded) and grouped sensor data, suitable for a live stream overlay.
 // Requires API key authentication.
 func GetOverlayData(c *gin.Context) {
+	db := DBFromContext(c)
 	c.JSON(http.StatusOK, gin.H{
-		"plants":  GetOverlayPlants(),
-		"sensors": GetGroupedSensorsWithLatestReading(),
+		"plants":  GetOverlayPlants(db),
+		"sensors": GetGroupedSensorsWithLatestReading(db),
 	})
 }
 
@@ -39,18 +40,12 @@ type OverlayPlantResponse struct {
 
 // GetOverlayPlants returns living plants with their linked sensor readings embedded.
 // Uses two batch queries instead of per-plant/per-sensor queries to avoid N+1.
-func GetOverlayPlants() []OverlayPlantResponse {
+func GetOverlayPlants(db *sql.DB) []OverlayPlantResponse {
 	fieldLogger := logger.Log.WithField("func", "GetOverlayPlants")
 
-	living := GetLivingPlants()
+	living := GetLivingPlants(db)
 	if len(living) == 0 {
 		return []OverlayPlantResponse{}
-	}
-
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error opening database")
-		return wrapPlantsNoSensors(living)
 	}
 
 	driver := "sqlite"

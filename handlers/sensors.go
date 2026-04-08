@@ -31,13 +31,8 @@ var (
 	cacheMutex           sync.Mutex
 )
 
-func GetSensors() []map[string]interface{} {
+func GetSensors(db *sql.DB) []map[string]interface{} {
 	fieldLogger := logger.Log.WithField("func", "GetSensors")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error opening database")
-		return nil
-	}
 
 	// Query for sensor data
 	rows, err := db.Query(`
@@ -105,9 +100,11 @@ func ScanACInfinitySensors(c *gin.Context) {
 		apiBadRequest(c, err.Error())
 		return
 	}
+	db := DBFromContext(c)
+
 	if input.ZoneID == nil && input.NewZone != "" {
 		// Insert a new zone into the database
-		zoneID, err := CreateNewZone(input.NewZone)
+		zoneID, err := CreateNewZone(db, input.NewZone)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
 			apiInternalError(c, "api_zone_creation_failed")
@@ -115,9 +112,6 @@ func ScanACInfinitySensors(c *gin.Context) {
 		}
 		input.ZoneID = &zoneID // Set the created zone ID
 	}
-
-	// Init the db
-	db := DBFromContext(c)
 
 	// Query settings table and write result to console
 	url := "https://www.acinfinityserver.com/api/user/devInfoListAll?userId=" + config.ACIToken
@@ -484,9 +478,11 @@ func ScanEcoWittSensors(c *gin.Context) {
 		apiBadRequest(c, err.Error())
 		return
 	}
+	db := DBFromContext(c)
+
 	if input.ZoneID == nil && input.NewZone != "" {
 		// Insert a new zone into the database
-		zoneID, err := CreateNewZone(input.NewZone)
+		zoneID, err := CreateNewZone(db, input.NewZone)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
 			apiInternalError(c, "api_zone_creation_failed")
@@ -494,8 +490,6 @@ func ScanEcoWittSensors(c *gin.Context) {
 		}
 		input.ZoneID = &zoneID // Set the created zone ID
 	}
-	// Init the db
-	db := DBFromContext(c)
 
 	url := "http://" + input.ServerAddress + "/get_livedata_info"
 
@@ -564,7 +558,7 @@ func ScanEcoWittSensors(c *gin.Context) {
 	}
 	//Update ECOWitt sensors
 	//Set ECDevices
-	strECDevices, err := LoadEcDevices()
+	strECDevices, err := LoadEcDevices(db)
 	if err == nil {
 		config.ECDevices = strECDevices
 	} else {
@@ -595,13 +589,8 @@ func checkInsertSensor(db *sql.DB, source string, device string, sensorType stri
 	}
 }
 
-func GetZones() []types.Zone {
+func GetZones(db *sql.DB) []types.Zone {
 	fieldLogger := logger.Log.WithField("func", "GetZones")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error opening database")
-		return nil
-	}
 
 	var zones []types.Zone
 	rows, err := db.Query("SELECT id, name FROM zones")
@@ -623,26 +612,21 @@ func GetZones() []types.Zone {
 	return zones
 }
 
-func CreateNewZone(name string) (int, error) {
+func CreateNewZone(db *sql.DB, name string) (int, error) {
 	fieldLogger := logger.Log.WithField("func", "CreateNewZone")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error opening database")
-		return 0, err
-	}
 
 	var id int
-	err = db.QueryRow("INSERT INTO zones (name) VALUES ($1) RETURNING id", name).Scan(&id)
+	err := db.QueryRow("INSERT INTO zones (name) VALUES ($1) RETURNING id", name).Scan(&id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error inserting new zone")
 		return 0, err
 	}
 
-	config.Zones = GetZones()
+	config.Zones = GetZones(db)
 
 	return id, nil
 }
-func GetGroupedSensorsWithLatestReading() map[string]map[string][]map[string]interface{} {
+func GetGroupedSensorsWithLatestReading(db *sql.DB) map[string]map[string][]map[string]interface{} {
 	fieldLogger := logger.Log.WithField("func", "GetGroupedSensorsWithLatestReading")
 	cacheMutex.Lock()
 	defer cacheMutex.Unlock()
@@ -653,12 +637,6 @@ func GetGroupedSensorsWithLatestReading() map[string]map[string][]map[string]int
 	}
 
 	// Refresh the cache
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error opening database")
-		return nil
-	}
-
 	rows, err := db.Query(`SELECT 
     s.id AS sensor_id,
     z.name AS zone_name,
@@ -807,13 +785,8 @@ func buildActivePlantSensorMap(db *sql.DB, fieldLogger *logrus.Entry) map[int]st
 	return result
 }
 
-func GetGroupedSensors() map[string]map[string]map[string][]types.Sensor {
+func GetGroupedSensors(db *sql.DB) map[string]map[string]map[string][]types.Sensor {
 	fieldLogger := logger.Log.WithField("func", "GetGroupedSensors")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error opening database")
-		return nil
-	}
 
 	rows, err := db.Query(`
         SELECT 
@@ -913,7 +886,8 @@ func DeleteSensor(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "DeleteSensor")
 	sensorID := c.Param("id")
 
-	err := DeleteSensorByID(sensorID)
+	db := DBFromContext(c)
+	err := DeleteSensorByID(db, sensorID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error deleting sensor")
 		apiInternalError(c, "api_failed_to_delete_sensor")
@@ -923,16 +897,11 @@ func DeleteSensor(c *gin.Context) {
 	apiOK(c, "api_sensor_deleted")
 }
 
-func DeleteSensorByID(id string) error {
+func DeleteSensorByID(db *sql.DB, id string) error {
 	fieldLogger := logger.Log.WithField("func", "DeleteSensorByID")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error opening database")
-		return err
-	}
 
 	// Delete sensor_data for this sensor
-	_, err = db.Exec("DELETE FROM sensor_data WHERE sensor_id = $1", id)
+	_, err := db.Exec("DELETE FROM sensor_data WHERE sensor_id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error deleting sensor data")
 		return err
@@ -946,16 +915,11 @@ func DeleteSensorByID(id string) error {
 	return nil
 }
 
-func GetSensorName(id string) string {
+func GetSensorName(db *sql.DB, id string) string {
 	fieldLogger := logger.Log.WithField("func", "GetSensorName")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error opening database")
-		return ""
-	}
 
 	var name string
-	err = db.QueryRow("SELECT name FROM sensors WHERE id = $1", id).Scan(&name)
+	err := db.QueryRow("SELECT name FROM sensors WHERE id = $1", id).Scan(&name)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error querying sensor name")
 		return ""
@@ -1048,16 +1012,18 @@ func IngestSensorData(c *gin.Context) {
 		payload.Name = fmt.Sprintf("%s (%s) %s", payload.Source, payload.Device, payload.Type)
 	}
 
+	db := DBFromContext(c)
+
 	// Handle new zone creation if specified
 	if payload.ZoneID == nil && payload.NewZone != "" {
 		// Try to find an existing zone with the given new_zone name first
-		existingZoneID, err := GetZoneIDByName(payload.NewZone)
+		existingZoneID, err := GetZoneIDByName(db, payload.NewZone)
 
 		if err == nil && existingZoneID != 0 {
 			// If an existing zone is found, use its ID
 			payload.ZoneID = &existingZoneID
 		} else {
-			zoneID, err := CreateNewZone(payload.NewZone)
+			zoneID, err := CreateNewZone(db, payload.NewZone)
 			if err != nil {
 				fieldLogger.WithError(err).Error("Failed to create new zone")
 				apiInternalError(c, "api_zone_creation_failed")
@@ -1066,8 +1032,6 @@ func IngestSensorData(c *gin.Context) {
 			payload.ZoneID = &zoneID
 		}
 	}
-
-	db := DBFromContext(c)
 
 	// First ensure the sensor exists
 	var sensorID int
@@ -1110,16 +1074,11 @@ func IngestSensorData(c *gin.Context) {
 	})
 }
 
-func GetZoneIDByName(zoneName string) (int, error) {
+func GetZoneIDByName(db *sql.DB, zoneName string) (int, error) {
 	fieldLogger := logger.Log.WithField("func", "GetZoneIDByName")
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error opening database")
-		return 0, err
-	}
 
 	var zoneID int
-	err = db.QueryRow("SELECT id FROM zones WHERE name = $1", zoneName).Scan(&zoneID)
+	err := db.QueryRow("SELECT id FROM zones WHERE name = $1", zoneName).Scan(&zoneID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, nil // No zone found
