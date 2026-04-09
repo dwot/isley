@@ -121,4 +121,7 @@ document.addEventListener("DOMContentLoaded", () => {
             })
             .catch(error => {
                 console.error("Error:", error);
-                uiMessage
+                uiMessages.showToast(uiMessages.t('failed_delete_plant') || 'Failed to delete plant', 'danger');
+            });
+    }
+});
