@@ -207,6 +207,19 @@ func SaveSettings(c *gin.Context) {
 		}
 	}
 
+	// Timezone setting — always persist (empty = system default)
+	err = UpdateSetting(db, "timezone", settings.Timezone)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to save timezone setting")
+		apiInternalError(c, "api_failed_to_save_settings")
+		return
+	}
+	config.Timezone = settings.Timezone
+	// Capture shadow metadata for future UTC migration
+	if settings.Timezone != "" {
+		captureTimezoneMetadata(db, settings.Timezone)
+	}
+
 	//Load Settings
 	LoadSettings()
 
@@ -313,6 +326,8 @@ func GetSettings(db *sql.DB) types.SettingsData {
 			settingsData.LogLevel = value
 		case "max_backup_size_mb":
 			settingsData.MaxBackupSizeMB, _ = strconv.Atoi(value)
+		case "timezone":
+			settingsData.Timezone = value
 		default:
 			fieldLogger.WithField("name", name).Debug("Unrecognised setting skipped")
 		}
@@ -875,6 +890,76 @@ func ExistsSetting(db *sql.DB, s string) (bool, error) {
 
 }
 
+// directUpdateSetting persists a key-value setting WITHOUT calling LoadSettings.
+// Use this inside LoadSettings itself to avoid infinite recursion.
+func directUpdateSetting(db *sql.DB, name string, value string) error {
+	fieldLogger := logger.Log.WithField("func", "directUpdateSetting")
+	existId := 0
+	rows, err := db.Query("SELECT id FROM settings WHERE name = $1", name)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to read settings")
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		err = rows.Scan(&existId)
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to read settings")
+			return err
+		}
+	}
+
+	if existId == 0 {
+		_, err = db.Exec("INSERT INTO settings (name, value) VALUES ($1, $2)", name, value)
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to insert setting")
+		}
+	} else {
+		_, err = db.Exec("UPDATE settings SET value = $1 WHERE id = $2", value, existId)
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to update setting")
+		}
+	}
+	return err
+}
+
+// captureTimezoneMetadata records shadow metadata about the timezone state
+// of the installation. This data will be used in a future release to inform
+// automated data migration when we normalise all timestamps to UTC.
+func captureTimezoneMetadata(db *sql.DB, userTZ string) {
+	fieldLogger := logger.Log.WithField("func", "captureTimezoneMetadata")
+
+	// tz_system: the Go process's system timezone (from TZ env or OS)
+	sysTZ := time.Now().Location().String()
+	if err := UpdateSetting(db, "tz_system", sysTZ); err != nil {
+		fieldLogger.WithError(err).Error("Failed to save tz_system")
+	}
+
+	// tz_database: query the DB engine's idea of current time
+	dbTZ := ""
+	row := db.QueryRow("SELECT CURRENT_TIMESTAMP")
+	var dbTime string
+	if err := row.Scan(&dbTime); err == nil {
+		dbTZ = dbTime
+	} else {
+		fieldLogger.WithError(err).Warn("Failed to query DB timestamp")
+	}
+	if err := UpdateSetting(db, "tz_database", dbTZ); err != nil {
+		fieldLogger.WithError(err).Error("Failed to save tz_database")
+	}
+
+	// tz_user: what the user selected in the UI
+	if err := UpdateSetting(db, "tz_user", userTZ); err != nil {
+		fieldLogger.WithError(err).Error("Failed to save tz_user")
+	}
+
+	// tz_snapshot_at: when this snapshot was taken (server wall-clock)
+	snapshot := time.Now().Format(time.RFC3339)
+	if err := UpdateSetting(db, "tz_snapshot_at", snapshot); err != nil {
+		fieldLogger.WithError(err).Error("Failed to save tz_snapshot_at")
+	}
+}
+
 // Helper functions
 func LoadSettings() {
 	fieldLogger := logger.Log.WithField("func", "LoadSettings")
@@ -965,6 +1050,30 @@ func LoadSettings() {
 		if mb, err := strconv.Atoi(strMaxBackupSize); err == nil && mb >= MinBackupSizeMB {
 			config.MaxBackupSize = int64(mb) * 1024 * 1024
 		}
+	}
+
+	strTimezone, err := GetSetting(db, "timezone")
+	if err == nil && strTimezone != "" {
+		config.Timezone = strTimezone
+	}
+
+	// On first boot after the timezone migration, capture a baseline snapshot
+	// of the system timezone state even before the user touches settings.
+	// IMPORTANT: use directUpdateSetting here, NOT UpdateSetting, to avoid
+	// infinite recursion (UpdateSetting calls LoadSettings).
+	strSnapshot, snapshotErr := GetSetting(db, "tz_snapshot_at")
+	if snapshotErr == nil && strSnapshot == "" {
+		sysTZ := time.Now().Location().String()
+		_ = directUpdateSetting(db, "tz_system", sysTZ)
+		dbTZ := ""
+		row := db.QueryRow("SELECT CURRENT_TIMESTAMP")
+		var dbTime string
+		if err := row.Scan(&dbTime); err == nil {
+			dbTZ = dbTime
+		}
+		_ = directUpdateSetting(db, "tz_database", dbTZ)
+		_ = directUpdateSetting(db, "tz_snapshot_at", time.Now().Format(time.RFC3339))
+		fieldLogger.Info("Captured initial timezone metadata snapshot")
 	}
 
 	config.Activities = GetActivities(db)

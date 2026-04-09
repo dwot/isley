@@ -27,7 +27,8 @@
                     <!-- Date Picker -->
                     <div class="mb-3">
                         <label for="activityDate" class="form-label required">{{ .lcl.title_date }}</label>
-                        <input type="datetime-local" step="1" class="form-control" id="activityDate" required value="{{ now | formatDateTimeLocal }}">
+                        <input type="datetime-local" step="1" class="form-control" id="activityDate" required>
+                        <script>formHelpers.setDateTimeNow("activityDate");</script>
                     </div>
 
                     <!-- Submit Button -->

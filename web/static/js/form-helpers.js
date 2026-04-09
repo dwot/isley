@@ -64,5 +64,23 @@
         }
     });
 
-    window.formHelpers = { withLoading, setFieldError, clearFieldError, clearFormErrors };
+    /**
+     * Format a Date object as a datetime-local input value (YYYY-MM-DDTHH:MM:SS)
+     * using the browser's local timezone.
+     */
+    function formatDateTimeLocal(date) {
+        const pad = n => String(n).padStart(2, '0');
+        return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    }
+
+    /**
+     * Set a datetime-local input to the current local time.
+     * Can be called on page load or when a modal opens.
+     */
+    function setDateTimeNow(inputId) {
+        const el = document.getElementById(inputId);
+        if (el) el.value = formatDateTimeLocal(new Date());
+    }
+
+    window.formHelpers = { withLoading, setFieldError, clearFieldError, clearFormErrors, formatDateTimeLocal, setDateTimeNow };
 })();

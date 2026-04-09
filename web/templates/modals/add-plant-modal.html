@@ -80,7 +80,8 @@
                     <!-- Date Picker -->
                     <div class="mb-3">
                         <label for="startDate" class="form-label required">{{ .lcl.title_date }}</label>
-                        <input type="datetime-local" step="1" class="form-control" id="startDate" required value="{{ now | formatDateTimeLocal }}">
+                        <input type="datetime-local" step="1" class="form-control" id="startDate" required>
+                        <script>formHelpers.setDateTimeNow("startDate");</script>
                     </div>
 
                     <!-- Clone Checkbox -->

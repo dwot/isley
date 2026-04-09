@@ -146,7 +146,7 @@
                     </div>
                     <div class="mb-3">
                         <label for="quickStatusDate" class="form-label">{{ .lcl.effective_date }}</label>
-                        <input type="datetime-local" class="form-control" id="quickStatusDate" step="1" required value="{{ now | formatDateTimeLocal }}">
+                        <input type="datetime-local" class="form-control" id="quickStatusDate" step="1" required>
                     </div>
                     <button type="submit" class="btn btn-primary">{{ .lcl.change_status }}</button>
                 </form>
@@ -184,7 +184,7 @@
                     </div>
                     <div class="mb-3">
                         <label for="quickMeasurementDate" class="form-label">{{ .lcl.title_date }}</label>
-                        <input type="datetime-local" class="form-control" id="quickMeasurementDate" required value="{{ now | formatDateTimeLocal }}">
+                        <input type="datetime-local" class="form-control" id="quickMeasurementDate" required>
                     </div>
                     <button type="submit" class="btn btn-primary">{{ .lcl.add_measurement }}</button>
                 </form>
@@ -222,7 +222,7 @@
                     </div>
                     <div class="mb-3">
                         <label for="quickActivityDate" class="form-label">{{ .lcl.title_date }}</label>
-                        <input type="datetime-local" class="form-control" id="quickActivityDate" required value="{{ now | formatDateTimeLocal }}">
+                        <input type="datetime-local" class="form-control" id="quickActivityDate" required>
                     </div>
                     <button type="submit" class="btn btn-primary">{{ .lcl.add_activity }}</button>
                 </form>

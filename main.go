@@ -250,13 +250,35 @@ func main() {
 			return string(a)
 		},
 		"formatDateTimeLocal": func(t time.Time) string {
+			if config.Timezone != "" {
+				if loc, err := time.LoadLocation(config.Timezone); err == nil {
+					return t.In(loc).Format(utils.LayoutDateTimeLocal)
+				}
+			}
 			return t.Local().Format(utils.LayoutDateTimeLocal)
 		},
 		"formatDate": func(t time.Time) string {
+			if config.Timezone != "" {
+				if loc, err := time.LoadLocation(config.Timezone); err == nil {
+					return t.In(loc).Format(utils.LayoutDate)
+				}
+			}
 			return t.Format(utils.LayoutDate)
 		},
-		"formatDateTime": func(t time.Time) string { return t.Format(utils.LayoutDateTime) },
+		"formatDateTime": func(t time.Time) string {
+			if config.Timezone != "" {
+				if loc, err := time.LoadLocation(config.Timezone); err == nil {
+					return t.In(loc).Format(utils.LayoutDateTime)
+				}
+			}
+			return t.Format(utils.LayoutDateTime)
+		},
 		"formatDateISO": func(t time.Time) string {
+			if config.Timezone != "" {
+				if loc, err := time.LoadLocation(config.Timezone); err == nil {
+					return t.In(loc).Format(utils.LayoutDate)
+				}
+			}
 			return t.Format(utils.LayoutDate)
 		},
 		"isZeroDate": func(t time.Time) bool {
@@ -295,6 +317,11 @@ func main() {
 			return t
 		},
 		"now": func() time.Time {
+			if config.Timezone != "" {
+				if loc, err := time.LoadLocation(config.Timezone); err == nil {
+					return time.Now().In(loc)
+				}
+			}
 			return time.Now()
 		},
 		"markdownify": func(t string) template.HTML {

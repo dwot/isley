@@ -155,6 +155,7 @@ type Settings struct {
 	SensorRetentionDays string `json:"sensor_retention_days"`
 	LogLevel            string `json:"log_level"`
 	MaxBackupSizeMB     string `json:"max_backup_size_mb"`
+	Timezone            string `json:"timezone"`
 }
 
 type ACInfinitySettings struct {
@@ -179,6 +180,7 @@ type SettingsData struct {
 	SensorRetentionDays int    `json:"sensor_retention_days"`
 	LogLevel            string `json:"log_level"`
 	MaxBackupSizeMB     int    `json:"max_backup_size_mb"`
+	Timezone            string `json:"timezone"`
 }
 
 type Status struct {

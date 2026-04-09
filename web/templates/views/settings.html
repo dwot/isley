@@ -140,6 +140,15 @@ color: #0d6efd; /* Primary color */
                         <small class="text-muted d-block mt-2">
                             {{ .lcl.settings_log_level_desc }}
                         </small>
+
+                        <hr class="my-3">
+                        <label for="timezone" class="form-label">{{ if .lcl.timezone_label }}{{ .lcl.timezone_label }}{{ else }}Timezone{{ end }}</label>
+                        <select class="form-select" id="timezone" style="width:320px" data-saved="{{ .settings.Timezone }}">
+                            <option value="">{{ if .lcl.timezone_use_system }}{{ .lcl.timezone_use_system }}{{ else }}Use system default{{ end }}</option>
+                        </select>
+                        <small class="text-muted d-block mt-2">
+                            {{ if .lcl.timezone_desc }}{{ .lcl.timezone_desc }}{{ else }}Set your local timezone. This ensures dates and times display correctly regardless of where the server is running.{{ end }}
+                        </small>
                     </div>
                 </div>
 
@@ -1170,6 +1179,46 @@ color: #0d6efd; /* Primary color */
     });
 
     document.addEventListener("DOMContentLoaded", () => {
+        // Populate timezone selector with IANA timezones
+        (function() {
+            const sel = document.getElementById('timezone');
+            if (!sel) return;
+            const saved = sel.getAttribute('data-saved') || '';
+            try {
+                const zones = Intl.supportedValuesOf('timeZone');
+                zones.forEach(function(tz) {
+                    const opt = document.createElement('option');
+                    opt.value = tz;
+                    opt.textContent = tz.replace(/_/g, ' ');
+                    if (tz === saved) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+            } catch(e) {
+                var browserTZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                var opt = document.createElement('option');
+                opt.value = browserTZ;
+                opt.textContent = browserTZ.replace(/_/g, ' ');
+                if (browserTZ === saved) opt.selected = true;
+                sel.appendChild(opt);
+            }
+            if (saved && sel.value !== saved) {
+                var opt2 = document.createElement('option');
+                opt2.value = saved;
+                opt2.textContent = saved.replace(/_/g, ' ');
+                opt2.selected = true;
+                sel.insertBefore(opt2, sel.options[1]);
+            }
+            if (!saved) {
+                var browserTZ2 = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                for (var i = 0; i < sel.options.length; i++) {
+                    if (sel.options[i].value === browserTZ2) {
+                        sel.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+        })();
+
         const form = document.getElementById("settingsForm");
 
         form.addEventListener("submit", (e) => {
@@ -1195,6 +1244,7 @@ color: #0d6efd; /* Primary color */
                 sensor_retention_days: document.getElementById("sensorRetentionDays").value,
                 log_level: document.getElementById("logLevel").value,
                 max_backup_size_mb: document.getElementById("maxBackupSizeMB").value,
+                timezone: document.getElementById("timezone").value,
             };
 
             // Send POST request to save settings

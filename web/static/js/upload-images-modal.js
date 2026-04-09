@@ -70,7 +70,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 // Read EXIF metadata
                 EXIF.getData(file, function () {
-                    let imageDate = new Date().toISOString().split("T")[0]; // Default to current date
+                    const _now = new Date();
+                    let imageDate = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`; // Default to current local date
 
                     // Try to get the DateTimeOriginal tag from EXIF
                     const exifDate = EXIF.getTag(this, "DateTimeOriginal");
