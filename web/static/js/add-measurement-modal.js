@@ -3,14 +3,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const addMeasurementModal = document.getElementById("addMeasurementModal");
     const measurementDateInput = document.getElementById("measureDate");
 
-    // Set default date to today
-    //const setDefaultDate = () => {
-    //    const today = new Date().toISOString().split("T")[0];
-    //    measurementDateInput.value = today;
-    //};
-
-    // Set default date when the modal is shown
-    //addMeasurementModal.addEventListener("show.bs.modal", setDefaultDate);
+    // Set default date/time when the modal is shown
+    addMeasurementModal.addEventListener("show.bs.modal", () => {
+        formHelpers.setDateTimeNow("measureDate");
+    });
 
     form.addEventListener("submit", (e) => {
         e.preventDefault();

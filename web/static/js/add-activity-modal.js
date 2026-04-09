@@ -3,14 +3,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const addActivityModal = document.getElementById("addActivityModal");
     const activityDateInput = document.getElementById("activityDate");
 
-    // Set default date to today
-    //const setDefaultDate = () => {
-    //    const today = new Date().toISOString().split("T")[0];
-    //    activityDateInput.value = today;
-    //};
-
-    // Set default date when the modal is shown
-    //addActivityModal.addEventListener("show.bs.modal", setDefaultDate);
+    // Set default date/time when the modal is shown
+    addActivityModal.addEventListener("show.bs.modal", () => {
+        formHelpers.setDateTimeNow("activityDate");
+    });
 
     form.addEventListener("submit", (e) => {
         e.preventDefault();

@@ -3,14 +3,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const addMultiPlantActivityModal = document.getElementById("addMultiPlantActivityModal");
     const activityMultiDateInput = document.getElementById("activityMultiDate");
 
-    // Set default date to today
-    //const setMultiDefaultDate = () => {
-    //    const today = new Date().toISOString().split("T")[0];
-    //    activityMultiDateInput.value = today;
-    //};
-
-    // Set default date when the modal is shown
-    //addMultiPlantActivityModal.addEventListener("show.bs.modal", setMultiDefaultDate);
+    // Set default date/time when the modal is shown
+    addMultiPlantActivityModal.addEventListener("show.bs.modal", () => {
+        formHelpers.setDateTimeNow("activityMultiDate");
+    });
 
     form.addEventListener("submit", (e) => {
         e.preventDefault();
