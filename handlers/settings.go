@@ -414,7 +414,9 @@ func AddMetricHandler(c *gin.Context) {
 func AddActivityHandler(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "AddActivityHandler")
 	var activity struct {
-		Name string `json:"activity_name"`
+		Name       string `json:"activity_name"`
+		IsWatering bool   `json:"is_watering"`
+		IsFeeding  bool   `json:"is_feeding"`
 	}
 	if err := c.ShouldBindJSON(&activity); err != nil {
 		fieldLogger.WithError(err).Error("Failed to add activity")
@@ -438,13 +440,16 @@ func AddActivityHandler(c *gin.Context) {
 
 	// Insert new activity and return new id
 	var id int
-	err := db.QueryRow("INSERT INTO activity (name) VALUES ($1) RETURNING id", activity.Name).Scan(&id)
+	err := db.QueryRow(`
+		INSERT INTO activity (name, is_watering, is_feeding)
+		VALUES ($1, $2, $3)
+		RETURNING id`, activity.Name, activity.IsWatering, activity.IsFeeding).Scan(&id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to add activity")
 		apiInternalError(c, "api_failed_to_add_activity")
 		return
 	}
-	config.Activities = append(config.Activities, types.Activity{ID: id, Name: activity.Name})
+	config.Activities = append(config.Activities, types.Activity{ID: id, Name: activity.Name, IsWatering: activity.IsWatering, IsFeeding: activity.IsFeeding})
 
 	c.JSON(http.StatusCreated, gin.H{"id": id})
 }
@@ -536,7 +541,9 @@ func UpdateActivityHandler(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "UpdateActivityHandler")
 	id := c.Param("id")
 	var activity struct {
-		Name string `json:"activity_name"`
+		Name       string `json:"activity_name"`
+		IsWatering bool   `json:"is_watering"`
+		IsFeeding  bool   `json:"is_feeding"`
 	}
 	if err := c.ShouldBindJSON(&activity); err != nil {
 		fieldLogger.WithError(err).Error("Failed to update activity")
@@ -562,7 +569,10 @@ func UpdateActivityHandler(c *gin.Context) {
 	}
 
 	// Perform the update
-	_, err = db.Exec("UPDATE activity SET name = $1 WHERE id = $2", activity.Name, id)
+	_, err = db.Exec(`
+		UPDATE activity
+		SET name = $1, is_watering = $2, is_feeding = $3
+		WHERE id = $4`, activity.Name, activity.IsWatering, activity.IsFeeding, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update activity")
 		apiInternalError(c, "api_failed_to_update_activity")

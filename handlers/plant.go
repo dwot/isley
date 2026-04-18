@@ -131,7 +131,7 @@ func AddPlant(c *gin.Context) {
 func GetActivities(db *sql.DB) []types.Activity {
 	fieldLogger := logger.Log.WithField("func", "GetActivities")
 
-	rows, err := db.Query("SELECT id, name FROM activity")
+	rows, err := db.Query("SELECT id, name, is_watering, is_feeding FROM activity")
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query activities")
 		return nil
@@ -140,7 +140,7 @@ func GetActivities(db *sql.DB) []types.Activity {
 	var activities []types.Activity
 	for rows.Next() {
 		var activity types.Activity
-		err = rows.Scan(&activity.ID, &activity.Name)
+		err = rows.Scan(&activity.ID, &activity.Name, &activity.IsWatering, &activity.IsFeeding)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan activity")
 			return nil
@@ -561,7 +561,14 @@ func loadPlantMeasurements(db *sql.DB, plantID uint) []types.Measurement {
 func loadPlantActivities(db *sql.DB, plantID uint) []types.PlantActivity {
 	fieldLogger := logger.Log.WithField("func", "loadPlantActivities")
 
-	rows, err := db.Query(fmt.Sprintf("SELECT pa.id, a.id AS activity_id, a.name, pa.note, pa.date FROM plant_activity pa LEFT OUTER JOIN activity a ON a.id = pa.activity_id WHERE pa.plant_id = $1 ORDER BY date DESC LIMIT %d", PlantHistoryLimit), plantID)
+	rows, err := db.Query(fmt.Sprintf(`
+		SELECT pa.id, a.id AS activity_id, a.name, pa.note, pa.date,
+		       a.is_watering, a.is_feeding
+		FROM plant_activity pa
+		LEFT OUTER JOIN activity a ON a.id = pa.activity_id
+		WHERE pa.plant_id = $1
+		ORDER BY date DESC
+		LIMIT %d`, PlantHistoryLimit), plantID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query activities")
 		return nil
@@ -574,11 +581,12 @@ func loadPlantActivities(db *sql.DB, plantID uint) []types.PlantActivity {
 		var activityID int
 		var name, note string
 		var date time.Time
-		if err := rows.Scan(&id, &activityID, &name, &note, &date); err != nil {
+		var isWatering, isFeeding bool
+		if err := rows.Scan(&id, &activityID, &name, &note, &date, &isWatering, &isFeeding); err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan activity")
 			continue
 		}
-		activities = append(activities, types.PlantActivity{ID: id, Name: name, Note: note, Date: utils.AsLocal(date), ActivityId: activityID})
+		activities = append(activities, types.PlantActivity{ID: id, Name: name, Note: note, Date: utils.AsLocal(date), ActivityId: activityID, IsWatering: isWatering, IsFeeding: isFeeding})
 	}
 	return activities
 }
@@ -661,10 +669,10 @@ func loadPlantImages(db *sql.DB, plantID uint) (types.PlantImage, []types.PlantI
 // deriveActivityDates scans activities to find the most recent water and feed dates.
 func deriveActivityDates(activities []types.PlantActivity) (lastWater, lastFeed time.Time) {
 	for _, a := range activities {
-		if a.ActivityId == ActivityWater && a.Date.After(lastWater) {
+		if a.IsWatering && a.Date.After(lastWater) {
 			lastWater = a.Date
 		}
-		if a.ActivityId == ActivityFeed && a.Date.After(lastFeed) {
+		if a.IsFeeding && a.Date.After(lastFeed) {
 			lastFeed = a.Date
 		}
 	}
@@ -871,13 +879,13 @@ SELECT
 		SELECT (CURRENT_DATE - MAX(pa.date)::date)
 		FROM plant_activity pa
 		JOIN activity a ON pa.activity_id = a.id
-		WHERE pa.plant_id = p.id AND a.name = 'Water'
+		WHERE pa.plant_id = p.id AND a.is_watering = TRUE
 	), 0) AS days_since_last_watering,
 	COALESCE((
 		SELECT (CURRENT_DATE - MAX(pa.date)::date)
 		FROM plant_activity pa
 		JOIN activity a ON pa.activity_id = a.id
-		WHERE pa.plant_id = p.id AND a.name = 'Feed'
+		WHERE pa.plant_id = p.id AND a.is_feeding = TRUE
 	), 0) AS days_since_last_feeding,
 	COALESCE((
 		SELECT (
@@ -928,15 +936,15 @@ SELECT
     CAST((julianday('now', 'localtime') - julianday(p.start_dt)) + 1 AS INT) AS current_day,
     COALESCE((
         SELECT CAST(julianday('now', 'localtime') - julianday(MAX(pa.date)) AS INT)
-        FROM plant_activity pa 
-        JOIN activity a ON pa.activity_id = a.id
-        WHERE pa.plant_id = p.id AND a.name = 'Water'
+        FROM plant_activity pa
+		JOIN activity a ON pa.activity_id = a.id
+		WHERE pa.plant_id = p.id AND a.is_watering = TRUE
     ), 0) AS days_since_last_watering,
     COALESCE((
         SELECT CAST(julianday('now', 'localtime') - julianday(MAX(pa.date)) AS INT)
-        FROM plant_activity pa 
-        JOIN activity a ON pa.activity_id = a.id
-        WHERE pa.plant_id = p.id AND a.name = 'Feed'
+        FROM plant_activity pa
+		JOIN activity a ON pa.activity_id = a.id
+		WHERE pa.plant_id = p.id AND a.is_feeding = TRUE
     ), 0) AS days_since_last_feeding,
     COALESCE((
         SELECT CAST(

@@ -725,6 +725,15 @@ color: #0d6efd; /* Primary color */
                         <input type="text" class="form-control" id="activityName" step="any" required>
                     </div>
 
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="activityIsWatering">
+                        <label class="form-check-label" for="activityIsWatering">Watering</label>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="activityIsFeeding">
+                        <label class="form-check-label" for="activityIsFeeding">Feeding</label>
+                    </div>
+
                     <!-- Submit Button -->
                     <button type="submit" class="btn btn-primary">{{ .lcl.add_activity }}</button>
                 </form>
@@ -824,6 +833,14 @@ color: #0d6efd; /* Primary color */
                     <div class="mb-3">
                         <label for="editActivityName" class="form-label">{{ .lcl.activity_name }}</label>
                         <input type="text" class="form-control" id="editActivityName" step="any" required>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="editActivityIsWatering">
+                        <label class="form-check-label" for="editActivityIsWatering">Watering</label>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="editActivityIsFeeding">
+                        <label class="form-check-label" for="editActivityIsFeeding">Feeding</label>
                     </div>
                     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
                     <button type="button" class="btn btn-danger" id="deleteActivity"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_activity }}</button>
@@ -1278,10 +1295,14 @@ color: #0d6efd; /* Primary color */
             // Gather form data
             const activityId = document.getElementById("activityId").value;
             const activityName = document.getElementById("activityName").value;
+            const isWatering = document.getElementById("activityIsWatering").checked;
+            const isFeeding = document.getElementById("activityIsFeeding").checked;
 
             // Construct the payload
             const payload = {
                 activity_name: activityName,
+                is_watering: isWatering,
+                is_feeding: isFeeding,
             };
 
             // Send POST request to /plantMeasurement
@@ -1322,6 +1343,8 @@ color: #0d6efd; /* Primary color */
 
                 document.getElementById("activityId").value = activityData.id;
                 document.getElementById("editActivityName").value = activityData.name;
+                document.getElementById("editActivityIsWatering").checked = !!activityData.is_watering;
+                document.getElementById("editActivityIsFeeding").checked = !!activityData.is_feeding;
 
                 editActivityModal.show();
             });
@@ -1332,6 +1355,8 @@ color: #0d6efd; /* Primary color */
             const activityId = document.getElementById("activityId").value;
             const payload = {
                 activity_name: document.getElementById("editActivityName").value,
+                is_watering: document.getElementById("editActivityIsWatering").checked,
+                is_feeding: document.getElementById("editActivityIsFeeding").checked,
             };
 
             fetch(`/activities/${activityId}`, {
