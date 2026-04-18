@@ -50,7 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Process selected files
     function handleFiles(files) {
-        files.forEach((file) => {
+        files.forEach((file, index) => {
             if (!file.type.startsWith("image/")) {
                 uiMessages.showToast(uiMessages.t('only_image_files') || 'Only image files are allowed', 'warning');
                 return;
@@ -80,7 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         if (parsedDate) imageDate = parsedDate;
                     }
 
-                    addImagePreview(fileData, file, imageDate);
+                    addImagePreview(index, fileData, file, imageDate);
                 });
             };
 
@@ -103,7 +103,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
 // Add image preview with default or EXIF date
-    function addImagePreview(src, file, imageDate) {
+    function addImagePreview(index, src, file, imageDate) {
         const col = document.createElement("div");
         col.className = "col-12 col-md-6 col-lg-4";
 
@@ -111,6 +111,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="card">
             <img src="${src}" class="card-img-top" alt="Preview">
             <div class="card-body">
+                <input type="hidden" class="image-index" value="${index}">
                 <div class="mb-3">
                     <label class="form-label">${uiMessages.t('description_txt') || 'Description'}</label>
                     <input type="text" class="form-control description" placeholder="${uiMessages.t('short_description_placeholder') || 'Enter description'}">
@@ -174,12 +175,13 @@ document.addEventListener("DOMContentLoaded", () => {
         const formData = new FormData();
 
         // Collect data for each image
-        document.querySelectorAll("#imagePreviewContainer .card").forEach((card, index) => {
+        document.querySelectorAll("#imagePreviewContainer .card").forEach((card) => {
             const description = card.querySelector(".description").value;
             const date = card.querySelector(".image-date").value;
+            const imageIndex = card.querySelector(".image-index").value;
 
             // Append the file with a simple key
-            formData.append("images[]", imagesToUpload[index]);
+            formData.append("images[]", imagesToUpload[imageIndex]);
             formData.append(`descriptions[]`, description);
             formData.append(`dates[]`, date);
         });
