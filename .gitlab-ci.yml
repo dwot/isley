@@ -1,5 +1,6 @@
 stages:
   - build
+  - sign
   - sync-public
 
 build-dev:
@@ -13,30 +14,26 @@ build-dev:
     - mkdir -p /kaniko/.docker
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(echo -n "$CI_REGISTRY_USER:$CI_REGISTRY_PASSWORD" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
   script:
-    - /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/Dockerfile" --destination "$CI_REGISTRY_IMAGE:dev" --digest-file=digest.txt
-    - |
-      apk add cosign
-      cosign sign --key "$COSIGN_PRIVATE_KEY" "$CI_REGISTRY_IMAGE@$(cat digest.txt)"
-  environment:
-    name: internal-dev
+    # Use --digest-file to capture the exact SHA of the pushed image
+    - /kaniko/executor
+      --context "$CI_PROJECT_DIR"
+      --dockerfile "$CI_PROJECT_DIR/Dockerfile"
+      --destination "$CI_REGISTRY_IMAGE:dev"
+      --digest-file=image_digest.txt
+  artifacts:
+    paths:
+      - image_digest.txt
+    expire_in: 1 hour
 
-publish_dev_to_github:
-  stage: sync-public
-  image: alpine:3.20 # Pinned for internal stability
-  before_script:
-    - apk add git gnupg
-    - gpg --batch --import "$GPG_PRIVATE_KEY"
-    - git config --global user.email "68145+dwot@users.noreply.github.com"
-    - git config --global user.name "isley-ci-sync"
-    - git config --global user.signingkey "$GPG_KEY_ID"
-    - git config --global commit.gpgsign true
-  script:
-    - git remote add github https://x-access-token:${GITHUB_TOKEN}@github.com/dwot/isley.git
-    - git fetch github dev
-    - git checkout -B sync-branch github/dev
-    - git merge --squash $CI_COMMIT_SHA
-    - git commit -S -m "Dev Update $(date +'%Y-%m-%d') [Signed Sync]"
-    - git push github sync-branch:dev
+sign-dev:
+  stage: sign
+  image: alpine:3.20
   rules:
     - if: '$CI_COMMIT_BRANCH == "dev"'
-      when: manual
+  before_script:
+    - apk add cosign
+  script:
+    # Read the digest captured in the build stage
+    - IMAGE_DIGEST=$(cat image_digest.txt)
+    - echo "Signing image $CI_REGISTRY_IMAGE@$IMAGE_DIGEST"
+    - cosign sign --key "$COSIGN_PRIVATE_KEY" "$CI_REGISTRY_IMAGE@$IMAGE_DIGEST"
