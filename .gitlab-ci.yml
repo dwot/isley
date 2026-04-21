@@ -39,3 +39,27 @@ sign-dev:
     - echo "Signing image $CI_REGISTRY_IMAGE@$IMAGE_DIGEST"
     - export COSIGN_PASSWORD=$COSIGN_PASSWORD
     - cosign sign --yes --tlog-upload=false --key "$COSIGN_PRIVATE_KEY" "$CI_REGISTRY_IMAGE@$IMAGE_DIGEST"
+
+publish_dev_to_github:
+  stage: sync-public
+  image: alpine:3.20
+  before_script:
+    - apk add git gnupg
+    # Import the Sync GPG Key from the GitLab File Variable
+    - gpg --batch --import "$GPG_PRIVATE_KEY"
+    # Configure Git Identity for Sync
+    - git config --global user.email "68145+dwot@users.noreply.github.com"
+    - git config --global user.name "isley-ci-sync"
+    - git config --global user.signingkey "$GPG_KEY_ID"
+    - git config --global commit.gpgsign true
+  script:
+    - git remote add github https://x-access-token:${GITHUB_TOKEN}@github.com/dwot/isley.git
+    - git fetch github dev
+    - git checkout -B sync-branch github/dev
+    - git merge --squash $CI_COMMIT_SHA
+    # -S enforces the GPG signature using the sync key
+    - git commit -S -m "Dev Update $(date +'%Y-%m-%d') [Signed Sync]"
+    - git push github sync-branch:dev
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+      when: manual
