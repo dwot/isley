@@ -32,7 +32,7 @@ sign-dev:
     - apk add cosign
     - IMAGE_DIGEST=$(cat image_digest.txt)
     - echo "Signing image $CI_REGISTRY_IMAGE@$IMAGE_DIGEST"
-    # Use --yes to auto-accept the legal notice
-    # Use --tlog=false to skip the public transparency log (standard for internal registries)
+    # --yes: skips the legal/interactive prompt
+    # --tlog-upload=false: replaces the deprecated --tlog flag to skip Rekor
     - export COSIGN_PASSWORD=$COSIGN_PASSWORD
-    - cosign sign --yes --tlog=false --key "$COSIGN_PRIVATE_KEY" "$CI_REGISTRY_IMAGE@$IMAGE_DIGEST"
+    - cosign sign --yes --tlog-upload=false --key "$COSIGN_PRIVATE_KEY" "$CI_REGISTRY_IMAGE@$IMAGE_DIGEST"
