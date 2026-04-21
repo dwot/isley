@@ -137,29 +137,50 @@ jobs:
             fi
           } > release_notes.md
 
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@main # We will pin to SHA later
+
+      - name: Sign the published Docker image
+        env:
+          TAGS: ${{ steps.docker_tags.outputs.tags }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          for tag in ${TAGS//,/ }; do
+            cosign sign --yes --key env://COSIGN_PRIVATE_KEY "$tag"
+          done
+
+      - name: Import GPG key
+        uses: crash-utility/gpg-import-action@v2
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: "" # Our CI key has no protection per generate-key-pair step
+
       - name: Create and push tag (Main Branch Only)
         if: github.ref == 'refs/heads/main'
         run: |
           TAG="v${{ env.version }}"
-          # If tag exists, skip creating it. Otherwise create annotated tag and push.
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag -a "$TAG" -m "Release $TAG"
-            git push origin "$TAG"
-          fi
+          git config user.name "isley-release-bot"
+          git config user.email "68145+dwot@users.noreply.github.com"
+          git config user.signingkey "${{ secrets.GPG_KEY_ID }}"
+
+          # Sign binary with Cosign (Shared Trust)
+          cosign sign-blob --key env://COSIGN_PRIVATE_KEY isley-linux > isley-linux.sig
+          sha256sum isley-linux > isley-linux.sha256
+
+          # Sign Git Tag with GPG
+          git tag -s "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
 
       - name: Release Artifacts (Main Branch Only)
         if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.version }}
-          name: Release v${{ env.version }}
-          body_path: release_notes.md
           files: |
             isley-linux
-
-      - name: Cleanup Release Notes
-        run: rm -f release_notes.md
+            isley-linux.sig
+            isley-linux.sha256

@@ -86,8 +86,8 @@ type RestoreStatus struct {
 	TablesLeft   int    `json:"tables_left,omitempty"`   // remaining tables to restore
 	TotalTables  int    `json:"total_tables,omitempty"`  // total tables with data
 	Error        string `json:"error,omitempty"`
-	Tables       int    `json:"tables,omitempty"`        // final count on completion
-	Files        int    `json:"files,omitempty"`         // final count on completion
+	Tables       int    `json:"tables,omitempty"` // final count on completion
+	Files        int    `json:"files,omitempty"`  // final count on completion
 }
 
 // insertBatchSize controls how many rows are packed into each multi-row

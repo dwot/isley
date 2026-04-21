@@ -5,9 +5,9 @@ import (
 	"embed"
 	"fmt"
 	"image"
+	"image/color"
 	_ "image/jpeg"
 	_ "image/png"
-	"image/color"
 	"io"
 	"io/fs"
 	"isley/logger"
@@ -666,4 +666,3 @@ func CreateFolderIfNotExists(join string) {
 		}
 	}
 }
-
