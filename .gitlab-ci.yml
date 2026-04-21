@@ -33,7 +33,7 @@ sign-dev:
   before_script:
     - apk add cosign
   script:
-    # Read the digest captured in the build stage
     - IMAGE_DIGEST=$(cat image_digest.txt)
     - echo "Signing image $CI_REGISTRY_IMAGE@$IMAGE_DIGEST"
-    - cosign sign --key "$COSIGN_PRIVATE_KEY" "$CI_REGISTRY_IMAGE@$IMAGE_DIGEST"
+    # Explicitly providing the password via environment variable
+    - COSIGN_PASSWORD=$COSIGN_PASSWORD cosign sign --key "$COSIGN_PRIVATE_KEY" "$CI_REGISTRY_IMAGE@$IMAGE_DIGEST"
