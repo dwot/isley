@@ -34,6 +34,7 @@ sign-dev:
     - apk add cosign
   script:
     - IMAGE_DIGEST=$(cat image_digest.txt)
-    - echo "Signing image $CI_REGISTRY_IMAGE@$IMAGE_DIGEST"
-    # Explicitly providing the password via environment variable
-    - COSIGN_PASSWORD=$COSIGN_PASSWORD cosign sign --key "$COSIGN_PRIVATE_KEY" "$CI_REGISTRY_IMAGE@$IMAGE_DIGEST"
+    # 1. Use export to ensure the sub-process (cosign) sees the variable
+    - export COSIGN_PASSWORD=$COSIGN_PASSWORD
+    # 2. Add --timeout to prevent hanging if it tries to prompt for a password
+    - cosign sign --key "$COSIGN_PRIVATE_KEY" "$CI_REGISTRY_IMAGE@$IMAGE_DIGEST" --timeout 2m
