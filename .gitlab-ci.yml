@@ -46,19 +46,18 @@ publish_dev_to_github:
   before_script:
     - apk add git gnupg
     - gpg --batch --import "$GPG_PRIVATE_KEY"
-    # 1. Configure Git to bypass trust checks and use loopback for headless signing
+    # Configure Git Identity
     - git config --global user.email "68145+dwot@users.noreply.github.com"
     - git config --global user.name "isley-ci-sync"
     - git config --global user.signingkey "$GPG_KEY_ID"
     - git config --global commit.gpgsign true
-    # 2. Tell GPG to ignore the lack of a TTY and trust the key provided
-    - git config --global gpg.program "gpg --batch --no-tty"
   script:
     - git remote add github https://x-access-token:${GITHUB_TOKEN}@github.com/dwot/isley.git
     - git fetch github dev
     - git checkout -B sync-branch github/dev
     - git merge --squash $CI_COMMIT_SHA
-    # -S enforces the GPG signature using the sync key
+    # Use environment variables to force GPG into non-interactive mode
+    - export GPG_TTY=$(tty)
     - git commit -S -m "Dev Update $(date +'%Y-%m-%d') [Signed Sync]"
     - git push github sync-branch:dev
   rules:
