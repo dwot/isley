@@ -46,7 +46,8 @@ publish_dev_to_github:
   before_script:
     - apk add git gnupg
     - gpg --batch --import "$GPG_PRIVATE_KEY"
-    # 1. Configure Git Identity
+    # SANITY CHECK: This MUST show 'sec' in the job logs
+    - gpg --list-secret-keys
     - git config --global user.email "68145+dwot@users.noreply.github.com"
     - git config --global user.name "isley-ci-sync"
     - git config --global user.signingkey "$GPG_KEY_ID"
@@ -56,9 +57,7 @@ publish_dev_to_github:
     - git fetch github dev
     - git checkout -B sync-branch github/dev
     - git merge --squash $CI_COMMIT_SHA
-    # 2. Force GPG into batch mode using an environment-level override
-    # This bypasses trust checks and TTY requirements
-    - git config --global gpg.program "gpg"
+    # Explicitly use loopback for the signature
     - git commit -S -m "Dev Update $(date +'%Y-%m-%d') [Signed Sync]" --gpg-sign="$GPG_KEY_ID"
     - git push github sync-branch:dev
   rules:
