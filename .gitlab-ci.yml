@@ -46,16 +46,13 @@ publish_dev_to_github:
   before_script:
     - apk add git gnupg
     - gpg --batch --import "$GPG_PRIVATE_KEY"
-    # 1. Dynamically find the fingerprint and apply Ultimate Trust (6)
-    - FINGERPRINT=$(gpg --with-colons --fingerprint "$GPG_KEY_ID" | grep "^fpr" | cut -d':' -f10)
-    - echo "${FINGERPRINT}:6:" | gpg --batch --import-ownertrust
-    # 2. Configure Git
+    # 1. Configure Git to bypass trust checks and use loopback for headless signing
     - git config --global user.email "68145+dwot@users.noreply.github.com"
     - git config --global user.name "isley-ci-sync"
     - git config --global user.signingkey "$GPG_KEY_ID"
     - git config --global commit.gpgsign true
-    # 3. Fix potential GPG TTY issue for headless signing
-    - export GPG_TTY=$(tty)
+    # 2. Tell GPG to ignore the lack of a TTY and trust the key provided
+    - git config --global gpg.program "gpg --batch --no-tty"
   script:
     - git remote add github https://x-access-token:${GITHUB_TOKEN}@github.com/dwot/isley.git
     - git fetch github dev
