@@ -51,12 +51,14 @@ publish_dev_to_github:
     - git config --global user.name "isley-ci-sync"
     - git config --global user.signingkey "$GPG_KEY_ID"
     - git config --global commit.gpgsign true
+    # Point to the plain binary
+    - git config --global gpg.program gpg
   script:
     - git remote add github https://x-access-token:${GITHUB_TOKEN}@github.com/dwot/isley.git
     - git fetch github dev
     - git checkout -B sync-branch github/dev
     - git merge --squash $CI_COMMIT_SHA
-    # Use environment variables to force GPG into non-interactive mode
+    # Force GPG into non-interactive loopback mode
     - export GPG_TTY=$(tty)
     - git commit -S -m "Dev Update $(date +'%Y-%m-%d') [Signed Sync]"
     - git push github sync-branch:dev
