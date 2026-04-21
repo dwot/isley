@@ -138,9 +138,9 @@ jobs:
           } > release_notes.md
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@main # We will pin to SHA later
+        uses: sigstore/cosign-installer@v3.5.0
 
-      - name: Sign the published Docker image
+      - name: Sign Docker Images
         env:
           TAGS: ${{ steps.docker_tags.outputs.tags }}
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
@@ -150,25 +150,27 @@ jobs:
             cosign sign --yes --key env://COSIGN_PRIVATE_KEY "$tag"
           done
 
-      - name: Import GPG key
-        uses: crash-utility/gpg-import-action@v2
+      - name: Import GPG Key
+        uses: crazy-max/ghaction-import-gpg@v6
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          passphrase: "" # Our CI key has no protection per generate-key-pair step
+          # Our CI key has no protection per generate-key-pair step
+          git_user_signingkey: true
+          git_tag_gpgsign: true
 
       - name: Create and push tag (Main Branch Only)
         if: github.ref == 'refs/heads/main'
         run: |
           TAG="v${{ env.version }}"
-          git config user.name "isley-release-bot"
-          git config user.email "68145+dwot@users.noreply.github.com"
-          git config user.signingkey "${{ secrets.GPG_KEY_ID }}"
-
+          
           # Sign binary with Cosign (Shared Trust)
           cosign sign-blob --key env://COSIGN_PRIVATE_KEY isley-linux > isley-linux.sig
           sha256sum isley-linux > isley-linux.sha256
-
-          # Sign Git Tag with GPG
+          
+          # Use our release identity
+          git config user.name "isley-release-bot"
+          git config user.email "68145+dwot@users.noreply.github.com"
+          
           git tag -s "$TAG" -m "Release $TAG"
           git push origin "$TAG"
         env:

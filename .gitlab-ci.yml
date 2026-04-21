@@ -13,23 +13,19 @@ build-dev:
     - mkdir -p /kaniko/.docker
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(echo -n "$CI_REGISTRY_USER:$CI_REGISTRY_PASSWORD" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
   script:
-    # 1. Build the image and output the digest
     - /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/Dockerfile" --destination "$CI_REGISTRY_IMAGE:dev" --digest-file=digest.txt
-
-    # 2. Sign the internal image using Cosign
-    # Note: Using a lightweight image with cosign installed for the signing step
     - |
       apk add cosign
       cosign sign --key "$COSIGN_PRIVATE_KEY" "$CI_REGISTRY_IMAGE@$(cat digest.txt)"
+  environment:
+    name: internal-dev
 
 publish_dev_to_github:
   stage: sync-public
-  image: alpine:latest
+  image: alpine:3.20 # Pinned for internal stability
   before_script:
     - apk add git gnupg
-    # 1. Import the Sync GPG Key from the GitLab File Variable
     - gpg --batch --import "$GPG_PRIVATE_KEY"
-    # 2. Configure Git Identity for Sync
     - git config --global user.email "68145+dwot@users.noreply.github.com"
     - git config --global user.name "isley-ci-sync"
     - git config --global user.signingkey "$GPG_KEY_ID"
@@ -39,7 +35,6 @@ publish_dev_to_github:
     - git fetch github dev
     - git checkout -B sync-branch github/dev
     - git merge --squash $CI_COMMIT_SHA
-    # -S enforces the GPG signature using the sync key
     - git commit -S -m "Dev Update $(date +'%Y-%m-%d') [Signed Sync]"
     - git push github sync-branch:dev
   rules:
