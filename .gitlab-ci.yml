@@ -57,9 +57,10 @@ publish_dev_to_github:
     - git fetch github dev
     - git checkout -B sync-branch github/dev
     - git merge --squash $CI_COMMIT_SHA
-    # Explicitly use loopback for the signature
-    - git commit -S -m "Dev Update $(date +'%Y-%m-%d') [Signed Sync]" --gpg-sign="$GPG_KEY_ID"
-    - git push github sync-branch:dev
+    # The signature finally worked!
+    - git commit -S -m "Dev Update $(date +'%Y-%m-%d') [Signed Sync]"
+    # Explicitly push the local sync-branch to the remote dev branch
+    - git push github sync-branch:dev --force
   rules:
     - if: '$CI_COMMIT_BRANCH == "dev"'
       when: manual
