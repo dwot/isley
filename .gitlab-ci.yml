@@ -45,9 +45,11 @@ publish_dev_to_github:
   image: alpine:3.20
   before_script:
     - apk add git gnupg
-    # Import the Sync GPG Key from the GitLab File Variable
+    # 1. Import and explicitly allow the secret key
     - gpg --batch --import "$GPG_PRIVATE_KEY"
-    # Configure Git Identity for Sync
+    # 2. Add the "Ultimate Trust" so GPG doesn't hesitate to sign
+    - echo "${GPG_KEY_ID}:6:" | gpg --batch --import-ownertrust
+    # 3. Configure Git Identity
     - git config --global user.email "68145+dwot@users.noreply.github.com"
     - git config --global user.name "isley-ci-sync"
     - git config --global user.signingkey "$GPG_KEY_ID"
