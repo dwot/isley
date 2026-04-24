@@ -131,6 +131,57 @@
             </div>
             {{ end }}
 
+            {{ if .plant.Activities }}
+            <!-- ===== Activity notebook (collapsible, sits above the gallery so it stays near the fold) ===== -->
+            <section class="activity-notebook collapse" id="activityNotebook" aria-labelledby="activityNotebookHeader">
+                <div class="card mb-4 plant-notebook-card">
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+                            <h2 class="h5 card-title mb-0 text-primary" id="activityNotebookHeader">
+                                <i class="fa-solid fa-book-open me-1"></i>{{ .lcl.activity_notebook_title }}
+                                <span class="badge bg-secondary ms-1" style="font-size:0.75rem">{{ len .plant.Activities }}</span>
+                            </h2>
+                            <div class="d-flex flex-wrap gap-2">
+                                {{ if .loggedIn }}
+                                <div class="btn-group btn-group-sm" role="group" aria-label="{{ .lcl.activity_export }}">
+                                    <a class="btn btn-outline-secondary" href="/activities/export/csv?plant_id={{ .plant.ID }}">
+                                        <i class="fa-solid fa-file-csv me-1"></i>{{ .lcl.activity_export_csv }}
+                                    </a>
+                                    <a class="btn btn-outline-secondary" href="/activities/export/xlsx?plant_id={{ .plant.ID }}">
+                                        <i class="fa-solid fa-file-excel me-1"></i>{{ .lcl.activity_export_xlsx }}
+                                    </a>
+                                </div>
+                                <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addActivityModal">
+                                    <i class="fa-solid fa-plus me-1"></i>{{ .lcl.add_activity }}
+                                </button>
+                                {{ end }}
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover align-top mb-0 plant-notebook-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col" class="plant-notebook-col-date">{{ .lcl.title_date }}</th>
+                                        <th scope="col" class="plant-notebook-col-type">{{ .lcl.title_activity }}</th>
+                                        <th scope="col">{{ .lcl.title_note }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {{ range .plant.Activities }}
+                                    <tr class="clickable-row activity-row" data-activity='{{ json . }}'>
+                                        <td class="text-nowrap">{{ formatDateTime .Date }}</td>
+                                        <td>{{ .Name }}</td>
+                                        <td class="plant-notebook-note">{{ .Note }}</td>
+                                    </tr>
+                                    {{ end }}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            {{ end }}
+
             <!-- Image Gallery (hidden if none) -->
             {{ if .plant.Images }}
             <div id="gallery" class="mb-4">
@@ -308,73 +359,17 @@
                         <i class="fa-solid fa-chevron-down me-1"></i> Show all {{ len .plant.Activities }} activities
                     </button>
                     {{ end }}
-                    <div class="d-flex flex-wrap gap-2 mt-2 plant-activity-links">
-                        <button class="btn btn-sm btn-link p-0 text-decoration-none plant-notebook-toggle"
-                                type="button" data-bs-toggle="collapse" data-bs-target="#activityNotebook"
-                                aria-expanded="false" aria-controls="activityNotebook">
-                            <i class="fa-solid fa-book-open me-1"></i>{{ .lcl.activity_notebook_open }}
-                        </button>
-                        <a class="btn btn-sm btn-link p-0 text-decoration-none" href="/activities?plant_id={{ .plant.ID }}">
-                            <i class="fa-solid fa-list me-1"></i>{{ .lcl.activity_log_view_all }}
-                        </a>
-                    </div>
+                    <button class="btn btn-sm btn-link p-0 mt-2 text-decoration-none plant-notebook-toggle"
+                            type="button" data-bs-toggle="collapse" data-bs-target="#activityNotebook"
+                            aria-expanded="false" aria-controls="activityNotebook">
+                        <i class="fa-solid fa-book-open me-1"></i>{{ .lcl.activity_notebook_open }}
+                    </button>
                 </div>
             </div>
             {{ end }}
 
         </div>
     </div>
-
-    {{ if .plant.Activities }}
-    <!-- ===== Activity notebook (full-width, collapsible) ===== -->
-    <section class="activity-notebook collapse" id="activityNotebook" aria-labelledby="activityNotebookHeader">
-        <div class="card mb-4 plant-notebook-card">
-            <div class="card-body">
-                <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-                    <h2 class="h5 card-title mb-0 text-primary" id="activityNotebookHeader">
-                        <i class="fa-solid fa-book-open me-1"></i>{{ .lcl.activity_notebook_title }}
-                        <span class="badge bg-secondary ms-1" style="font-size:0.75rem">{{ len .plant.Activities }}</span>
-                    </h2>
-                    <div class="d-flex flex-wrap gap-2">
-                        {{ if .loggedIn }}
-                        <div class="btn-group btn-group-sm" role="group" aria-label="{{ .lcl.activity_export }}">
-                            <a class="btn btn-outline-secondary" href="/activities/export/csv?plant_id={{ .plant.ID }}">
-                                <i class="fa-solid fa-file-csv me-1"></i>{{ .lcl.activity_export_csv }}
-                            </a>
-                            <a class="btn btn-outline-secondary" href="/activities/export/xlsx?plant_id={{ .plant.ID }}">
-                                <i class="fa-solid fa-file-excel me-1"></i>{{ .lcl.activity_export_xlsx }}
-                            </a>
-                        </div>
-                        <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addActivityModal">
-                            <i class="fa-solid fa-plus me-1"></i>{{ .lcl.add_activity }}
-                        </button>
-                        {{ end }}
-                    </div>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-hover align-top mb-0 plant-notebook-table">
-                        <thead>
-                            <tr>
-                                <th scope="col" class="plant-notebook-col-date">{{ .lcl.title_date }}</th>
-                                <th scope="col" class="plant-notebook-col-type">{{ .lcl.title_activity }}</th>
-                                <th scope="col">{{ .lcl.title_note }}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {{ range .plant.Activities }}
-                            <tr class="clickable-row activity-row" data-activity='{{ json . }}'>
-                                <td class="text-nowrap">{{ formatDateTime .Date }}</td>
-                                <td>{{ .Name }}</td>
-                                <td class="plant-notebook-note">{{ .Note }}</td>
-                            </tr>
-                            {{ end }}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </section>
-    {{ end }}
 </div>
 
 {{ template "modals/upload-images-modal.html" . }}
