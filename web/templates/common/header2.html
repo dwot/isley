@@ -30,6 +30,11 @@
                 <i class="fa fa-dna" title="{{ .lcl.title_strains }}"></i>
             </a>
         </li>
+        <li class="nav-item">
+            <a href="/activities" class="text-center nav-link{{ if hasPrefix .currentPath "/activities" }} active{{ end }}" aria-label="{{ .lcl.activity_log_title }}">
+                <i class="fa fa-clipboard-list" title="{{ .lcl.activity_log_title }}"></i>
+            </a>
+        </li>
         {{ if .loggedIn }}
         <li class="nav-item">
             <a href="/sensors" class="text-center nav-link{{ if hasPrefix .currentPath "/sensors" }} active{{ end }}" aria-label="{{ .lcl.title_sensors }}">

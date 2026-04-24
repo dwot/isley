@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tightened `VERSION` discipline: release workflow rejects a push to `main`
   if the tag already exists or the version string isn't strict SemVer.
 - Fixed #146 Healthcheck didn't respect ISLEY_PORT
+- Fixed #148 Activities list full view and export
 
 ### Deprecated
 
