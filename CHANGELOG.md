@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added #148 Activities list full view and export.  Activity log is now a top level item with searching / filtering /
+export.  Additionally the plant details page includes an expandable "Notebook" view with activity details displayed.
 
 ### Changed
 - Rebuilt the CI/CD pipeline around a CHANGELOG-driven release ceremony.
@@ -34,14 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   GitLab short SHA for cross-registry traceability.
 - Tightened `VERSION` discipline: release workflow rejects a push to `main`
   if the tag already exists or the version string isn't strict SemVer.
-- Fixed #146 Healthcheck didn't respect ISLEY_PORT
-- Fixed #148 Activities list full view and export
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+- Fixed #146 Healthcheck didn't respect ISLEY_PORT
 
 ### Security
 

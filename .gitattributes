@@ -1,2 +1,63 @@
-# Ensure shell scripts always use LF line endings
-*.sh text eol=lf
+# Normalize line endings across platforms.
+#
+# * text=auto eol=lf  means: git detects whether a path is text, and if so
+# stores it as LF in the tree AND checks it out as LF in the working copy,
+# regardless of per-user core.autocrlf.  This prevents Windows clones from
+# introducing CRLF drift on every edit.
+#
+# After landing this file:
+#   git add --renormalize .
+#   git commit -m "Normalize line endings to LF"
+# On existing clones, run the same `git add --renormalize .` once after pull.
+
+* text=auto eol=lf
+
+# Explicit declarations for the main source / content types.  Redundant with
+# `text=auto` for anything already detected, but makes intent obvious.
+*.go    text eol=lf
+*.js    text eol=lf
+*.jsx   text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.css   text eol=lf
+*.html  text eol=lf
+*.htm   text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.sh    text eol=lf
+*.sql   text eol=lf
+*.toml  text eol=lf
+*.xml   text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+
+# Dockerfiles / config / meta
+Dockerfile              text eol=lf
+*.dockerignore          text eol=lf
+.env.example            text eol=lf
+.gitattributes          text eol=lf
+.gitignore              text eol=lf
+.gitlab-ci.yml          text eol=lf
+.github/**/*.yml        text eol=lf
+.github/**/*.yaml       text eol=lf
+
+# Binary — never treat as text, never diff by default.
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.webp      binary
+*.ttf       binary
+*.otf       binary
+*.woff      binary
+*.woff2     binary
+*.pdf       binary
+*.zip       binary
+*.gz        binary
+*.tgz       binary
+*.tar       binary
+*.exe       binary
+*.db        binary
+*.sqlite    binary
+*.sqlite3   binary
