@@ -45,6 +45,11 @@ export.  Additionally the plant details page includes an expandable "Notebook" v
 - Fixed #146 Healthcheck didn't respect ISLEY_PORT
 
 ### Security
+Bump golang to 1.25.9 for security updates
+Bump modernc.org/sqlite to 1.49.1
+Bump golang.org/x/text to 0.36.0
+Bump golang.org/x/image to 0.39.0
+Bump golang.org/x/crypto to 0.50.0
 
 ## 0.1.41b and earlier
 
