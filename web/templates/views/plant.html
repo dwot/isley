@@ -345,24 +345,24 @@
                         <table class="table table-sm table-hover mb-0 plant-mini-table">
                             <tbody>
                             {{ range $i, $a := .plant.Activities }}
-                            <tr class="clickable-row activity-row{{ if ge $i 5 }} plant-row-hidden{{ end }}" data-activity='{{ json $a }}'>
+                            {{ if lt $i 5 }}
+                            <tr class="clickable-row activity-row" data-activity='{{ json $a }}'>
                                 <td class="text-muted plant-mini-date">{{ formatDate $a.Date }}</td>
                                 <td>{{ $a.Name }}</td>
                                 <td class="text-muted plant-mini-note">{{ preview $a.Note }}</td>
                             </tr>
                             {{ end }}
+                            {{ end }}
                             </tbody>
                         </table>
                     </div>
-                    {{ if gt (len .plant.Activities) 5 }}
-                    <button class="btn btn-sm btn-link text-muted plant-expand-btn mt-2 p-0" data-target="activity">
-                        <i class="fa-solid fa-chevron-down me-1"></i> Show all {{ len .plant.Activities }} activities
-                    </button>
-                    {{ end }}
                     <button class="btn btn-sm btn-link p-0 mt-2 text-decoration-none plant-notebook-toggle"
                             type="button" data-bs-toggle="collapse" data-bs-target="#activityNotebook"
                             aria-expanded="false" aria-controls="activityNotebook">
                         <i class="fa-solid fa-book-open me-1"></i>{{ .lcl.activity_notebook_open }}
+                        {{ if gt (len .plant.Activities) 5 }}
+                        <span class="text-muted ms-1">({{ len .plant.Activities }})</span>
+                        {{ end }}
                     </button>
                 </div>
             </div>
@@ -624,29 +624,6 @@ document.addEventListener("DOMContentLoaded", () => {
             if (window.uiMessages) uiMessages.showToast("Failed to advance status", "danger");
         }
     }
-
-    // ===== Expand/Collapse for activity & measurement tables =====
-    document.querySelectorAll(".plant-expand-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-            const card = btn.closest(".plant-section-card");
-            if (!card) return;
-            const hiddenRows = card.querySelectorAll(".plant-row-hidden");
-            const isExpanded = btn.dataset.expanded === "true";
-
-            if (isExpanded) {
-                hiddenRows.forEach(r => r.style.display = "none");
-                btn.dataset.expanded = "false";
-                btn.innerHTML = btn.innerHTML.replace("Show less", "Show all").replace("fa-chevron-up", "fa-chevron-down");
-            } else {
-                hiddenRows.forEach(r => r.style.display = "");
-                btn.dataset.expanded = "true";
-                btn.innerHTML = '<i class="fa-solid fa-chevron-up me-1"></i> Show less';
-            }
-        });
-    });
-
-    // Initialize hidden rows
-    document.querySelectorAll(".plant-row-hidden").forEach(r => r.style.display = "none");
 
     // ===== Grouped Measurements =====
     const mGroupEl = document.getElementById("measurementGroupList");
