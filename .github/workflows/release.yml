@@ -177,22 +177,38 @@ jobs:
       - name: Configure GPG for headless signing (Main Branch Only)
         if: github.ref == 'refs/heads/main'
         run: |
-          # Force loopback pinentry. The crazy-max action only configures this
-          # automatically when a passphrase is supplied; with a passphrase-less
-          # key, gpg-agent still launches pinentry-curses on the runner and
-          # fails with "Inappropriate ioctl for device". Loopback mode submits
-          # an empty passphrase noninteractively.
-          mkdir -p ~/.gnupg
-          chmod 700 ~/.gnupg
-          grep -q '^pinentry-mode loopback' ~/.gnupg/gpg.conf 2>/dev/null \
-            || echo 'pinentry-mode loopback' >> ~/.gnupg/gpg.conf
-          grep -q '^allow-loopback-pinentry' ~/.gnupg/gpg-agent.conf 2>/dev/null \
-            || echo 'allow-loopback-pinentry' >> ~/.gnupg/gpg-agent.conf
+          # crazy-max/ghaction-import-gpg only sets up loopback pinentry when
+          # a passphrase is supplied. With our passphrase-less CI key it
+          # leaves gpg-agent defaulting to pinentry-curses, which has no TTY
+          # in CI and trips "git tag -s" with "Inappropriate ioctl for device".
+          #
+          # Fix: route every gpg invocation that git makes through a small
+          # wrapper that explicitly sets loopback mode and an empty
+          # passphrase. The wrapper makes the contract unambiguous regardless
+          # of how the caller (git, cosign, anything else) invokes gpg.
+          mkdir -p "$HOME/.gnupg" "$HOME/bin"
+          chmod 700 "$HOME/.gnupg"
+          grep -q '^pinentry-mode loopback' "$HOME/.gnupg/gpg.conf" 2>/dev/null \
+            || echo 'pinentry-mode loopback' >> "$HOME/.gnupg/gpg.conf"
+          grep -q '^allow-loopback-pinentry' "$HOME/.gnupg/gpg-agent.conf" 2>/dev/null \
+            || echo 'allow-loopback-pinentry' >> "$HOME/.gnupg/gpg-agent.conf"
           gpgconf --kill gpg-agent || true
-          # Smoke-test: produce a detached signature noninteractively so a
-          # GPG misconfiguration fails this step (loud, early) rather than
-          # the later git-tag step (quiet, late).
-          echo "ci-smoke-test" | gpg --batch --no-tty --clearsign >/dev/null
+
+          cat > "$HOME/bin/gpg-loopback" <<'WRAPPER'
+          #!/bin/sh
+          exec gpg --pinentry-mode loopback --passphrase '' "$@"
+          WRAPPER
+          chmod +x "$HOME/bin/gpg-loopback"
+          git config --global gpg.program "$HOME/bin/gpg-loopback"
+
+          # Smoke-test: produce + verify a detached signature using file I/O
+          # only (no stdin) so a misconfiguration fails this step early
+          # rather than burying the error inside `git tag -s`.
+          echo "ci-smoke-test" > /tmp/gpg-smoke.in
+          "$HOME/bin/gpg-loopback" --batch --yes --output /tmp/gpg-smoke.sig \
+            --detach-sign /tmp/gpg-smoke.in
+          "$HOME/bin/gpg-loopback" --batch --verify /tmp/gpg-smoke.sig /tmp/gpg-smoke.in
+          echo "GPG smoke test OK — wrapper signs and verifies non-interactively."
 
       - name: Create and push tag (Main Branch Only)
         if: github.ref == 'refs/heads/main'
