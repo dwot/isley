@@ -170,7 +170,10 @@ jobs:
         uses: crazy-max/ghaction-import-gpg@v6
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          # Our CI key has no protection per generate-key-pair step
+          passphrase:      ${{ secrets.GPG_PASSPHRASE }}
+          # When passphrase is supplied, the action configures loopback
+          # pinentry and a passphrase-injecting gpg wrapper for us, so
+          # `git tag -s` and `git commit -S` work non-interactively.
           git_user_signingkey: true
           git_tag_gpgsign: true
 
