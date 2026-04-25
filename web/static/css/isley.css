@@ -2080,16 +2080,54 @@ header .nav-link.active::after {
     pointer-events: none;
 }
 .plant-hero--no-img .plant-hero-overlay { display: none; }
+/* Hero carousel-style nav arrows */
+.plant-hero-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 3;
+    color: rgba(255,255,255,0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    line-height: 1;
+    text-decoration: none;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.45);
+    transition: color 0.18s, opacity 0.18s, transform 0.18s;
+    opacity: 0.8;
+    cursor: pointer;
+}
+.plant-hero-nav:hover {
+    color: #fff;
+    transform: translateY(-50%) scale(1.05);
+    opacity: 1;
+    text-decoration: none;
+}
+.plant-hero-nav--prev { left: 0.85rem; }
+.plant-hero-nav--next { right: 0.85rem; }
+.plant-hero--no-img .plant-hero-nav {
+    color: rgba(var(--bs-body-color-rgb, 33,37,41), 0.6);
+    text-shadow: none;
+}
+.plant-hero--no-img .plant-hero-nav:hover {
+    color: var(--color-accent);
+}
 .plant-hero-content {
     position: relative;
     z-index: 1;
     width: 100%;
-    padding: 1.25rem 1.5rem;
+    padding: 1.25rem 2.6rem;
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
     gap: 1rem;
     flex-wrap: wrap;
+}
+@media (max-width: 575.98px) {
+    .plant-hero-content {
+        padding: 1rem 2rem;
+    }
 }
 .plant-hero-title {
     font-size: 2rem;

@@ -189,6 +189,9 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 		translations := utils.TranslationService.GetTranslations(lang)
 		currentPath, _ := c.Get("currentPath")
 		store := handlers.ConfigStoreFromContext(c)
+		idStr := c.Param("id")
+		plant := handlers.GetPlant(db, idStr)
+		prevPlantID, nextPlantID := handlers.GetAdjacentPlantIDs(db, int(plant.ID))
 		c.HTML(http.StatusOK, "views/plant.html", gin.H{
 			"title":           "Plant Details",
 			"currentPath":     currentPath,
@@ -208,6 +211,8 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"currentLanguage": lang,
 			"csrfToken":       c.GetString("csrf_token"),
 			"cspNonce":        c.GetString("cspNonce"),
+			"prevPlantID":     prevPlantID,
+			"nextPlantID":     nextPlantID,
 		})
 	})
 
