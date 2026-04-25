@@ -21,6 +21,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.1.42] - 2026-04-25
+
+### Added
 - Added #148 Activities list full view and export.  Activity log is now a top level item with searching / filtering /
 export.  Additionally the plant details page includes an expandable "Notebook" view with activity details displayed.
 
