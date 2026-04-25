@@ -1,14 +1,15 @@
 package routes
 
 import (
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-gonic/gin"
 	"isley/config"
 	"isley/handlers"
 	"isley/model"
 	"isley/utils"
 	"net/http"
 	"strconv"
+
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
 )
 
 func AddBasicRoutes(r *gin.RouterGroup, version string) {
@@ -182,18 +183,22 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
 		currentPath, _ := c.Get("currentPath")
+		db := handlers.DBFromContext(c)
+		idStr := c.Param("id")
+		plant := handlers.GetPlant(db, idStr)
+		prevPlantID, nextPlantID := handlers.GetAdjacentPlantIDs(db, int(plant.ID))
 		c.HTML(http.StatusOK, "views/plant.html", gin.H{
 			"title":           "Plant Details",
 			"currentPath":     currentPath,
 			"version":         version,
-			"plant":           handlers.GetPlant(handlers.DBFromContext(c), c.Param("id")),
+			"plant":           plant,
 			"zones":           config.Zones,
 			"strains":         config.Strains,
 			"statuses":        config.Statuses,
 			"breeders":        config.Breeders,
 			"measurements":    config.Metrics,
-			"sensors":         handlers.GetSensors(handlers.DBFromContext(c)),
-			"plants":          handlers.GetLivingPlants(handlers.DBFromContext(c)),
+			"sensors":         handlers.GetSensors(db),
+			"plants":          handlers.GetLivingPlants(db),
 			"activities":      config.Activities,
 			"loggedIn":        sessions.Default(c).Get("logged_in"),
 			"lcl":             translations,
@@ -201,6 +206,8 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"currentLanguage": lang,
 			"csrfToken":       c.GetString("csrf_token"),
 			"cspNonce":        c.GetString("cspNonce"),
+			"prevPlantID":     prevPlantID,
+			"nextPlantID":     nextPlantID,
 		})
 	})
 

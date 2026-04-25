@@ -1120,4 +1120,36 @@ func DeadPlantsHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, plants)
 }
 
+// GetAdjacentPlantIDs returns the prev and next plant IDs within the same status group,
+// ordered by start_dt then name. Returns 0, 0 when there is no adjacent plant.
+func GetAdjacentPlantIDs(db *sql.DB, currentID int) (prevID, nextID int) {
+	fieldLogger := logger.Log.WithField("func", "GetAdjacentPlantIDs")
+
+	// Partition plants into status groups (active/not active),
+	// then use LAG/LEAD to get the neighbors of the requested plant.
+	const query = `
+		WITH ranked AS (
+			SELECT
+				p.id,
+				LAG(p.id)  OVER (PARTITION BY ps.active ORDER BY p.start_dt, p.name) AS prev_id,
+				LEAD(p.id) OVER (PARTITION BY ps.active ORDER BY p.start_dt, p.name) AS next_id
+			FROM plant p
+			JOIN plant_status_log psl ON p.id = psl.plant_id
+			JOIN plant_status ps      ON psl.status_id = ps.id
+			WHERE psl.date = (SELECT MAX(date) FROM plant_status_log WHERE plant_id = p.id)
+		)
+		SELECT COALESCE(prev_id, 0), COALESCE(next_id, 0)
+		FROM   ranked
+		WHERE  id = $1
+	`
+
+	if err := db.QueryRow(query, currentID).Scan(&prevID, &nextID); err != nil {
+		if err != sql.ErrNoRows {
+			fieldLogger.WithError(err).Error("Failed to query adjacent plant IDs")
+		}
+		return 0, 0
+	}
+	return prevID, nextID
+}
+
 // Strain and breeder handlers have been moved to strain.go

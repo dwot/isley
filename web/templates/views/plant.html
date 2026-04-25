@@ -15,6 +15,16 @@
     <div class="plant-hero mb-4{{ if eq .plant.LatestImage.ImagePath "" }} plant-hero--no-img{{ end }}"
          {{ if ne .plant.LatestImage.ImagePath "" }}style="background-image:url('{{ .plant.LatestImage.ImagePath }}')"{{ end }}>
         <div class="plant-hero-overlay"></div>
+        {{ if .prevPlantID }}
+        <a href="/plant/{{ .prevPlantID }}" class="plant-hero-nav plant-hero-nav--prev" title="Previous plant" id="prevPlantLink">
+            <i class="fa-solid fa-chevron-left"></i>
+        </a>
+        {{ end }}
+        {{ if .nextPlantID }}
+        <a href="/plant/{{ .nextPlantID }}" class="plant-hero-nav plant-hero-nav--next" title="Next plant" id="nextPlantLink">
+            <i class="fa-solid fa-chevron-right"></i>
+        </a>
+        {{ end }}
         {{ if and .plant.Sensors (ne .plant.Status "Dead") (ne .plant.Status "Success") (ne .plant.Status "Drying") (ne .plant.Status "Curing") }}
         <div class="plant-hero-sensors">
             {{ range .plant.Sensors }}
@@ -712,6 +722,20 @@ document.addEventListener("DOMContentLoaded", () => {
             mGroupEl.appendChild(row);
         });
     }
+
+    // ===== Plant navigation (arrow keys) =====
+    var prevId = {{ .prevPlantID }};
+    var nextId = {{ .nextPlantID }};
+    document.addEventListener('keydown', function(e) {
+        var tag = document.activeElement && document.activeElement.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        if (document.activeElement && document.activeElement.isContentEditable) return;
+        if (e.key === 'ArrowLeft' && prevId) {
+            window.location.href = '/plant/' + prevId;
+        } else if (e.key === 'ArrowRight' && nextId) {
+            window.location.href = '/plant/' + nextId;
+        }
+    });
 });
 </script>
 
