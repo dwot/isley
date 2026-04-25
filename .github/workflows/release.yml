@@ -179,8 +179,9 @@ jobs:
         run: |
           TAG="v${{ env.version }}"
           
-          # Sign binary with Cosign (Shared Trust)
-          cosign sign-blob --key env://COSIGN_PRIVATE_KEY isley-linux > isley-linux.sig
+          # Sign binary with Cosign (Shared Trust). --yes auto-accepts the
+          # Rekor transparency-log upload prompt, which has no TTY in CI.
+          cosign sign-blob --yes --key env://COSIGN_PRIVATE_KEY isley-linux > isley-linux.sig
           sha256sum isley-linux > isley-linux.sha256
           
           # Use our release identity
