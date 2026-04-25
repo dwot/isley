@@ -1,5 +1,7 @@
 stages:
   - build
+  - sign
+  - sync-public
 
 build-dev:
   stage: build
@@ -10,12 +12,57 @@ build-dev:
     - if: '$CI_COMMIT_BRANCH == "dev"'
   before_script:
     - mkdir -p /kaniko/.docker
-    - |
-      echo "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(echo -n "$CI_REGISTRY_USER:$CI_REGISTRY_PASSWORD" | base64 | tr -d '\n')\"}}}" \
-        > /kaniko/.docker/config.json
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(echo -n "$CI_REGISTRY_USER:$CI_REGISTRY_PASSWORD" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
   script:
+    # Use --digest-file to capture the exact SHA of the pushed image
     - /kaniko/executor
-        --context "$CI_PROJECT_DIR"
-        --dockerfile "$CI_PROJECT_DIR/Dockerfile"
-        --destination "$CI_REGISTRY_IMAGE:dev"
-        --destination "$CI_REGISTRY_IMAGE:dev-$CI_COMMIT_SHORT_SHA"
+      --context "$CI_PROJECT_DIR"
+      --dockerfile "$CI_PROJECT_DIR/Dockerfile"
+      --destination "$CI_REGISTRY_IMAGE:dev"
+      --digest-file=image_digest.txt
+  artifacts:
+    paths:
+      - image_digest.txt
+    expire_in: 1 hour
+
+sign-dev:
+  stage: sign
+  image: alpine:3.20
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+  before_script:
+    - apk add cosign
+    # Login to the registry so cosign can push the signature
+    - cosign login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
+  script:
+    - IMAGE_DIGEST=$(cat image_digest.txt)
+    - echo "Signing image $CI_REGISTRY_IMAGE@$IMAGE_DIGEST"
+    - export COSIGN_PASSWORD=$COSIGN_PASSWORD
+    - cosign sign --yes --tlog-upload=false --key "$COSIGN_PRIVATE_KEY" "$CI_REGISTRY_IMAGE@$IMAGE_DIGEST"
+
+publish_dev_to_github:
+  stage: sync-public
+  image: alpine:3.20
+  before_script:
+    - apk add git gnupg
+    - gpg --batch --import "$GPG_PRIVATE_KEY"
+    # SANITY CHECK: This MUST show 'sec' in the job logs
+    - gpg --list-secret-keys
+    - git config --global user.email "68145+dwot@users.noreply.github.com"
+    - git config --global user.name "isley-ci-sync"
+    - git config --global user.signingkey "$GPG_KEY_ID"
+    - git config --global commit.gpgsign true
+  script:
+    - git remote add github https://x-access-token:${GITHUB_TOKEN}@github.com/dwot/isley.git
+    - git fetch github dev
+    - git checkout -B sync-branch github/dev
+    - git merge --squash $CI_COMMIT_SHA
+    # Signed squash-sync. Embed the originating GitLab short SHA so published
+    # Docker Hub images (which are tagged with the post-squash GitHub SHA)
+    # can be traced back to the internal commit that triggered them.
+    - git commit -S -m "Dev Update $(date -u +'%Y-%m-%d') [Signed Sync] from gitlab@${CI_COMMIT_SHORT_SHA}"
+    # Explicitly push the local sync-branch to the remote dev branch
+    - git push github sync-branch:dev --force
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+      when: manual

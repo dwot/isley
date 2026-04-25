@@ -1,5 +1,5 @@
 # BUILD PHASE
-FROM golang:1.25.8-alpine3.23 AS builder
+FROM golang:1.25.9-alpine3.23 AS builder
 WORKDIR /build
 
 COPY go.mod go.sum ./
@@ -46,7 +46,7 @@ ENV TZ=UTC
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:8080/health || exit 1
+  CMD wget -qO- "http://localhost:${ISLEY_PORT:-8080}/health" || exit 1
 
 # Entrypoint runs as root to fix volume ownership, then drops to isley user
 ENTRYPOINT ["/app/entrypoint.sh"]

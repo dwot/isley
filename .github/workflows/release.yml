@@ -56,6 +56,36 @@ jobs:
       - name: Print Version
         run: echo "Building version ${{ env.version }}"
 
+      - name: Preflight version check (Main Branch Only)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          VERSION="${{ env.version }}"
+          TAG="v$VERSION"
+
+          # Strict SemVer (MAJOR.MINOR.PATCH with optional pre-release/build).
+          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'; then
+            echo "::error::VERSION '$VERSION' is not strict SemVer (MAJOR.MINOR.PATCH[-prerelease][+build]). Bump VERSION before pushing to main."
+            exit 1
+          fi
+
+          # Reject if the release tag already exists.
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists. Bump VERSION before pushing to main."
+            exit 1
+          fi
+
+          # Require a matching CHANGELOG section. Heading format: '## [X.Y.Z] - YYYY-MM-DD'
+          if [ ! -f CHANGELOG.md ]; then
+            echo "::error::CHANGELOG.md is missing."
+            exit 1
+          fi
+          if ! grep -Eq "^## \[$(echo "$VERSION" | sed -e 's/[.+]/\\&/g')\] - [0-9]{4}-[0-9]{2}-[0-9]{2}" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no stamped section for [$VERSION]. Run scripts/cut-release.sh $VERSION on a release/v$VERSION branch."
+            exit 1
+          fi
+
+          echo "Preflight OK: $TAG is new, well-formed, and has a CHANGELOG entry."
+
       - name: Build Linux Binary
         run: |
           GOOS=linux GOARCH=amd64 go build -ldflags="-w -s -X main.version=${{ env.version }}" -o isley-linux
@@ -89,77 +119,88 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.docker_tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.title=isley
+            org.opencontainers.image.source=https://github.com/dwot/isley
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ env.version }}
+            org.opencontainers.image.ref.name=${{ github.ref_name }}
+            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Generate Release Notes
+      - name: Extract Release Notes from CHANGELOG (Main Branch Only)
+        if: github.ref == 'refs/heads/main'
         run: |
-          release_date=$(date -u +"%Y-%m-%d")
+          VERSION="${{ env.version }}"
+          # Escape regex metacharacters in the version so '.' etc. match literally.
+          VERSION_RE=$(echo "$VERSION" | sed -e 's/[][(){}.*+?|^$\\]/\\&/g')
+          # Extract the CHANGELOG section for this version. Stops at the next
+          # top-level heading (## ...) or end of file. The heading itself is
+          # dropped — the release UI already shows the version/tag.
+          awk -v ver_re="$VERSION_RE" '
+            $0 ~ "^## \\[" ver_re "\\]" { found=1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > release_notes.md
 
-          if git describe --tags --abbrev=0 >/dev/null 2>&1; then
-            last_tag=$(git describe --tags --abbrev=0)
-            commit_range="$last_tag..HEAD"
-          else
-            commit_range="HEAD"
+          if [ ! -s release_notes.md ]; then
+            echo "::error::Extracted release notes for $VERSION are empty. Check CHANGELOG.md formatting."
+            exit 1
           fi
 
-          changes=""
-          deps=""
+          echo "---- release_notes.md ----"
+          cat release_notes.md
+          echo "--------------------------"
 
-          while IFS= read -r msg; do
-            [ -z "$msg" ] && continue
-            case "$msg" in
-              "Merge remote-tracking branch"*) continue ;;
-              "Merge branch 'refs/heads/dependabot/"*) continue ;;
-              "Increment version"*) continue ;;
-            esac
-            if echo "$msg" | grep -qE '^Bump .+ from .+ to .+'; then
-              pkg=$(echo "$msg" | sed -E 's/^Bump (.+) from (.+) to (.+)$/\1: \2 → \3/')
-              deps="${deps}- ${pkg}\n"
-            else
-              changes="${changes}- ${msg}\n"
-            fi
-          done < <(git log --pretty=format:"%s" $commit_range)
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.5.0
 
-          {
-            echo "## Release Notes — $release_date"
-            echo ""
-            if [ -n "$changes" ]; then
-              echo "## What's Changed"
-              echo ""
-              printf "%b" "$changes"
-              echo ""
-            fi
-            if [ -n "$deps" ]; then
-              echo "## Dependency Updates"
-              echo ""
-              printf "%b" "$deps"
-            fi
-          } > release_notes.md
+      - name: Sign Docker Images
+        env:
+          TAGS: ${{ steps.docker_tags.outputs.tags }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          for tag in ${TAGS//,/ }; do
+            cosign sign --yes --key env://COSIGN_PRIVATE_KEY "$tag"
+          done
+
+      - name: Import GPG Key
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          # Our CI key has no protection per generate-key-pair step
+          git_user_signingkey: true
+          git_tag_gpgsign: true
 
       - name: Create and push tag (Main Branch Only)
         if: github.ref == 'refs/heads/main'
         run: |
           TAG="v${{ env.version }}"
-          # If tag exists, skip creating it. Otherwise create annotated tag and push.
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag -a "$TAG" -m "Release $TAG"
-            git push origin "$TAG"
-          fi
+          
+          # Sign binary with Cosign (Shared Trust)
+          cosign sign-blob --key env://COSIGN_PRIVATE_KEY isley-linux > isley-linux.sig
+          sha256sum isley-linux > isley-linux.sha256
+          
+          # Use our release identity
+          git config user.name "isley-release-bot"
+          git config user.email "68145+dwot@users.noreply.github.com"
+          
+          git tag -s "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
 
       - name: Release Artifacts (Main Branch Only)
         if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.version }}
-          name: Release v${{ env.version }}
+          name: v${{ env.version }}
           body_path: release_notes.md
           files: |
             isley-linux
-
-      - name: Cleanup Release Notes
-        run: rm -f release_notes.md
+            isley-linux.sig
+            isley-linux.sha256

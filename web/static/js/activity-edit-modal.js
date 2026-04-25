@@ -11,7 +11,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     document.querySelectorAll(".activity-row").forEach(row => {
-        row.addEventListener("click", () => {
+        row.addEventListener("click", (e) => {
+            // Let anchors inside the row navigate normally (e.g. plant links
+            // in the /activities log) without also opening the edit modal.
+            if (e.target && e.target.closest("a")) return;
+
             const activityData = JSON.parse(row.getAttribute("data-activity"));
 
             document.getElementById("activityId").value = activityData.id;

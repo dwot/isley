@@ -1,0 +1,186 @@
+{{ define "views/activities.html"}}
+
+{{ template "common/header.html" .}}
+{{ template "common/header2.html" .}}
+
+<div class="container">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item active" aria-current="page">{{ .lcl.activity_log_title }}</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+        <h1 class="h3 text-primary mb-0">
+            <i class="fa-solid fa-clipboard-list me-1"></i>{{ .lcl.activity_log_title }}
+            {{ if .activityCtx.Result.Total }}
+            <span class="badge bg-secondary ms-1" style="font-size:0.7rem">{{ .activityCtx.Result.Total }}</span>
+            {{ end }}
+        </h1>
+        {{ if .loggedIn }}
+        <div class="btn-group btn-group-sm" role="group" aria-label="{{ .lcl.activity_export }}">
+            <a class="btn btn-outline-secondary"
+               href="/activities/export/csv{{ if .activityCtx.QueryNoPage }}?{{ .activityCtx.QueryNoPage }}{{ end }}">
+                <i class="fa-solid fa-file-csv me-1"></i>{{ .lcl.activity_export_csv }}
+            </a>
+            <a class="btn btn-outline-secondary"
+               href="/activities/export/xlsx{{ if .activityCtx.QueryNoPage }}?{{ .activityCtx.QueryNoPage }}{{ end }}">
+                <i class="fa-solid fa-file-excel me-1"></i>{{ .lcl.activity_export_xlsx }}
+            </a>
+        </div>
+        {{ end }}
+    </div>
+
+    <!-- Filter bar -->
+    <form method="get" action="/activities" class="card activity-log-filters mb-3">
+        <div class="card-body py-3">
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label for="flt-plant" class="form-label">{{ .lcl.activity_filter_plant }}</label>
+                    <select class="form-select form-select-sm" id="flt-plant" name="plant_id">
+                        <option value="">{{ .lcl.activity_filter_any }}</option>
+                        {{ range .activityCtx.Plants }}
+                        <option value="{{ .ID }}"{{ if eq (printf "%d" .ID) $.activityCtx.PlantIDStr }} selected{{ end }}>{{ .Name }}</option>
+                        {{ end }}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label for="flt-type" class="form-label">{{ .lcl.activity_filter_type }}</label>
+                    <select class="form-select form-select-sm" id="flt-type" name="activity_id" multiple size="1">
+                        {{ range .activityTypes }}
+                        <option value="{{ .ID }}"{{ if index $.activityCtx.ActivityIDSet .ID }} selected{{ end }}>{{ .Name }}</option>
+                        {{ end }}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4 col-lg-2">
+                    <label for="flt-zone" class="form-label">{{ .lcl.activity_filter_zone }}</label>
+                    <select class="form-select form-select-sm" id="flt-zone" name="zone_id">
+                        <option value="">{{ .lcl.activity_filter_any }}</option>
+                        {{ range .zones }}
+                        <option value="{{ .ID }}"{{ if eq (printf "%d" .ID) $.activityCtx.ZoneIDStr }} selected{{ end }}>{{ .Name }}</option>
+                        {{ end }}
+                    </select>
+                </div>
+
+                <div class="col-6 col-md-3 col-lg-2">
+                    <label for="flt-from" class="form-label">{{ .lcl.activity_filter_from }}</label>
+                    <input type="date" class="form-control form-control-sm" id="flt-from" name="from"
+                           value="{{ .activityCtx.FromStr }}">
+                </div>
+
+                <div class="col-6 col-md-3 col-lg-2">
+                    <label for="flt-to" class="form-label">{{ .lcl.activity_filter_to }}</label>
+                    <input type="date" class="form-control form-control-sm" id="flt-to" name="to"
+                           value="{{ .activityCtx.ToStr }}">
+                </div>
+
+                <div class="col-12 col-md-6 col-lg-4">
+                    <label for="flt-q" class="form-label">{{ .lcl.activity_filter_search }}</label>
+                    <input type="search" class="form-control form-control-sm" id="flt-q" name="q"
+                           value="{{ .activityCtx.QStr }}" placeholder="{{ .lcl.activity_filter_search_hint }}">
+                </div>
+
+                <div class="col-12 col-md-3 col-lg-2">
+                    <label for="flt-order" class="form-label">{{ .lcl.activity_filter_order }}</label>
+                    <select class="form-select form-select-sm" id="flt-order" name="order">
+                        <option value="date_desc"{{ if eq .activityCtx.OrderStr "date_desc" }} selected{{ end }}>{{ .lcl.activity_filter_order_newest }}</option>
+                        <option value="date_asc"{{ if eq .activityCtx.OrderStr "date_asc" }} selected{{ end }}>{{ .lcl.activity_filter_order_oldest }}</option>
+                        <option value="plant"{{ if eq .activityCtx.OrderStr "plant" }} selected{{ end }}>{{ .lcl.activity_filter_order_plant }}</option>
+                        <option value="activity"{{ if eq .activityCtx.OrderStr "activity" }} selected{{ end }}>{{ .lcl.activity_filter_order_activity }}</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-3 col-lg-6 d-flex gap-2 align-items-end justify-content-md-end">
+                    <button type="submit" class="btn btn-sm btn-primary">
+                        <i class="fa-solid fa-filter me-1"></i>{{ .lcl.activity_filter_apply }}
+                    </button>
+                    <a href="/activities" class="btn btn-sm btn-outline-secondary">
+                        <i class="fa-solid fa-rotate-left me-1"></i>{{ .lcl.activity_filter_reset }}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- Results -->
+    {{ if .activityCtx.Result.Entries }}
+    <div class="table-responsive mb-3">
+        <table class="table table-hover align-top activity-log-table">
+            <thead>
+                <tr>
+                    <th scope="col" class="activity-log-date">{{ .lcl.title_date }}</th>
+                    <th scope="col">{{ .lcl.activity_log_col_plant }}</th>
+                    <th scope="col">{{ .lcl.activity_log_col_strain }}</th>
+                    <th scope="col">{{ .lcl.activity_log_col_zone }}</th>
+                    <th scope="col">{{ .lcl.title_activity }}</th>
+                    <th scope="col">{{ .lcl.title_note }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{ range .activityCtx.Result.Entries }}
+                <tr class="clickable-row activity-row" data-activity='{{ json . }}'>
+                    <td class="activity-log-date">{{ formatDateTime .Date }}</td>
+                    <td class="activity-log-plant">
+                        <a href="/plant/{{ .PlantID }}" class="text-decoration-none activity-log-plant-link">
+                            {{ .PlantName }}
+                        </a>
+                    </td>
+                    <td>{{ .StrainName }}</td>
+                    <td>{{ .ZoneName }}</td>
+                    <td>{{ .ActivityName }}</td>
+                    <td class="activity-log-note">{{ .Note }}</td>
+                </tr>
+                {{ end }}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {{ if gt .activityCtx.Result.TotalPages 1 }}
+    <nav aria-label="{{ .lcl.activity_log_pagination }}">
+        <ul class="pagination pagination-sm justify-content-center">
+            <li class="page-item{{ if le .activityCtx.Result.Page 1 }} disabled{{ end }}">
+                {{ if gt .activityCtx.Result.Page 1 }}
+                <a class="page-link"
+                   href="/activities?{{ if .activityCtx.QueryNoPage }}{{ .activityCtx.QueryNoPage }}&{{ end }}page={{ sub .activityCtx.Result.Page 1 }}">
+                    {{ .lcl.activity_log_page_prev }}
+                </a>
+                {{ else }}
+                <span class="page-link">{{ .lcl.activity_log_page_prev }}</span>
+                {{ end }}
+            </li>
+            <li class="page-item disabled">
+                <span class="page-link">
+                    {{ .activityCtx.Result.Page }} / {{ .activityCtx.Result.TotalPages }}
+                </span>
+            </li>
+            <li class="page-item{{ if ge .activityCtx.Result.Page .activityCtx.Result.TotalPages }} disabled{{ end }}">
+                {{ if lt .activityCtx.Result.Page .activityCtx.Result.TotalPages }}
+                <a class="page-link"
+                   href="/activities?{{ if .activityCtx.QueryNoPage }}{{ .activityCtx.QueryNoPage }}&{{ end }}page={{ add .activityCtx.Result.Page 1 }}">
+                    {{ .lcl.activity_log_page_next }}
+                </a>
+                {{ else }}
+                <span class="page-link">{{ .lcl.activity_log_page_next }}</span>
+                {{ end }}
+            </li>
+        </ul>
+    </nav>
+    {{ end }}
+
+    {{ else }}
+    <div class="activity-log-empty">
+        <i class="fa-solid fa-clipboard-list fa-2x mb-2 d-block" aria-hidden="true"></i>
+        <p class="mb-0">{{ .lcl.activity_log_empty }}</p>
+    </div>
+    {{ end }}
+</div>
+
+{{ template "modals/activity-edit-modal.html" . }}
+
+{{ template "common/footer.html" .}}
+
+{{ end }}

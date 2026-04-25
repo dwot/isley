@@ -107,16 +107,16 @@ type PlantListResponse struct {
 }
 
 type Sensor struct {
-	ID       int    `json:"id"`
-	Name     string `json:"name"`
-	Zone     string `json:"zone"`
-	Source   string `json:"source"`
-	Device   string `json:"device"`
-	Type     string `json:"type"`
+	ID         int    `json:"id"`
+	Name       string `json:"name"`
+	Zone       string `json:"zone"`
+	Source     string `json:"source"`
+	Device     string `json:"device"`
+	Type       string `json:"type"`
 	Visibility string `json:"visibility"`
-	Unit     string `json:"unit"`
-	CreateDT string `json:"create_dt"`
-	UpdateDT string `json:"update_dt"`
+	Unit       string `json:"unit"`
+	CreateDT   string `json:"create_dt"`
+	UpdateDT   string `json:"update_dt"`
 }
 
 // SensorData defines the structure for the sensor_data table
@@ -207,11 +207,11 @@ type Strain struct {
 }
 
 type StrainLineage struct {
-	ID             int              `json:"id"`
-	StrainID       int              `json:"strain_id"`
-	ParentName     string           `json:"parent_name"`
-	ParentStrainID *int             `json:"parent_strain_id"` // nil if parent isn't a full strain entry
-	Children       []StrainLineage  `json:"children,omitempty"`
+	ID             int             `json:"id"`
+	StrainID       int             `json:"strain_id"`
+	ParentName     string          `json:"parent_name"`
+	ParentStrainID *int            `json:"parent_strain_id"` // nil if parent isn't a full strain entry
+	Children       []StrainLineage `json:"children,omitempty"`
 }
 
 type Zone struct {

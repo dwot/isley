@@ -1084,6 +1084,7 @@ func LoadSettings() {
 	config.Breeders = GetBreeders(db)
 	config.Streams = GetStreams(db)
 }
+
 // Breeder CRUD handlers have been moved to strain.go
 // Stream CRUD handlers have been moved to stream.go
 

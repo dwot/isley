@@ -2455,6 +2455,79 @@ header .nav-link.active::after {
     font-style: italic;
 }
 
+/* ===== Plant Activity Notebook (full-width, collapsible) ===== */
+.plant-activity-links .btn-link {
+    font-size: 0.8rem;
+}
+.plant-notebook-card .card-title {
+    font-weight: 600;
+}
+.plant-notebook-table {
+    font-size: 0.95rem;
+}
+.plant-notebook-table thead th {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-muted);
+    border-bottom-width: 1px;
+    background: transparent;
+}
+.plant-notebook-col-date {
+    width: 11rem;
+    white-space: nowrap;
+}
+.plant-notebook-col-type {
+    width: 9rem;
+}
+.plant-notebook-note {
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.45;
+}
+.plant-notebook-table .clickable-row {
+    cursor: pointer;
+}
+
+/* ===== Activity Log page ===== */
+.activity-log-filters {
+    background: var(--color-surface, transparent);
+}
+.activity-log-filters .form-label {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-muted);
+    margin-bottom: 0.25rem;
+}
+.activity-log-table {
+    font-size: 0.95rem;
+}
+.activity-log-table thead th {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-muted);
+    background: transparent;
+}
+.activity-log-table td.activity-log-date {
+    width: 12rem;
+    white-space: nowrap;
+}
+.activity-log-table td.activity-log-plant {
+    white-space: nowrap;
+}
+.activity-log-table td.activity-log-note {
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.45;
+}
+.activity-log-empty {
+    padding: 3rem 1rem;
+    text-align: center;
+    color: var(--color-muted);
+}
+
 @media (max-width: 576px) {
     .sensor-grid {
         grid-template-columns: 1fr 1fr;
