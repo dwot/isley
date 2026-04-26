@@ -37,7 +37,10 @@ test:
     - go version
     - go mod verify
     - go vet ./...
-    - go test -race -coverprofile=coverage.out ./...
+    # Phase 6c: -coverpkg=./... credits cross-package coverage so that
+    # integration tests boot via app.NewEngine — and the handler/model
+    # code they exercise — count toward the totals.
+    - go test -race -coverpkg=./... -coverprofile=coverage.out ./...
     - go tool cover -func=coverage.out | tail -1
   # Standard regex `go tool cover` emits, e.g.:
   #   total:                                                  (statements)    42.5%

@@ -31,8 +31,14 @@ jobs:
       # docs/TEST_PLAN.md Phase 5 retired the legacy subprocess test suite
       # so `go test ./...` now runs fully in-process. No pre-built binary
       # required.
+      #
+      # Phase 6c: -coverpkg=./... credits cross-package coverage so that
+      # integration tests boot via app.NewEngine — and the handler/model
+      # code they exercise — count toward the totals. Without this flag
+      # Go only credits each package's tests for its own package, which
+      # left app/ at 0.0% and understated handlers/ and model/.
       - name: Test
-        run: go test -race -coverprofile=coverage.out ./...
+        run: go test -race -coverpkg=./... -coverprofile=coverage.out ./...
 
       - name: Upload coverage
         if: always()
