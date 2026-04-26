@@ -171,6 +171,10 @@ func GetRestoreStatus(c *gin.Context) {
 }
 
 // runBackup does the actual work of dumping the DB and writing the zip.
+// The archive contents are produced by BuildBackupArchive (which is
+// unit-tested directly); runBackup adds the production-only concerns:
+// resolving the DB, reading the VERSION file, naming the output, and
+// writing it under data/backups/.
 func runBackup(includeImages bool, sensorDays int) error {
 	fieldLogger := logger.Log.WithField("handler", "runBackup")
 
@@ -179,135 +183,21 @@ func runBackup(includeImages bool, sensorDays int) error {
 		return fmt.Errorf("get DB: %w", err)
 	}
 
-	payload := BackupPayload{}
-
-	// Tables to dump. sensor_data is handled separately for filtering.
-	tableQueries := []struct {
-		name string
-		dest *[]map[string]interface{}
-	}{
-		{"settings", &payload.Settings},
-		{"zones", &payload.Zones},
-		{"breeder", &payload.Breeders},
-		{"sensors", &payload.Sensors},
-		{"rolling_averages", &payload.RollingAvgs},
-		{"plant_status", &payload.PlantStatuses},
-		{"strain", &payload.Strains},
-		{"strain_lineage", &payload.StrainLineage},
-		{"metric", &payload.Metrics},
-		{"activity", &payload.Activities},
-		{"plant", &payload.Plants},
-		{"plant_status_log", &payload.PlantStatusLog},
-		{"plant_measurements", &payload.PlantMeasure},
-		{"plant_activity", &payload.PlantActivity},
-		{"plant_images", &payload.PlantImages},
-		{"streams", &payload.Streams},
-	}
-
-	tableCount := 0
-	for _, tq := range tableQueries {
-		rows, err := dumpTable(db, tq.name)
-		if err != nil {
-			return fmt.Errorf("dump %s: %w", tq.name, err)
-		}
-		*tq.dest = rows
-		if len(rows) > 0 {
-			tableCount++
-		}
-	}
-
-	// Dump sensor_data with optional date filter
-	if sensorDays != -1 { // -1 = skip entirely
-		var sensorRows []map[string]interface{}
-		if sensorDays == 0 {
-			sensorRows, err = dumpTable(db, "sensor_data")
-		} else {
-			sensorRows, err = dumpTableFiltered(db, "sensor_data", sensorDays)
-		}
-		if err != nil {
-			return fmt.Errorf("dump sensor_data: %w", err)
-		}
-		payload.SensorData = sensorRows
-		if len(sensorRows) > 0 {
-			tableCount++
-		}
-		fieldLogger.Infof("Exported %d sensor_data rows (days=%d)", len(sensorRows), sensorDays)
-	} else {
-		fieldLogger.Info("Skipping sensor_data export (sensor_days=-1)")
-	}
-
-	// Count upload files
-	fileCount := 0
-	uploadsDir := "uploads"
-	if includeImages {
-		_ = filepath.Walk(uploadsDir, func(path string, info os.FileInfo, err error) error {
-			if err == nil && !info.IsDir() {
-				fileCount++
-			}
-			return nil
-		})
-	}
-
-	// Version
 	version := "unknown"
 	if v, err := os.ReadFile("VERSION"); err == nil {
 		version = strings.TrimSpace(string(v))
 	}
 
-	payload.Manifest = BackupManifest{
-		Version:       version,
-		Driver:        model.GetDriver(),
-		CreatedAt:     time.Now().UTC().Format(time.RFC3339),
-		Tables:        tableCount,
-		Files:         fileCount,
+	archive, manifest, err := BuildBackupArchive(db, BuildArchiveOptions{
 		IncludeImages: includeImages,
 		SensorDays:    sensorDays,
-	}
-
-	jsonData, err := json.MarshalIndent(payload, "", "  ")
+		Version:       version,
+		UploadsDir:    "uploads",
+	})
 	if err != nil {
-		return fmt.Errorf("marshal JSON: %w", err)
+		return err
 	}
 
-	// Build zip
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
-
-	jw, err := zw.Create("backup.json")
-	if err != nil {
-		return fmt.Errorf("create backup.json: %w", err)
-	}
-	if _, err := jw.Write(jsonData); err != nil {
-		return fmt.Errorf("write backup.json: %w", err)
-	}
-
-	if includeImages {
-		err = filepath.Walk(uploadsDir, func(path string, info os.FileInfo, walkErr error) error {
-			if walkErr != nil || info.IsDir() {
-				return walkErr
-			}
-			fw, err := zw.Create(path)
-			if err != nil {
-				return err
-			}
-			f, err := os.Open(path)
-			if err != nil {
-				return err
-			}
-			defer f.Close()
-			_, err = io.Copy(fw, f)
-			return err
-		})
-		if err != nil {
-			return fmt.Errorf("add uploads: %w", err)
-		}
-	}
-
-	if err := zw.Close(); err != nil {
-		return fmt.Errorf("finalize zip: %w", err)
-	}
-
-	// Write to backups directory
 	if err := os.MkdirAll(backupsDir, os.ModePerm); err != nil {
 		return fmt.Errorf("create backups dir: %w", err)
 	}
@@ -325,7 +215,7 @@ func runBackup(includeImages bool, sensorDays int) error {
 	filename := fmt.Sprintf("isley-backup-%s-%s.zip", tag, ts)
 	destPath := filepath.Join(backupsDir, filename)
 
-	if err := os.WriteFile(destPath, buf.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(destPath, archive, 0644); err != nil {
 		return fmt.Errorf("write %s: %w", destPath, err)
 	}
 
@@ -333,7 +223,8 @@ func runBackup(includeImages bool, sensorDays int) error {
 	currentBackup.Filename = filename
 	backupMu.Unlock()
 
-	fieldLogger.Infof("Backup saved: %s (%d bytes, %d tables, %d files)", filename, buf.Len(), tableCount, fileCount)
+	fieldLogger.Infof("Backup saved: %s (%d bytes, %d tables, %d files)",
+		filename, len(archive), manifest.Tables, manifest.Files)
 	return nil
 }
 

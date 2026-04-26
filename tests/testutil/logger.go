@@ -7,6 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"isley/logger"
+	"isley/model"
 	"isley/utils"
 )
 
@@ -35,6 +36,13 @@ func ensureProcessInitialized() {
 		l.SetLevel(logrus.PanicLevel)
 		logger.Log = l
 		logger.AccessWriter = io.Discard
+
+		// Tell the model package the harness is on SQLite so its
+		// dialect-aware helpers (IsSQLite, IsPostgres, dialect-branching
+		// SQL builders inside handlers/) work correctly. Production sets
+		// this inside InitDB; the harness sidesteps InitDB so it has to
+		// announce the driver itself.
+		model.SetDriverForTesting("sqlite")
 
 		utils.Init("en")
 	})

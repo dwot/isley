@@ -116,6 +116,15 @@ func GetDriver() string {
 	return dbDriver
 }
 
+// SetDriverForTesting overrides the package-level driver so that
+// dialect-aware helpers (IsSQLite/IsPostgres and SQL builders that
+// branch on the driver) work in test contexts that open a DB directly
+// via sql.Open instead of going through InitDB. Production code MUST
+// NOT call this — InitDB owns the assignment in the normal lifecycle.
+func SetDriverForTesting(driver string) {
+	dbDriver = driver
+}
+
 func IsPostgres() bool {
 	return dbDriver == "postgres"
 }
