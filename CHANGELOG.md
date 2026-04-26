@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the redundant Compose healthcheck blocks; existing deployments may
   need to `docker compose up -d --force-recreate` (or edit their local
   compose file) to pick up the new behavior.
+- Sensor ingest endpoint no longer creates duplicate sensor rows under concurrent ingest of the same (source, device, type). Existing duplicates are merged on upgrade.
 
 ### Security
 

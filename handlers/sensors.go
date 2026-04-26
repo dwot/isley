@@ -568,22 +568,19 @@ func ScanEcoWittSensors(c *gin.Context) {
 
 func checkInsertSensor(db *sql.DB, source string, device string, sensorType string, name string, zoneId *int, unit string) {
 	fieldLogger := logger.Log.WithField("func", "checkInsertSensor")
-	sensorid := 0
-	err := db.QueryRow("SELECT id FROM sensors WHERE source = $1 and device = $2 and type = $3", source, device, sensorType).Scan(&sensorid)
+
+	// Atomic insert: the unique index on (source, device, type) added
+	// by migration 017 makes ON CONFLICT a no-op when the sensor row
+	// already exists, replacing the previous SELECT-then-INSERT pattern
+	// that could create duplicates under concurrent scans.
+	_, err := db.Exec(`
+        INSERT INTO sensors (name, source, device, type, zone_id, unit)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (source, device, type) DO NOTHING`,
+		name, source, device, sensorType, zoneId, unit)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			// Sensor not registered; skip silently
-		} else {
-			fieldLogger.WithError(err).Error("Error querying for sensor")
-			return
-		}
-	}
-	if sensorid == 0 {
-		_, err := db.Exec("INSERT INTO sensors (name, source, device, type, zone_id, unit) VALUES ($1, $2, $3, $4, $5, $6)", name, source, device, sensorType, zoneId, unit)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Error inserting sensor")
-			return
-		}
+		fieldLogger.WithError(err).Error("Error inserting sensor")
+		return
 	}
 }
 
@@ -1044,29 +1041,30 @@ func IngestSensorData(c *gin.Context) {
 		}
 	}
 
-	// First ensure the sensor exists
+	// Atomically upsert the sensor row. The unique index on
+	// (source, device, type) added by migration 017 makes this race-free
+	// under concurrent ingest: ON CONFLICT DO NOTHING means a second
+	// concurrent INSERT for the same tuple is a no-op rather than
+	// creating a duplicate row. RETURNING only fires on actual insert,
+	// so on conflict we re-SELECT to fetch the existing id.
 	var sensorID int
 	err := db.QueryRow(`
-        SELECT id FROM sensors
-        WHERE source = $1 AND device = $2 AND type = $3`,
-		payload.Source, payload.Device, payload.Type).Scan(&sensorID)
+        INSERT INTO sensors (name, source, device, type, zone_id, unit, visibility)
+        VALUES ($1, $2, $3, $4, $5, $6, 'zone_plant')
+        ON CONFLICT (source, device, type) DO NOTHING
+        RETURNING id`,
+		payload.Name, payload.Source, payload.Device, payload.Type, payload.ZoneID, payload.Unit).Scan(&sensorID)
 
 	if errors.Is(err, sql.ErrNoRows) {
-		// Create a new sensor if it doesn't exist
+		// Conflict path: the sensor already existed; fetch its id.
 		err = db.QueryRow(`
-            INSERT INTO sensors (name, source, device, type, zone_id, unit, visibility)
-            VALUES ($1, $2, $3, $4, $5, $6, 'zone_plant')
-            RETURNING id`,
-			payload.Name, payload.Source, payload.Device, payload.Type, payload.ZoneID, payload.Unit).Scan(&sensorID)
-
-		if err != nil {
-			fieldLogger.WithError(err).Error("Error creating sensor")
-			apiInternalError(c, "api_failed_to_create_sensor")
-			return
-		}
-	} else if err != nil {
-		fieldLogger.WithError(err).Error("Error querying sensor")
-		apiInternalError(c, "api_database_error")
+            SELECT id FROM sensors
+            WHERE source = $1 AND device = $2 AND type = $3`,
+			payload.Source, payload.Device, payload.Type).Scan(&sensorID)
+	}
+	if err != nil {
+		fieldLogger.WithError(err).Error("Error upserting sensor")
+		apiInternalError(c, "api_failed_to_create_sensor")
 		return
 	}
 

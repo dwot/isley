@@ -37,8 +37,12 @@ jobs:
       # code they exercise — count toward the totals. Without this flag
       # Go only credits each package's tests for its own package, which
       # left app/ at 0.0% and understated handlers/ and model/.
+      # -timeout=20m: -race + -coverpkg=./... together slow each package's
+      # tests by ~2.5-3x. handlers/ and tests/integration/ run ~10-12m
+      # under this combination, which exceeds Go's default 10m per-package
+      # timeout.
       - name: Test
-        run: go test -race -coverpkg=./... -coverprofile=coverage.out ./...
+        run: go test -race -coverpkg=./... -coverprofile=coverage.out -timeout=20m ./...
 
       - name: Upload coverage
         if: always()

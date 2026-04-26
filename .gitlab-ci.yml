@@ -40,7 +40,10 @@ test:
     # Phase 6c: -coverpkg=./... credits cross-package coverage so that
     # integration tests boot via app.NewEngine — and the handler/model
     # code they exercise — count toward the totals.
-    - go test -race -coverpkg=./... -coverprofile=coverage.out ./...
+    # -timeout=20m: race detector + full-tree instrumentation slows each
+    # package ~2.5-3x; handlers/ and tests/integration/ no longer fit in
+    # Go's default 10m per-package timeout.
+    - go test -race -coverpkg=./... -coverprofile=coverage.out -timeout=20m ./...
     - go tool cover -func=coverage.out | tail -1
   # Standard regex `go tool cover` emits, e.g.:
   #   total:                                                  (statements)    42.5%
