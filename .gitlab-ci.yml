@@ -7,12 +7,11 @@ stages:
 # ---------------------------------------------------------------------------
 # Test stage
 # ---------------------------------------------------------------------------
-# Per docs/TEST_PLAN.md Phase 0 we wire `go test ./...` into CI ahead of the
+# Per docs/TEST_PLAN.md Phases 0 and 5: `go test ./...` runs ahead of the
 # image build so regressions surface before anything reaches the registry.
-# `allow_failure: true` is the explicit Phase 0 stabilization posture: the
-# job runs on every push, reports results to the pipeline UI, but does not
-# block downstream stages. Once the legacy subprocess suite settles and
-# pre-existing vet warnings are cleaned up, flip this to a hard gate.
+# The legacy subprocess suite was retired in Phase 5, so this job now runs
+# fully in-process via tests/testutil + httptest — no port 8080, no
+# pre-built binary required.
 test:
   stage: test
   # Pinned to match the GitHub Actions test job and the go directive in
@@ -37,22 +36,12 @@ test:
   script:
     - go version
     - go mod verify
-    # Vet currently surfaces pre-existing warnings in tests/integration and
-    # handlers/plant.go (unkeyed struct fields, unexported json tags).
-    # `|| true` keeps the script going so the test step still runs; the
-    # warnings remain visible in the job log.
-    - go vet ./... || true
-    # The legacy tests/integration suite spawns the isley binary as a
-    # subprocess on port 8080. Build it here so `go test ./...` can find
-    # it at the project root. Drops out once the in-process harness from
-    # TEST_PLAN.md Phase 1 fully replaces the subprocess suite.
-    - go build -o isley .
+    - go vet ./...
     - go test -race -coverprofile=coverage.out ./...
     - go tool cover -func=coverage.out | tail -1
   # Standard regex `go tool cover` emits, e.g.:
   #   total:                                                  (statements)    42.5%
   coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
-  allow_failure: true
   artifacts:
     paths:
       - coverage.out

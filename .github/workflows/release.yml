@@ -17,33 +17,22 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.0'
+          # Pinned to match go.mod's `go` directive and the GitLab test
+          # job. Bump in lockstep with that file when the toolchain
+          # upgrades.
+          go-version: '1.25.8'
 
       - name: Verify Go Modules
         run: go mod verify
 
-      # Vet currently surfaces pre-existing warnings in tests/integration and
-      # handlers/plant.go (unkeyed struct fields, unexported json tags). Per
-      # docs/TEST_PLAN.md Phase 0 we land the gate in non-blocking mode so the
-      # signal is visible without breaking the build, then flip to required
-      # once the warnings are cleaned up.
       - name: Vet
         run: go vet ./...
-        continue-on-error: true
 
-      # The current integration suite (tests/integration) spawns the isley
-      # binary as a subprocess and points it at port 8080. We build it here
-      # so `go test ./...` can find the binary at the project root. Once the
-      # in-process harness from TEST_PLAN.md Phase 1 lands, this build step
-      # can be dropped.
-      - name: Build binary for integration tests
-        run: go build -o isley .
-
-      # See docs/TEST_PLAN.md Phase 0: tests are reported but non-blocking
-      # for the first week to stabilize the subprocess suite under CI.
+      # docs/TEST_PLAN.md Phase 5 retired the legacy subprocess test suite
+      # so `go test ./...` now runs fully in-process. No pre-built binary
+      # required.
       - name: Test
         run: go test -race -coverprofile=coverage.out ./...
-        continue-on-error: true
 
       - name: Upload coverage
         if: always()

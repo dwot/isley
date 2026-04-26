@@ -1,11 +1,11 @@
-// Package smoke holds the in-process integration tests built on the new
-// tests/testutil harness from docs/TEST_PLAN.md Phase 1.
+// Package integration holds the in-process integration tests built on
+// the tests/testutil harness from docs/TEST_PLAN.md.
 //
-// They live in their own package, separate from tests/integration, so
-// they do not inherit the legacy subprocess-based TestMain that spawns
-// the isley binary on port 8080. Once Phase 5 retires that subprocess
-// harness, these tests fold back into tests/integration.
-package smoke
+// The legacy subprocess-based TestMain that spawned the isley binary on
+// port 8080 was retired in Phase 5 along with the rest of
+// tests/integration/main_flow_test.go. New end-to-end tests live here
+// and use httptest.NewServer via testutil.NewTestServer.
+package integration
 
 import (
 	"net/http"
