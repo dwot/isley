@@ -12,47 +12,10 @@ import (
 	"isley/tests/testutil"
 )
 
-// TestBackup_EndpointsRequireAuth confirms the backup management
-// endpoints sit behind AuthMiddlewareApi and reject anonymous traffic.
-// They live under /settings/backup/* and are mounted on the api-protected
-// route group.
-//
-// GETs surface 401 directly from AuthMiddlewareApi (CSRF middleware
-// only checks state-changing methods). POSTs surface 403 from the CSRF
-// middleware first because the body has no csrf_token and no X-API-KEY
-// header to bypass it. Both are "rejected"; we accept either status as
-// a pass.
-func TestBackup_EndpointsRequireAuth(t *testing.T) {
-	resetRateLimit(t)
-
-	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
-
-	cases := []struct {
-		method, path string
-	}{
-		{http.MethodGet, "/settings/backup/list"},
-		{http.MethodGet, "/settings/backup/status"},
-		{http.MethodPost, "/settings/backup/create"},
-		{http.MethodGet, "/settings/backup/restore/status"},
-		{http.MethodGet, "/settings/backup/sqlite/download"},
-	}
-
-	c := server.NewClient(t)
-	for _, tc := range cases {
-		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
-			req, err := http.NewRequest(tc.method, c.BaseURL+tc.path, nil)
-			require.NoError(t, err)
-			resp, err := c.Do(req)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-			assert.Containsf(t,
-				[]int{http.StatusUnauthorized, http.StatusForbidden},
-				resp.StatusCode,
-				"%s %s should be rejected (got %d)", tc.method, tc.path, resp.StatusCode)
-		})
-	}
-}
+// Auth-gating coverage for /settings/backup/* lives in
+// handlers/backup_http_test.go::TestBackupHTTP_AuthGating, which exercises
+// all nine endpoints. The integration version that previously lived here
+// duplicated the same assertion against five of them and was deleted.
 
 // TestBackup_ListWithAPIKey confirms ListBackups returns a JSON array
 // when authenticated. With no backups directory present (fresh test

@@ -263,13 +263,12 @@ func TestBackupHTTP_GetBackupStatus_ReturnsCurrent(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // TestBackupHTTP_ListBackups_EmptyWhenNoDir verifies ListBackups gracefully
-// returns [] when data/backups does not exist (or contains no zips). It
-// must NOT 500.
+// returns [] when data/backups does not exist. t.Chdir to a fresh temp
+// dir guarantees the working tree has no backups regardless of what the
+// dev machine carries in data/backups.
 func TestBackupHTTP_ListBackups_EmptyWhenNoDir(t *testing.T) {
 	resetBackupGlobals(t)
-	// Working directory does not contain a data/backups under our test
-	// process — but on dev machines it might. Either way, the response
-	// shape must be an array and the status must be 200.
+	t.Chdir(t.TempDir())
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
@@ -283,12 +282,9 @@ func TestBackupHTTP_ListBackups_EmptyWhenNoDir(t *testing.T) {
 	defer drainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	// Body is a JSON array of objects (possibly empty).
 	var body []map[string]interface{}
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
-	// Either empty or populated; we don't assert content because the dev
-	// repo's data/backups can hold real backups. The contract is "no 500".
-	_ = body
+	assert.Empty(t, body, "no backups directory should yield empty array")
 }
 
 // TestBackupHTTP_ListBackups_ListsZipsWithMetadata writes a fake zip into
