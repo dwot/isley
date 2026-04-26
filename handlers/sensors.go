@@ -624,6 +624,19 @@ func CreateNewZone(db *sql.DB, name string) (int, error) {
 
 	return id, nil
 }
+
+// ResetGroupedSensorCache clears the in-memory grouped-sensor cache.
+// Exists so tests touching /sensors/grouped or /api/overlay (which
+// indirectly reads the cache) can isolate themselves from cache state
+// left by earlier tests in the same process. Production code does not
+// call this — Phase 7's config.Store rework will replace the global.
+func ResetGroupedSensorCache() {
+	cacheMutex.Lock()
+	sensorCache = nil
+	cacheLastUpdatedTime = time.Time{}
+	cacheMutex.Unlock()
+}
+
 func GetGroupedSensorsWithLatestReading(db *sql.DB) map[string]map[string][]map[string]interface{} {
 	fieldLogger := logger.Log.WithField("func", "GetGroupedSensorsWithLatestReading")
 	cacheMutex.Lock()
