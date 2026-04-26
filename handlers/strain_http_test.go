@@ -352,15 +352,11 @@ func TestStrainHTTP_PlantsByStrain_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db, testutil.WithGuestMode())
 
 	// Seed the FK chain plus a plant.
-	mustExec := func(query string, args ...interface{}) {
-		_, err := db.Exec(query, args...)
-		require.NoErrorf(t, err, "seed: %s", query)
-	}
-	mustExec(`INSERT INTO breeder (id, name) VALUES (1, 'B')`)
-	mustExec(`INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
+	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
+	testutil.MustExec(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	          VALUES (1, 'S', 1, 50, 50, 0, '', 0)`)
-	mustExec(`INSERT INTO zones (id, name) VALUES (1, 'Z')`)
-	mustExec(`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
+	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
+	testutil.MustExec(t, db, `INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
 	          VALUES ('Plant1', 1, 1, '', 0, '2026-01-01', '[]')`)
 
 	c := server.NewClient(t)

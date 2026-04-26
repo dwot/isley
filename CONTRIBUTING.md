@@ -81,6 +81,12 @@ in more than one test file MUST live in `tests/testutil` (or a sub-package).
 File-local helpers may exist for one-off needs but should not be copied
 between files. Reviewers enforce this in PRs.
 
+When a fixture composes existing testutil primitives, prefer that over raw
+SQL — even when the raw SQL is shorter. The point of the primitives is that
+one place owns the column ordering and default values; bypassing them in a
+fixture function silently re-introduces the drift the consolidation was
+meant to prevent.
+
 ## Project Structure
 
 ```

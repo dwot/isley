@@ -131,7 +131,7 @@ func TestLineage_AddEntryWithStrainLink(t *testing.T) {
 
 	c := server.NewClient(t)
 	parentID := fix.GrandparentB
-	resp := apiPostJSON(t, c, "/strains/"+strconv.Itoa(fix.Sibling)+"/lineage", fix.APIKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/strains/"+strconv.Itoa(fix.Sibling)+"/lineage", fix.APIKey, map[string]interface{}{
 		"parent_name":      "Grandparent B",
 		"parent_strain_id": parentID,
 	})
@@ -161,7 +161,7 @@ func TestLineage_AddEntryFreeTextParent(t *testing.T) {
 	fix := seedLineageHTTP(t, db)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/strains/"+strconv.Itoa(fix.Sibling)+"/lineage", fix.APIKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/strains/"+strconv.Itoa(fix.Sibling)+"/lineage", fix.APIKey, map[string]interface{}{
 		"parent_name": "Unknown Landrace",
 		// no parent_strain_id → free-text
 	})
@@ -183,7 +183,7 @@ func TestLineage_AddRejectsEmptyParentName(t *testing.T) {
 	fix := seedLineageHTTP(t, db)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/strains/"+strconv.Itoa(fix.Sibling)+"/lineage", fix.APIKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/strains/"+strconv.Itoa(fix.Sibling)+"/lineage", fix.APIKey, map[string]interface{}{
 		"parent_name": "",
 	})
 	defer resp.Body.Close()
@@ -197,7 +197,7 @@ func TestLineage_AddBadStrainID(t *testing.T) {
 	fix := seedLineageHTTP(t, db)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/strains/abc/lineage", fix.APIKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/strains/abc/lineage", fix.APIKey, map[string]interface{}{
 		"parent_name": "Anything",
 	})
 	defer resp.Body.Close()
@@ -268,7 +268,7 @@ func TestLineage_DeleteEntry(t *testing.T) {
 	).Scan(&lineageID))
 
 	c := server.NewClient(t)
-	resp := apiDelete(t, c, "/lineage/"+strconv.Itoa(lineageID), fix.APIKey)
+	resp := c.APIDelete(t, "/lineage/"+strconv.Itoa(lineageID), fix.APIKey)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -284,7 +284,7 @@ func TestLineage_DeleteMissing(t *testing.T) {
 	fix := seedLineageHTTP(t, db)
 
 	c := server.NewClient(t)
-	resp := apiDelete(t, c, "/lineage/9999", fix.APIKey)
+	resp := c.APIDelete(t, "/lineage/9999", fix.APIKey)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }

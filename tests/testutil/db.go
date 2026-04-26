@@ -17,6 +17,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	migratesqlite "github.com/golang-migrate/migrate/v4/database/sqlite"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
 
 	"isley/model"
@@ -70,6 +71,17 @@ func NewTestDB(t *testing.T) *sql.DB {
 	})
 
 	return db
+}
+
+// MustExec runs db.Exec(query, args...) and fails the test if it errors.
+// Use it for seed setup where an error is a test-author bug, not an
+// assertion target. The discarded sql.Result is intentional — callers
+// that need LastInsertId should use one of the Seed* helpers (which
+// return ids) or call db.Exec directly.
+func MustExec(t *testing.T, db *sql.DB, query string, args ...interface{}) {
+	t.Helper()
+	_, err := db.Exec(query, args...)
+	require.NoErrorf(t, err, "MustExec: %s", query)
 }
 
 func applyMigrations(db *sql.DB) error {

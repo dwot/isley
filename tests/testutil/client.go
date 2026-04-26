@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // Client wraps an http.Client with a cookie jar and a base URL pointing
@@ -61,6 +63,35 @@ func (c *Client) PostForm(path string, form url.Values) *http.Response {
 	if err != nil {
 		c.t.Fatalf("POST %s: %v", path, err)
 	}
+	return resp
+}
+
+// APIGet issues GET BaseURL+path with the X-API-KEY header set. Caller
+// closes the response body. Use the raw c.Do(APIReq(...)) form when a
+// non-default content type or extra headers are needed.
+func (c *Client) APIGet(t *testing.T, path, apiKey string) *http.Response {
+	t.Helper()
+	resp, err := c.Do(APIReq(t, http.MethodGet, c.BaseURL+path, apiKey, nil, ""))
+	require.NoError(t, err)
+	return resp
+}
+
+// APIPostJSON issues POST path with a JSON body and an X-API-KEY header.
+// Caller closes the response body.
+func (c *Client) APIPostJSON(t *testing.T, path, apiKey string, body interface{}) *http.Response {
+	t.Helper()
+	resp, err := c.Do(APIReq(t, http.MethodPost, c.BaseURL+path, apiKey,
+		JSONBody(t, body), "application/json"))
+	require.NoError(t, err)
+	return resp
+}
+
+// APIDelete issues DELETE path with an X-API-KEY header. Caller closes
+// the response body.
+func (c *Client) APIDelete(t *testing.T, path, apiKey string) *http.Response {
+	t.Helper()
+	resp, err := c.Do(APIReq(t, http.MethodDelete, c.BaseURL+path, apiKey, nil, ""))
+	require.NoError(t, err)
 	return resp
 }
 

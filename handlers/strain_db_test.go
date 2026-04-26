@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"database/sql"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,8 +25,8 @@ func TestGetBreeders_EmptyDatabase(t *testing.T) {
 
 func TestGetBreeders_SeededRows(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	mustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'Alpha')`)
-	mustExec(t, db, `INSERT INTO breeder (id, name) VALUES (2, 'Bravo')`)
+	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'Alpha')`)
+	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (2, 'Bravo')`)
 
 	got := handlers.GetBreeders(db)
 	require.Len(t, got, 2)
@@ -42,12 +41,12 @@ func TestGetBreeders_SeededRows(t *testing.T) {
 
 func TestGetStrains_OrderedAlphabetically(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	mustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
-	mustExec(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
+	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
+	testutil.MustExec(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	                 VALUES ('Zeta', 1, 50, 50, 0, '', 0)`)
-	mustExec(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
+	testutil.MustExec(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	                 VALUES ('Alpha', 1, 50, 50, 0, '', 0)`)
-	mustExec(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
+	testutil.MustExec(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	                 VALUES ('Mango', 1, 50, 50, 0, '', 0)`)
 
 	got := handlers.GetStrains(db)
@@ -63,8 +62,8 @@ func TestGetStrains_OrderedAlphabetically(t *testing.T) {
 
 func TestGetStrain_PopulatesFields(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	mustExec(t, db, `INSERT INTO breeder (id, name) VALUES (7, 'Acme Genetics')`)
-	mustExec(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count, cycle_time, url)
+	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (7, 'Acme Genetics')`)
+	testutil.MustExec(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count, cycle_time, url)
 	                 VALUES (42, 'OG Test', 7, 30, 70, 1, 'a desc', 12, 56, 'https://x')`)
 
 	got := handlers.GetStrain(db, "42")
@@ -98,10 +97,10 @@ func TestGetStrain_MissingIDReturnsZeroValue(t *testing.T) {
 
 func TestGetStrains_FiltersBySeedCountManual(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	mustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
-	mustExec(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
+	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
+	testutil.MustExec(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	                 VALUES ('InStockOne', 1, 50, 50, 0, '', 5)`)
-	mustExec(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
+	testutil.MustExec(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	                 VALUES ('OutOfStock', 1, 50, 50, 0, '', 0)`)
 
 	// Spot-check the underlying assumption about column semantics: a
@@ -114,14 +113,4 @@ func TestGetStrains_FiltersBySeedCountManual(t *testing.T) {
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM strain WHERE seed_count = 0`).Scan(&outOfStockCount))
 	assert.Equal(t, 1, inStockCount)
 	assert.Equal(t, 1, outOfStockCount)
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-func mustExec(t *testing.T, db *sql.DB, query string, args ...interface{}) {
-	t.Helper()
-	_, err := db.Exec(query, args...)
-	require.NoErrorf(t, err, "exec: %s", query)
 }

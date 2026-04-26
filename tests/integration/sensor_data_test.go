@@ -67,11 +67,11 @@ func seedSensorIngestKey(t *testing.T, db *sql.DB) string {
 // retry here makes the suite robust to ordering changes.
 func ingestPostKeepsRateOK(t *testing.T, c *testutil.Client, apiKey string, body interface{}) *http.Response {
 	t.Helper()
-	resp := apiPostJSON(t, c, "/api/sensors/ingest", apiKey, body)
+	resp := c.APIPostJSON(t, "/api/sensors/ingest", apiKey, body)
 	if resp.StatusCode == http.StatusTooManyRequests {
 		resp.Body.Close()
 		resetIngestRateLimiter(t)
-		resp = apiPostJSON(t, c, "/api/sensors/ingest", apiKey, body)
+		resp = c.APIPostJSON(t, "/api/sensors/ingest", apiKey, body)
 	}
 	return resp
 }
@@ -255,8 +255,8 @@ func TestChartHandler_RawShortRange(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	// Seed a sensor + two recent readings (within last 60 minutes).
-	mustExecRow(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
-	mustExecRow(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type) VALUES (1, 'Tent Temp', 1, 'src', 'D', 'temp')`)
+	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
+	testutil.MustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type) VALUES (1, 'Tent Temp', 1, 'src', 'D', 'temp')`)
 
 	now := time.Now().UTC()
 	insertReadingAt(t, db, 1, 21.0, now.Add(-30*time.Minute))
@@ -287,13 +287,13 @@ func TestChartHandler_RollupLongRange(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
-	mustExecRow(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
-	mustExecRow(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type) VALUES (1, 'Tent Temp', 1, 'src', 'D', 'temp')`)
+	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
+	testutil.MustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type) VALUES (1, 'Tent Temp', 1, 'src', 'D', 'temp')`)
 
 	// Seed the rollup table directly so the query path is deterministic
 	// regardless of the trigger that maintains it.
 	bucket := time.Now().UTC().Add(-3 * time.Hour).Format("2006-01-02 15:00:00")
-	mustExecRow(t, db,
+	testutil.MustExec(t, db,
 		`INSERT INTO sensor_data_hourly (sensor_id, bucket, min_val, max_val, avg_val, sample_count)
 		 VALUES (1, $1, 18.0, 22.0, 20.0, 4)`,
 		bucket,

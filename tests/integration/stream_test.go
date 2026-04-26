@@ -56,7 +56,7 @@ func TestStream_AddHappyPath(t *testing.T) {
 	fix := seedStreamHTTP(t, db)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/streams", fix.APIKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/streams", fix.APIKey, map[string]interface{}{
 		"stream_name": "Tent Cam",
 		"url":         fix.URL,
 		"zone_id":     "1",
@@ -97,7 +97,7 @@ func TestStream_AddRejectsBadURL(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			resp := apiPostJSON(t, c, "/streams", fix.APIKey, map[string]interface{}{
+			resp := c.APIPostJSON(t, "/streams", fix.APIKey, map[string]interface{}{
 				"stream_name": "Bad URL Stream",
 				"url":         tc.url,
 				"zone_id":     "1",
@@ -118,7 +118,7 @@ func TestStream_AddRejectsEmptyName(t *testing.T) {
 	fix := seedStreamHTTP(t, db)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/streams", fix.APIKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/streams", fix.APIKey, map[string]interface{}{
 		"stream_name": "",
 		"url":         fix.URL,
 		"zone_id":     "1",
@@ -186,7 +186,7 @@ func TestStream_DeleteRemovesRow(t *testing.T) {
 	id, _ := res.LastInsertId()
 
 	c := server.NewClient(t)
-	resp := apiDelete(t, c, "/streams/"+strconv.FormatInt(id, 10), fix.APIKey)
+	resp := c.APIDelete(t, "/streams/"+strconv.FormatInt(id, 10), fix.APIKey)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -208,9 +208,9 @@ func TestStream_GetByZoneGroupsByZone(t *testing.T) {
 	fix := seedStreamHTTP(t, db)
 
 	// Add a second zone + a stream in each.
-	mustExecRow(t, db, `INSERT INTO zones (id, name) VALUES (2, 'Zone B')`)
-	mustExecRow(t, db, `INSERT INTO streams (name, url, zone_id, visible) VALUES ('Cam A', $1, 1, 1)`, fix.URL)
-	mustExecRow(t, db, `INSERT INTO streams (name, url, zone_id, visible) VALUES ('Cam B', $1, 2, 1)`, fix.URL)
+	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (2, 'Zone B')`)
+	testutil.MustExec(t, db, `INSERT INTO streams (name, url, zone_id, visible) VALUES ('Cam A', $1, 1, 1)`, fix.URL)
+	testutil.MustExec(t, db, `INSERT INTO streams (name, url, zone_id, visible) VALUES ('Cam B', $1, 2, 1)`, fix.URL)
 
 	testutil.SeedAdmin(t, db, "stream-pw")
 	c := server.LoginAsAdmin(t, "stream-pw")

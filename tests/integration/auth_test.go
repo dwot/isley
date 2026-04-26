@@ -244,7 +244,7 @@ func TestAuth_APIKey_HappyPath(t *testing.T) {
 	seedHashedAPIKey(t, db, handlers.HashAPIKey(plaintextKey))
 
 	c := server.NewClient(t)
-	resp := apiGet(t, c, "/api/overlay", plaintextKey)
+	resp := c.APIGet(t, "/api/overlay", plaintextKey)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -265,7 +265,7 @@ func TestAuth_APIKey_RejectsBadKey(t *testing.T) {
 	seedHashedAPIKey(t, db, handlers.HashAPIKey("the-real-key"))
 
 	c := server.NewClient(t)
-	resp := apiGet(t, c, "/api/overlay", "not-the-real-key")
+	resp := c.APIGet(t, "/api/overlay", "not-the-real-key")
 	resp.Body.Close()
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
@@ -295,12 +295,4 @@ func TestAuth_APIKey_RejectsNoCredentials(t *testing.T) {
 func seedHashedAPIKey(t *testing.T, db *sql.DB, hashed string) {
 	t.Helper()
 	testutil.UpsertSetting(t, db, "api_key", hashed)
-}
-
-// apiGet issues GET BaseURL+path with the X-API-KEY header set.
-func apiGet(t *testing.T, c *testutil.Client, path, apiKey string) *http.Response {
-	t.Helper()
-	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+path, apiKey, nil, ""))
-	require.NoError(t, err)
-	return resp
 }

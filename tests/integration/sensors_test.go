@@ -45,10 +45,10 @@ func TestSensors_EditUpdatesFields(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 	fix := seedSensorHTTP(t, db)
 
-	mustExecRow(t, db, `INSERT INTO zones (id, name) VALUES (2, 'Tent B')`)
+	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (2, 'Tent B')`)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/sensors/edit", fix.APIKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/sensors/edit", fix.APIKey, map[string]interface{}{
 		"id":         fix.SensorID,
 		"name":       "Renamed Probe",
 		"visibility": "zone",
@@ -76,7 +76,7 @@ func TestSensors_EditRejectsInvalidVisibility(t *testing.T) {
 	fix := seedSensorHTTP(t, db)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/sensors/edit", fix.APIKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/sensors/edit", fix.APIKey, map[string]interface{}{
 		"id":         fix.SensorID,
 		"name":       "Anything",
 		"visibility": "not-a-real-visibility",
@@ -104,7 +104,7 @@ func TestSensors_DeleteCascadesData(t *testing.T) {
 	require.NoError(t, err)
 
 	c := server.NewClient(t)
-	resp := apiDelete(t, c, "/sensors/delete/"+strconv.FormatInt(fix.SensorID, 10), fix.APIKey)
+	resp := c.APIDelete(t, "/sensors/delete/"+strconv.FormatInt(fix.SensorID, 10), fix.APIKey)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 

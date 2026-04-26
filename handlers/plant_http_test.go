@@ -51,14 +51,6 @@ func plantStatusID(t *testing.T, db *sql.DB, name string) int {
 	return id
 }
 
-// insertSeedPlant inserts a plant directly so DeletePlant /
-// LinkSensorsToPlant tests don't depend on the AddPlant flow. Both the
-// strain and zone are pinned to id=1 by plantTestSeed.
-func insertSeedPlant(t *testing.T, db *sql.DB, name string) int {
-	t.Helper()
-	return testutil.SeedPlant(t, db, name, 1, 1)
-}
-
 // ---------------------------------------------------------------------------
 // AddPlant — validation paths beyond the integration suite
 // ---------------------------------------------------------------------------
@@ -110,7 +102,7 @@ func TestPlantHTTP_Update_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 	apiKey := plantTestSeed(t, db)
 
-	plantID := insertSeedPlant(t, db, "Original")
+	plantID := testutil.SeedPlant(t, db, "Original", 1, 1)
 
 	c := server.NewClient(t)
 	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/plant", apiKey,
@@ -140,7 +132,7 @@ func TestPlantHTTP_Update_RejectsLongDescription(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 	apiKey := plantTestSeed(t, db)
 
-	plantID := insertSeedPlant(t, db, "Has Long Desc")
+	plantID := testutil.SeedPlant(t, db, "Has Long Desc", 1, 1)
 
 	c := server.NewClient(t)
 	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/plant", apiKey,
@@ -179,7 +171,7 @@ func TestPlantHTTP_LinkSensors_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 	apiKey := plantTestSeed(t, db)
 
-	plantID := insertSeedPlant(t, db, "Sensor Linkable")
+	plantID := testutil.SeedPlant(t, db, "Sensor Linkable", 1, 1)
 
 	// Two sensor rows the plant can reference.
 	_, err := db.Exec(`INSERT INTO sensors (id, name, zone_id, source, device, type)
@@ -262,7 +254,7 @@ func TestPlantHTTP_LivingPlants_ReturnsActivePlants(t *testing.T) {
 	plantTestSeed(t, db) // resets api_key but we don't use it; only need FK chain
 	testutil.SeedAdmin(t, db, "living-pw")
 
-	plantID := insertSeedPlant(t, db, "Alive Plant")
+	plantID := testutil.SeedPlant(t, db, "Alive Plant", 1, 1)
 	_, err := db.Exec(`INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, '2026-01-15')`,
 		plantID, plantStatusID(t, db, "Veg"))
 	require.NoError(t, err)
@@ -294,7 +286,7 @@ func TestPlantHTTP_HarvestedPlants_ReturnsHarvested(t *testing.T) {
 	testutil.SeedAdmin(t, db, "harvest-pw")
 
 	// Seed a plant in the "Success" status (active=0, status<>"Dead").
-	plantID := insertSeedPlant(t, db, "Harvested Plant")
+	plantID := testutil.SeedPlant(t, db, "Harvested Plant", 1, 1)
 	_, err := db.Exec(`INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, '2026-01-15')`,
 		plantID, plantStatusID(t, db, "Success"))
 	require.NoError(t, err)
@@ -325,7 +317,7 @@ func TestPlantHTTP_DeadPlants_ReturnsDead(t *testing.T) {
 	plantTestSeed(t, db)
 	testutil.SeedAdmin(t, db, "dead-pw")
 
-	plantID := insertSeedPlant(t, db, "Dead Plant")
+	plantID := testutil.SeedPlant(t, db, "Dead Plant", 1, 1)
 	_, err := db.Exec(`INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, '2026-01-15')`,
 		plantID, plantStatusID(t, db, "Dead"))
 	require.NoError(t, err)

@@ -63,7 +63,7 @@ func TestPlantStatus_UpdateInsertsNewLogWhenChanged(t *testing.T) {
 	fix := seedStatusHTTP(t, db)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/plant/status", fix.APIKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/plant/status", fix.APIKey, map[string]interface{}{
 		"plant_id":  fix.PlantID,
 		"status_id": fix.FlowerID,
 		"date":      "2026-02-01",
@@ -90,7 +90,7 @@ func TestPlantStatus_UpdateNoOpWhenSameStatus(t *testing.T) {
 	c := server.NewClient(t)
 	// Current status is already Veg — submitting Veg again should NOT
 	// add a new row.
-	resp := apiPostJSON(t, c, "/plant/status", fix.APIKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/plant/status", fix.APIKey, map[string]interface{}{
 		"plant_id":  fix.PlantID,
 		"status_id": fix.VegID,
 		"date":      "2026-01-20",
@@ -114,7 +114,7 @@ func TestPlantStatus_UpdateRejectsMissingFields(t *testing.T) {
 
 	c := server.NewClient(t)
 	// plant_id omitted (zero-value).
-	resp := apiPostJSON(t, c, "/plant/status", fix.APIKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/plant/status", fix.APIKey, map[string]interface{}{
 		"status_id": fix.FlowerID,
 		"date":      "2026-02-01",
 	})
@@ -138,7 +138,7 @@ func TestPlantStatus_EditUpdatesDate(t *testing.T) {
 	).Scan(&logID))
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/plantStatus/edit", fix.APIKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/plantStatus/edit", fix.APIKey, map[string]interface{}{
 		"id":   logID,
 		"date": "2026-03-15",
 	})
@@ -177,7 +177,7 @@ func TestPlantStatus_DeleteRemovesEntry(t *testing.T) {
 	).Scan(&logID))
 
 	c := server.NewClient(t)
-	resp := apiDelete(t, c, "/plantStatus/delete/"+strconv.Itoa(logID), fix.APIKey)
+	resp := c.APIDelete(t, "/plantStatus/delete/"+strconv.Itoa(logID), fix.APIKey)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -198,7 +198,7 @@ func TestPlantStatus_DeleteRejectsLastStatus(t *testing.T) {
 	).Scan(&logID))
 
 	c := server.NewClient(t)
-	resp := apiDelete(t, c, "/plantStatus/delete/"+strconv.Itoa(logID), fix.APIKey)
+	resp := c.APIDelete(t, "/plantStatus/delete/"+strconv.Itoa(logID), fix.APIKey)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
 		"last-remaining status entry must NOT be deletable")
@@ -212,7 +212,7 @@ func TestPlantStatus_DeleteMissing(t *testing.T) {
 	fix := seedStatusHTTP(t, db)
 
 	c := server.NewClient(t)
-	resp := apiDelete(t, c, "/plantStatus/delete/9999", fix.APIKey)
+	resp := c.APIDelete(t, "/plantStatus/delete/9999", fix.APIKey)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }

@@ -152,17 +152,13 @@ func TestGetPlant_UnknownIDReturnsZeroValue(t *testing.T) {
 // id. The caller adds child rows (status logs, activities, etc.) on top.
 func seedPlantTree(t *testing.T, db *sql.DB) int64 {
 	t.Helper()
-	mustExec := func(query string, args ...interface{}) sql.Result {
-		res, err := db.Exec(query, args...)
-		require.NoErrorf(t, err, "seed: %s", query)
-		return res
-	}
-	mustExec(`INSERT INTO breeder (id, name) VALUES (1, 'Test Breeder')`)
-	mustExec(`INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
+	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'Test Breeder')`)
+	testutil.MustExec(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	          VALUES (1, 'Test Strain', 1, 50, 50, 0, '', 0)`)
-	mustExec(`INSERT INTO zones (id, name) VALUES (1, 'Test Zone')`)
-	res := mustExec(`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
+	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Test Zone')`)
+	res, err := db.Exec(`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
 	                 VALUES ('Test Plant', 1, 1, '', 0, '2026-01-01', '[]')`)
+	require.NoError(t, err)
 	id, err := res.LastInsertId()
 	require.NoError(t, err)
 	return id

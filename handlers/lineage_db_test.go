@@ -32,47 +32,38 @@ type strainTreeIDs struct {
 
 func seedStrainTree(t *testing.T, db *sql.DB) strainTreeIDs {
 	t.Helper()
-	exec := func(query string, args ...interface{}) {
-		_, err := db.Exec(query, args...)
-		require.NoErrorf(t, err, "seed: %s", query)
-	}
 
-	exec(`INSERT INTO breeder (id, name) VALUES (1, 'Acme Genetics')`)
-
-	insertStrain := func(name string) int {
-		var id int
-		require.NoError(t, db.QueryRow(
-			`INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
-			 VALUES ($1, 1, 50, 50, 0, '', 0) RETURNING id`,
-			name,
-		).Scan(&id))
-		return id
-	}
+	breederID := testutil.SeedBreeder(t, db, "Acme Genetics")
 
 	ids := strainTreeIDs{
-		GrandparentA: insertStrain("Grandparent A"),
-		GrandparentB: insertStrain("Grandparent B"),
-		Parent:       insertStrain("Parent Cross"),
-		Child:        insertStrain("Child Phenotype"),
-		Sibling:      insertStrain("Sibling Phenotype"),
+		GrandparentA: testutil.SeedStrain(t, db, breederID, "Grandparent A"),
+		GrandparentB: testutil.SeedStrain(t, db, breederID, "Grandparent B"),
+		Parent:       testutil.SeedStrain(t, db, breederID, "Parent Cross"),
+		Child:        testutil.SeedStrain(t, db, breederID, "Child Phenotype"),
+		Sibling:      testutil.SeedStrain(t, db, breederID, "Sibling Phenotype"),
+	}
+
+	// strain_lineage isn't modeled in testutil — those rows are
+	// lineage-test-specific and stay inline.
+	insertLineage := func(strainID int, parentName string, parentStrainID *int) {
+		testutil.MustExec(t, db,
+			`INSERT INTO strain_lineage (strain_id, parent_name, parent_strain_id) VALUES ($1, $2, $3)`,
+			strainID, parentName, parentStrainID,
+		)
 	}
 
 	// Parent has Grandparent A and Grandparent B as parents.
-	exec(`INSERT INTO strain_lineage (strain_id, parent_name, parent_strain_id) VALUES ($1, 'Grandparent A', $2)`,
-		ids.Parent, ids.GrandparentA)
-	exec(`INSERT INTO strain_lineage (strain_id, parent_name, parent_strain_id) VALUES ($1, 'Grandparent B', $2)`,
-		ids.Parent, ids.GrandparentB)
+	insertLineage(ids.Parent, "Grandparent A", &ids.GrandparentA)
+	insertLineage(ids.Parent, "Grandparent B", &ids.GrandparentB)
 
 	// Child has Parent as a parent + a free-text "Mystery" entry without a strain link.
-	exec(`INSERT INTO strain_lineage (strain_id, parent_name, parent_strain_id) VALUES ($1, 'Parent Cross', $2)`,
-		ids.Child, ids.Parent)
-	exec(`INSERT INTO strain_lineage (strain_id, parent_name, parent_strain_id) VALUES ($1, 'Mystery', NULL)`,
-		ids.Child)
+	insertLineage(ids.Child, "Parent Cross", &ids.Parent)
+	insertLineage(ids.Child, "Mystery", nil)
 
 	// Sibling has Grandparent A only (used by descendants test for the
 	// other-parents aggregation column).
-	exec(`INSERT INTO strain_lineage (strain_id, parent_name, parent_strain_id) VALUES ($1, 'Grandparent A', $2)`,
-		ids.Sibling, ids.GrandparentA)
+	insertLineage(ids.Sibling, "Grandparent A", &ids.GrandparentA)
+
 	return ids
 }
 

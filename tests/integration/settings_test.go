@@ -42,7 +42,7 @@ func TestZoneCRUD_HappyPath(t *testing.T) {
 	c := server.NewClient(t)
 
 	// POST → 201 + id
-	resp := apiPostJSON(t, c, "/zones", apiKey, map[string]interface{}{"zone_name": "Tent A"})
+	resp := c.APIPostJSON(t, "/zones", apiKey, map[string]interface{}{"zone_name": "Tent A"})
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 	id := readID(t, resp)
 	resp.Body.Close()
@@ -57,7 +57,7 @@ func TestZoneCRUD_HappyPath(t *testing.T) {
 	assert.Equal(t, "Tent A renamed", name)
 
 	// DELETE → 200 + row gone
-	resp = apiDelete(t, c, "/zones/"+strconv.Itoa(id), apiKey)
+	resp = c.APIDelete(t, "/zones/"+strconv.Itoa(id), apiKey)
 	resp.Body.Close()
 
 	var n int
@@ -71,17 +71,17 @@ func TestZone_DeleteCascadesPlantsSensorsStreams(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 	apiKey := settingsCRUDFixture(t, db)
 
-	mustExecRow(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
-	mustExecRow(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
+	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
+	testutil.MustExec(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	                    VALUES (1, 'S', 1, 50, 50, 0, '', 0)`)
-	mustExecRow(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Doomed Zone')`)
-	mustExecRow(t, db, `INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
+	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Doomed Zone')`)
+	testutil.MustExec(t, db, `INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
 	                    VALUES ('Plant in zone', 1, 1, '', 0, '2026-01-01', '[]')`)
-	mustExecRow(t, db, `INSERT INTO sensors (name, zone_id, source, device, type) VALUES ('Sensor in zone', 1, 'src', 'D', 'temp')`)
-	mustExecRow(t, db, `INSERT INTO streams (name, url, zone_id, visible) VALUES ('Stream in zone', 'http://example/stream', 1, 1)`)
+	testutil.MustExec(t, db, `INSERT INTO sensors (name, zone_id, source, device, type) VALUES ('Sensor in zone', 1, 'src', 'D', 'temp')`)
+	testutil.MustExec(t, db, `INSERT INTO streams (name, url, zone_id, visible) VALUES ('Stream in zone', 'http://example/stream', 1, 1)`)
 
 	c := server.NewClient(t)
-	resp := apiDelete(t, c, "/zones/1", apiKey)
+	resp := c.APIDelete(t, "/zones/1", apiKey)
 	resp.Body.Close()
 
 	for _, table := range []string{"zones", "plant", "sensors", "streams"} {
@@ -98,7 +98,7 @@ func TestZone_AddRejectsEmptyName(t *testing.T) {
 	apiKey := settingsCRUDFixture(t, db)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/zones", apiKey, map[string]interface{}{"zone_name": ""})
+	resp := c.APIPostJSON(t, "/zones", apiKey, map[string]interface{}{"zone_name": ""})
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
@@ -115,7 +115,7 @@ func TestMetric_CRUDHappyPath(t *testing.T) {
 
 	c := server.NewClient(t)
 
-	resp := apiPostJSON(t, c, "/metrics", apiKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/metrics", apiKey, map[string]interface{}{
 		"metric_name": "Width",
 		"metric_unit": "in",
 	})
@@ -124,7 +124,7 @@ func TestMetric_CRUDHappyPath(t *testing.T) {
 	resp.Body.Close()
 
 	// DELETE → 200 (Width is unlocked, so allowed).
-	resp = apiDelete(t, c, "/metrics/"+strconv.Itoa(id), apiKey)
+	resp = c.APIDelete(t, "/metrics/"+strconv.Itoa(id), apiKey)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	resp.Body.Close()
 
@@ -144,7 +144,7 @@ func TestMetric_DeleteLockedReturns400(t *testing.T) {
 	require.NoError(t, db.QueryRow(`SELECT id FROM metric WHERE name = 'Height'`).Scan(&heightID))
 
 	c := server.NewClient(t)
-	resp := apiDelete(t, c, "/metrics/"+strconv.Itoa(heightID), apiKey)
+	resp := c.APIDelete(t, "/metrics/"+strconv.Itoa(heightID), apiKey)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "locked built-in metric must NOT be deletable")
 }
@@ -156,7 +156,7 @@ func TestMetric_AddRejectsEmptyName(t *testing.T) {
 	apiKey := settingsCRUDFixture(t, db)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/metrics", apiKey, map[string]interface{}{"metric_name": ""})
+	resp := c.APIPostJSON(t, "/metrics", apiKey, map[string]interface{}{"metric_name": ""})
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
@@ -172,7 +172,7 @@ func TestActivity_CRUDHappyPath(t *testing.T) {
 	apiKey := settingsCRUDFixture(t, db)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/activities", apiKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/activities", apiKey, map[string]interface{}{
 		"activity_name": "Defoliate",
 	})
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
@@ -191,7 +191,7 @@ func TestActivity_CRUDHappyPath(t *testing.T) {
 	assert.Equal(t, "Trim", name)
 
 	// DELETE.
-	resp = apiDelete(t, c, "/activities/"+strconv.Itoa(id), apiKey)
+	resp = c.APIDelete(t, "/activities/"+strconv.Itoa(id), apiKey)
 	resp.Body.Close()
 	var n int
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM activity WHERE id = $1`, id).Scan(&n))
@@ -206,7 +206,7 @@ func TestActivity_RejectsReservedName(t *testing.T) {
 
 	c := server.NewClient(t)
 	for _, reserved := range []string{"Water", "Feed", "Note"} {
-		resp := apiPostJSON(t, c, "/activities", apiKey, map[string]interface{}{
+		resp := c.APIPostJSON(t, "/activities", apiKey, map[string]interface{}{
 			"activity_name": reserved,
 		})
 		resp.Body.Close()
@@ -222,25 +222,25 @@ func TestActivity_DeleteCascadesPlantActivity(t *testing.T) {
 	apiKey := settingsCRUDFixture(t, db)
 
 	// Set up a plant + an activity row that references a custom activity.
-	mustExecRow(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
-	mustExecRow(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
+	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
+	testutil.MustExec(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	                    VALUES (1, 'S', 1, 50, 50, 0, '', 0)`)
-	mustExecRow(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
-	mustExecRow(t, db, `INSERT INTO plant (id, name, zone_id, strain_id, description, clone, start_dt, sensors)
+	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
+	testutil.MustExec(t, db, `INSERT INTO plant (id, name, zone_id, strain_id, description, clone, start_dt, sensors)
 	                    VALUES (1, 'P', 1, 1, '', 0, '2026-01-01', '[]')`)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/activities", apiKey, map[string]interface{}{"activity_name": "Defoliate"})
+	resp := c.APIPostJSON(t, "/activities", apiKey, map[string]interface{}{"activity_name": "Defoliate"})
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 	actID := readID(t, resp)
 	resp.Body.Close()
 
-	mustExecRow(t, db,
+	testutil.MustExec(t, db,
 		`INSERT INTO plant_activity (plant_id, activity_id, note, date) VALUES (1, $1, '', '2026-04-25')`,
 		actID,
 	)
 
-	resp = apiDelete(t, c, "/activities/"+strconv.Itoa(actID), apiKey)
+	resp = c.APIDelete(t, "/activities/"+strconv.Itoa(actID), apiKey)
 	resp.Body.Close()
 
 	var n int

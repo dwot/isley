@@ -41,7 +41,7 @@ func TestStrain_AddHappyPath(t *testing.T) {
 	apiKey := seedBreederWithKey(t, db)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/strains", apiKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/strains", apiKey, map[string]interface{}{
 		"name":        "OG Test",
 		"breeder_id":  1,
 		"indica":      70,
@@ -86,7 +86,7 @@ func TestStrain_AddCreatesNewBreeder(t *testing.T) {
 
 	c := server.NewClient(t)
 	// breeder_id omitted → handler reads new_breeder and inserts a row.
-	resp := apiPostJSON(t, c, "/strains", plaintext, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/strains", plaintext, map[string]interface{}{
 		"name":        "Hybrid",
 		"new_breeder": "Brand New Breeder",
 		"indica":      50,
@@ -111,7 +111,7 @@ func TestStrain_AddRejectsIndicaSativaSum(t *testing.T) {
 	apiKey := seedBreederWithKey(t, db)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/strains", apiKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/strains", apiKey, map[string]interface{}{
 		"name":       "Bad Sum",
 		"breeder_id": 1,
 		"indica":     50,
@@ -133,7 +133,7 @@ func TestStrain_AddRejectsMissingBreeder(t *testing.T) {
 
 	c := server.NewClient(t)
 	// Neither breeder_id nor new_breeder.
-	resp := apiPostJSON(t, c, "/strains", plaintext, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/strains", plaintext, map[string]interface{}{
 		"name":       "Orphan",
 		"indica":     50,
 		"sativa":     50,
@@ -208,7 +208,7 @@ func TestStrain_DeleteHappyPath(t *testing.T) {
 	id, _ := res.LastInsertId()
 
 	c := server.NewClient(t)
-	resp := apiDelete(t, c, "/strains/"+strconv.FormatInt(id, 10), apiKey)
+	resp := c.APIDelete(t, "/strains/"+strconv.FormatInt(id, 10), apiKey)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -224,7 +224,7 @@ func TestStrain_DeleteMissing(t *testing.T) {
 	apiKey := seedBreederWithKey(t, db)
 
 	c := server.NewClient(t)
-	resp := apiDelete(t, c, "/strains/9999", apiKey)
+	resp := c.APIDelete(t, "/strains/9999", apiKey)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
@@ -246,7 +246,7 @@ func TestStrain_GetByIDJSON(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	// Seed reference data.
-	mustExecRow(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
+	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
 	res, err := db.Exec(
 		`INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
 		 VALUES ('Visible', 1, 50, 50, 0, '', 3)`,
@@ -290,10 +290,10 @@ func TestStrain_InStockOnlyReturnsPositiveSeedCount(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
-	mustExecRow(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
-	mustExecRow(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
+	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
+	testutil.MustExec(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	                    VALUES ('InStockOne', 1, 50, 50, 0, '', 5)`)
-	mustExecRow(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
+	testutil.MustExec(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	                    VALUES ('OutOfStock', 1, 50, 50, 0, '', 0)`)
 
 	testutil.SeedAdmin(t, db, "stock-pw")
@@ -314,10 +314,10 @@ func TestStrain_OutOfStockOnlyReturnsZeroSeedCount(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
-	mustExecRow(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
-	mustExecRow(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
+	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
+	testutil.MustExec(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	                    VALUES ('InStockOne', 1, 50, 50, 0, '', 5)`)
-	mustExecRow(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
+	testutil.MustExec(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	                    VALUES ('OutOfStock', 1, 50, 50, 0, '', 0)`)
 
 	testutil.SeedAdmin(t, db, "stock-pw")
@@ -346,7 +346,7 @@ func TestBreeder_AddHappyPath(t *testing.T) {
 	testutil.SeedAPIKey(t, db, plaintext)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/breeders", plaintext, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/breeders", plaintext, map[string]interface{}{
 		"breeder_name": "New Breeder",
 	})
 	defer resp.Body.Close()
@@ -372,7 +372,7 @@ func TestBreeder_AddRejectsEmptyName(t *testing.T) {
 	testutil.SeedAPIKey(t, db, plaintext)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/breeders", plaintext, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/breeders", plaintext, map[string]interface{}{
 		"breeder_name": "",
 	})
 	defer resp.Body.Close()
@@ -384,7 +384,7 @@ func TestBreeder_UpdateRenames(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
-	mustExecRow(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'Old Name')`)
+	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'Old Name')`)
 	const plaintext = "test-breeder-key"
 	testutil.SeedAPIKey(t, db, plaintext)
 
@@ -407,18 +407,18 @@ func TestBreeder_DeleteCascadesStrainsAndPlants(t *testing.T) {
 
 	// breeder → strain → plant chain. DeleteBreederHandler removes
 	// associated plants, then strains, then the breeder itself.
-	mustExecRow(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'Doomed')`)
-	mustExecRow(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
+	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'Doomed')`)
+	testutil.MustExec(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	                    VALUES (1, 'Doomed Strain', 1, 50, 50, 0, '', 0)`)
-	mustExecRow(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
-	mustExecRow(t, db, `INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
+	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
+	testutil.MustExec(t, db, `INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
 	                    VALUES ('Doomed Plant', 1, 1, '', 0, '2026-01-01', '[]')`)
 
 	const plaintext = "test-breeder-key"
 	testutil.SeedAPIKey(t, db, plaintext)
 
 	c := server.NewClient(t)
-	resp := apiDelete(t, c, "/breeders/1", plaintext)
+	resp := c.APIDelete(t, "/breeders/1", plaintext)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -427,17 +427,4 @@ func TestBreeder_DeleteCascadesStrainsAndPlants(t *testing.T) {
 		require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM `+table).Scan(&n))
 		assert.Zerof(t, n, "%s should be empty after breeder delete cascade", table)
 	}
-}
-
-// ---------------------------------------------------------------------------
-// helpers
-// ---------------------------------------------------------------------------
-
-// mustExecRow keeps the integration test focused on the API surface;
-// errors in seed setup are fatal and shouldn't pollute test bodies with
-// repetitive `_, err := ... ; require.NoError(t, err)` boilerplate.
-func mustExecRow(t *testing.T, db *sql.DB, query string, args ...interface{}) {
-	t.Helper()
-	_, err := db.Exec(query, args...)
-	require.NoErrorf(t, err, "seed: %s", query)
 }

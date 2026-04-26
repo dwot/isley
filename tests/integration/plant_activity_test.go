@@ -56,7 +56,7 @@ func TestActivity_CreateHappyPath(t *testing.T) {
 	fix := seedActivityHTTP(t, db)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/plantActivity", fix.APIKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/plantActivity", fix.APIKey, map[string]interface{}{
 		"plant_id":    fix.PlantID,
 		"activity_id": fix.WaterID,
 		"note":        "first water",
@@ -105,7 +105,7 @@ func TestActivity_EditUpdatesRow(t *testing.T) {
 	actID, _ := res.LastInsertId()
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/plantActivity/edit", fix.APIKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/plantActivity/edit", fix.APIKey, map[string]interface{}{
 		"id":          actID,
 		"date":        "2026-04-15",
 		"activity_id": fix.FeedID, // change activity from Water → Feed
@@ -141,7 +141,7 @@ func TestActivity_DeleteRemovesRow(t *testing.T) {
 	actID, _ := res.LastInsertId()
 
 	c := server.NewClient(t)
-	resp := apiDelete(t, c, "/plantActivity/delete/"+strconv.FormatInt(actID, 10), fix.APIKey)
+	resp := c.APIDelete(t, "/plantActivity/delete/"+strconv.FormatInt(actID, 10), fix.APIKey)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -169,7 +169,7 @@ func TestActivity_MultiPlantHappyPath(t *testing.T) {
 	plant2, _ := res.LastInsertId()
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/record-multi-activity", fix.APIKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/record-multi-activity", fix.APIKey, map[string]interface{}{
 		"plant_ids":   []int64{fix.PlantID, plant2},
 		"activity_id": fix.WaterID,
 		"note":        "scheduled water",
@@ -190,7 +190,7 @@ func TestActivity_MultiPlantRejectsEmptyList(t *testing.T) {
 	fix := seedActivityHTTP(t, db)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/record-multi-activity", fix.APIKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/record-multi-activity", fix.APIKey, map[string]interface{}{
 		"plant_ids":   []int{},
 		"activity_id": fix.WaterID,
 		"note":        "no plants",

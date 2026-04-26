@@ -220,7 +220,7 @@ func TestPlantImage_DeleteRemovesFileAndRow(t *testing.T) {
 	).Scan(&path))
 	require.FileExists(t, path)
 
-	delResp := apiDelete(t, c, "/plant/images/"+strconv.Itoa(imageID)+"/delete", fix.APIKey)
+	delResp := c.APIDelete(t, "/plant/images/"+strconv.Itoa(imageID)+"/delete", fix.APIKey)
 	defer delResp.Body.Close()
 	require.Equal(t, http.StatusOK, delResp.StatusCode)
 
@@ -241,7 +241,7 @@ func TestPlantImage_DeleteMissing(t *testing.T) {
 	fix := seedPlantImageHTTP(t, db)
 
 	c := server.NewClient(t)
-	resp := apiDelete(t, c, "/plant/images/9999/delete", fix.APIKey)
+	resp := c.APIDelete(t, "/plant/images/9999/delete", fix.APIKey)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
@@ -255,7 +255,7 @@ func TestPlantImage_DeleteBadID(t *testing.T) {
 	fix := seedPlantImageHTTP(t, db)
 
 	c := server.NewClient(t)
-	resp := apiDelete(t, c, "/plant/images/not-a-number/delete", fix.APIKey)
+	resp := c.APIDelete(t, "/plant/images/not-a-number/delete", fix.APIKey)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }

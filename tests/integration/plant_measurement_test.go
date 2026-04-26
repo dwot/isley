@@ -22,7 +22,7 @@ func TestMeasurement_CreateHappyPath(t *testing.T) {
 	fix := seedActivityHTTP(t, db)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/plantMeasurement", fix.APIKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/plantMeasurement", fix.APIKey, map[string]interface{}{
 		"plant_id":  fix.PlantID,
 		"metric_id": fix.HeightID,
 		"value":     12.5,
@@ -47,7 +47,7 @@ func TestMeasurement_CreateRejectsBadJSON(t *testing.T) {
 
 	c := server.NewClient(t)
 	// value should be a number; passing a string makes JSON decode fail.
-	resp := apiPostJSON(t, c, "/plantMeasurement", fix.APIKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/plantMeasurement", fix.APIKey, map[string]interface{}{
 		"plant_id":  fix.PlantID,
 		"metric_id": fix.HeightID,
 		"value":     "not-a-number",
@@ -75,7 +75,7 @@ func TestMeasurement_EditUpdatesRow(t *testing.T) {
 	id, _ := res.LastInsertId()
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/plantMeasurement/edit", fix.APIKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/plantMeasurement/edit", fix.APIKey, map[string]interface{}{
 		"id":    id,
 		"date":  "2026-04-15",
 		"value": 7.5,
@@ -106,7 +106,7 @@ func TestMeasurement_DeleteRemovesRow(t *testing.T) {
 	id, _ := res.LastInsertId()
 
 	c := server.NewClient(t)
-	resp := apiDelete(t, c, "/plantMeasurement/delete/"+strconv.FormatInt(id, 10), fix.APIKey)
+	resp := c.APIDelete(t, "/plantMeasurement/delete/"+strconv.FormatInt(id, 10), fix.APIKey)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 

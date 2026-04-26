@@ -28,7 +28,7 @@ func TestBackup_ListWithAPIKey(t *testing.T) {
 	testutil.SeedAPIKey(t, db, plaintextKey)
 
 	c := server.NewClient(t)
-	resp := apiGet(t, c, "/settings/backup/list", plaintextKey)
+	resp := c.APIGet(t, "/settings/backup/list", plaintextKey)
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)

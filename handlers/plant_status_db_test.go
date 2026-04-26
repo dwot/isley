@@ -55,10 +55,10 @@ func TestGetPlantResolvesLatestStatus(t *testing.T) {
 // log rows (Veg → Flower). Returns the plant id.
 func seedStatusFixture(t *testing.T, db *sql.DB) int64 {
 	t.Helper()
-	mustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
-	mustExec(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
+	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
+	testutil.MustExec(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	                 VALUES (1, 'S', 1, 50, 50, 0, '', 0)`)
-	mustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
+	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
 
 	res, err := db.Exec(
 		`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
@@ -71,8 +71,8 @@ func seedStatusFixture(t *testing.T, db *sql.DB) int64 {
 	veg := statusIDByName(t, db, "Veg")
 	flower := statusIDByName(t, db, "Flower")
 
-	mustExec(t, db, `INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, '2026-01-15')`, plantID, veg)
-	mustExec(t, db, `INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, '2026-02-01')`, plantID, flower)
+	testutil.MustExec(t, db, `INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, '2026-01-15')`, plantID, veg)
+	testutil.MustExec(t, db, `INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, '2026-02-01')`, plantID, flower)
 
 	return plantID
 }

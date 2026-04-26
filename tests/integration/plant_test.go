@@ -15,14 +15,6 @@ import (
 	"isley/tests/testutil"
 )
 
-// ---------------------------------------------------------------------------
-// Package-level helpers shared across the integration suite. These thin
-// wrappers exist because most integration tests follow the same shape:
-// build a request, send, return the response. testutil.APIReq returns
-// the request only — the wrappers here bundle send+error-check so test
-// sites stay terse.
-// ---------------------------------------------------------------------------
-
 // seedPlantTreeWithKey seeds the FK chain (breeder → strain → zone) and
 // an API key. Returns the api key plaintext for use as X-API-KEY in
 // subsequent requests.
@@ -32,23 +24,6 @@ func seedPlantTreeWithKey(t *testing.T, db *sql.DB) string {
 	testutil.SeedStrain(t, db, 1, "Test Strain")
 	testutil.SeedZone(t, db, "Test Zone")
 	return testutil.SeedAPIKey(t, db, "test-plant-api-key")
-}
-
-// apiPostJSON issues POST path with a JSON body and an X-API-KEY header.
-func apiPostJSON(t *testing.T, c *testutil.Client, path, apiKey string, body interface{}) *http.Response {
-	t.Helper()
-	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+path, apiKey,
-		testutil.JSONBody(t, body), "application/json"))
-	require.NoError(t, err)
-	return resp
-}
-
-// apiDelete issues DELETE path with an X-API-KEY header.
-func apiDelete(t *testing.T, c *testutil.Client, path, apiKey string) *http.Response {
-	t.Helper()
-	resp, err := c.Do(testutil.APIReq(t, http.MethodDelete, c.BaseURL+path, apiKey, nil, ""))
-	require.NoError(t, err)
-	return resp
 }
 
 // ---------------------------------------------------------------------------
@@ -62,7 +37,7 @@ func TestPlant_AddHappyPath(t *testing.T) {
 	apiKey := seedPlantTreeWithKey(t, db)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/plants", apiKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/plants", apiKey, map[string]interface{}{
 		"name":      "Sapling 1",
 		"zone_id":   1,
 		"strain_id": 1,
@@ -99,7 +74,7 @@ func TestPlant_AddRejectsMissingName(t *testing.T) {
 	apiKey := seedPlantTreeWithKey(t, db)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/plants", apiKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/plants", apiKey, map[string]interface{}{
 		// no "name"
 		"zone_id":   1,
 		"strain_id": 1,
@@ -118,7 +93,7 @@ func TestPlant_AddDecrementsSeedCount(t *testing.T) {
 	apiKey := seedPlantTreeWithKey(t, db)
 
 	c := server.NewClient(t)
-	resp := apiPostJSON(t, c, "/plants", apiKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/plants", apiKey, map[string]interface{}{
 		"name":                 "Decrement Test",
 		"zone_id":              1,
 		"strain_id":            1,
@@ -154,7 +129,7 @@ func TestPlant_DeleteRemovesRow(t *testing.T) {
 	require.NoError(t, err)
 
 	c := server.NewClient(t)
-	resp := apiDelete(t, c, "/plant/delete/"+strconv.FormatInt(plantID, 10), apiKey)
+	resp := c.APIDelete(t, "/plant/delete/"+strconv.FormatInt(plantID, 10), apiKey)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -174,14 +149,10 @@ func TestPlant_LivingPlantsLandsOnlyActiveStatuses(t *testing.T) {
 
 	// Seed the FK chain plus two plants — one in an active status (Veg)
 	// and one in an inactive status (Success).
-	mustExec := func(query string, args ...interface{}) {
-		_, err := db.Exec(query, args...)
-		require.NoErrorf(t, err, "seed: %s", query)
-	}
-	mustExec(`INSERT INTO breeder (id, name) VALUES (1, 'B')`)
-	mustExec(`INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
+	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
+	testutil.MustExec(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	          VALUES (1, 'S', 1, 50, 50, 0, '', 0)`)
-	mustExec(`INSERT INTO zones (id, name) VALUES (1, 'Z')`)
+	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
 
 	res, err := db.Exec(
 		`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
@@ -196,9 +167,9 @@ func TestPlant_LivingPlantsLandsOnlyActiveStatuses(t *testing.T) {
 	require.NoError(t, err)
 	doneID, _ := res.LastInsertId()
 
-	mustExec(`INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, '2026-01-15')`,
+	testutil.MustExec(t, db, `INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, '2026-01-15')`,
 		aliveID, statusIDByNameInt(t, db, "Veg"))
-	mustExec(`INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, '2026-01-15')`,
+	testutil.MustExec(t, db, `INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, '2026-01-15')`,
 		doneID, statusIDByNameInt(t, db, "Success"))
 
 	// Login as admin (basic routes are session-gated when guest mode is off).

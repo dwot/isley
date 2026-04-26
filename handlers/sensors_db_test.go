@@ -17,9 +17,9 @@ import (
 
 func TestGetSensors_OrderedAndShaped(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	mustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Tent A')`)
-	mustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type, unit) VALUES (1, 'Temp Probe', 1, 'acinfinity', 'AAA', 'temp', 'C')`)
-	mustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type, unit) VALUES (2, 'Soil Probe', 1, 'ecowitt', 'BBB', 'humi', '%')`)
+	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Tent A')`)
+	testutil.MustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type, unit) VALUES (1, 'Temp Probe', 1, 'acinfinity', 'AAA', 'temp', 'C')`)
+	testutil.MustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type, unit) VALUES (2, 'Soil Probe', 1, 'ecowitt', 'BBB', 'humi', '%')`)
 
 	got := handlers.GetSensors(db)
 	require.Len(t, got, 2)
@@ -77,10 +77,10 @@ func TestZoneHelpers_RoundTrip(t *testing.T) {
 
 func TestDeleteSensorByID_CascadesSensorData(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	mustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
-	mustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type) VALUES (1, 'Doomed', 1, 'src', 'D', 'temp')`)
-	mustExec(t, db, `INSERT INTO sensor_data (sensor_id, value) VALUES (1, 1.0)`)
-	mustExec(t, db, `INSERT INTO sensor_data (sensor_id, value) VALUES (1, 2.0)`)
+	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
+	testutil.MustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type) VALUES (1, 'Doomed', 1, 'src', 'D', 'temp')`)
+	testutil.MustExec(t, db, `INSERT INTO sensor_data (sensor_id, value) VALUES (1, 1.0)`)
+	testutil.MustExec(t, db, `INSERT INTO sensor_data (sensor_id, value) VALUES (1, 2.0)`)
 
 	require.NoError(t, handlers.DeleteSensorByID(db, "1"))
 
@@ -97,8 +97,8 @@ func TestDeleteSensorByID_CascadesSensorData(t *testing.T) {
 
 func TestGetSensorName(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	mustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
-	mustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type) VALUES (1, 'Tent Temp', 1, 'src', 'D', 'temp')`)
+	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
+	testutil.MustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type) VALUES (1, 'Tent Temp', 1, 'src', 'D', 'temp')`)
 
 	assert.Equal(t, "Tent Temp", handlers.GetSensorName(db, "1"))
 	assert.Equal(t, "", handlers.GetSensorName(db, "9999"), "missing id returns empty string")
