@@ -566,21 +566,57 @@ func ScanEcoWittSensors(c *gin.Context) {
 	apiOK(c, "api_ecowitt_sensors_scanned")
 }
 
+// sensorUpsertMu serializes the SELECT-then-INSERT pair used to look up
+// or create a sensor row by (source, device, type). Without this lock,
+// concurrent ingest calls for the same unknown sensor could each see
+// "not found" and each INSERT, creating duplicate rows. A single
+// process-wide mutex is sufficient: this app handles at most a few
+// sensor writes per second, so contention is negligible.
+var sensorUpsertMu sync.Mutex
+
+// findOrCreateSensor returns the id of the sensor matching
+// (source, device, type), creating it with the given attributes if it
+// does not exist. The lookup-then-insert is serialized via
+// sensorUpsertMu, which closes the TOCTOU race that allowed concurrent
+// ingest to create duplicate sensor rows.
+func findOrCreateSensor(db *sql.DB, name, source, device, sensorType string, zoneID *int, unit string) (int, error) {
+	sensorUpsertMu.Lock()
+	defer sensorUpsertMu.Unlock()
+
+	var id int
+	err := db.QueryRow(
+		`SELECT id FROM sensors WHERE source = $1 AND device = $2 AND type = $3`,
+		source, device, sensorType,
+	).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = db.QueryRow(
+			`INSERT INTO sensors (name, source, device, type, zone_id, unit, visibility)
+             VALUES ($1, $2, $3, $4, $5, $6, 'zone_plant')
+             RETURNING id`,
+			name, source, device, sensorType, zoneID, unit,
+		).Scan(&id)
+	}
+	return id, err
+}
+
 func checkInsertSensor(db *sql.DB, source string, device string, sensorType string, name string, zoneId *int, unit string) {
 	fieldLogger := logger.Log.WithField("func", "checkInsertSensor")
-
-	// Atomic insert: the unique index on (source, device, type) added
-	// by migration 021 makes ON CONFLICT a no-op when the sensor row
-	// already exists, replacing the previous SELECT-then-INSERT pattern
-	// that could create duplicates under concurrent scans.
-	_, err := db.Exec(`
-        INSERT INTO sensors (name, source, device, type, zone_id, unit)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (source, device, type) DO NOTHING`,
-		name, source, device, sensorType, zoneId, unit)
+	sensorid := 0
+	err := db.QueryRow("SELECT id FROM sensors WHERE source = $1 and device = $2 and type = $3", source, device, sensorType).Scan(&sensorid)
 	if err != nil {
-		fieldLogger.WithError(err).Error("Error inserting sensor")
-		return
+		if errors.Is(err, sql.ErrNoRows) {
+			// Sensor not registered; skip silently
+		} else {
+			fieldLogger.WithError(err).Error("Error querying for sensor")
+			return
+		}
+	}
+	if sensorid == 0 {
+		_, err := db.Exec("INSERT INTO sensors (name, source, device, type, zone_id, unit) VALUES ($1, $2, $3, $4, $5, $6)", name, source, device, sensorType, zoneId, unit)
+		if err != nil {
+			fieldLogger.WithError(err).Error("Error inserting sensor")
+			return
+		}
 	}
 }
 
@@ -1041,27 +1077,10 @@ func IngestSensorData(c *gin.Context) {
 		}
 	}
 
-	// Atomically upsert the sensor row. The unique index on
-	// (source, device, type) added by migration 021 makes this race-free
-	// under concurrent ingest: ON CONFLICT DO NOTHING means a second
-	// concurrent INSERT for the same tuple is a no-op rather than
-	// creating a duplicate row. RETURNING only fires on actual insert,
-	// so on conflict we re-SELECT to fetch the existing id.
-	var sensorID int
-	err := db.QueryRow(`
-        INSERT INTO sensors (name, source, device, type, zone_id, unit, visibility)
-        VALUES ($1, $2, $3, $4, $5, $6, 'zone_plant')
-        ON CONFLICT (source, device, type) DO NOTHING
-        RETURNING id`,
-		payload.Name, payload.Source, payload.Device, payload.Type, payload.ZoneID, payload.Unit).Scan(&sensorID)
-
-	if errors.Is(err, sql.ErrNoRows) {
-		// Conflict path: the sensor already existed; fetch its id.
-		err = db.QueryRow(`
-            SELECT id FROM sensors
-            WHERE source = $1 AND device = $2 AND type = $3`,
-			payload.Source, payload.Device, payload.Type).Scan(&sensorID)
-	}
+	// Look up the sensor or create it. findOrCreateSensor serializes
+	// the SELECT-then-INSERT to prevent concurrent ingests of an
+	// unknown sensor from each creating a duplicate row.
+	sensorID, err := findOrCreateSensor(db, payload.Name, payload.Source, payload.Device, payload.Type, payload.ZoneID, payload.Unit)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error upserting sensor")
 		apiInternalError(c, "api_failed_to_create_sensor")

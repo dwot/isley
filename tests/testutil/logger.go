@@ -4,6 +4,7 @@ import (
 	"io"
 	"sync"
 
+	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 
 	"isley/logger"
@@ -36,6 +37,15 @@ func ensureProcessInitialized() {
 		l.SetLevel(logrus.PanicLevel)
 		logger.Log = l
 		logger.AccessWriter = io.Discard
+
+		// Silence Gin's route-registration debug output. Without this,
+		// every NewTestServer call prints ~100 [GIN-debug] lines, which
+		// drowns CI logs and makes real failures hard to find. TestMode
+		// also disables the per-request access log emitted by the gin
+		// logger middleware.
+		gin.SetMode(gin.TestMode)
+		gin.DefaultWriter = io.Discard
+		gin.DefaultErrorWriter = io.Discard
 
 		// Tell the model package the harness is on SQLite so its
 		// dialect-aware helpers (IsSQLite, IsPostgres, dialect-branching
