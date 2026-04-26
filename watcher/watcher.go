@@ -1,43 +1,109 @@
+// Package watcher polls the AC Infinity and EcoWitt cloud APIs at a
+// configurable interval, persists readings into sensor_data, prunes
+// rows past their retention window, and refreshes the hourly rollup
+// table.
+//
+// The polling loop is dependency-injected via the Watcher struct so
+// tests can substitute the HTTP client, the clock, and the config
+// getters without touching package globals. See docs/TEST_PLAN.md
+// Phase 2 for the rationale.
 package watcher
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/sirupsen/logrus"
+
 	"isley/config"
 	"isley/logger"
 	"isley/model"
 	"isley/model/types"
-	"net/http"
-	"strconv"
-	"sync"
-	"time"
-
-	"github.com/sirupsen/logrus"
 )
 
 const (
 	// httpClientTimeout is the default timeout for outbound sensor API requests.
 	httpClientTimeout = 10 * time.Second
-	// pruneInterval is how often the sensor data pruner runs.
+	// pruneInterval is how often the sensor data pruner runs inside Run.
 	pruneInterval = 24 * time.Hour
-	// rollupInterval is how often hourly rollups are refreshed.
+	// rollupInterval is how often hourly rollups are refreshed inside Run.
 	rollupInterval = 10 * time.Minute
+
+	// defaultACIBaseURL is the production AC Infinity API host. Tests
+	// override this on the Watcher struct to point at httptest fakes.
+	defaultACIBaseURL = "https://www.acinfinityserver.com"
 )
 
-// httpClient is a shared client for all outbound sensor API requests.
-// Reusing a single client enables TCP connection pooling and avoids the
-// overhead of a fresh TLS handshake / TCP connection on every poll cycle.
-var httpClient = &http.Client{Timeout: httpClientTimeout}
+// HTTPDoer is the minimum surface from net/http needed by the watcher.
+// *http.Client implements it directly. Tests can pass a stub that
+// records request URLs and returns canned responses without standing
+// up an httptest server, though most tests prefer httptest because the
+// real client + fake server combination matches production behavior.
+type HTTPDoer interface {
+	Do(req *http.Request) (*http.Response, error)
+}
 
-// WG tracks running watcher goroutines so main can wait for them to finish
-// during graceful shutdown.
-var WG sync.WaitGroup
+// Watcher owns the dependencies the polling loop needs. Construct it
+// once at process startup via New, or assemble one by hand in tests.
+//
+// All getter functions (PollingInterval, RestoreInProgress, etc.) are
+// invoked on every iteration so a Watcher built from the config
+// package globals stays current with runtime settings changes.
+type Watcher struct {
+	DB         *sql.DB
+	HTTP       HTTPDoer
+	ACIBaseURL string
+	Logger     *logrus.Logger
 
-func Watch(ctx context.Context) {
-	defer WG.Done()
-	logger.Log.Info("Started Sensor Watcher")
+	Now               func() time.Time
+	PollingInterval   func() time.Duration
+	RestoreInProgress func() bool
+	ACIEnabled        func() bool
+	ACIToken          func() string
+	ECEnabled         func() bool
+	ECDevices         func() []string
+	SensorRetention   func() int
+}
+
+// New returns a Watcher wired to the production config and a default
+// HTTP client. Production code (main.go) calls this; tests typically
+// construct a Watcher literal so each field can be controlled.
+func New(db *sql.DB) *Watcher {
+	return &Watcher{
+		DB:         db,
+		HTTP:       &http.Client{Timeout: httpClientTimeout},
+		ACIBaseURL: defaultACIBaseURL,
+		Logger:     logger.Log,
+
+		Now:               time.Now,
+		PollingInterval:   func() time.Duration { return time.Duration(config.PollingInterval) * time.Second },
+		RestoreInProgress: config.RestoreInProgress.Load,
+		ACIEnabled:        func() bool { return config.ACIEnabled == 1 },
+		ACIToken:          func() string { return config.ACIToken },
+		ECEnabled:         func() bool { return config.ECEnabled == 1 },
+		ECDevices:         func() []string { return config.ECDevices },
+		SensorRetention:   func() int { return config.SensorRetention },
+	}
+}
+
+// Run is the main polling loop. It blocks until ctx is cancelled and
+// returns after the in-flight iteration completes — callers should
+// run it in its own goroutine and use a sync.WaitGroup or similar to
+// wait for shutdown.
+//
+// Each iteration:
+//  1. If a backup restore is in progress, do nothing this cycle.
+//  2. Otherwise poll AC Infinity and EcoWitt according to enabled flags.
+//  3. Run prune and rollup if their tickers have fired.
+//  4. Sleep for PollingInterval, or return early if ctx is cancelled.
+func (w *Watcher) Run(ctx context.Context) {
+	w.Logger.Info("Started Sensor Watcher")
 
 	pruneTicker := time.NewTicker(pruneInterval)
 	defer pruneTicker.Stop()
@@ -45,81 +111,84 @@ func Watch(ctx context.Context) {
 	rollupTicker := time.NewTicker(rollupInterval)
 	defer rollupTicker.Stop()
 
-	// Run an initial rollup at startup to backfill if needed
-	if err := RefreshHourlyRollups(); err != nil {
-		logger.Log.WithError(err).Error("Initial hourly rollup failed")
+	// Run an initial rollup at startup to backfill if needed.
+	if err := w.RefreshHourlyRollups(); err != nil {
+		w.Logger.WithError(err).Error("Initial hourly rollup failed")
 	}
 
 	for {
-		if config.RestoreInProgress.Load() {
-			logger.Log.Debug("Backup restore in progress, skipping sensor poll")
+		if w.RestoreInProgress() {
+			w.Logger.Debug("Backup restore in progress, skipping sensor poll")
 		} else {
-			if config.ACIEnabled == 1 && config.ACIToken != "" {
-				updateACISensorData(config.ACIToken)
+			if w.ACIEnabled() {
+				if token := w.ACIToken(); token != "" {
+					w.PollACI(ctx, token)
+				}
 			}
-			if config.ECEnabled == 1 && len(config.ECDevices) > 0 {
-				for _, ecServer := range config.ECDevices {
-					updateEcoWittSensorData(ecServer)
+			if w.ECEnabled() {
+				for _, ecServer := range w.ECDevices() {
+					w.PollEcoWitt(ctx, ecServer)
 				}
 			}
 
 			select {
 			case <-pruneTicker.C:
-				if err := PruneSensorData(); err != nil {
-					logger.Log.WithError(err).Error("Scheduled sensor data prune failed")
+				if err := w.PruneSensorData(); err != nil {
+					w.Logger.WithError(err).Error("Scheduled sensor data prune failed")
 				} else {
-					logger.Log.Info("Scheduled sensor data prune completed")
+					w.Logger.Info("Scheduled sensor data prune completed")
 				}
 			default:
 			}
 
 			select {
 			case <-rollupTicker.C:
-				if err := RefreshHourlyRollups(); err != nil {
-					logger.Log.WithError(err).Error("Scheduled hourly rollup failed")
+				if err := w.RefreshHourlyRollups(); err != nil {
+					w.Logger.WithError(err).Error("Scheduled hourly rollup failed")
 				}
 			default:
 			}
 		}
 
-		// Wait for either the polling interval or context cancellation
+		// Wait for either the polling interval or context cancellation.
 		select {
 		case <-ctx.Done():
-			logger.Log.Info("Sensor Watcher shutting down")
+			w.Logger.Info("Sensor Watcher shutting down")
 			return
-		case <-time.After(time.Duration(config.PollingInterval) * time.Second):
+		case <-time.After(w.PollingInterval()):
 		}
 	}
 }
 
-func updateEcoWittSensorData(server string) {
-	currentDate := time.Now()
-	logger.Log.WithField("timestamp", currentDate).Info("Updating EC sensor data")
+// PollEcoWitt fetches livedata from a single EcoWitt server and writes
+// matching sensor rows. server is the host[:port] portion as it
+// appears in config.ECDevices.
+func (w *Watcher) PollEcoWitt(ctx context.Context, server string) {
+	w.Logger.WithField("timestamp", w.Now()).Info("Updating EC sensor data")
 
 	url := "http://" + server + "/get_livedata_info"
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		logger.Log.WithError(err).Error("Error creating EcoWitt request")
+		w.Logger.WithError(err).Error("Error creating EcoWitt request")
 		return
 	}
 
-	resp, err := httpClient.Do(req)
+	resp, err := w.HTTP.Do(req)
 	if err != nil {
-		logger.Log.WithError(err).Error("Error sending EcoWitt request")
+		w.Logger.WithError(err).Error("Error sending EcoWitt request")
 		return
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		logger.Log.WithError(err).Error("Error reading EcoWitt response body")
+		w.Logger.WithError(err).Error("Error reading EcoWitt response body")
 		return
 	}
 
 	var apiResponse types.ECWAPIResponse
-	err = json.Unmarshal(respBody, &apiResponse)
-	if err != nil {
-		logger.Log.WithError(err).Error("Error parsing EcoWitt JSON response")
+	if err := json.Unmarshal(respBody, &apiResponse); err != nil {
+		w.Logger.WithError(err).Error("Error parsing EcoWitt JSON response")
 		return
 	}
 
@@ -129,26 +198,27 @@ func updateEcoWittSensorData(server string) {
 
 	for _, wh := range apiResponse.WH25 {
 		dataMap["WH25.InTemp"] = wh.InTemp
-		dataMap["WH25.InHumi"] = wh.InHumi[:len(wh.InHumi)-1]
+		dataMap["WH25.InHumi"] = trimTrailingPercent(wh.InHumi)
 	}
 
 	for _, ch := range apiResponse.CHSoil {
-		dataMap["Soil."+ch.Channel] = ch.Humidity[:len(ch.Humidity)-1]
+		dataMap["Soil."+ch.Channel] = trimTrailingPercent(ch.Humidity)
 	}
 
 	for key, value := range dataMap {
-		addSensorData(source, device, key, value)
+		w.addSensorData(source, device, key, value)
 	}
 }
 
-func updateACISensorData(token string) {
-	currentDate := time.Now()
-	logger.Log.WithField("timestamp", currentDate).Info("Updating ACI sensor data")
+// PollACI fetches the device list from AC Infinity using the supplied
+// access token and writes matching sensor rows.
+func (w *Watcher) PollACI(ctx context.Context, token string) {
+	w.Logger.WithField("timestamp", w.Now()).Info("Updating ACI sensor data")
 
-	url := "https://www.acinfinityserver.com/api/user/devInfoListAll?userId=" + token
-	req, err := http.NewRequest("POST", url, nil)
+	url := w.ACIBaseURL + "/api/user/devInfoListAll?userId=" + token
+	req, err := http.NewRequestWithContext(ctx, "POST", url, nil)
 	if err != nil {
-		logger.Log.WithError(err).Error("Error creating ACI request")
+		w.Logger.WithError(err).Error("Error creating ACI request")
 		return
 	}
 
@@ -157,23 +227,22 @@ func updateACISensorData(token string) {
 	req.Header.Add("User-Agent", "okhttp/3.10.0")
 	req.Header.Add("Content-Encoding", "gzip")
 
-	resp, err := httpClient.Do(req)
+	resp, err := w.HTTP.Do(req)
 	if err != nil {
-		logger.Log.WithError(err).Error("Error sending ACI request")
+		w.Logger.WithError(err).Error("Error sending ACI request")
 		return
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		logger.Log.WithError(err).Error("Error reading ACI response body")
+		w.Logger.WithError(err).Error("Error reading ACI response body")
 		return
 	}
 
 	var jsonResponse types.ACIResponse
-	err = json.Unmarshal(respBody, &jsonResponse)
-	if err != nil {
-		logger.Log.WithError(err).Error("Error unmarshalling ACI JSON response")
+	if err := json.Unmarshal(respBody, &jsonResponse); err != nil {
+		w.Logger.WithError(err).Error("Error unmarshalling ACI JSON response")
 		return
 	}
 
@@ -195,16 +264,19 @@ func updateACISensorData(token string) {
 		}
 
 		for key, value := range dataMap {
-			addSensorData(source, device, key, fmt.Sprintf("%f", value))
+			w.addSensorData(source, device, key, fmt.Sprintf("%f", value))
 		}
 	}
 }
 
-func addSensorData(source string, device string, key string, value string) {
-	//Test to see if value is a number, if not return an error
-	_, err := strconv.ParseFloat(value, 64)
-	if err != nil {
-		logger.Log.WithFields(logrus.Fields{
+// addSensorData writes a single (source, device, key, value) tuple to
+// sensor_data. Sensors that are not pre-registered in the sensors table
+// are silently skipped — that's how the UI lets users opt in to
+// tracking specific sensors. Non-numeric values are also silently
+// skipped after logging.
+func (w *Watcher) addSensorData(source string, device string, key string, value string) {
+	if _, err := strconv.ParseFloat(value, 64); err != nil {
+		w.Logger.WithFields(logrus.Fields{
 			"source": source,
 			"device": device,
 			"type":   key,
@@ -214,16 +286,10 @@ func addSensorData(source string, device string, key string, value string) {
 		return
 	}
 
-	db, err := model.GetDB()
-	if err != nil {
-		logger.Log.WithError(err).Error("Failed to open database")
-		return
-	}
-
 	var sensorID int
-	err = db.QueryRow("SELECT id FROM sensors WHERE source = $1 AND device = $2 AND type = $3", source, device, key).Scan(&sensorID)
+	err := w.DB.QueryRow("SELECT id FROM sensors WHERE source = $1 AND device = $2 AND type = $3", source, device, key).Scan(&sensorID)
 	if err != nil {
-		logger.Log.WithFields(logrus.Fields{
+		w.Logger.WithFields(logrus.Fields{
 			"source": source,
 			"device": device,
 			"type":   key,
@@ -231,9 +297,8 @@ func addSensorData(source string, device string, key string, value string) {
 		return
 	}
 
-	_, err = db.Exec("INSERT INTO sensor_data (sensor_id, value) VALUES ($1, $2)", sensorID, value)
-	if err != nil {
-		logger.Log.WithFields(logrus.Fields{
+	if _, err := w.DB.Exec("INSERT INTO sensor_data (sensor_id, value) VALUES ($1, $2)", sensorID, value); err != nil {
+		w.Logger.WithFields(logrus.Fields{
 			"sensorID": sensorID,
 			"value":    value,
 			"error":    err,
@@ -241,18 +306,16 @@ func addSensorData(source string, device string, key string, value string) {
 	}
 }
 
-func PruneSensorData() error {
-	logger.Log.Info("Pruning old sensor data")
-	days := config.SensorRetention
+// PruneSensorData deletes sensor_data rows older than the configured
+// retention window. With retention <= 0 pruning is disabled and the
+// method returns nil. SQLite databases additionally run VACUUM,
+// ANALYZE, and PRAGMA optimize after the delete so the file shrinks.
+func (w *Watcher) PruneSensorData() error {
+	w.Logger.Info("Pruning old sensor data")
+	days := w.SensorRetention()
 	if days <= 0 {
-		logger.Log.Info("Sensor data pruning is disabled (sensor_retention_days = 0)")
+		w.Logger.Info("Sensor data pruning is disabled (sensor_retention_days = 0)")
 		return nil
-	}
-
-	db, err := model.GetDB()
-	if err != nil {
-		logger.Log.WithError(err).Error("Failed to open database")
-		return err
 	}
 
 	var pruneQuery string
@@ -261,27 +324,39 @@ func PruneSensorData() error {
 	} else {
 		pruneQuery = fmt.Sprintf("DELETE FROM sensor_data WHERE create_dt < datetime('now', 'localtime', '-%d days')", days)
 	}
-	_, err = db.Exec(pruneQuery)
-	if err != nil {
-		logger.Log.WithError(err).Error("Error pruning sensor data")
+	if _, err := w.DB.Exec(pruneQuery); err != nil {
+		w.Logger.WithError(err).Error("Error pruning sensor data")
 		return err
 	}
 	// rolling_averages is not pruned — it's a trigger-maintained cache with only
 	// one row per sensor, so it stays small and self-maintaining.
 
 	if model.IsSQLite() {
-		if _, err := db.Exec("VACUUM"); err != nil {
-			logger.Log.WithError(err).Warn("SQLite VACUUM failed")
+		if _, err := w.DB.Exec("VACUUM"); err != nil {
+			w.Logger.WithError(err).Warn("SQLite VACUUM failed")
 		}
-		if _, err := db.Exec("ANALYZE"); err != nil {
-			logger.Log.WithError(err).Warn("SQLite ANALYZE failed")
+		if _, err := w.DB.Exec("ANALYZE"); err != nil {
+			w.Logger.WithError(err).Warn("SQLite ANALYZE failed")
 		}
-		if _, err := db.Exec("PRAGMA optimize"); err != nil {
-			logger.Log.WithError(err).Warn("SQLite PRAGMA optimize failed")
+		if _, err := w.DB.Exec("PRAGMA optimize"); err != nil {
+			w.Logger.WithError(err).Warn("SQLite PRAGMA optimize failed")
 		}
-		logger.Log.Info("SQLite post-prune maintenance completed")
+		w.Logger.Info("SQLite post-prune maintenance completed")
 	}
 
-	logger.Log.WithField("days", days).Info("Sensor data pruned")
+	w.Logger.WithField("days", days).Info("Sensor data pruned")
 	return nil
+}
+
+// trimTrailingPercent strips a single trailing '%' from a value like
+// "55%" → "55". The EcoWitt firmware reports humidity values with the
+// percent sign included; the historical implementation sliced the
+// last byte unconditionally, which would corrupt a future firmware
+// that ever drops the suffix. This safer variant matches behavior
+// when the suffix is present and is a no-op when it isn't.
+func trimTrailingPercent(v string) string {
+	if n := len(v); n > 0 && v[n-1] == '%' {
+		return v[:n-1]
+	}
+	return v
 }

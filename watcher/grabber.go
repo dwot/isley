@@ -20,7 +20,6 @@ const (
 )
 
 func Grab(ctx context.Context) {
-	defer WG.Done()
 	logger.Log.Info("Started Stream Grabber")
 	interval := defaultStreamGrabInterval
 

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -85,14 +86,24 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Background services run inside this WaitGroup so shutdown can wait
+	// for in-flight iterations to complete before exiting.
+	var bgWG sync.WaitGroup
+
+	w := watcher.New(db)
+
 	// Prune old sensor data once before the watcher loop kicks in.
-	if err := watcher.PruneSensorData(); err != nil {
+	if err := w.PruneSensorData(); err != nil {
 		logger.Log.WithError(err).Error("Initial sensor data prune failed")
 	} else {
 		logger.Log.Info("Initial sensor data prune completed")
 	}
-	watcher.WG.Add(1)
-	go watcher.Watch(ctx)
+
+	bgWG.Add(1)
+	go func() {
+		defer bgWG.Done()
+		w.Run(ctx)
+	}()
 
 	// Resolve session secret. If unset, generate a random one and warn — sessions
 	// will not survive a restart.
@@ -123,8 +134,11 @@ func main() {
 		logger.Log.WithError(err).Fatal("Failed to construct HTTP engine")
 	}
 
-	watcher.WG.Add(1)
-	go watcher.Grab(ctx)
+	bgWG.Add(1)
+	go func() {
+		defer bgWG.Done()
+		watcher.Grab(ctx)
+	}()
 
 	srv := &http.Server{
 		Addr:    ":" + port,
@@ -146,7 +160,7 @@ func main() {
 	logger.Log.Info("Shutdown signal received, stopping gracefully...")
 
 	cancel()
-	watcher.WG.Wait()
+	bgWG.Wait()
 	logger.Log.Info("Background goroutines stopped")
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)

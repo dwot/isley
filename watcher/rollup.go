@@ -1,55 +1,48 @@
 package watcher
 
 import (
-	"database/sql"
 	"fmt"
-	"isley/logger"
+
 	"isley/model"
 )
 
-// RefreshHourlyRollups aggregates raw sensor_data into the sensor_data_hourly
-// rollup table. It processes only the last 25 hours of data on each run,
-// using UPSERT to keep existing buckets current and add any new ones.
+// RefreshHourlyRollups aggregates raw sensor_data into the
+// sensor_data_hourly rollup table. It processes only the last 25 hours
+// of data on each run, using UPSERT to keep existing buckets current
+// and add any new ones.
 //
 // On first run (empty rollup table) it backfills all available history.
-func RefreshHourlyRollups() error {
-	db, err := model.GetDB()
-	if err != nil {
-		return fmt.Errorf("rollup: failed to open database: %w", err)
-	}
-
-	// Check if the rollup table is empty (first run → full backfill)
+func (w *Watcher) RefreshHourlyRollups() error {
+	// Check if the rollup table is empty (first run → full backfill).
 	var rowCount int
-	err = db.QueryRow("SELECT COUNT(*) FROM sensor_data_hourly").Scan(&rowCount)
-	if err != nil {
+	if err := w.DB.QueryRow("SELECT COUNT(*) FROM sensor_data_hourly").Scan(&rowCount); err != nil {
 		return fmt.Errorf("rollup: failed to check rollup table: %w", err)
 	}
 
 	if rowCount == 0 {
-		logger.Log.Info("Hourly rollup table is empty — running full backfill")
-		return runRollup(db, true)
+		w.Logger.Info("Hourly rollup table is empty — running full backfill")
+		return w.runRollup(true)
 	}
 
-	return runRollup(db, false)
+	return w.runRollup(false)
 }
 
-// runRollup executes the actual aggregation query. When fullBackfill is false
-// it only processes the last 25 hours (overlap by 1 hour to catch late data).
-func runRollup(db *sql.DB, fullBackfill bool) error {
+// runRollup executes the actual aggregation query. When fullBackfill
+// is false it only processes the last 25 hours (overlap by 1 hour to
+// catch late-arriving data).
+func (w *Watcher) runRollup(fullBackfill bool) error {
 	var query string
-
 	if model.IsPostgres() {
 		query = buildPostgresRollupQuery(fullBackfill)
 	} else {
 		query = buildSQLiteRollupQuery(fullBackfill)
 	}
 
-	_, err := db.Exec(query)
-	if err != nil {
+	if _, err := w.DB.Exec(query); err != nil {
 		return fmt.Errorf("rollup: aggregation query failed: %w", err)
 	}
 
-	logger.Log.Info("Hourly rollup refresh completed")
+	w.Logger.Info("Hourly rollup refresh completed")
 	return nil
 }
 
