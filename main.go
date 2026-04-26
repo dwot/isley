@@ -74,7 +74,7 @@ func main() {
 	}
 
 	// Load settings before pruning so config.SensorRetention is populated.
-	handlers.LoadSettings()
+	handlers.LoadSettings(db)
 
 	if config.SensorRetention <= 0 {
 		logger.Log.Warn("Sensor data retention is disabled (sensor_retention_days = 0). " +

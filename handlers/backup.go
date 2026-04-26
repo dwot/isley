@@ -602,8 +602,12 @@ func runSQLiteFileRestore(data []byte) {
 	model.InitDB()
 	fieldLogger.Info("SQLite file replaced and database reopened")
 
-	// Reload in-memory config
-	LoadSettings()
+	// Reload in-memory config from the newly reopened DB.
+	if reopenedDB, dbErr := model.GetDB(); dbErr == nil {
+		LoadSettings(reopenedDB)
+	} else {
+		fieldLogger.WithError(dbErr).Error("Failed to obtain DB after reopen for LoadSettings")
+	}
 
 	restoreMu.Lock()
 	currentRestore.Phase = "complete"
@@ -1121,8 +1125,12 @@ func runRestore(payload BackupPayload, zipBody []byte) {
 
 	fieldLogger.Infof("Restore complete: %d files extracted", filesRestored)
 
-	// Reload in-memory config from the newly restored DB
-	LoadSettings()
+	// Reload in-memory config from the newly restored DB.
+	if reopenedDB, dbErr := model.GetDB(); dbErr == nil {
+		LoadSettings(reopenedDB)
+	} else {
+		fieldLogger.WithError(dbErr).Error("Failed to obtain DB after restore for LoadSettings")
+	}
 
 	// Mark complete with final stats
 	restoreMu.Lock()

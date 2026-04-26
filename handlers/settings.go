@@ -10,7 +10,6 @@ import (
 	"io"
 	"isley/config"
 	"isley/logger"
-	model "isley/model"
 	"isley/model/types"
 	"isley/utils"
 	"net/http"
@@ -221,7 +220,7 @@ func SaveSettings(c *gin.Context) {
 	}
 
 	//Load Settings
-	LoadSettings()
+	LoadSettings(db)
 
 	apiOK(c, "api_settings_saved")
 }
@@ -266,7 +265,7 @@ func UpdateSetting(db *sql.DB, name string, value string) error {
 	}
 
 	// Reload settings
-	LoadSettings()
+	LoadSettings(db)
 
 	return nil
 }
@@ -961,15 +960,19 @@ func captureTimezoneMetadata(db *sql.DB, userTZ string) {
 }
 
 // Helper functions
-func LoadSettings() {
+// LoadSettings refreshes the package-level config.* globals from the
+// settings table. It takes the *sql.DB explicitly so tests (and the
+// in-process harness) can pass their own database; production code gets
+// it from model.GetDB() at the call site.
+func LoadSettings(db *sql.DB) {
 	fieldLogger := logger.Log.WithField("func", "LoadSettings")
 
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to open database")
+	if db == nil {
+		fieldLogger.Error("LoadSettings called with nil DB")
 		return
 	}
 
+	var err error
 	strPollingInterval, err := GetSetting(db, "polling_interval")
 	if err == nil {
 		if iPollingInterval, err := strconv.Atoi(strPollingInterval); err == nil {

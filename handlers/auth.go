@@ -29,6 +29,17 @@ var (
 	SecureCookies = strings.EqualFold(os.Getenv("ISLEY_SECURE_COOKIES"), "true")
 )
 
+// ResetLoginAttempts clears the in-memory rate-limiter map. It exists so
+// that tests touching the /login route can isolate themselves from
+// other tests in the same process — the underlying map is shared
+// global state (Phase 7 in docs/TEST_PLAN.md will replace it with an
+// instance-scoped store). Production code does not call this.
+func ResetLoginAttempts() {
+	loginAttemptsMu.Lock()
+	loginAttempts = make(map[string][]time.Time)
+	loginAttemptsMu.Unlock()
+}
+
 // IsLoginRateLimited returns true if the given IP has exceeded 5 login
 // attempts within the last minute.
 func IsLoginRateLimited(ip string) bool {
