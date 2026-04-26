@@ -36,6 +36,7 @@ var dbSeq atomic.Uint64
 // Safe to call from inside t.Parallel().
 func NewTestDB(t *testing.T) *sql.DB {
 	t.Helper()
+	ensureProcessInitialized()
 
 	// Unique per call so concurrent tests do not see each other's tables
 	// even though they use the shared-cache backend.
