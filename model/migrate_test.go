@@ -176,8 +176,8 @@ func TestApplyMigrations_CreatesExpectedTables(t *testing.T) {
 
 // TestApplyMigrations_PopulatesSchemaMigrationsVersion confirms the
 // schema_migrations bookkeeping row reflects the highest applied
-// migration. The version column equals the migration number (17 today,
-// after 017_unique_sensor_identity). dirty must be false.
+// migration. The version column equals the migration number (21 today,
+// after the 017-021 sensor-identity dedup pass). dirty must be false.
 func TestApplyMigrations_PopulatesSchemaMigrationsVersion(t *testing.T) {
 	initTestLogger()
 	db := freshSQLite(t)
@@ -186,7 +186,7 @@ func TestApplyMigrations_PopulatesSchemaMigrationsVersion(t *testing.T) {
 	var version int
 	var dirty bool
 	require.NoError(t, db.QueryRow(`SELECT version, dirty FROM schema_migrations`).Scan(&version, &dirty))
-	assert.GreaterOrEqual(t, version, 17, "schema_migrations.version should be at least 17 (the count of migration files)")
+	assert.GreaterOrEqual(t, version, 21, "schema_migrations.version should be at least 21 (the count of migration files)")
 	assert.False(t, dirty, "a successful migration must leave dirty=false")
 }
 

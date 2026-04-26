@@ -1,30 +1,16 @@
--- Migration 017: enforce unique sensor identity by (source, device, type).
--- See sqlite/017_unique_sensor_identity for rationale.
+-- Migration 017: dedup step 1 of 5 — repoint sensor_data rows.
+-- See sqlite/017_unique_sensor_identity for full background.
 
-CREATE TEMP TABLE _sensor_dedup_map AS
-    SELECT
-        s.id AS dup_id,
-        (SELECT MIN(id) FROM sensors
-            WHERE source = s.source AND device = s.device AND type = s.type) AS keep_id
-    FROM sensors s
-    WHERE s.id <> (SELECT MIN(id) FROM sensors
-            WHERE source = s.source AND device = s.device AND type = s.type);
-
-UPDATE sensor_data
-    SET sensor_id = m.keep_id
-    FROM _sensor_dedup_map m
-    WHERE sensor_data.sensor_id = m.dup_id;
-
-DELETE FROM rolling_averages
-    WHERE sensor_id IN (SELECT dup_id FROM _sensor_dedup_map);
-
-DELETE FROM sensor_data_hourly
-    WHERE sensor_id IN (SELECT dup_id FROM _sensor_dedup_map);
-
-DELETE FROM sensors
-    WHERE id IN (SELECT dup_id FROM _sensor_dedup_map);
-
-DROP TABLE _sensor_dedup_map;
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_sensors_source_device_type
-    ON sensors(source, device, type);
+UPDATE sensor_data sd
+SET sensor_id = (
+    SELECT MIN(s2.id) FROM sensors s2
+    JOIN sensors s_self ON s_self.id = sd.sensor_id
+    WHERE s2.source = s_self.source
+      AND s2.device = s_self.device
+      AND s2.type   = s_self.type
+)
+WHERE sensor_id IN (
+    SELECT id FROM sensors WHERE id NOT IN (
+        SELECT MIN(id) FROM sensors GROUP BY source, device, type
+    )
+);

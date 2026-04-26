@@ -570,7 +570,7 @@ func checkInsertSensor(db *sql.DB, source string, device string, sensorType stri
 	fieldLogger := logger.Log.WithField("func", "checkInsertSensor")
 
 	// Atomic insert: the unique index on (source, device, type) added
-	// by migration 017 makes ON CONFLICT a no-op when the sensor row
+	// by migration 021 makes ON CONFLICT a no-op when the sensor row
 	// already exists, replacing the previous SELECT-then-INSERT pattern
 	// that could create duplicates under concurrent scans.
 	_, err := db.Exec(`
@@ -1042,7 +1042,7 @@ func IngestSensorData(c *gin.Context) {
 	}
 
 	// Atomically upsert the sensor row. The unique index on
-	// (source, device, type) added by migration 017 makes this race-free
+	// (source, device, type) added by migration 021 makes this race-free
 	// under concurrent ingest: ON CONFLICT DO NOTHING means a second
 	// concurrent INSERT for the same tuple is a no-op rather than
 	// creating a duplicate row. RETURNING only fires on actual insert,
