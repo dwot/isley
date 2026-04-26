@@ -113,6 +113,40 @@ var currentRestore = RestoreStatus{}
 // Export (async — saves to data/backups/)
 // ---------------------------------------------------------------------------
 
+// ResetBackupStatusForTesting clears the in-memory backup-status singleton.
+// Lets tests start from a clean slate without depending on goroutine timing.
+// Production code does not call this; the helper exists for handler tests
+// that share this package's globals (Phase 7 of docs/TEST_PLAN.md will
+// migrate these to instance-scoped state).
+func ResetBackupStatusForTesting() {
+	backupMu.Lock()
+	currentBackup = BackupStatus{}
+	backupMu.Unlock()
+}
+
+// SetBackupInProgressForTesting marks a backup as in-flight so the next
+// CreateBackup call deterministically returns 409 without racing a real
+// goroutine. Pair with ResetBackupStatusForTesting in t.Cleanup.
+func SetBackupInProgressForTesting() {
+	backupMu.Lock()
+	currentBackup = BackupStatus{InProgress: true}
+	backupMu.Unlock()
+}
+
+// ResetRestoreStatusForTesting / SetRestoreInProgressForTesting are the
+// restore-side equivalents of the helpers above.
+func ResetRestoreStatusForTesting() {
+	restoreMu.Lock()
+	currentRestore = RestoreStatus{}
+	restoreMu.Unlock()
+}
+
+func SetRestoreInProgressForTesting() {
+	restoreMu.Lock()
+	currentRestore = RestoreStatus{InProgress: true}
+	restoreMu.Unlock()
+}
+
 // CreateBackup kicks off an async backup job and returns immediately.
 // Query params:
 //
