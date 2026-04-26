@@ -7,8 +7,58 @@ on:
       - dev
 
 jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.0'
+
+      - name: Verify Go Modules
+        run: go mod verify
+
+      # Vet currently surfaces pre-existing warnings in tests/integration and
+      # handlers/plant.go (unkeyed struct fields, unexported json tags). Per
+      # docs/TEST_PLAN.md Phase 0 we land the gate in non-blocking mode so the
+      # signal is visible without breaking the build, then flip to required
+      # once the warnings are cleaned up.
+      - name: Vet
+        run: go vet ./...
+        continue-on-error: true
+
+      # The current integration suite (tests/integration) spawns the isley
+      # binary as a subprocess and points it at port 8080. We build it here
+      # so `go test ./...` can find the binary at the project root. Once the
+      # in-process harness from TEST_PLAN.md Phase 1 lands, this build step
+      # can be dropped.
+      - name: Build binary for integration tests
+        run: go build -o isley .
+
+      # See docs/TEST_PLAN.md Phase 0: tests are reported but non-blocking
+      # for the first week to stabilize the subprocess suite under CI.
+      - name: Test
+        run: go test -race -coverprofile=coverage.out ./...
+        continue-on-error: true
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+      - name: Coverage summary
+        if: always()
+        run: go tool cover -func=coverage.out | tail -1
+
   build:
     name: Build and Release Artifacts
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: write  # Required for creating releases
