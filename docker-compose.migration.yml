@@ -22,12 +22,6 @@ services:
       - isley-db:/app/data
       - isley-uploads:/app/uploads
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 5s
-      start_period: 10s
-      retries: 3
     deploy:
       resources:
         limits:

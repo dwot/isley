@@ -27,8 +27,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 
 ### Removed
+- Removed the per-service `healthcheck:` blocks from the shipped
+  `docker-compose.*.yml` files for the `isley` service. Compose-level
+  healthchecks fully override the Dockerfile `HEALTHCHECK`, so the
+  hardcoded `localhost:8080` probe ignored `ISLEY_PORT` even after the
+  v0.1.42 Dockerfile fix. The Dockerfile healthcheck (which honors
+  `${ISLEY_PORT:-8080}`) is now the single source of truth.
 
 ### Fixed
+- Reopened #146: shipped Compose files were overriding the Dockerfile
+  healthcheck and pinning the probe to port 8080. Users who changed
+  `ISLEY_PORT` saw the container marked unhealthy. Resolved by removing
+  the redundant Compose healthcheck blocks; existing deployments may
+  need to `docker compose up -d --force-recreate` (or edit their local
+  compose file) to pick up the new behavior.
 
 ### Security
 
