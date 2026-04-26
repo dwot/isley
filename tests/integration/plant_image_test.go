@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"isley/handlers"
 	"isley/tests/testutil"
 )
 
@@ -37,20 +36,15 @@ type plantImageFixture struct {
 
 func seedPlantImageHTTP(t *testing.T, db *sql.DB) plantImageFixture {
 	t.Helper()
-	mustExecRow(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
-	mustExecRow(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
-	                    VALUES (1, 'S', 1, 50, 50, 0, '', 0)`)
-	mustExecRow(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
-	res, err := db.Exec(
-		`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
-		 VALUES ('Plant 1', 1, 1, '', 0, '2026-01-01', '[]')`,
-	)
-	require.NoError(t, err)
-	pid, _ := res.LastInsertId()
+	breederID := testutil.SeedBreeder(t, db, "B")
+	strainID := testutil.SeedStrain(t, db, breederID, "S")
+	zoneID := testutil.SeedZone(t, db, "Z")
+	pid := int64(testutil.SeedPlant(t, db, "Plant 1", strainID, zoneID))
 
-	const plaintext = "test-image-key"
-	seedAPIKey(t, db, handlers.HashAPIKey(plaintext))
-	return plantImageFixture{APIKey: plaintext, PlantID: pid}
+	return plantImageFixture{
+		APIKey:  testutil.SeedAPIKey(t, db, "test-image-key"),
+		PlantID: pid,
+	}
 }
 
 // uploadImages issues a multipart POST to /plant/:plantID/images/upload

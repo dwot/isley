@@ -30,7 +30,6 @@ package handlers_test
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -41,62 +40,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"isley/handlers"
 	"isley/tests/testutil"
 )
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-func strainAPIKey(t *testing.T, db *sql.DB, plaintext string) {
-	t.Helper()
-	hashed := handlers.HashAPIKey(plaintext)
-	var id int
-	err := db.QueryRow(`SELECT id FROM settings WHERE name = 'api_key'`).Scan(&id)
-	switch {
-	case err == sql.ErrNoRows:
-		_, err = db.Exec(`INSERT INTO settings (name, value) VALUES ('api_key', $1)`, hashed)
-	case err == nil:
-		_, err = db.Exec(`UPDATE settings SET value = $1 WHERE id = $2`, hashed, id)
-	}
-	require.NoError(t, err)
-}
-
-func strainReq(t *testing.T, method, url, apiKey string, body io.Reader, contentType string) *http.Request {
-	t.Helper()
-	req, err := http.NewRequest(method, url, body)
-	require.NoError(t, err)
-	if apiKey != "" {
-		req.Header.Set("X-API-KEY", apiKey)
-	}
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-	return req
-}
-
-func strainJSONBody(t *testing.T, v interface{}) *bytes.Buffer {
-	t.Helper()
-	var buf bytes.Buffer
-	require.NoError(t, json.NewEncoder(&buf).Encode(v))
-	return &buf
-}
-
-func strainDrain(resp *http.Response) {
-	if resp == nil {
-		return
-	}
-	_, _ = io.Copy(io.Discard, resp.Body)
-	_ = resp.Body.Close()
-}
-
-func strainSeedBreeder(t *testing.T, db *sql.DB) int {
-	t.Helper()
-	var id int
-	require.NoError(t, db.QueryRow(`INSERT INTO breeder (name) VALUES ('Strain Test Breeder') RETURNING id`).Scan(&id))
-	return id
-}
 
 // ---------------------------------------------------------------------------
 // Auth gating
@@ -124,7 +69,7 @@ func TestStrainHTTP_AuthGating(t *testing.T) {
 			require.NoError(t, err)
 			resp, err := c.Do(req)
 			require.NoError(t, err)
-			defer strainDrain(resp)
+			defer testutil.DrainAndClose(resp)
 			assert.Containsf(t,
 				[]int{http.StatusUnauthorized, http.StatusForbidden},
 				resp.StatusCode,
@@ -142,13 +87,13 @@ func TestStrainHTTP_AddBreeder_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "addbreeder-key"
-	strainAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(strainReq(t, http.MethodPost, c.BaseURL+"/breeders", apiKey,
-		strainJSONBody(t, map[string]string{"breeder_name": "Acme"}), "application/json"))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/breeders", apiKey,
+		testutil.JSONBody(t, map[string]string{"breeder_name": "Acme"}), "application/json"))
 	require.NoError(t, err)
-	defer strainDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	var got struct {
@@ -163,13 +108,13 @@ func TestStrainHTTP_AddBreeder_RejectsBlank(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "addbreeder-blank-key"
-	strainAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(strainReq(t, http.MethodPost, c.BaseURL+"/breeders", apiKey,
-		strainJSONBody(t, map[string]string{"breeder_name": ""}), "application/json"))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/breeders", apiKey,
+		testutil.JSONBody(t, map[string]string{"breeder_name": ""}), "application/json"))
 	require.NoError(t, err)
-	defer strainDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -178,13 +123,13 @@ func TestStrainHTTP_AddBreeder_RejectsLongName(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "addbreeder-long-key"
-	strainAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(strainReq(t, http.MethodPost, c.BaseURL+"/breeders", apiKey,
-		strainJSONBody(t, map[string]string{"breeder_name": strings.Repeat("b", 1024)}), "application/json"))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/breeders", apiKey,
+		testutil.JSONBody(t, map[string]string{"breeder_name": strings.Repeat("b", 1024)}), "application/json"))
 	require.NoError(t, err)
-	defer strainDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -193,13 +138,13 @@ func TestStrainHTTP_AddBreeder_RejectsBadJSON(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "addbreeder-json-key"
-	strainAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(strainReq(t, http.MethodPost, c.BaseURL+"/breeders", apiKey,
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/breeders", apiKey,
 		bytes.NewBufferString(`{not json`), "application/json"))
 	require.NoError(t, err)
-	defer strainDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -212,14 +157,14 @@ func TestStrainHTTP_UpdateBreeder_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "updbreeder-key"
-	strainAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
-	id := strainSeedBreeder(t, db)
+	id := testutil.SeedBreeder(t, db, "Strain Test Breeder")
 	c := server.NewClient(t)
-	resp, err := c.Do(strainReq(t, http.MethodPut, c.BaseURL+"/breeders/"+strconv.Itoa(id), apiKey,
-		strainJSONBody(t, map[string]string{"breeder_name": "Renamed"}), "application/json"))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPut, c.BaseURL+"/breeders/"+strconv.Itoa(id), apiKey,
+		testutil.JSONBody(t, map[string]string{"breeder_name": "Renamed"}), "application/json"))
 	require.NoError(t, err)
-	defer strainDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var name string
@@ -232,13 +177,13 @@ func TestStrainHTTP_UpdateBreeder_RejectsBlank(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "updbreeder-blank-key"
-	strainAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(strainReq(t, http.MethodPut, c.BaseURL+"/breeders/1", apiKey,
-		strainJSONBody(t, map[string]string{"breeder_name": ""}), "application/json"))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPut, c.BaseURL+"/breeders/1", apiKey,
+		testutil.JSONBody(t, map[string]string{"breeder_name": ""}), "application/json"))
 	require.NoError(t, err)
-	defer strainDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -251,13 +196,13 @@ func TestStrainHTTP_AddStrain_RejectsBadJSON(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "addstr-json-key"
-	strainAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(strainReq(t, http.MethodPost, c.BaseURL+"/strains", apiKey,
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/strains", apiKey,
 		bytes.NewBufferString(`{`), "application/json"))
 	require.NoError(t, err)
-	defer strainDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -266,18 +211,18 @@ func TestStrainHTTP_AddStrain_RejectsMissingBreederWhenNoNewBreeder(t *testing.T
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "addstr-noBreeder-key"
-	strainAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(strainReq(t, http.MethodPost, c.BaseURL+"/strains", apiKey,
-		strainJSONBody(t, map[string]interface{}{
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/strains", apiKey,
+		testutil.JSONBody(t, map[string]interface{}{
 			"name":   "Nameless",
 			"indica": 50,
 			"sativa": 50,
 			// breeder_id == nil and new_breeder == "" → should be 400
 		}), "application/json"))
 	require.NoError(t, err)
-	defer strainDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -290,18 +235,18 @@ func TestStrainHTTP_UpdateStrain_RejectsNonNumericID(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "updstr-id-key"
-	strainAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(strainReq(t, http.MethodPut, c.BaseURL+"/strains/abc", apiKey,
-		strainJSONBody(t, map[string]interface{}{
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPut, c.BaseURL+"/strains/abc", apiKey,
+		testutil.JSONBody(t, map[string]interface{}{
 			"name":       "X",
 			"indica":     50,
 			"sativa":     50,
 			"breeder_id": 1,
 		}), "application/json"))
 	require.NoError(t, err)
-	defer strainDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
 		"non-numeric :id must surface as api_invalid_strain_id")
 }
@@ -311,18 +256,18 @@ func TestStrainHTTP_UpdateStrain_RejectsBadIndicaSativaSum(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "updstr-sum-key"
-	strainAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(strainReq(t, http.MethodPut, c.BaseURL+"/strains/1", apiKey,
-		strainJSONBody(t, map[string]interface{}{
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPut, c.BaseURL+"/strains/1", apiKey,
+		testutil.JSONBody(t, map[string]interface{}{
 			"name":       "X",
 			"indica":     30,
 			"sativa":     40, // 30 + 40 != 100
 			"breeder_id": 1,
 		}), "application/json"))
 	require.NoError(t, err)
-	defer strainDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -331,18 +276,18 @@ func TestStrainHTTP_UpdateStrain_RejectsMissingBreeder(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "updstr-nobr-key"
-	strainAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(strainReq(t, http.MethodPut, c.BaseURL+"/strains/1", apiKey,
-		strainJSONBody(t, map[string]interface{}{
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPut, c.BaseURL+"/strains/1", apiKey,
+		testutil.JSONBody(t, map[string]interface{}{
 			"name":   "X",
 			"indica": 50,
 			"sativa": 50,
 			// breeder_id nil + new_breeder empty
 		}), "application/json"))
 	require.NoError(t, err)
-	defer strainDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -355,12 +300,12 @@ func TestStrainHTTP_DeleteStrain_RejectsNonNumericID(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "delstr-id-key"
-	strainAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(strainReq(t, http.MethodDelete, c.BaseURL+"/strains/notanumber", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodDelete, c.BaseURL+"/strains/notanumber", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer strainDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -374,7 +319,7 @@ func TestStrainHTTP_GetStrain_RejectsNonNumericID(t *testing.T) {
 
 	c := server.NewClient(t)
 	resp := c.Get("/strains/abc")
-	defer strainDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -384,7 +329,7 @@ func TestStrainHTTP_GetStrain_NotFound(t *testing.T) {
 
 	c := server.NewClient(t)
 	resp := c.Get("/strains/99999")
-	defer strainDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
 
@@ -398,7 +343,7 @@ func TestStrainHTTP_PlantsByStrain_RejectsNonNumericID(t *testing.T) {
 
 	c := server.NewClient(t)
 	resp := c.Get("/plants/by-strain/abc")
-	defer strainDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -420,7 +365,7 @@ func TestStrainHTTP_PlantsByStrain_HappyPath(t *testing.T) {
 
 	c := server.NewClient(t)
 	resp := c.Get("/plants/by-strain/1")
-	defer strainDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var rows []map[string]interface{}
@@ -442,7 +387,7 @@ func TestStrainHTTP_InStock_SmokeReturnsArray(t *testing.T) {
 
 	c := server.NewClient(t)
 	resp := c.Get("/strains/in-stock")
-	defer strainDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
@@ -459,6 +404,6 @@ func TestStrainHTTP_OutOfStock_SmokeReturnsArray(t *testing.T) {
 
 	c := server.NewClient(t)
 	resp := c.Get("/strains/out-of-stock")
-	defer strainDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }

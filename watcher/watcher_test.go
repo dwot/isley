@@ -3,7 +3,6 @@ package watcher
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -16,6 +15,7 @@ import (
 
 	"isley/logger"
 	"isley/tests/testutil"
+	"isley/tests/testutil/fakes"
 )
 
 // newTestWatcher returns a Watcher pre-wired for tests. Every getter
@@ -41,18 +41,11 @@ func newTestWatcher(t *testing.T, db *sql.DB) *Watcher {
 	}
 }
 
-// seedSensor registers a sensor in the sensors table so addSensorData
-// will recognize it. Returns the new id.
+// seedSensor delegates to testutil.SeedSensor; kept as a named alias
+// because the watcher test file refers to it from many call sites.
 func seedSensor(t *testing.T, db *sql.DB, source, device, kind string) int {
 	t.Helper()
-	res, err := db.Exec(
-		`INSERT INTO sensors (name, source, device, type) VALUES ($1, $2, $3, $4)`,
-		device+":"+kind, source, device, kind,
-	)
-	require.NoError(t, err)
-	id, err := res.LastInsertId()
-	require.NoError(t, err)
-	return int(id)
+	return testutil.SeedSensor(t, db, source, device, kind)
 }
 
 func countSensorData(t *testing.T, db *sql.DB, sensorID int) int {
@@ -103,27 +96,8 @@ func TestAddSensorData_SkipsUnknownSensor(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// PollACI
+// PollACI — fixture lives at tests/fixtures/aci/happy.json
 // ---------------------------------------------------------------------------
-
-const aciCannedJSON = `{
-  "data": [
-    {
-      "devCode": "TESTDEV",
-      "deviceInfo": {
-        "temperatureF": 7500,
-        "temperature": 2400,
-        "humidity": 5500,
-        "sensors": [
-          {"sensorType": 1, "accessPort": 0, "sensorData": 1234}
-        ],
-        "ports": [
-          {"port": 0, "speak": 5}
-        ]
-      }
-    }
-  ]
-}`
 
 func TestPollACI_HappyPath(t *testing.T) {
 	db := testutil.NewTestDB(t)
@@ -132,13 +106,17 @@ func TestPollACI_HappyPath(t *testing.T) {
 	customSensor := seedSensor(t, db, "acinfinity", "TESTDEV", "ACI.0.1")
 	port := seedSensor(t, db, "acinfinity", "TESTDEV", "ACIP.0")
 
+	// Wrap fakes.FakeACI to capture the token header and query string —
+	// FakeACI alone serves the body, but this test also asserts on the
+	// request shape, so it inspects the header/query inline.
+	body := testutil.MustReadFixture(t, "aci/happy.json")
 	var hits int32
 	var capturedToken, capturedQuery string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&hits, 1)
 		capturedToken = r.Header.Get("token")
 		capturedQuery = r.URL.RawQuery
-		_, _ = fmt.Fprint(w, aciCannedJSON)
+		_, _ = w.Write(body)
 	}))
 	t.Cleanup(server.Close)
 
@@ -184,22 +162,16 @@ func TestPollACI_NetworkErrorIsSwallowed(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// PollEcoWitt
+// PollEcoWitt — fixture lives at tests/fixtures/ecowitt/happy.json
 // ---------------------------------------------------------------------------
-
-const ecowittCannedJSON = `{
-  "wh25": [{"intemp": "21.4", "unit": "C", "inhumi": "55%", "abs": "1010", "rel": "1010"}],
-  "ch_soil": [{"channel": "1", "name": "Bed1", "battery": "5", "humidity": "47%"}]
-}`
 
 func TestPollEcoWitt_HappyPath(t *testing.T) {
 	db := testutil.NewTestDB(t)
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/get_livedata_info", r.URL.Path)
-		_, _ = fmt.Fprint(w, ecowittCannedJSON)
-	}))
-	t.Cleanup(server.Close)
+	// fakes.FakeEcoWitt enforces the /get_livedata_info path so a
+	// regression that changes the request URL surfaces as a missing-row
+	// failure below rather than passing silently.
+	server := fakes.FakeEcoWitt(t, "happy")
 
 	u, err := url.Parse(server.URL)
 	require.NoError(t, err)
@@ -325,10 +297,14 @@ func TestRun_StopsOnContextCancel(t *testing.T) {
 func TestRun_RespectsRestoreInProgress(t *testing.T) {
 	db := testutil.NewTestDB(t)
 
+	// Inline httptest.NewServer rather than fakes.FakeACI because this
+	// test counts hits — fakes.FakeACI exposes only the URL and would
+	// require the test to attach its own counting middleware anyway.
+	body := testutil.MustReadFixture(t, "aci/happy.json")
 	var hits int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&hits, 1)
-		_, _ = fmt.Fprint(w, aciCannedJSON)
+		_, _ = w.Write(body)
 	}))
 	t.Cleanup(server.Close)
 
@@ -350,10 +326,11 @@ func TestRun_PollsACIWhenEnabled(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	seedSensor(t, db, "acinfinity", "TESTDEV", "ACI.tempC")
 
+	body := testutil.MustReadFixture(t, "aci/happy.json")
 	var hits int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&hits, 1)
-		_, _ = fmt.Fprint(w, aciCannedJSON)
+		_, _ = w.Write(body)
 	}))
 	t.Cleanup(server.Close)
 

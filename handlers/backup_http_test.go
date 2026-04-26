@@ -21,10 +21,8 @@ package handlers_test
 import (
 	"archive/zip"
 	"bytes"
-	"database/sql"
 	"encoding/json"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -38,59 +36,6 @@ import (
 	"isley/tests/testutil"
 )
 
-// ---------------------------------------------------------------------------
-// File-local helpers — duplicated from tests/integration/auth_test.go so
-// this test file stays self-contained and doesn't import from a peer test
-// package (which Go forbids).
-// ---------------------------------------------------------------------------
-
-// upsertBackupSetting writes a name/value row to the settings table,
-// replacing any prior row with the same name.
-func upsertBackupSetting(t *testing.T, db *sql.DB, name, value string) {
-	t.Helper()
-	var existingID int
-	err := db.QueryRow(`SELECT id FROM settings WHERE name = $1`, name).Scan(&existingID)
-	switch {
-	case err == sql.ErrNoRows:
-		_, err = db.Exec(`INSERT INTO settings (name, value) VALUES ($1, $2)`, name, value)
-	case err == nil:
-		_, err = db.Exec(`UPDATE settings SET value = $1 WHERE id = $2`, value, existingID)
-	}
-	require.NoError(t, err)
-}
-
-// seedBackupAPIKey installs a hashed api_key row so X-API-KEY satisfies
-// AuthMiddlewareApi without going through the login flow.
-func seedBackupAPIKey(t *testing.T, db *sql.DB, plaintext string) {
-	t.Helper()
-	upsertBackupSetting(t, db, "api_key", handlers.HashAPIKey(plaintext))
-}
-
-// apiReq builds a request with the X-API-KEY header set, ready to send
-// through testutil.Client.Do. Body may be nil.
-func apiReq(t *testing.T, method, url, apiKey string, body io.Reader, contentType string) *http.Request {
-	t.Helper()
-	req, err := http.NewRequest(method, url, body)
-	require.NoError(t, err)
-	if apiKey != "" {
-		req.Header.Set("X-API-KEY", apiKey)
-	}
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-	return req
-}
-
-// drainAndClose closes the response body to avoid leaked file descriptors
-// when the test does not need to read it.
-func drainAndClose(resp *http.Response) {
-	if resp == nil {
-		return
-	}
-	_, _ = io.Copy(io.Discard, resp.Body)
-	_ = resp.Body.Close()
-}
-
 // resetBackupGlobals clears the singletons before AND after each test so
 // goroutines spawned by an earlier test (or this test) cannot leak into
 // the next one. Tests that mutate currentBackup/currentRestore must call
@@ -103,35 +48,6 @@ func resetBackupGlobals(t *testing.T) {
 		handlers.ResetBackupStatusForTesting()
 		handlers.ResetRestoreStatusForTesting()
 	})
-}
-
-// buildMultipartBody builds a multipart/form-data body with one file
-// part. Returned contentType includes the boundary header.
-func buildMultipartBody(t *testing.T, fieldName, filename string, payload []byte) (*bytes.Buffer, string) {
-	t.Helper()
-	var buf bytes.Buffer
-	w := multipart.NewWriter(&buf)
-	part, err := w.CreateFormFile(fieldName, filename)
-	require.NoError(t, err)
-	_, err = part.Write(payload)
-	require.NoError(t, err)
-	require.NoError(t, w.Close())
-	return &buf, w.FormDataContentType()
-}
-
-// validBackupZip returns the raw bytes of a minimal valid zip archive
-// containing a backup.json file with an empty payload. Lets ImportBackup
-// progress past the zip-parse and JSON-decode validations.
-func validBackupZip(t *testing.T) []byte {
-	t.Helper()
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
-	w, err := zw.Create("backup.json")
-	require.NoError(t, err)
-	_, err = w.Write([]byte(`{"manifest":{"version":"test","driver":"sqlite","tables":0,"files":0}}`))
-	require.NoError(t, err)
-	require.NoError(t, zw.Close())
-	return buf.Bytes()
 }
 
 // ---------------------------------------------------------------------------
@@ -167,7 +83,7 @@ func TestBackupHTTP_AuthGating(t *testing.T) {
 			require.NoError(t, err)
 			resp, err := c.Do(req)
 			require.NoError(t, err)
-			defer drainAndClose(resp)
+			defer testutil.DrainAndClose(resp)
 			assert.Containsf(t,
 				[]int{http.StatusUnauthorized, http.StatusForbidden},
 				resp.StatusCode,
@@ -192,12 +108,12 @@ func TestBackupHTTP_CreateBackup_Accepted(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "create-backup-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodPost, c.BaseURL+"/settings/backup/create", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/backup/create", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 
 	assert.Equal(t, http.StatusAccepted, resp.StatusCode, "first CreateBackup should return 202")
 
@@ -219,14 +135,14 @@ func TestBackupHTTP_CreateBackup_ConflictWhenInProgress(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "create-conflict-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	handlers.SetBackupInProgressForTesting()
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodPost, c.BaseURL+"/settings/backup/create", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/backup/create", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusConflict, resp.StatusCode,
 		"second CreateBackup while first is in flight should be 409")
 }
@@ -242,15 +158,15 @@ func TestBackupHTTP_GetBackupStatus_ReturnsCurrent(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "status-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	// Flip in-progress so we can assert the body actually reflects state.
 	handlers.SetBackupInProgressForTesting()
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodGet, c.BaseURL+"/settings/backup/status", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+"/settings/backup/status", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var body handlers.BackupStatus
@@ -274,12 +190,12 @@ func TestBackupHTTP_ListBackups_EmptyWhenNoDir(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "list-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodGet, c.BaseURL+"/settings/backup/list", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+"/settings/backup/list", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var body []map[string]interface{}
@@ -306,12 +222,12 @@ func TestBackupHTTP_ListBackups_ListsZipsWithMetadata(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "list-zips-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodGet, c.BaseURL+"/settings/backup/list", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+"/settings/backup/list", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var body []handlers.BackupFileInfo
@@ -333,12 +249,12 @@ func TestBackupHTTP_DownloadBackup_RejectsNonZipName(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "dl-bad-name-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodGet, c.BaseURL+"/settings/backup/download/notazip.txt", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+"/settings/backup/download/notazip.txt", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
 		"download of a non-.zip name should be rejected before disk I/O")
 }
@@ -353,12 +269,12 @@ func TestBackupHTTP_DownloadBackup_NotFound(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "dl-missing-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodGet, c.BaseURL+"/settings/backup/download/missing.zip", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+"/settings/backup/download/missing.zip", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode,
 		"download of a non-existent .zip should be 404")
 }
@@ -377,12 +293,12 @@ func TestBackupHTTP_DownloadBackup_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "dl-happy-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodGet, c.BaseURL+"/settings/backup/download/"+filename, apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+"/settings/backup/download/"+filename, apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Contains(t, resp.Header.Get("Content-Disposition"), filename,
@@ -403,12 +319,12 @@ func TestBackupHTTP_DeleteBackup_RejectsNonZipName(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "del-bad-name-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodDelete, c.BaseURL+"/settings/backup/notazip.txt", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodDelete, c.BaseURL+"/settings/backup/notazip.txt", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -422,12 +338,12 @@ func TestBackupHTTP_DeleteBackup_NotFound(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "del-missing-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodDelete, c.BaseURL+"/settings/backup/missing.zip", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodDelete, c.BaseURL+"/settings/backup/missing.zip", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
 
@@ -445,12 +361,12 @@ func TestBackupHTTP_DeleteBackup_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "del-happy-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodDelete, c.BaseURL+"/settings/backup/"+filename, apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodDelete, c.BaseURL+"/settings/backup/"+filename, apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	_, statErr := os.Stat(path)
@@ -468,15 +384,15 @@ func TestBackupHTTP_ImportBackup_RejectsMissingFileField(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "import-nofile-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	// Multipart body with WRONG field name — handler looks for "backup".
-	body, ct := buildMultipartBody(t, "wrong_field_name", "x.zip", []byte("anything"))
+	body, ct := testutil.MultipartBody(t, "wrong_field_name", "x.zip", []byte("anything"))
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodPost, c.BaseURL+"/settings/backup/restore", apiKey, body, ct))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/backup/restore", apiKey, body, ct))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -487,14 +403,14 @@ func TestBackupHTTP_ImportBackup_RejectsNonZipPayload(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "import-junk-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
-	body, ct := buildMultipartBody(t, "backup", "junk.zip", []byte("definitely not a zip"))
+	body, ct := testutil.MultipartBody(t, "backup", "junk.zip", []byte("definitely not a zip"))
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodPost, c.BaseURL+"/settings/backup/restore", apiKey, body, ct))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/backup/restore", apiKey, body, ct))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -507,7 +423,7 @@ func TestBackupHTTP_ImportBackup_RejectsZipWithoutManifest(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "import-no-manifest-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	// Build a zip that contains files but no backup.json.
 	var zipBuf bytes.Buffer
@@ -518,12 +434,12 @@ func TestBackupHTTP_ImportBackup_RejectsZipWithoutManifest(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, zw.Close())
 
-	body, ct := buildMultipartBody(t, "backup", "no-manifest.zip", zipBuf.Bytes())
+	body, ct := testutil.MultipartBody(t, "backup", "no-manifest.zip", zipBuf.Bytes())
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodPost, c.BaseURL+"/settings/backup/restore", apiKey, body, ct))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/backup/restore", apiKey, body, ct))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -536,7 +452,7 @@ func TestBackupHTTP_ImportBackup_RejectsMalformedManifest(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "import-bad-json-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	var zipBuf bytes.Buffer
 	zw := zip.NewWriter(&zipBuf)
@@ -546,12 +462,12 @@ func TestBackupHTTP_ImportBackup_RejectsMalformedManifest(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, zw.Close())
 
-	body, ct := buildMultipartBody(t, "backup", "bad.zip", zipBuf.Bytes())
+	body, ct := testutil.MultipartBody(t, "backup", "bad.zip", zipBuf.Bytes())
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodPost, c.BaseURL+"/settings/backup/restore", apiKey, body, ct))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/backup/restore", apiKey, body, ct))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -565,16 +481,16 @@ func TestBackupHTTP_ImportBackup_ConflictWhenRestoreInProgress(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "import-conflict-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	handlers.SetRestoreInProgressForTesting()
 
-	body, ct := buildMultipartBody(t, "backup", "anything.zip", validBackupZip(t))
+	body, ct := testutil.MultipartBody(t, "backup", "anything.zip", testutil.MustReadFixture(t, "backup/valid_minimal.zip"))
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodPost, c.BaseURL+"/settings/backup/restore", apiKey, body, ct))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/backup/restore", apiKey, body, ct))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusConflict, resp.StatusCode,
 		"import while restore in flight should be 409")
 }
@@ -590,14 +506,14 @@ func TestBackupHTTP_GetRestoreStatus_ReturnsCurrent(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "restore-status-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	handlers.SetRestoreInProgressForTesting()
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodGet, c.BaseURL+"/settings/backup/restore/status", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+"/settings/backup/restore/status", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var body handlers.RestoreStatus
@@ -625,12 +541,12 @@ func TestBackupHTTP_DownloadSQLiteDB_RejectsWhenPostgres(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "sqlite-dl-pg-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodGet, c.BaseURL+"/settings/backup/sqlite/download", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+"/settings/backup/sqlite/download", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
 		"raw SQLite download must refuse when driver != sqlite")
 }
@@ -648,12 +564,12 @@ func TestBackupHTTP_DownloadSQLiteDB_NotFound(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "sqlite-dl-missing-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodGet, c.BaseURL+"/settings/backup/sqlite/download", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+"/settings/backup/sqlite/download", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
 
@@ -669,12 +585,12 @@ func TestBackupHTTP_DownloadSQLiteDB_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "sqlite-dl-happy-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodGet, c.BaseURL+"/settings/backup/sqlite/download", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+"/settings/backup/sqlite/download", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Contains(t, resp.Header.Get("Content-Disposition"), "isley-",
@@ -699,14 +615,14 @@ func TestBackupHTTP_UploadSQLiteDB_RejectsWhenPostgres(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "sqlite-up-pg-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
-	body, ct := buildMultipartBody(t, "database", "fake.db", []byte("ignored"))
+	body, ct := testutil.MultipartBody(t, "database", "fake.db", []byte("ignored"))
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodPost, c.BaseURL+"/settings/backup/sqlite/upload", apiKey, body, ct))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/backup/sqlite/upload", apiKey, body, ct))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -717,15 +633,15 @@ func TestBackupHTTP_UploadSQLiteDB_RejectsMissingFileField(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "sqlite-up-nofile-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	// Wrong field name — handler looks for "database".
-	body, ct := buildMultipartBody(t, "wrong_field", "fake.db", []byte("SQLite format 3\x00..."))
+	body, ct := testutil.MultipartBody(t, "wrong_field", "fake.db", []byte("SQLite format 3\x00..."))
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodPost, c.BaseURL+"/settings/backup/sqlite/upload", apiKey, body, ct))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/backup/sqlite/upload", apiKey, body, ct))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -738,16 +654,16 @@ func TestBackupHTTP_UploadSQLiteDB_RejectsBadMagic(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "sqlite-up-magic-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	// 16 bytes that do NOT start with "SQLite format 3\x00".
 	bad := []byte("NotASqliteHeader" + "...")
-	body, ct := buildMultipartBody(t, "database", "fake.db", bad)
+	body, ct := testutil.MultipartBody(t, "database", "fake.db", bad)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodPost, c.BaseURL+"/settings/backup/sqlite/upload", apiKey, body, ct))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/backup/sqlite/upload", apiKey, body, ct))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -758,18 +674,18 @@ func TestBackupHTTP_UploadSQLiteDB_ConflictWhenRestoreInProgress(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "sqlite-up-conflict-key"
-	seedBackupAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	handlers.SetRestoreInProgressForTesting()
 
 	// Body shape doesn't matter — the InProgress check fires before
 	// the multipart parser is even consulted.
-	body, ct := buildMultipartBody(t, "database", "fake.db", []byte("SQLite format 3\x00..."))
+	body, ct := testutil.MultipartBody(t, "database", "fake.db", []byte("SQLite format 3\x00..."))
 
 	c := server.NewClient(t)
-	resp, err := c.Do(apiReq(t, http.MethodPost, c.BaseURL+"/settings/backup/sqlite/upload", apiKey, body, ct))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/backup/sqlite/upload", apiKey, body, ct))
 	require.NoError(t, err)
-	defer drainAndClose(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusConflict, resp.StatusCode)
 }
 
@@ -780,6 +696,6 @@ func TestBackupHTTP_UploadSQLiteDB_ConflictWhenRestoreInProgress(t *testing.T) {
 
 func TestBackupHTTP_apiReqSetsHeader(t *testing.T) {
 	t.Parallel()
-	req := apiReq(t, http.MethodGet, "http://example/", "abc", nil, "")
+	req := testutil.APIReq(t, http.MethodGet, "http://example/", "abc", nil, "")
 	assert.Equal(t, "abc", req.Header.Get("X-API-KEY"))
 }

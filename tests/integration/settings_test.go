@@ -10,16 +10,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"isley/handlers"
 	"isley/tests/testutil"
 )
 
 // settingsCRUDFixture sets up an API key and returns the plaintext.
 func settingsCRUDFixture(t *testing.T, db *sql.DB) string {
 	t.Helper()
-	const plaintext = "test-settings-crud-key"
-	seedAPIKey(t, db, handlers.HashAPIKey(plaintext))
-	return plaintext
+	return testutil.SeedAPIKey(t, db, "test-settings-crud-key")
 }
 
 // readID parses the standard {"id": <int>} response shape.

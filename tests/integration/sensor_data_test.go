@@ -58,9 +58,7 @@ func resetIngestRateLimiter(t *testing.T) {
 // against the ingest endpoint and returns the plaintext.
 func seedSensorIngestKey(t *testing.T, db *sql.DB) string {
 	t.Helper()
-	const plaintext = "test-sensor-ingest-key"
-	seedAPIKey(t, db, handlers.HashAPIKey(plaintext))
-	return plaintext
+	return testutil.SeedAPIKey(t, db, "test-sensor-ingest-key")
 }
 
 // ingestPostKeepsRateOK retries the ingest call once if the limiter

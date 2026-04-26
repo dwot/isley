@@ -7,50 +7,15 @@ package handlers_test
 // the linked-sensor join.
 
 import (
-	"database/sql"
 	"encoding/json"
-	"io"
 	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"isley/handlers"
 	"isley/tests/testutil"
 )
-
-func overlayAPIKey(t *testing.T, db *sql.DB, plaintext string) {
-	t.Helper()
-	hashed := handlers.HashAPIKey(plaintext)
-	var id int
-	err := db.QueryRow(`SELECT id FROM settings WHERE name = 'api_key'`).Scan(&id)
-	switch {
-	case err == sql.ErrNoRows:
-		_, err = db.Exec(`INSERT INTO settings (name, value) VALUES ('api_key', $1)`, hashed)
-	case err == nil:
-		_, err = db.Exec(`UPDATE settings SET value = $1 WHERE id = $2`, hashed, id)
-	}
-	require.NoError(t, err)
-}
-
-func overlayDrain(resp *http.Response) {
-	if resp == nil {
-		return
-	}
-	_, _ = io.Copy(io.Discard, resp.Body)
-	_ = resp.Body.Close()
-}
-
-func overlayDoGet(t *testing.T, c *testutil.Client, path, apiKey string) *http.Response {
-	t.Helper()
-	req, err := http.NewRequest(http.MethodGet, c.BaseURL+path, nil)
-	require.NoError(t, err)
-	req.Header.Set("X-API-KEY", apiKey)
-	resp, err := c.Do(req)
-	require.NoError(t, err)
-	return resp
-}
 
 // TestOverlayHTTP_EmptyDBReturnsEmptyArrays verifies the response shape
 // when no plants or sensors exist: top-level "plants" is an empty array
@@ -60,11 +25,12 @@ func TestOverlayHTTP_EmptyDBReturnsEmptyArrays(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "overlay-empty-key"
-	overlayAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp := overlayDoGet(t, c, "/api/overlay", apiKey)
-	defer overlayDrain(resp)
+	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+"/api/overlay", apiKey, nil, ""))
+	require.NoError(t, err)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var got struct {
@@ -86,7 +52,7 @@ func TestOverlayHTTP_IncludesLivingPlantWithLinkedSensor(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "overlay-pop-key"
-	overlayAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	exec := func(query string, args ...interface{}) {
 		_, err := db.Exec(query, args...)
@@ -112,8 +78,9 @@ func TestOverlayHTTP_IncludesLivingPlantWithLinkedSensor(t *testing.T) {
 	exec(`INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, '2026-01-15')`, plantID, vegID)
 
 	c := server.NewClient(t)
-	resp := overlayDoGet(t, c, "/api/overlay", apiKey)
-	defer overlayDrain(resp)
+	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+"/api/overlay", apiKey, nil, ""))
+	require.NoError(t, err)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var got struct {

@@ -19,7 +19,6 @@ package handlers_test
 import (
 	"bytes"
 	"database/sql"
-	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
@@ -29,40 +28,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"isley/handlers"
 	"isley/tests/testutil"
 )
 
-// ---------------------------------------------------------------------------
-// File-local helpers
-// ---------------------------------------------------------------------------
-
-// plantTestSeed sets up the FK chain (breeder → strain → zone) required
-// by every plant insert, plus an api_key for X-API-KEY auth. Returns the
-// plaintext api_key.
+// plantTestSeed wires up the breeder/strain/zone FK chain plus the
+// api_key needed by every test in this file. The IDs are not returned
+// because the surrounding tests pin them to 1 — testutil.NewTestDB
+// hands out a fresh in-memory database for every test, so the first
+// insert into each table always lands at id=1.
 func plantTestSeed(t *testing.T, db *sql.DB) string {
 	t.Helper()
-	mustExec := func(query string, args ...interface{}) {
-		_, err := db.Exec(query, args...)
-		require.NoErrorf(t, err, "seed: %s", query)
-	}
-	mustExec(`INSERT INTO breeder (id, name) VALUES (1, 'Plant Test Breeder')`)
-	mustExec(`INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
-	          VALUES (1, 'Plant Test Strain', 1, 50, 50, 0, '', 5)`)
-	mustExec(`INSERT INTO zones (id, name) VALUES (1, 'Plant Test Zone')`)
-
-	const plaintext = "plant-http-test-key"
-	hashed := handlers.HashAPIKey(plaintext)
-	var existingID int
-	err := db.QueryRow(`SELECT id FROM settings WHERE name = 'api_key'`).Scan(&existingID)
-	switch {
-	case err == sql.ErrNoRows:
-		_, err = db.Exec(`INSERT INTO settings (name, value) VALUES ('api_key', $1)`, hashed)
-	case err == nil:
-		_, err = db.Exec(`UPDATE settings SET value = $1 WHERE id = $2`, hashed, existingID)
-	}
-	require.NoError(t, err)
-	return plaintext
+	testutil.SeedBreeder(t, db, "Plant Test Breeder")
+	testutil.SeedStrain(t, db, 1, "Plant Test Strain")
+	testutil.SeedZone(t, db, "Plant Test Zone")
+	return testutil.SeedAPIKey(t, db, "plant-http-test-key")
 }
 
 func plantStatusID(t *testing.T, db *sql.DB, name string) int {
@@ -72,45 +51,12 @@ func plantStatusID(t *testing.T, db *sql.DB, name string) int {
 	return id
 }
 
-func plantReq(t *testing.T, method, url, apiKey string, body io.Reader, contentType string) *http.Request {
-	t.Helper()
-	req, err := http.NewRequest(method, url, body)
-	require.NoError(t, err)
-	if apiKey != "" {
-		req.Header.Set("X-API-KEY", apiKey)
-	}
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-	return req
-}
-
-func plantJSONBody(t *testing.T, v interface{}) *bytes.Buffer {
-	t.Helper()
-	var buf bytes.Buffer
-	require.NoError(t, json.NewEncoder(&buf).Encode(v))
-	return &buf
-}
-
-func plantDrain(resp *http.Response) {
-	if resp == nil {
-		return
-	}
-	_, _ = io.Copy(io.Discard, resp.Body)
-	_ = resp.Body.Close()
-}
-
 // insertSeedPlant inserts a plant directly so DeletePlant /
-// LinkSensorsToPlant tests don't depend on the AddPlant flow.
+// LinkSensorsToPlant tests don't depend on the AddPlant flow. Both the
+// strain and zone are pinned to id=1 by plantTestSeed.
 func insertSeedPlant(t *testing.T, db *sql.DB, name string) int {
 	t.Helper()
-	res, err := db.Exec(
-		`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
-		 VALUES ($1, 1, 1, '', 0, '2026-01-01', '[]')`, name)
-	require.NoError(t, err)
-	id, err := res.LastInsertId()
-	require.NoError(t, err)
-	return int(id)
+	return testutil.SeedPlant(t, db, name, 1, 1)
 }
 
 // ---------------------------------------------------------------------------
@@ -126,8 +72,8 @@ func TestPlantHTTP_Add_RejectsLongName(t *testing.T) {
 	apiKey := plantTestSeed(t, db)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(plantReq(t, http.MethodPost, c.BaseURL+"/plants", apiKey,
-		plantJSONBody(t, map[string]interface{}{
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/plants", apiKey,
+		testutil.JSONBody(t, map[string]interface{}{
 			"name":      strings.Repeat("a", 1024), // way over MaxNameLength
 			"zone_id":   1,
 			"strain_id": 1,
@@ -135,7 +81,7 @@ func TestPlantHTTP_Add_RejectsLongName(t *testing.T) {
 			"date":      "2026-04-25",
 		}), "application/json"))
 	require.NoError(t, err)
-	defer plantDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
 		"name longer than MaxNameLength must be rejected")
 }
@@ -148,10 +94,10 @@ func TestPlantHTTP_Add_RejectsBadJSON(t *testing.T) {
 	apiKey := plantTestSeed(t, db)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(plantReq(t, http.MethodPost, c.BaseURL+"/plants", apiKey,
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/plants", apiKey,
 		bytes.NewBufferString(`{"name":"x","zone_id":}`), "application/json"))
 	require.NoError(t, err)
-	defer plantDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -167,8 +113,8 @@ func TestPlantHTTP_Update_HappyPath(t *testing.T) {
 	plantID := insertSeedPlant(t, db, "Original")
 
 	c := server.NewClient(t)
-	resp, err := c.Do(plantReq(t, http.MethodPost, c.BaseURL+"/plant", apiKey,
-		plantJSONBody(t, map[string]interface{}{
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/plant", apiKey,
+		testutil.JSONBody(t, map[string]interface{}{
 			"plant_id":          plantID,
 			"plant_name":        "Renamed",
 			"plant_description": "now with a description",
@@ -179,7 +125,7 @@ func TestPlantHTTP_Update_HappyPath(t *testing.T) {
 			"harvest_weight":    0.0,
 		}), "application/json"))
 	require.NoError(t, err)
-	defer plantDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusCreated, resp.StatusCode,
 		"UpdatePlant returns 201 on success")
 
@@ -197,8 +143,8 @@ func TestPlantHTTP_Update_RejectsLongDescription(t *testing.T) {
 	plantID := insertSeedPlant(t, db, "Has Long Desc")
 
 	c := server.NewClient(t)
-	resp, err := c.Do(plantReq(t, http.MethodPost, c.BaseURL+"/plant", apiKey,
-		plantJSONBody(t, map[string]interface{}{
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/plant", apiKey,
+		testutil.JSONBody(t, map[string]interface{}{
 			"plant_id":          plantID,
 			"plant_name":        "OK",
 			"plant_description": strings.Repeat("d", 100_000), // far past MaxDescriptionLength
@@ -207,7 +153,7 @@ func TestPlantHTTP_Update_RejectsLongDescription(t *testing.T) {
 			"start_date":        "2026-01-01",
 		}), "application/json"))
 	require.NoError(t, err)
-	defer plantDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -217,10 +163,10 @@ func TestPlantHTTP_Update_RejectsBadJSON(t *testing.T) {
 	apiKey := plantTestSeed(t, db)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(plantReq(t, http.MethodPost, c.BaseURL+"/plant", apiKey,
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/plant", apiKey,
 		bytes.NewBufferString(`{"plant_id":` /* truncated */), "application/json"))
 	require.NoError(t, err)
-	defer plantDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -241,13 +187,13 @@ func TestPlantHTTP_LinkSensors_HappyPath(t *testing.T) {
 	require.NoError(t, err)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(plantReq(t, http.MethodPost, c.BaseURL+"/plant/link-sensors", apiKey,
-		plantJSONBody(t, map[string]interface{}{
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/plant/link-sensors", apiKey,
+		testutil.JSONBody(t, map[string]interface{}{
 			"plant_id":   strconv.Itoa(plantID),
 			"sensor_ids": []int{1, 2},
 		}), "application/json"))
 	require.NoError(t, err)
-	defer plantDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// Plant.sensors should now hold the JSON-encoded array of IDs.
@@ -262,10 +208,10 @@ func TestPlantHTTP_LinkSensors_RejectsBadJSON(t *testing.T) {
 	apiKey := plantTestSeed(t, db)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(plantReq(t, http.MethodPost, c.BaseURL+"/plant/link-sensors", apiKey,
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/plant/link-sensors", apiKey,
 		bytes.NewBufferString(`not-json`), "application/json"))
 	require.NoError(t, err)
-	defer plantDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -282,9 +228,9 @@ func TestPlantHTTP_Delete_NoOpOnMissingPlant(t *testing.T) {
 	apiKey := plantTestSeed(t, db)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(plantReq(t, http.MethodDelete, c.BaseURL+"/plant/delete/99999", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodDelete, c.BaseURL+"/plant/delete/99999", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer plantDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
@@ -302,7 +248,7 @@ func TestPlantHTTP_LivingPlants_RequiresLogin(t *testing.T) {
 
 	c := server.NewClient(t)
 	resp := c.Get("/plants/living")
-	defer plantDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	// AuthMiddleware redirects unauthenticated GET requests to /login
 	// (302). 401 would also be acceptable for an api endpoint, but this
 	// route uses session middleware which redirects.
@@ -323,7 +269,7 @@ func TestPlantHTTP_LivingPlants_ReturnsActivePlants(t *testing.T) {
 
 	c := server.LoginAsAdmin(t, "living-pw")
 	resp := c.Get("/plants/living")
-	defer plantDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
@@ -337,7 +283,7 @@ func TestPlantHTTP_HarvestedPlants_RequiresLogin(t *testing.T) {
 
 	c := server.NewClient(t)
 	resp := c.Get("/plants/harvested")
-	defer plantDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusFound, resp.StatusCode)
 }
 
@@ -355,7 +301,7 @@ func TestPlantHTTP_HarvestedPlants_ReturnsHarvested(t *testing.T) {
 
 	c := server.LoginAsAdmin(t, "harvest-pw")
 	resp := c.Get("/plants/harvested")
-	defer plantDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
@@ -369,7 +315,7 @@ func TestPlantHTTP_DeadPlants_RequiresLogin(t *testing.T) {
 
 	c := server.NewClient(t)
 	resp := c.Get("/plants/dead")
-	defer plantDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusFound, resp.StatusCode)
 }
 
@@ -386,7 +332,7 @@ func TestPlantHTTP_DeadPlants_ReturnsDead(t *testing.T) {
 
 	c := server.LoginAsAdmin(t, "dead-pw")
 	resp := c.Get("/plants/dead")
-	defer plantDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
@@ -418,7 +364,7 @@ func TestPlantHTTP_AuthGating_APIRoutes(t *testing.T) {
 			require.NoError(t, err)
 			resp, err := c.Do(req)
 			require.NoError(t, err)
-			defer plantDrain(resp)
+			defer testutil.DrainAndClose(resp)
 			assert.Containsf(t,
 				[]int{http.StatusUnauthorized, http.StatusForbidden},
 				resp.StatusCode,

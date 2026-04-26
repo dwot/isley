@@ -11,9 +11,7 @@ package handlers_test
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/json"
-	"io"
 	"mime/multipart"
 	"net/http"
 	"testing"
@@ -21,44 +19,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"isley/handlers"
 	"isley/tests/testutil"
 )
-
-func plantImageAPIKey(t *testing.T, db *sql.DB, plaintext string) {
-	t.Helper()
-	hashed := handlers.HashAPIKey(plaintext)
-	var id int
-	err := db.QueryRow(`SELECT id FROM settings WHERE name = 'api_key'`).Scan(&id)
-	switch {
-	case err == sql.ErrNoRows:
-		_, err = db.Exec(`INSERT INTO settings (name, value) VALUES ('api_key', $1)`, hashed)
-	case err == nil:
-		_, err = db.Exec(`UPDATE settings SET value = $1 WHERE id = $2`, hashed, id)
-	}
-	require.NoError(t, err)
-}
-
-func plantImageReq(t *testing.T, method, url, apiKey string, body io.Reader, contentType string) *http.Request {
-	t.Helper()
-	req, err := http.NewRequest(method, url, body)
-	require.NoError(t, err)
-	if apiKey != "" {
-		req.Header.Set("X-API-KEY", apiKey)
-	}
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-	return req
-}
-
-func plantImageDrain(resp *http.Response) {
-	if resp == nil {
-		return
-	}
-	_, _ = io.Copy(io.Discard, resp.Body)
-	_ = resp.Body.Close()
-}
 
 // ---------------------------------------------------------------------------
 // Auth gating
@@ -82,7 +44,7 @@ func TestPlantImageHTTP_AuthGating(t *testing.T) {
 			require.NoError(t, err)
 			resp, err := c.Do(req)
 			require.NoError(t, err)
-			defer plantImageDrain(resp)
+			defer testutil.DrainAndClose(resp)
 			assert.Containsf(t,
 				[]int{http.StatusUnauthorized, http.StatusForbidden},
 				resp.StatusCode,
@@ -102,7 +64,7 @@ func TestPlantImageHTTP_Upload_NonNumericPlantID(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "img-bad-plantid-key"
-	plantImageAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	// Empty multipart body — handler validates :plantID first.
 	var buf bytes.Buffer
@@ -110,10 +72,10 @@ func TestPlantImageHTTP_Upload_NonNumericPlantID(t *testing.T) {
 	require.NoError(t, w.Close())
 
 	c := server.NewClient(t)
-	resp, err := c.Do(plantImageReq(t, http.MethodPost, c.BaseURL+"/plant/notanumber/images/upload",
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/plant/notanumber/images/upload",
 		apiKey, &buf, w.FormDataContentType()))
 	require.NoError(t, err)
-	defer plantImageDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -127,17 +89,17 @@ func TestPlantImageHTTP_Upload_EmptyFormReturns200(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "img-empty-key"
-	plantImageAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	require.NoError(t, w.Close())
 
 	c := server.NewClient(t)
-	resp, err := c.Do(plantImageReq(t, http.MethodPost, c.BaseURL+"/plant/1/images/upload",
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/plant/1/images/upload",
 		apiKey, &buf, w.FormDataContentType()))
 	require.NoError(t, err)
-	defer plantImageDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var got struct {
@@ -157,11 +119,11 @@ func TestPlantImageHTTP_Delete_NonNumericImageID(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "img-del-bad-key"
-	plantImageAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(plantImageReq(t, http.MethodDelete, c.BaseURL+"/plant/images/notanumber/delete", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodDelete, c.BaseURL+"/plant/images/notanumber/delete", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer plantImageDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }

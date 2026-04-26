@@ -2,13 +2,11 @@ package integration
 
 import (
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"isley/handlers"
 	"isley/tests/testutil"
 )
 
@@ -27,7 +25,7 @@ func TestBackup_ListWithAPIKey(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const plaintextKey = "test-list-key"
-	seedAPIKey(t, db, handlers.HashAPIKey(plaintextKey))
+	testutil.SeedAPIKey(t, db, plaintextKey)
 
 	c := server.NewClient(t)
 	resp := apiGet(t, c, "/settings/backup/list", plaintextKey)
@@ -46,36 +44,16 @@ func TestBackup_RestoreInvalidZip(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const plaintextKey = "test-restore-key"
-	seedAPIKey(t, db, handlers.HashAPIKey(plaintextKey))
+	testutil.SeedAPIKey(t, db, plaintextKey)
 
 	c := server.NewClient(t)
 
-	// Build a multipart body with a "backup" field containing junk bytes.
-	body, contentType := buildMultipart(t, "backup", "junk.zip", []byte("definitely not a zip"))
+	body, contentType := testutil.MultipartBody(t, "backup", "junk.zip", []byte("definitely not a zip"))
 
-	req, err := http.NewRequest(http.MethodPost, c.BaseURL+"/settings/backup/restore", body)
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/backup/restore", plaintextKey, body, contentType))
 	require.NoError(t, err)
-	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("X-API-KEY", plaintextKey)
-
-	resp, err := c.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer testutil.DrainAndClose(resp)
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
 		"non-zip upload should be rejected with 400")
-}
-
-// buildMultipart returns a multipart/form-data body with one named file
-// part. Returned contentType includes the boundary.
-func buildMultipart(t *testing.T, fieldName, filename string, payload []byte) (*strings.Reader, string) {
-	t.Helper()
-	const boundary = "----IsleyTestBoundary"
-	var b strings.Builder
-	b.WriteString("--" + boundary + "\r\n")
-	b.WriteString(`Content-Disposition: form-data; name="` + fieldName + `"; filename="` + filename + "\"\r\n")
-	b.WriteString("Content-Type: application/octet-stream\r\n\r\n")
-	b.Write(payload)
-	b.WriteString("\r\n--" + boundary + "--\r\n")
-	return strings.NewReader(b.String()), "multipart/form-data; boundary=" + boundary
 }

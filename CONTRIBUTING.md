@@ -73,6 +73,14 @@ go test ./tests/integration/ -v
 
 The integration test suite handles its own database setup and teardown.
 
+### Test helpers
+
+Shared test fixtures live under `tests/testutil/` (and `tests/testutil/fakes/`),
+with response-body and archive fixtures under `tests/fixtures/`. Helpers used
+in more than one test file MUST live in `tests/testutil` (or a sub-package).
+File-local helpers may exist for one-off needs but should not be copied
+between files. Reviewers enforce this in PRs.
+
 ## Project Structure
 
 ```

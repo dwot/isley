@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"isley/handlers"
 	"isley/tests/testutil"
 )
 
@@ -26,32 +25,23 @@ type statusFixture struct {
 
 func seedStatusHTTP(t *testing.T, db *sql.DB) statusFixture {
 	t.Helper()
-	exec := func(query string, args ...interface{}) sql.Result {
-		res, err := db.Exec(query, args...)
-		require.NoErrorf(t, err, "seed: %s", query)
-		return res
-	}
-	exec(`INSERT INTO breeder (id, name) VALUES (1, 'B')`)
-	exec(`INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
-	      VALUES (1, 'S', 1, 50, 50, 0, '', 0)`)
-	exec(`INSERT INTO zones (id, name) VALUES (1, 'Z')`)
-
-	res := exec(`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
-	             VALUES ('Plant 1', 1, 1, '', 0, '2026-01-01', '[]')`)
-	plantID, _ := res.LastInsertId()
+	breederID := testutil.SeedBreeder(t, db, "B")
+	strainID := testutil.SeedStrain(t, db, breederID, "S")
+	zoneID := testutil.SeedZone(t, db, "Z")
+	plantID := int64(testutil.SeedPlant(t, db, "Plant 1", strainID, zoneID))
 
 	var vegID, flowerID, dryingID int
 	require.NoError(t, db.QueryRow(`SELECT id FROM plant_status WHERE status='Veg'`).Scan(&vegID))
 	require.NoError(t, db.QueryRow(`SELECT id FROM plant_status WHERE status='Flower'`).Scan(&flowerID))
 	require.NoError(t, db.QueryRow(`SELECT id FROM plant_status WHERE status='Drying'`).Scan(&dryingID))
 
-	exec(`INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, '2026-01-15')`, plantID, vegID)
+	_, err := db.Exec(`INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, '2026-01-15')`, plantID, vegID)
+	require.NoError(t, err)
 
-	const plaintext = "test-status-key"
-	seedAPIKey(t, db, handlers.HashAPIKey(plaintext))
 	return statusFixture{
-		APIKey: plaintext, PlantID: plantID,
-		VegID: vegID, FlowerID: flowerID, DryingID: dryingID,
+		APIKey:  testutil.SeedAPIKey(t, db, "test-status-key"),
+		PlantID: plantID,
+		VegID:   vegID, FlowerID: flowerID, DryingID: dryingID,
 	}
 }
 

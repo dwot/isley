@@ -1,7 +1,6 @@
 package integration
 
 import (
-	"bytes"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -11,36 +10,22 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"isley/handlers"
 	"isley/tests/testutil"
 )
-
-// ---------------------------------------------------------------------------
-// helpers
-// ---------------------------------------------------------------------------
 
 // seedBreederWithKey creates one breeder row and an API key. Returns
 // the api key plaintext.
 func seedBreederWithKey(t *testing.T, db *sql.DB) string {
 	t.Helper()
-	_, err := db.Exec(`INSERT INTO breeder (id, name) VALUES (1, 'Acme Genetics')`)
-	require.NoError(t, err)
-
-	const plaintext = "test-strain-api-key"
-	seedAPIKey(t, db, handlers.HashAPIKey(plaintext))
-	return plaintext
+	testutil.SeedBreeder(t, db, "Acme Genetics")
+	return testutil.SeedAPIKey(t, db, "test-strain-api-key")
 }
 
 // apiPutJSON issues PUT path with a JSON body and an X-API-KEY header.
 func apiPutJSON(t *testing.T, c *testutil.Client, path, apiKey string, body interface{}) *http.Response {
 	t.Helper()
-	buf := &bytes.Buffer{}
-	require.NoError(t, json.NewEncoder(buf).Encode(body))
-	req, err := http.NewRequest(http.MethodPut, c.BaseURL+path, buf)
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-API-KEY", apiKey)
-	resp, err := c.Do(req)
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPut, c.BaseURL+path, apiKey,
+		testutil.JSONBody(t, body), "application/json"))
 	require.NoError(t, err)
 	return resp
 }
@@ -97,7 +82,7 @@ func TestStrain_AddCreatesNewBreeder(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const plaintext = "test-strain-key"
-	seedAPIKey(t, db, handlers.HashAPIKey(plaintext))
+	testutil.SeedAPIKey(t, db, plaintext)
 
 	c := server.NewClient(t)
 	// breeder_id omitted → handler reads new_breeder and inserts a row.
@@ -144,7 +129,7 @@ func TestStrain_AddRejectsMissingBreeder(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const plaintext = "test-strain-key"
-	seedAPIKey(t, db, handlers.HashAPIKey(plaintext))
+	testutil.SeedAPIKey(t, db, plaintext)
 
 	c := server.NewClient(t)
 	// Neither breeder_id nor new_breeder.
@@ -358,7 +343,7 @@ func TestBreeder_AddHappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const plaintext = "test-breeder-key"
-	seedAPIKey(t, db, handlers.HashAPIKey(plaintext))
+	testutil.SeedAPIKey(t, db, plaintext)
 
 	c := server.NewClient(t)
 	resp := apiPostJSON(t, c, "/breeders", plaintext, map[string]interface{}{
@@ -384,7 +369,7 @@ func TestBreeder_AddRejectsEmptyName(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const plaintext = "test-breeder-key"
-	seedAPIKey(t, db, handlers.HashAPIKey(plaintext))
+	testutil.SeedAPIKey(t, db, plaintext)
 
 	c := server.NewClient(t)
 	resp := apiPostJSON(t, c, "/breeders", plaintext, map[string]interface{}{
@@ -401,7 +386,7 @@ func TestBreeder_UpdateRenames(t *testing.T) {
 
 	mustExecRow(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'Old Name')`)
 	const plaintext = "test-breeder-key"
-	seedAPIKey(t, db, handlers.HashAPIKey(plaintext))
+	testutil.SeedAPIKey(t, db, plaintext)
 
 	c := server.NewClient(t)
 	resp := apiPutJSON(t, c, "/breeders/1", plaintext, map[string]interface{}{
@@ -430,7 +415,7 @@ func TestBreeder_DeleteCascadesStrainsAndPlants(t *testing.T) {
 	                    VALUES ('Doomed Plant', 1, 1, '', 0, '2026-01-01', '[]')`)
 
 	const plaintext = "test-breeder-key"
-	seedAPIKey(t, db, handlers.HashAPIKey(plaintext))
+	testutil.SeedAPIKey(t, db, plaintext)
 
 	c := server.NewClient(t)
 	resp := apiDelete(t, c, "/breeders/1", plaintext)

@@ -24,7 +24,6 @@ package handlers_test
 import (
 	"bytes"
 	"database/sql"
-	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -33,66 +32,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"isley/handlers"
 	"isley/tests/testutil"
 )
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-func lineageAPIKey(t *testing.T, db *sql.DB, plaintext string) {
-	t.Helper()
-	hashed := handlers.HashAPIKey(plaintext)
-	var id int
-	err := db.QueryRow(`SELECT id FROM settings WHERE name = 'api_key'`).Scan(&id)
-	switch {
-	case err == sql.ErrNoRows:
-		_, err = db.Exec(`INSERT INTO settings (name, value) VALUES ('api_key', $1)`, hashed)
-	case err == nil:
-		_, err = db.Exec(`UPDATE settings SET value = $1 WHERE id = $2`, hashed, id)
-	}
-	require.NoError(t, err)
-}
-
-func lineageReq(t *testing.T, method, url, apiKey string, body io.Reader, contentType string) *http.Request {
-	t.Helper()
-	req, err := http.NewRequest(method, url, body)
-	require.NoError(t, err)
-	if apiKey != "" {
-		req.Header.Set("X-API-KEY", apiKey)
-	}
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-	return req
-}
-
-func lineageJSON(t *testing.T, v interface{}) *bytes.Buffer {
-	t.Helper()
-	var buf bytes.Buffer
-	require.NoError(t, json.NewEncoder(&buf).Encode(v))
-	return &buf
-}
-
-func lineageDrain(resp *http.Response) {
-	if resp == nil {
-		return
-	}
-	_, _ = io.Copy(io.Discard, resp.Body)
-	_ = resp.Body.Close()
-}
-
+// lineageSeedStrains inserts a breeder + two strains. The integration
+// suite uses a near-identical helper; kept file-local because the IDs
+// (1=Child, 2=Parent) are baked into the surrounding test assertions.
 func lineageSeedStrains(t *testing.T, db *sql.DB) {
 	t.Helper()
-	mustExec := func(q string, args ...interface{}) {
-		_, err := db.Exec(q, args...)
-		require.NoErrorf(t, err, "seed: %s", q)
-	}
-	mustExec(`INSERT INTO breeder (id, name) VALUES (1, 'B')`)
-	mustExec(`INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
-	          VALUES (1, 'Child Strain', 1, 50, 50, 0, '', 0),
-	                 (2, 'Parent Strain', 1, 50, 50, 0, '', 0)`)
+	breederID := testutil.SeedBreeder(t, db, "B")
+	testutil.SeedStrain(t, db, breederID, "Child Strain")
+	testutil.SeedStrain(t, db, breederID, "Parent Strain")
 }
 
 // ---------------------------------------------------------------------------
@@ -119,7 +69,7 @@ func TestLineageHTTP_AuthGating(t *testing.T) {
 			require.NoError(t, err)
 			resp, err := c.Do(req)
 			require.NoError(t, err)
-			defer lineageDrain(resp)
+			defer testutil.DrainAndClose(resp)
 			assert.Containsf(t,
 				[]int{http.StatusUnauthorized, http.StatusForbidden},
 				resp.StatusCode,
@@ -137,13 +87,13 @@ func TestLineageHTTP_Add_RejectsNonNumericStrainID(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "lin-add-id-key"
-	lineageAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(lineageReq(t, http.MethodPost, c.BaseURL+"/strains/abc/lineage", apiKey,
-		lineageJSON(t, map[string]interface{}{"parent_name": "X"}), "application/json"))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/strains/abc/lineage", apiKey,
+		testutil.JSONBody(t, map[string]interface{}{"parent_name": "X"}), "application/json"))
 	require.NoError(t, err)
-	defer lineageDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -152,13 +102,13 @@ func TestLineageHTTP_Add_RejectsBadJSON(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "lin-add-json-key"
-	lineageAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(lineageReq(t, http.MethodPost, c.BaseURL+"/strains/1/lineage", apiKey,
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/strains/1/lineage", apiKey,
 		bytes.NewBufferString(`{not json`), "application/json"))
 	require.NoError(t, err)
-	defer lineageDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -167,13 +117,13 @@ func TestLineageHTTP_Add_RejectsLongParentName(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "lin-add-long-key"
-	lineageAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(lineageReq(t, http.MethodPost, c.BaseURL+"/strains/1/lineage", apiKey,
-		lineageJSON(t, map[string]interface{}{"parent_name": strings.Repeat("p", 1024)}), "application/json"))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/strains/1/lineage", apiKey,
+		testutil.JSONBody(t, map[string]interface{}{"parent_name": strings.Repeat("p", 1024)}), "application/json"))
 	require.NoError(t, err)
-	defer lineageDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -186,13 +136,13 @@ func TestLineageHTTP_Update_RejectsNonNumericLineageID(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "lin-upd-id-key"
-	lineageAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(lineageReq(t, http.MethodPut, c.BaseURL+"/lineage/notanumber", apiKey,
-		lineageJSON(t, map[string]interface{}{"parent_name": "X"}), "application/json"))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPut, c.BaseURL+"/lineage/notanumber", apiKey,
+		testutil.JSONBody(t, map[string]interface{}{"parent_name": "X"}), "application/json"))
 	require.NoError(t, err)
-	defer lineageDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -201,13 +151,13 @@ func TestLineageHTTP_Update_RejectsBadJSON(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "lin-upd-json-key"
-	lineageAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(lineageReq(t, http.MethodPut, c.BaseURL+"/lineage/1", apiKey,
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPut, c.BaseURL+"/lineage/1", apiKey,
 		bytes.NewBufferString(`}`), "application/json"))
 	require.NoError(t, err)
-	defer lineageDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -220,12 +170,12 @@ func TestLineageHTTP_Delete_RejectsNonNumericLineageID(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "lin-del-id-key"
-	lineageAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(lineageReq(t, http.MethodDelete, c.BaseURL+"/lineage/abc", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodDelete, c.BaseURL+"/lineage/abc", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer lineageDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -238,13 +188,13 @@ func TestLineageHTTP_Set_RejectsNonNumericStrainID(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "lin-set-id-key"
-	lineageAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(lineageReq(t, http.MethodPut, c.BaseURL+"/strains/abc/lineage", apiKey,
-		lineageJSON(t, map[string]interface{}{"parents": []interface{}{}}), "application/json"))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPut, c.BaseURL+"/strains/abc/lineage", apiKey,
+		testutil.JSONBody(t, map[string]interface{}{"parents": []interface{}{}}), "application/json"))
 	require.NoError(t, err)
-	defer lineageDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -253,13 +203,13 @@ func TestLineageHTTP_Set_RejectsBadJSON(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "lin-set-json-key"
-	lineageAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(lineageReq(t, http.MethodPut, c.BaseURL+"/strains/1/lineage", apiKey,
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPut, c.BaseURL+"/strains/1/lineage", apiKey,
 		bytes.NewBufferString(`{`), "application/json"))
 	require.NoError(t, err)
-	defer lineageDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -273,7 +223,7 @@ func TestLineageHTTP_Get_RejectsNonNumericID(t *testing.T) {
 
 	c := server.NewClient(t)
 	resp := c.Get("/strains/abc/lineage")
-	defer lineageDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -284,7 +234,7 @@ func TestLineageHTTP_Get_EmptyReturnsArray(t *testing.T) {
 
 	c := server.NewClient(t)
 	resp := c.Get("/strains/1/lineage")
-	defer lineageDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
@@ -300,7 +250,7 @@ func TestLineageHTTP_Descendants_RejectsNonNumericID(t *testing.T) {
 
 	c := server.NewClient(t)
 	resp := c.Get("/strains/abc/descendants")
-	defer lineageDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -311,7 +261,7 @@ func TestLineageHTTP_Descendants_EmptyReturnsArray(t *testing.T) {
 
 	c := server.NewClient(t)
 	resp := c.Get("/strains/2/descendants")
-	defer lineageDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
@@ -332,7 +282,7 @@ func TestLineageHTTP_Lookup_TruncatesOverlongQuery(t *testing.T) {
 	// Long query is truncated to MaxNameLength internally — handler must
 	// still respond 200 with a JSON array (possibly empty).
 	resp := c.Get("/strains/lookup?q=" + strings.Repeat("z", 4096))
-	defer lineageDrain(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)

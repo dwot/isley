@@ -1,0 +1,4 @@
+{
+  "wh25": [{"intemp": "21.4", "unit": "C", "inhumi": "55%", "abs": "1010", "rel": "1010"}],
+  "ch_soil": [{"channel": "1", "name": "Bed1", "battery": "5", "humidity": "47%"}]
+}

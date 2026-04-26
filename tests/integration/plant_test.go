@@ -12,12 +12,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"isley/handlers"
 	"isley/tests/testutil"
 )
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Package-level helpers shared across the integration suite. These thin
+// wrappers exist because most integration tests follow the same shape:
+// build a request, send, return the response. testutil.APIReq returns
+// the request only — the wrappers here bundle send+error-check so test
+// sites stay terse.
 // ---------------------------------------------------------------------------
 
 // seedPlantTreeWithKey seeds the FK chain (breeder → strain → zone) and
@@ -25,31 +28,17 @@ import (
 // subsequent requests.
 func seedPlantTreeWithKey(t *testing.T, db *sql.DB) string {
 	t.Helper()
-	mustExec := func(query string, args ...interface{}) {
-		_, err := db.Exec(query, args...)
-		require.NoErrorf(t, err, "seed: %s", query)
-	}
-	mustExec(`INSERT INTO breeder (id, name) VALUES (1, 'Test Breeder')`)
-	mustExec(`INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
-	          VALUES (1, 'Test Strain', 1, 50, 50, 0, '', 5)`)
-	mustExec(`INSERT INTO zones (id, name) VALUES (1, 'Test Zone')`)
-
-	const plaintext = "test-plant-api-key"
-	seedAPIKey(t, db, handlers.HashAPIKey(plaintext))
-	return plaintext
+	testutil.SeedBreeder(t, db, "Test Breeder")
+	testutil.SeedStrain(t, db, 1, "Test Strain")
+	testutil.SeedZone(t, db, "Test Zone")
+	return testutil.SeedAPIKey(t, db, "test-plant-api-key")
 }
 
 // apiPostJSON issues POST path with a JSON body and an X-API-KEY header.
-// Returns the response.
 func apiPostJSON(t *testing.T, c *testutil.Client, path, apiKey string, body interface{}) *http.Response {
 	t.Helper()
-	buf := &bytes.Buffer{}
-	require.NoError(t, json.NewEncoder(buf).Encode(body))
-	req, err := http.NewRequest(http.MethodPost, c.BaseURL+path, buf)
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-API-KEY", apiKey)
-	resp, err := c.Do(req)
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+path, apiKey,
+		testutil.JSONBody(t, body), "application/json"))
 	require.NoError(t, err)
 	return resp
 }
@@ -57,10 +46,7 @@ func apiPostJSON(t *testing.T, c *testutil.Client, path, apiKey string, body int
 // apiDelete issues DELETE path with an X-API-KEY header.
 func apiDelete(t *testing.T, c *testutil.Client, path, apiKey string) *http.Response {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodDelete, c.BaseURL+path, nil)
-	require.NoError(t, err)
-	req.Header.Set("X-API-KEY", apiKey)
-	resp, err := c.Do(req)
+	resp, err := c.Do(testutil.APIReq(t, http.MethodDelete, c.BaseURL+path, apiKey, nil, ""))
 	require.NoError(t, err)
 	return resp
 }

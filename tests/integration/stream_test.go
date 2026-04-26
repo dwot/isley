@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"isley/handlers"
 	"isley/tests/testutil"
 )
 
@@ -27,10 +26,7 @@ type streamFixture struct {
 
 func seedStreamHTTP(t *testing.T, db *sql.DB) streamFixture {
 	t.Helper()
-	mustExecRow(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
-
-	const plaintext = "test-stream-key"
-	seedAPIKey(t, db, handlers.HashAPIKey(plaintext))
+	testutil.SeedZone(t, db, "Z")
 
 	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/jpeg")
@@ -39,7 +35,7 @@ func seedStreamHTTP(t *testing.T, db *sql.DB) streamFixture {
 	t.Cleanup(fake.Close)
 
 	return streamFixture{
-		APIKey: plaintext,
+		APIKey: testutil.SeedAPIKey(t, db, "test-stream-key"),
 		URL:    fake.URL,
 		server: fake,
 	}

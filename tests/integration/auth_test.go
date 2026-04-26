@@ -131,7 +131,7 @@ func TestAuth_SessionVersionInvalidation(t *testing.T) {
 	// Bump session_version on the server side. The session cookie still
 	// carries the OLD version; AuthMiddleware should detect the mismatch
 	// and clear the session.
-	upsertSetting(t, db, "session_version", "v2-after-rotation")
+	testutil.UpsertSetting(t, db, "session_version", "v2-after-rotation")
 
 	resp := c.Get("/")
 	resp.Body.Close()
@@ -241,7 +241,7 @@ func TestAuth_APIKey_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const plaintextKey = "test-api-key-happy"
-	seedAPIKey(t, db, handlers.HashAPIKey(plaintextKey))
+	seedHashedAPIKey(t, db, handlers.HashAPIKey(plaintextKey))
 
 	c := server.NewClient(t)
 	resp := apiGet(t, c, "/api/overlay", plaintextKey)
@@ -262,7 +262,7 @@ func TestAuth_APIKey_RejectsBadKey(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
-	seedAPIKey(t, db, handlers.HashAPIKey("the-real-key"))
+	seedHashedAPIKey(t, db, handlers.HashAPIKey("the-real-key"))
 
 	c := server.NewClient(t)
 	resp := apiGet(t, c, "/api/overlay", "not-the-real-key")
@@ -277,7 +277,7 @@ func TestAuth_APIKey_RejectsNoCredentials(t *testing.T) {
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
-	seedAPIKey(t, db, handlers.HashAPIKey("the-real-key"))
+	seedHashedAPIKey(t, db, handlers.HashAPIKey("the-real-key"))
 
 	c := server.NewClient(t)
 	resp := c.Get("/api/overlay")
@@ -289,35 +289,18 @@ func TestAuth_APIKey_RejectsNoCredentials(t *testing.T) {
 // helpers
 // ---------------------------------------------------------------------------
 
-// upsertSetting writes a name=value row to the settings table, replacing
-// any existing row with the same name. Mirrors the unexported helper
-// in tests/testutil/seed.go but is duplicated here so the integration
-// test file is self-contained.
-func upsertSetting(t *testing.T, db *sql.DB, name, value string) {
+// seedHashedAPIKey writes an already-hashed api_key into settings. Used
+// by the auth tests that exercise plaintext/SHA-256/bcrypt branches and
+// need full control over what is stored.
+func seedHashedAPIKey(t *testing.T, db *sql.DB, hashed string) {
 	t.Helper()
-	var existingID int
-	err := db.QueryRow(`SELECT id FROM settings WHERE name = $1`, name).Scan(&existingID)
-	switch {
-	case err == sql.ErrNoRows:
-		_, err = db.Exec(`INSERT INTO settings (name, value) VALUES ($1, $2)`, name, value)
-	case err == nil:
-		_, err = db.Exec(`UPDATE settings SET value = $1 WHERE id = $2`, value, existingID)
-	}
-	require.NoError(t, err)
-}
-
-func seedAPIKey(t *testing.T, db *sql.DB, hashed string) {
-	t.Helper()
-	upsertSetting(t, db, "api_key", hashed)
+	testutil.UpsertSetting(t, db, "api_key", hashed)
 }
 
 // apiGet issues GET BaseURL+path with the X-API-KEY header set.
 func apiGet(t *testing.T, c *testutil.Client, path, apiKey string) *http.Response {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodGet, c.BaseURL+path, nil)
-	require.NoError(t, err)
-	req.Header.Set("X-API-KEY", apiKey)
-	resp, err := c.Do(req)
+	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+path, apiKey, nil, ""))
 	require.NoError(t, err)
 	return resp
 }

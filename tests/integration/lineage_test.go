@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"isley/handlers"
 	"isley/tests/testutil"
 )
 
@@ -29,30 +28,20 @@ type lineageHTTPFixture struct {
 
 func seedLineageHTTP(t *testing.T, db *sql.DB) lineageHTTPFixture {
 	t.Helper()
+	breederID := testutil.SeedBreeder(t, db, "Acme Genetics")
+
+	fix := lineageHTTPFixture{
+		GrandparentA: testutil.SeedStrain(t, db, breederID, "Grandparent A"),
+		GrandparentB: testutil.SeedStrain(t, db, breederID, "Grandparent B"),
+		Parent:       testutil.SeedStrain(t, db, breederID, "Parent Cross"),
+		Child:        testutil.SeedStrain(t, db, breederID, "Child Phenotype"),
+		Sibling:      testutil.SeedStrain(t, db, breederID, "Sibling Phenotype"),
+	}
+
 	exec := func(query string, args ...interface{}) {
 		_, err := db.Exec(query, args...)
 		require.NoErrorf(t, err, "seed: %s", query)
 	}
-	exec(`INSERT INTO breeder (id, name) VALUES (1, 'Acme Genetics')`)
-
-	insertStrain := func(name string) int {
-		var id int
-		require.NoError(t, db.QueryRow(
-			`INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
-			 VALUES ($1, 1, 50, 50, 0, '', 0) RETURNING id`,
-			name,
-		).Scan(&id))
-		return id
-	}
-
-	fix := lineageHTTPFixture{
-		GrandparentA: insertStrain("Grandparent A"),
-		GrandparentB: insertStrain("Grandparent B"),
-		Parent:       insertStrain("Parent Cross"),
-		Child:        insertStrain("Child Phenotype"),
-		Sibling:      insertStrain("Sibling Phenotype"),
-	}
-
 	exec(`INSERT INTO strain_lineage (strain_id, parent_name, parent_strain_id) VALUES ($1, 'Grandparent A', $2)`,
 		fix.Parent, fix.GrandparentA)
 	exec(`INSERT INTO strain_lineage (strain_id, parent_name, parent_strain_id) VALUES ($1, 'Grandparent B', $2)`,
@@ -64,9 +53,7 @@ func seedLineageHTTP(t *testing.T, db *sql.DB) lineageHTTPFixture {
 	exec(`INSERT INTO strain_lineage (strain_id, parent_name, parent_strain_id) VALUES ($1, 'Grandparent A', $2)`,
 		fix.Sibling, fix.GrandparentA)
 
-	const plaintext = "test-lineage-key"
-	seedAPIKey(t, db, handlers.HashAPIKey(plaintext))
-	fix.APIKey = plaintext
+	fix.APIKey = testutil.SeedAPIKey(t, db, "test-lineage-key")
 	return fix
 }
 

@@ -24,7 +24,6 @@ package handlers_test
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/json"
 	"image"
 	"image/png"
@@ -39,61 +38,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"isley/handlers"
 	"isley/tests/testutil"
 )
 
-// ---------------------------------------------------------------------------
-// Helpers (file-local; this test file is self-contained on purpose).
-// ---------------------------------------------------------------------------
-
-func settingsAPIKey(t *testing.T, db *sql.DB, plaintext string) {
-	t.Helper()
-	hashed := handlers.HashAPIKey(plaintext)
-	var id int
-	err := db.QueryRow(`SELECT id FROM settings WHERE name = 'api_key'`).Scan(&id)
-	switch {
-	case err == sql.ErrNoRows:
-		_, err = db.Exec(`INSERT INTO settings (name, value) VALUES ('api_key', $1)`, hashed)
-	case err == nil:
-		_, err = db.Exec(`UPDATE settings SET value = $1 WHERE id = $2`, hashed, id)
-	}
-	require.NoError(t, err)
-}
-
-// settingsReq builds a request with X-API-KEY plus optional content type.
-func settingsReq(t *testing.T, method, url, apiKey string, body io.Reader, contentType string) *http.Request {
-	t.Helper()
-	req, err := http.NewRequest(method, url, body)
-	require.NoError(t, err)
-	if apiKey != "" {
-		req.Header.Set("X-API-KEY", apiKey)
-	}
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-	return req
-}
-
-// jsonBody wraps a value as a JSON request body. Failing to encode the
-// fixture is a test-author error, so it terminates the test.
-func jsonBody(t *testing.T, v interface{}) *bytes.Buffer {
-	t.Helper()
-	var buf bytes.Buffer
-	require.NoError(t, json.NewEncoder(&buf).Encode(v))
-	return &buf
-}
-
-func drainResp(resp *http.Response) {
-	if resp == nil {
-		return
-	}
-	_, _ = io.Copy(io.Discard, resp.Body)
-	_ = resp.Body.Close()
-}
-
 // pngFixture returns the bytes of a 1×1 PNG, used for the upload-logo
-// happy path.
+// happy path. Kept file-local because no other test exercises image
+// upload — moving it to testutil would be premature generalization.
 func pngFixture(t *testing.T) []byte {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
@@ -136,7 +86,7 @@ func TestSettingsHTTP_AuthGating(t *testing.T) {
 			require.NoError(t, err)
 			resp, err := c.Do(req)
 			require.NoError(t, err)
-			defer drainResp(resp)
+			defer testutil.DrainAndClose(resp)
 			assert.Containsf(t,
 				[]int{http.StatusUnauthorized, http.StatusForbidden},
 				resp.StatusCode,
@@ -154,10 +104,10 @@ func TestSettingsHTTP_SaveSettings_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "save-settings-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	body := jsonBody(t, map[string]interface{}{
+	body := testutil.JSONBody(t, map[string]interface{}{
 		"polling_interval":      "60",
 		"stream_grab_interval":  "30000",
 		"sensor_retention_days": "90",
@@ -165,9 +115,9 @@ func TestSettingsHTTP_SaveSettings_HappyPath(t *testing.T) {
 		"timezone":              "America/Los_Angeles",
 		"guest_mode":            false,
 	})
-	resp, err := c.Do(settingsReq(t, http.MethodPost, c.BaseURL+"/settings", apiKey, body, "application/json"))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings", apiKey, body, "application/json"))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// DB-level: each persisted key should now be readable.
@@ -184,13 +134,13 @@ func TestSettingsHTTP_SaveSettings_RejectsMalformedJSON(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "save-bad-json-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
 	body := bytes.NewBufferString(`{"polling_interval": ` /* no closing brace */)
-	resp, err := c.Do(settingsReq(t, http.MethodPost, c.BaseURL+"/settings", apiKey, body, "application/json"))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings", apiKey, body, "application/json"))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -199,13 +149,13 @@ func TestSettingsHTTP_SaveSettings_GenerateAPIKeyReturnsPlaintext(t *testing.T) 
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "save-genkey-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	body := jsonBody(t, map[string]interface{}{"api_key": "generate"})
-	resp, err := c.Do(settingsReq(t, http.MethodPost, c.BaseURL+"/settings", apiKey, body, "application/json"))
+	body := testutil.JSONBody(t, map[string]interface{}{"api_key": "generate"})
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings", apiKey, body, "application/json"))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var got struct {
@@ -230,13 +180,13 @@ func TestSettingsHTTP_AddZone_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "addzone-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	body := jsonBody(t, map[string]string{"zone_name": "Tent A"})
-	resp, err := c.Do(settingsReq(t, http.MethodPost, c.BaseURL+"/zones", apiKey, body, "application/json"))
+	body := testutil.JSONBody(t, map[string]string{"zone_name": "Tent A"})
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/zones", apiKey, body, "application/json"))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	var got struct {
@@ -255,13 +205,13 @@ func TestSettingsHTTP_AddZone_RejectsBlankName(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "addzone-blank-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	body := jsonBody(t, map[string]string{"zone_name": ""})
-	resp, err := c.Do(settingsReq(t, http.MethodPost, c.BaseURL+"/zones", apiKey, body, "application/json"))
+	body := testutil.JSONBody(t, map[string]string{"zone_name": ""})
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/zones", apiKey, body, "application/json"))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -270,17 +220,17 @@ func TestSettingsHTTP_UpdateZone_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "updzone-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	res, err := db.Exec(`INSERT INTO zones (name) VALUES ('Old')`)
 	require.NoError(t, err)
 	zoneID, _ := res.LastInsertId()
 
 	c := server.NewClient(t)
-	body := jsonBody(t, map[string]string{"zone_name": "New"})
-	resp, err := c.Do(settingsReq(t, http.MethodPut, c.BaseURL+"/zones/"+strconv.FormatInt(zoneID, 10), apiKey, body, "application/json"))
+	body := testutil.JSONBody(t, map[string]string{"zone_name": "New"})
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPut, c.BaseURL+"/zones/"+strconv.FormatInt(zoneID, 10), apiKey, body, "application/json"))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var name string
@@ -293,13 +243,13 @@ func TestSettingsHTTP_UpdateZone_RejectsBlankName(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "updzone-blank-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	body := jsonBody(t, map[string]string{"zone_name": ""})
-	resp, err := c.Do(settingsReq(t, http.MethodPut, c.BaseURL+"/zones/1", apiKey, body, "application/json"))
+	body := testutil.JSONBody(t, map[string]string{"zone_name": ""})
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPut, c.BaseURL+"/zones/1", apiKey, body, "application/json"))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -308,16 +258,16 @@ func TestSettingsHTTP_DeleteZone_RemovesRow(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "delzone-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	res, err := db.Exec(`INSERT INTO zones (name) VALUES ('Doomed')`)
 	require.NoError(t, err)
 	zoneID, _ := res.LastInsertId()
 
 	c := server.NewClient(t)
-	resp, err := c.Do(settingsReq(t, http.MethodDelete, c.BaseURL+"/zones/"+strconv.FormatInt(zoneID, 10), apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodDelete, c.BaseURL+"/zones/"+strconv.FormatInt(zoneID, 10), apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var n int
@@ -334,13 +284,13 @@ func TestSettingsHTTP_AddMetric_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "addmet-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	body := jsonBody(t, map[string]string{"metric_name": "pH", "metric_unit": ""})
-	resp, err := c.Do(settingsReq(t, http.MethodPost, c.BaseURL+"/metrics", apiKey, body, "application/json"))
+	body := testutil.JSONBody(t, map[string]string{"metric_name": "pH", "metric_unit": ""})
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/metrics", apiKey, body, "application/json"))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 }
 
@@ -349,13 +299,13 @@ func TestSettingsHTTP_AddMetric_RejectsBlankName(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "addmet-blank-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	body := jsonBody(t, map[string]string{"metric_name": "", "metric_unit": "in"})
-	resp, err := c.Do(settingsReq(t, http.MethodPost, c.BaseURL+"/metrics", apiKey, body, "application/json"))
+	body := testutil.JSONBody(t, map[string]string{"metric_name": "", "metric_unit": "in"})
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/metrics", apiKey, body, "application/json"))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -364,17 +314,17 @@ func TestSettingsHTTP_UpdateMetric_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "updmet-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	res, err := db.Exec(`INSERT INTO metric (name, unit, lock) VALUES ('Old', 'cm', 0)`)
 	require.NoError(t, err)
 	id, _ := res.LastInsertId()
 
 	c := server.NewClient(t)
-	body := jsonBody(t, map[string]string{"metric_name": "Renamed", "metric_unit": "in"})
-	resp, err := c.Do(settingsReq(t, http.MethodPut, c.BaseURL+"/metrics/"+strconv.FormatInt(id, 10), apiKey, body, "application/json"))
+	body := testutil.JSONBody(t, map[string]string{"metric_name": "Renamed", "metric_unit": "in"})
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPut, c.BaseURL+"/metrics/"+strconv.FormatInt(id, 10), apiKey, body, "application/json"))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var name, unit string
@@ -391,16 +341,16 @@ func TestSettingsHTTP_DeleteMetric_RejectsLocked(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "delmet-locked-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	var id int
 	require.NoError(t, db.QueryRow(`SELECT id FROM metric WHERE name = 'Height'`).Scan(&id),
 		"Height metric must be present in default seed")
 
 	c := server.NewClient(t)
-	resp, err := c.Do(settingsReq(t, http.MethodDelete, c.BaseURL+"/metrics/"+strconv.Itoa(id), apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodDelete, c.BaseURL+"/metrics/"+strconv.Itoa(id), apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
 		"locked metric must be 400, not deleted")
 
@@ -415,7 +365,7 @@ func TestSettingsHTTP_DeleteMetric_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "delmet-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	// Insert a non-locked metric.
 	res, err := db.Exec(`INSERT INTO metric (name, unit, lock) VALUES ('Width', 'cm', 0)`)
@@ -423,9 +373,9 @@ func TestSettingsHTTP_DeleteMetric_HappyPath(t *testing.T) {
 	id, _ := res.LastInsertId()
 
 	c := server.NewClient(t)
-	resp, err := c.Do(settingsReq(t, http.MethodDelete, c.BaseURL+"/metrics/"+strconv.FormatInt(id, 10), apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodDelete, c.BaseURL+"/metrics/"+strconv.FormatInt(id, 10), apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var n int
@@ -442,13 +392,13 @@ func TestSettingsHTTP_AddActivity_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "addact-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	body := jsonBody(t, map[string]string{"activity_name": "Prune"})
-	resp, err := c.Do(settingsReq(t, http.MethodPost, c.BaseURL+"/activities", apiKey, body, "application/json"))
+	body := testutil.JSONBody(t, map[string]string{"activity_name": "Prune"})
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/activities", apiKey, body, "application/json"))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 }
 
@@ -459,15 +409,15 @@ func TestSettingsHTTP_AddActivity_RejectsReservedName(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "addact-reserved-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
 	for _, name := range []string{"Water", "Feed", "Note"} {
 		t.Run(name, func(t *testing.T) {
-			body := jsonBody(t, map[string]string{"activity_name": name})
-			resp, err := c.Do(settingsReq(t, http.MethodPost, c.BaseURL+"/activities", apiKey, body, "application/json"))
+			body := testutil.JSONBody(t, map[string]string{"activity_name": name})
+			resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/activities", apiKey, body, "application/json"))
 			require.NoError(t, err)
-			defer drainResp(resp)
+			defer testutil.DrainAndClose(resp)
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
 				"reserved activity name %q must be rejected", name)
 		})
@@ -479,17 +429,17 @@ func TestSettingsHTTP_UpdateActivity_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "updact-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	res, err := db.Exec(`INSERT INTO activity (name, lock) VALUES ('Old', 0)`)
 	require.NoError(t, err)
 	id, _ := res.LastInsertId()
 
 	c := server.NewClient(t)
-	body := jsonBody(t, map[string]string{"activity_name": "New"})
-	resp, err := c.Do(settingsReq(t, http.MethodPut, c.BaseURL+"/activities/"+strconv.FormatInt(id, 10), apiKey, body, "application/json"))
+	body := testutil.JSONBody(t, map[string]string{"activity_name": "New"})
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPut, c.BaseURL+"/activities/"+strconv.FormatInt(id, 10), apiKey, body, "application/json"))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var name string
@@ -502,16 +452,16 @@ func TestSettingsHTTP_DeleteActivity_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "delact-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	res, err := db.Exec(`INSERT INTO activity (name, lock) VALUES ('Doomed', 0)`)
 	require.NoError(t, err)
 	id, _ := res.LastInsertId()
 
 	c := server.NewClient(t)
-	resp, err := c.Do(settingsReq(t, http.MethodDelete, c.BaseURL+"/activities/"+strconv.FormatInt(id, 10), apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodDelete, c.BaseURL+"/activities/"+strconv.FormatInt(id, 10), apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var n int
@@ -534,14 +484,14 @@ func TestSettingsHTTP_UploadLogo_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "logo-happy-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	body, ct := buildLogoMultipart(t, "logo.png", pngFixture(t))
 
 	c := server.NewClient(t)
-	resp, err := c.Do(settingsReq(t, http.MethodPost, c.BaseURL+"/settings/upload-logo", apiKey, body, ct))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/upload-logo", apiKey, body, ct))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// A file was written under uploads/logos/.
@@ -557,15 +507,15 @@ func TestSettingsHTTP_UploadLogo_RejectsNonImage(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "logo-bad-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	// 600 bytes of 0x00 → DetectContentType returns application/octet-stream.
 	body, ct := buildLogoMultipart(t, "not-an-image.png", make([]byte, 600))
 
 	c := server.NewClient(t)
-	resp, err := c.Do(settingsReq(t, http.MethodPost, c.BaseURL+"/settings/upload-logo", apiKey, body, ct))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/upload-logo", apiKey, body, ct))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
 		"non-image MIME types must be rejected before disk write")
 }
@@ -575,7 +525,7 @@ func TestSettingsHTTP_UploadLogo_RejectsMissingField(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "logo-nofield-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	// Multipart body with the wrong field name.
 	body, ct := buildLogoMultipart(t, "x.png", pngFixture(t))
@@ -583,9 +533,9 @@ func TestSettingsHTTP_UploadLogo_RejectsMissingField(t *testing.T) {
 	body, ct = buildLogoMultipartCustomField(t, "wrong", "x.png", pngFixture(t))
 
 	c := server.NewClient(t)
-	resp, err := c.Do(settingsReq(t, http.MethodPost, c.BaseURL+"/settings/upload-logo", apiKey, body, ct))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/upload-logo", apiKey, body, ct))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -622,12 +572,12 @@ func TestSettingsHTTP_GetLogs_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "logs-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(settingsReq(t, http.MethodGet, c.BaseURL+"/settings/logs?lines=10", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+"/settings/logs?lines=10", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var got struct {
@@ -647,12 +597,12 @@ func TestSettingsHTTP_GetLogs_FileMissingReturnsError(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "logs-missing-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(settingsReq(t, http.MethodGet, c.BaseURL+"/settings/logs", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+"/settings/logs", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode,
 		"missing log file currently surfaces as 500 (apiInternalError)")
 }
@@ -667,12 +617,12 @@ func TestSettingsHTTP_DownloadLogs_HappyPath(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "logdl-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(settingsReq(t, http.MethodGet, c.BaseURL+"/settings/logs/download", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+"/settings/logs/download", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Contains(t, resp.Header.Get("Content-Disposition"), "app.log")
@@ -688,11 +638,11 @@ func TestSettingsHTTP_DownloadLogs_FileMissingReturns404(t *testing.T) {
 	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "logdl-missing-key"
-	settingsAPIKey(t, db, apiKey)
+	testutil.SeedAPIKey(t, db, apiKey)
 
 	c := server.NewClient(t)
-	resp, err := c.Do(settingsReq(t, http.MethodGet, c.BaseURL+"/settings/logs/download?file=access", apiKey, nil, ""))
+	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+"/settings/logs/download?file=access", apiKey, nil, ""))
 	require.NoError(t, err)
-	defer drainResp(resp)
+	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }

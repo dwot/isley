@@ -22,16 +22,17 @@ type sensorFixture struct {
 
 func seedSensorHTTP(t *testing.T, db *sql.DB) sensorFixture {
 	t.Helper()
-	mustExecRow(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
+	testutil.SeedZone(t, db, "Z")
 	res, err := db.Exec(
 		`INSERT INTO sensors (name, zone_id, source, device, type, unit, visibility) VALUES ('Tent Temp', 1, 'src', 'D', 'temp', 'C', 'zone_plant')`,
 	)
 	require.NoError(t, err)
 	sid, _ := res.LastInsertId()
 
-	const plaintext = "test-sensors-key"
-	seedAPIKey(t, db, handlers.HashAPIKey(plaintext))
-	return sensorFixture{APIKey: plaintext, SensorID: sid}
+	return sensorFixture{
+		APIKey:   testutil.SeedAPIKey(t, db, "test-sensors-key"),
+		SensorID: sid,
+	}
 }
 
 // ---------------------------------------------------------------------------

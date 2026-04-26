@@ -28,28 +28,19 @@ type activityHTTPFixture struct {
 
 func seedActivityHTTP(t *testing.T, db *sql.DB) activityHTTPFixture {
 	t.Helper()
-	exec := func(query string, args ...interface{}) sql.Result {
-		res, err := db.Exec(query, args...)
-		require.NoErrorf(t, err, "seed: %s", query)
-		return res
-	}
-	exec(`INSERT INTO breeder (id, name) VALUES (1, 'B')`)
-	exec(`INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
-	      VALUES (1, 'S', 1, 50, 50, 0, '', 0)`)
-	exec(`INSERT INTO zones (id, name) VALUES (1, 'Z')`)
-	res := exec(`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
-	             VALUES ('Plant 1', 1, 1, '', 0, '2026-01-01', '[]')`)
-	plantID, _ := res.LastInsertId()
+	breederID := testutil.SeedBreeder(t, db, "B")
+	strainID := testutil.SeedStrain(t, db, breederID, "S")
+	zoneID := testutil.SeedZone(t, db, "Z")
+	plantID := int64(testutil.SeedPlant(t, db, "Plant 1", strainID, zoneID))
 
 	var waterID, feedID, heightID int
 	require.NoError(t, db.QueryRow(`SELECT id FROM activity WHERE name='Water'`).Scan(&waterID))
 	require.NoError(t, db.QueryRow(`SELECT id FROM activity WHERE name='Feed'`).Scan(&feedID))
 	require.NoError(t, db.QueryRow(`SELECT id FROM metric WHERE name='Height'`).Scan(&heightID))
 
-	const plaintext = "test-activity-key"
-	seedAPIKey(t, db, handlers.HashAPIKey(plaintext))
 	return activityHTTPFixture{
-		APIKey: plaintext, PlantID: plantID,
+		APIKey:  testutil.SeedAPIKey(t, db, "test-activity-key"),
+		PlantID: plantID,
 		WaterID: waterID, FeedID: feedID, HeightID: heightID,
 	}
 }
