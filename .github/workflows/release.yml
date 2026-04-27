@@ -5,14 +5,31 @@ on:
     branches:
       - main
       - dev
+  pull_request:
+    branches:
+      - main
+      - dev
 
 jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    # docs/TEST_PLAN_2.md Phase 1: pull-requests: write lets the
+    # "Post coverage comment" step post the per-PR delta. The default
+    # GITHUB_TOKEN has only read access to PRs on pull_request events
+    # from forks; the build job (which doesn't run on PRs anyway)
+    # carries its own contents: write override.
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        # docs/TEST_PLAN_2.md Phase 1: fetch full history so the
+        # "Compute coverage delta" step can check out the PR's base
+        # branch to re-run tests against it.
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -55,6 +72,59 @@ jobs:
         if: always()
         run: go tool cover -func=coverage.out | tail -1
 
+      # docs/TEST_PLAN_2.md Phase 1: gate on a documented coverage floor so
+      # PRs that drop the bar fail review at CI time, not in a follow-up
+      # audit. Floor was set to floor(total - 1.0) where total was the
+      # `go tool cover` reading on the dev branch when this gate landed.
+      # Bump the floor in PRs that earn it; never lower it (see
+      # CONTRIBUTING.md "Coverage floor").
+      - name: Enforce coverage floor
+        run: |
+          total=$(go tool cover -func=coverage.out | awk '/^total:/ {gsub("%","",$3); print $3}')
+          floor=55.0
+          awk -v t="$total" -v f="$floor" 'BEGIN { exit !(t+0 >= f+0) }' \
+            || { echo "::error::coverage $total% < floor $floor%"; exit 1; }
+          echo "coverage $total% >= floor $floor%"
+
+      # docs/TEST_PLAN_2.md Phase 1: surface a coverage delta as a PR
+      # comment so reviewers see the change at review time. The base
+      # coverage is recomputed by checking out the target branch and
+      # re-running tests; this avoids depending on an external artifact
+      # store and works for forks (which can't read the repo's artifact
+      # bucket).
+      - name: Compute coverage delta
+        if: github.event_name == 'pull_request'
+        id: coverage_delta
+        run: |
+          pr_total=$(go tool cover -func=coverage.out | awk '/^total:/ {gsub("%","",$3); print $3}')
+          mv coverage.out coverage-pr.out
+          git fetch origin "$GITHUB_BASE_REF"
+          git -c advice.detachedHead=false checkout "origin/$GITHUB_BASE_REF" -- .
+          go test -coverpkg=./... -coverprofile=coverage-base.out -timeout=20m ./... > /dev/null 2>&1 || true
+          if [ -s coverage-base.out ]; then
+            base_total=$(go tool cover -func=coverage-base.out | awk '/^total:/ {gsub("%","",$3); print $3}')
+          else
+            base_total="0.0"
+          fi
+          delta=$(awk -v p="$pr_total" -v b="$base_total" 'BEGIN { printf "%+.2f", p-b }')
+          echo "pr=$pr_total base=$base_total delta=$delta"
+          echo "comment=Coverage: ${pr_total}% (base ${base_total}%, delta ${delta}%)" >> "$GITHUB_OUTPUT"
+          # Restore the PR's checkout so subsequent steps see PR code.
+          git checkout -- .
+          mv coverage-pr.out coverage.out
+
+      - name: Post coverage comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '${{ steps.coverage_delta.outputs.comment }}'
+            })
+
   test-postgres:
     name: Test (Postgres)
     runs-on: ubuntu-latest
@@ -93,16 +163,34 @@ jobs:
       # model.dbDriver global via SetDriverForTesting. Filtering by name
       # is the contract that lets them coexist in one package.
       - name: Test (Postgres)
-        run: go test -race -tags=integration_postgres -run Postgres -timeout=20m ./tests/integration/... ./model/...
+        run: go test -race -tags=integration_postgres -coverpkg=./... -coverprofile=coverage-postgres.out -run Postgres -timeout=20m ./tests/integration/... ./model/...
         env:
           ISLEY_TEST_DB_HOST: localhost
           ISLEY_TEST_DB_PORT: '5432'
           ISLEY_TEST_DB_USER: postgres
           ISLEY_TEST_DB_PASSWORD: test
 
+      - name: Coverage summary (Postgres)
+        if: always()
+        run: go tool cover -func=coverage-postgres.out | tail -1
+
+      # docs/TEST_PLAN_2.md Phase 1: this floor reflects today's `test-postgres`
+      # job which only exercises smoke + migrations + sqlite_to_postgres
+      # (a small fraction of the codebase). Phase 7 lifts dialect-branched
+      # handler tests into this job; raise the floor at that point. Bump on
+      # earn, never lower (see CONTRIBUTING.md "Coverage floor").
+      - name: Enforce coverage floor (Postgres)
+        run: |
+          total=$(go tool cover -func=coverage-postgres.out | awk '/^total:/ {gsub("%","",$3); print $3}')
+          floor=2.0
+          awk -v t="$total" -v f="$floor" 'BEGIN { exit !(t+0 >= f+0) }' \
+            || { echo "::error::postgres coverage $total% < floor $floor%"; exit 1; }
+          echo "postgres coverage $total% >= floor $floor%"
+
   build:
     name: Build and Release Artifacts
     needs: [test, test-postgres]
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write  # Required for creating releases

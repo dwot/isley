@@ -45,6 +45,19 @@ test:
     # Go's default 10m per-package timeout.
     - go test -race -coverpkg=./... -coverprofile=coverage.out -timeout=20m ./...
     - go tool cover -func=coverage.out | tail -1
+    # docs/TEST_PLAN_2.md Phase 1: gate on a documented coverage floor so
+    # PRs that drop the bar fail review at CI time, not in a follow-up
+    # audit. Floor was set to floor(total - 1.0) where total was the
+    # `go tool cover` reading on the dev branch when this gate landed.
+    # Bump the floor in PRs that earn it; never lower it (see
+    # CONTRIBUTING.md "Coverage floor"). Mirrors the GitHub job in
+    # `.github/workflows/release.yml`.
+    - |
+      total=$(go tool cover -func=coverage.out | awk '/^total:/ {gsub("%","",$3); print $3}')
+      floor=55.0
+      awk -v t="$total" -v f="$floor" 'BEGIN { exit !(t+0 >= f+0) }' \
+        || { echo "coverage $total% < floor $floor%" >&2; exit 1; }
+      echo "coverage $total% >= floor $floor%"
   # Standard regex `go tool cover` emits, e.g.:
   #   total:                                                  (statements)    42.5%
   coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
@@ -92,7 +105,24 @@ test-postgres:
     # tag both kinds of tests compile in, but they share the
     # model.dbDriver global via SetDriverForTesting. Filtering by name
     # is the contract that lets them coexist in one package.
-    - go test -race -tags=integration_postgres -run Postgres -timeout=20m ./tests/integration/... ./model/...
+    - go test -race -tags=integration_postgres -coverpkg=./... -coverprofile=coverage-postgres.out -run Postgres -timeout=20m ./tests/integration/... ./model/...
+    - go tool cover -func=coverage-postgres.out | tail -1
+    # docs/TEST_PLAN_2.md Phase 1: this floor reflects today's `test-postgres`
+    # job which only exercises smoke + migrations + sqlite_to_postgres
+    # (a small fraction of the codebase). Phase 7 lifts dialect-branched
+    # handler tests into this job; raise the floor at that point. Bump on
+    # earn, never lower (see CONTRIBUTING.md "Coverage floor").
+    - |
+      total=$(go tool cover -func=coverage-postgres.out | awk '/^total:/ {gsub("%","",$3); print $3}')
+      floor=2.0
+      awk -v t="$total" -v f="$floor" 'BEGIN { exit !(t+0 >= f+0) }' \
+        || { echo "postgres coverage $total% < floor $floor%" >&2; exit 1; }
+      echo "postgres coverage $total% >= floor $floor%"
+  artifacts:
+    paths:
+      - coverage-postgres.out
+    expire_in: 1 week
+    when: always
 
 build-dev:
   stage: build

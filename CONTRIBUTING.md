@@ -87,6 +87,34 @@ one place owns the column ordering and default values; bypassing them in a
 fixture function silently re-introduces the drift the consolidation was
 meant to prevent.
 
+### Coverage floor
+
+CI gates every PR on a documented coverage floor — one per build tag. The
+SQLite floor lives in `.github/workflows/release.yml` and `.gitlab-ci.yml`
+as `floor=55.0`; the `integration_postgres` floor lives in the same files
+as `floor=2.0`. A PR that drops total statement coverage below either
+floor fails the pipeline.
+
+Bumping rules:
+
+- **PRs that increase coverage MAY bump the floor accordingly.** If your
+  change ratchets the SQLite total from 56.5% to 58.0%, you may bump
+  `floor=55.0` → `floor=57.0` in the same PR. Use `floor(total - 1.0)`
+  rounded down — a 1.0-point slack absorbs harmless churn from later
+  refactors that don't touch the test surface.
+- **PRs that don't change coverage MUST NOT bump the floor down.** The
+  floor is a ratchet. If a refactor moves coverage from 56.6% to 55.4%
+  without removing any tests, fix the test (or the refactor) — don't
+  loosen the gate.
+- **Raising the floor is a deliberate choice.** The default is to let
+  coverage rise without raising the floor. Raise it only when you want
+  the new number to become the contract.
+
+The Phase 7 (`docs/TEST_PLAN_2.md`) work that lifts dialect-branched
+handler tests into the `integration_postgres` job will produce a real
+Postgres coverage number; that's the right time to recalibrate the
+Postgres floor from its current placeholder of 2.0%.
+
 ## Project Structure
 
 ```
