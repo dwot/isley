@@ -473,16 +473,17 @@ func TestSettingsHTTP_DeleteActivity_HappyPath(t *testing.T) {
 // ---------------------------------------------------------------------------
 // UploadLogo (POST /settings/upload-logo)
 //
-// UploadLogo writes into ./uploads/logos relative to CWD. Tests use
-// t.Chdir to an isolated temp dir so they neither require nor pollute
-// the repo's uploads/ tree.
+// UploadLogo writes into <UploadDir>/logos. Tests pass WithUploadDir to
+// scope the writes to an isolated tempdir without mutating CWD, which
+// is what allows them to call t.Parallel().
 // ---------------------------------------------------------------------------
 
 func TestSettingsHTTP_UploadLogo_HappyPath(t *testing.T) {
-	t.Chdir(t.TempDir())
+	t.Parallel()
 
+	uploadDir := t.TempDir()
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithUploadDir(uploadDir))
 
 	const apiKey = "logo-happy-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -495,17 +496,17 @@ func TestSettingsHTTP_UploadLogo_HappyPath(t *testing.T) {
 	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	// A file was written under uploads/logos/.
-	entries, err := os.ReadDir(filepath.Join("uploads", "logos"))
+	// A file was written under <UploadDir>/logos/.
+	entries, err := os.ReadDir(filepath.Join(uploadDir, "logos"))
 	require.NoError(t, err)
 	require.NotEmpty(t, entries, "uploads/logos must contain the new logo file")
 }
 
 func TestSettingsHTTP_UploadLogo_RejectsNonImage(t *testing.T) {
-	t.Chdir(t.TempDir())
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithUploadDir(t.TempDir()))
 
 	const apiKey = "logo-bad-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -560,17 +561,19 @@ func buildLogoMultipartCustomField(t *testing.T, fieldName, filename string, pay
 // ---------------------------------------------------------------------------
 // GetLogs (GET /settings/logs) and DownloadLogs (GET /settings/logs/download)
 //
-// Both read from logs/app.log or logs/access.log relative to CWD. Tests
-// use t.Chdir to an isolated temp dir to make the fixture deterministic.
+// Both read from <LogsDir>/app.log or <LogsDir>/access.log. Tests pass
+// WithLogsDir(t.TempDir()) and write the fixture into that root so
+// each test owns its own log tree and can run in parallel.
 // ---------------------------------------------------------------------------
 
 func TestSettingsHTTP_GetLogs_HappyPath(t *testing.T) {
-	t.Chdir(t.TempDir())
-	require.NoError(t, os.MkdirAll("logs", 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join("logs", "app.log"), []byte("first\nsecond\nthird\n"), 0o644))
+	t.Parallel()
+
+	logsDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(logsDir, "app.log"), []byte("first\nsecond\nthird\n"), 0o644))
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithLogsDir(logsDir))
 
 	const apiKey = "logs-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -591,11 +594,11 @@ func TestSettingsHTTP_GetLogs_HappyPath(t *testing.T) {
 }
 
 func TestSettingsHTTP_GetLogs_FileMissingReturnsError(t *testing.T) {
-	t.Chdir(t.TempDir())
-	// No logs/ directory at all.
+	t.Parallel()
+	// LogsDir points at an empty tempdir — no app.log inside.
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithLogsDir(t.TempDir()))
 
 	const apiKey = "logs-missing-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -609,13 +612,14 @@ func TestSettingsHTTP_GetLogs_FileMissingReturnsError(t *testing.T) {
 }
 
 func TestSettingsHTTP_DownloadLogs_HappyPath(t *testing.T) {
-	t.Chdir(t.TempDir())
-	require.NoError(t, os.MkdirAll("logs", 0o755))
+	t.Parallel()
+
+	logsDir := t.TempDir()
 	const payload = "log-line-one\nlog-line-two\n"
-	require.NoError(t, os.WriteFile(filepath.Join("logs", "app.log"), []byte(payload), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(logsDir, "app.log"), []byte(payload), 0o644))
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithLogsDir(logsDir))
 
 	const apiKey = "logdl-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -633,10 +637,10 @@ func TestSettingsHTTP_DownloadLogs_HappyPath(t *testing.T) {
 }
 
 func TestSettingsHTTP_DownloadLogs_FileMissingReturns404(t *testing.T) {
-	t.Chdir(t.TempDir())
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithLogsDir(t.TempDir()))
 
 	const apiKey = "logdl-missing-key"
 	testutil.SeedAPIKey(t, db, apiKey)

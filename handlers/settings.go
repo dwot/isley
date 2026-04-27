@@ -820,10 +820,10 @@ func UploadLogo(c *gin.Context) {
 		return
 	}
 
-	// Generate a unique file path
+	// Generate a unique file path under the per-engine upload root.
 	timestamp := time.Now().UnixNano()
 	fileName := fmt.Sprintf("logo_image_%d%s", timestamp, filepath.Ext(fileHeader.Filename))
-	savePath := filepath.Join("uploads", "logos", fileName)
+	savePath := filepath.Join(UploadDirFromContext(c), "logos", fileName)
 
 	// Create the uploads/logos directory if it doesn't exist
 	err = os.MkdirAll(filepath.Dir(savePath), os.ModePerm)
@@ -1121,12 +1121,13 @@ func GetLogs(c *gin.Context) {
 	}
 
 	fileParam := c.DefaultQuery("file", "app")
+	logsDir := LogsDirFromContext(c)
 	var logPath string
 	switch fileParam {
 	case "access":
-		logPath = "logs/access.log"
+		logPath = filepath.Join(logsDir, "access.log")
 	default:
-		logPath = "logs/app.log"
+		logPath = filepath.Join(logsDir, "app.log")
 	}
 
 	data, err := os.ReadFile(logPath)
@@ -1151,13 +1152,14 @@ func DownloadLogs(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "DownloadLogs")
 
 	fileParam := c.DefaultQuery("file", "app")
+	logsDir := LogsDirFromContext(c)
 	var filePath, fileName string
 	switch fileParam {
 	case "access":
-		filePath = "logs/access.log"
+		filePath = filepath.Join(logsDir, "access.log")
 		fileName = "access.log"
 	default:
-		filePath = "logs/app.log"
+		filePath = filepath.Join(logsDir, "app.log")
 		fileName = "app.log"
 	}
 

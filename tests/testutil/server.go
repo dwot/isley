@@ -23,6 +23,19 @@ type TestServer struct {
 	Assets  string // absolute path to the repo root used as the assets fs
 	DataDir string // root data directory used by the engine (e.g. for backups)
 
+	// UploadDir, StreamDir, LogsDir, FrameDir mirror the dirs the engine
+	// was constructed with so tests that need to assert against
+	// disk-side artefacts (e.g. "the upload landed under <UploadDir>/
+	// plants/...") can read the same path the handler wrote to.
+	// FrameDir is included for symmetry even though the test server does
+	// not run the watcher's grabber; tests that exercise the grabber
+	// directly read this field to know which directory the engine was
+	// built around.
+	UploadDir string
+	StreamDir string
+	LogsDir   string
+	FrameDir  string
+
 	// BackupService is the per-engine service that owns backup/restore
 	// status state. Tests can call its Set*InProgress methods to
 	// deterministically exercise 409 branches without racing a real
@@ -45,6 +58,10 @@ type serverOptions struct {
 	guestMode     bool
 	sessionSecret []byte
 	dataDir       string
+	uploadDir     string
+	streamDir     string
+	logsDir       string
+	frameDir      string
 	configStore   *config.Store
 }
 
@@ -66,6 +83,40 @@ func WithSessionSecret(secret []byte) ServerOption {
 // cannot collide on backups/uploads/scratch paths.
 func WithDataDir(dir string) ServerOption {
 	return func(o *serverOptions) { o.dataDir = dir }
+}
+
+// WithUploadDir overrides the engine's upload root (where plant images
+// and uploaded logos are written). Tests typically pass t.TempDir()
+// instead of t.Chdir to scope upload writes to an isolated tree
+// without mutating the process-global working directory — which is
+// what unblocks t.Parallel() on these tests.
+func WithUploadDir(dir string) ServerOption {
+	return func(o *serverOptions) { o.uploadDir = dir }
+}
+
+// WithStreamDir overrides the engine's stream-snapshot root (where
+// AddStreamHandler's initial GrabWebcamImage call writes the first
+// frame). Defaults to filepath.Join(UploadDir, "streams") when unset
+// — matching the engine's resolvePathDefaults behavior.
+func WithStreamDir(dir string) ServerOption {
+	return func(o *serverOptions) { o.streamDir = dir }
+}
+
+// WithLogsDir overrides the engine's logs directory (where GetLogs and
+// DownloadLogs read app.log / access.log from). Tests writing log
+// fixtures pass t.TempDir() so the fixture lands in an isolated tree
+// and tests do not need to t.Chdir.
+func WithLogsDir(dir string) ServerOption {
+	return func(o *serverOptions) { o.logsDir = dir }
+}
+
+// WithFrameDir overrides the configured frame directory (where the
+// watcher's grabber writes stream frame snapshots in production). The
+// engine itself does not write to this directory — it is recorded on
+// the resulting TestServer so tests that exercise the watcher's Grab
+// function can read it from one place rather than threading a literal.
+func WithFrameDir(dir string) ServerOption {
+	return func(o *serverOptions) { o.frameDir = dir }
 }
 
 // WithConfigStore overrides the per-engine *config.Store. Tests that
@@ -108,7 +159,7 @@ func NewTestServer(t *testing.T, db *sql.DB, opts ...ServerOption) *TestServer {
 		configStore = config.NewStore()
 	}
 
-	engine, err := app.NewEngine(app.Config{
+	engineCfg := app.Config{
 		DB:             db,
 		Assets:         os.DirFS(root),
 		Version:        "isley-test",
@@ -117,9 +168,18 @@ func NewTestServer(t *testing.T, db *sql.DB, opts ...ServerOption) *TestServer {
 		GuestMode:      options.guestMode,
 		TrustedProxies: nil,
 		DataDir:        options.dataDir,
+		UploadDir:      options.uploadDir,
+		StreamDir:      options.streamDir,
+		FrameDir:       options.frameDir,
+		LogsDir:        options.logsDir,
 		BackupService:  backupSvc,
 		ConfigStore:    configStore,
-	})
+	}
+	// Resolve defaults so the TestServer's exported path fields reflect
+	// the same values the engine middleware injects into request context.
+	resolved := resolveTestPathDefaults(engineCfg)
+
+	engine, err := app.NewEngine(engineCfg)
 	if err != nil {
 		t.Fatalf("NewTestServer: app.NewEngine: %v", err)
 	}
@@ -132,9 +192,34 @@ func NewTestServer(t *testing.T, db *sql.DB, opts ...ServerOption) *TestServer {
 		DB:            db,
 		Assets:        root,
 		DataDir:       options.dataDir,
+		UploadDir:     resolved.UploadDir,
+		StreamDir:     resolved.StreamDir,
+		LogsDir:       resolved.LogsDir,
+		FrameDir:      resolved.FrameDir,
 		BackupService: backupSvc,
 		ConfigStore:   configStore,
 	}
+}
+
+// resolveTestPathDefaults mirrors app.resolvePathDefaults so the
+// TestServer's exported path fields surface the same values the engine
+// middleware will inject into request context. Kept here (rather than
+// exported from app/) to avoid widening app's API surface for a
+// test-only convenience.
+func resolveTestPathDefaults(cfg app.Config) app.Config {
+	if cfg.UploadDir == "" {
+		cfg.UploadDir = handlers.DefaultUploadDir
+	}
+	if cfg.StreamDir == "" {
+		cfg.StreamDir = handlers.DefaultStreamDir(cfg.UploadDir)
+	}
+	if cfg.FrameDir == "" {
+		cfg.FrameDir = cfg.StreamDir
+	}
+	if cfg.LogsDir == "" {
+		cfg.LogsDir = handlers.DefaultLogsDir
+	}
+	return cfg
 }
 
 // repoRoot walks up from this source file until it finds the directory

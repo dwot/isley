@@ -27,6 +27,8 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestPlantImageHTTP_AuthGating(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -60,6 +62,8 @@ func TestPlantImageHTTP_AuthGating(t *testing.T) {
 // TestPlantImageHTTP_Upload_NonNumericPlantID confirms the up-front
 // strconv.Atoi guard surfaces a non-numeric :plantID as 400.
 func TestPlantImageHTTP_Upload_NonNumericPlantID(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -83,10 +87,10 @@ func TestPlantImageHTTP_Upload_NonNumericPlantID(t *testing.T) {
 // an empty multipart form (no `images[]` field) returns 200 with an
 // empty `ids` array — there are simply no files to process.
 func TestPlantImageHTTP_Upload_EmptyFormReturns200(t *testing.T) {
-	t.Chdir(t.TempDir())
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithUploadDir(t.TempDir()))
 
 	const apiKey = "img-empty-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -115,6 +119,8 @@ func TestPlantImageHTTP_Upload_EmptyFormReturns200(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPlantImageHTTP_Delete_NonNumericImageID(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 

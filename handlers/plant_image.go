@@ -73,10 +73,10 @@ func UploadPlantImages(c *gin.Context) {
 			return
 		}
 
-		// Generate a unique file path
+		// Generate a unique file path under the per-engine upload root.
 		timestamp := time.Now().UnixNano()
 		fileName := fmt.Sprintf("plant_%d_image_%d_%d%s", plantID, index, timestamp, filepath.Ext(fileHeader.Filename))
-		savePath := filepath.Join("uploads", "plants", fileName)
+		savePath := filepath.Join(UploadDirFromContext(c), "plants", fileName)
 		fileLogger = fileLogger.WithField("savePath", savePath)
 
 		// Create the uploads directory if it doesn't exist

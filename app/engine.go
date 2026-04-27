@@ -27,6 +27,28 @@ import (
 	"isley/utils"
 )
 
+// resolvePathDefaults applies the documented defaults for the path
+// fields on Config. Centralised so NewEngine, production main, and
+// tests all see the same fallback rules: UploadDir → "uploads",
+// StreamDir → <UploadDir>/streams, FrameDir → <StreamDir>, LogsDir →
+// "logs". Returning a copy keeps the input Config immutable from the
+// caller's perspective.
+func resolvePathDefaults(cfg Config) Config {
+	if cfg.UploadDir == "" {
+		cfg.UploadDir = handlers.DefaultUploadDir
+	}
+	if cfg.StreamDir == "" {
+		cfg.StreamDir = handlers.DefaultStreamDir(cfg.UploadDir)
+	}
+	if cfg.FrameDir == "" {
+		cfg.FrameDir = cfg.StreamDir
+	}
+	if cfg.LogsDir == "" {
+		cfg.LogsDir = handlers.DefaultLogsDir
+	}
+	return cfg
+}
+
 // NewEngine wires up the full Gin engine — middleware, templates, routes —
 // and returns it ready to be served. NewEngine does not start background
 // services or the HTTP listener; callers own those. The returned engine
@@ -41,6 +63,8 @@ func NewEngine(cfg Config) (*gin.Engine, error) {
 	if len(cfg.SessionSecret) == 0 {
 		return nil, fmt.Errorf("app.NewEngine: cfg.SessionSecret is required")
 	}
+
+	cfg = resolvePathDefaults(cfg)
 
 	configStore := cfg.ConfigStore
 	if configStore == nil {
@@ -83,6 +107,7 @@ func NewEngine(cfg Config) (*gin.Engine, error) {
 	r.Use(csrfMiddleware())
 	r.Use(dbMiddleware(cfg.DB))
 	r.Use(configStoreMiddleware(configStore))
+	r.Use(pathDirsMiddleware(cfg.UploadDir, cfg.StreamDir, cfg.LogsDir))
 
 	backupSvc := cfg.BackupService
 	if backupSvc == nil {
@@ -213,6 +238,22 @@ func backupServiceMiddleware(svc *handlers.BackupService) gin.HandlerFunc {
 func configStoreMiddleware(s *config.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		handlers.SetConfigStoreOnContext(c, s)
+		c.Next()
+	}
+}
+
+// pathDirsMiddleware injects the per-engine on-disk directory roots
+// (uploads, streams, logs) the handlers consult at request time. The
+// fields are pre-resolved with their documented defaults by
+// resolvePathDefaults, so handlers always see a non-empty value.
+// Threading them via context — instead of a process-global — is what
+// lets tests pass per-test tempdirs and run in parallel without
+// colliding on filesystem paths.
+func pathDirsMiddleware(uploadDir, streamDir, logsDir string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		handlers.SetUploadDirOnContext(c, uploadDir)
+		handlers.SetStreamDirOnContext(c, streamDir)
+		handlers.SetLogsDirOnContext(c, logsDir)
 		c.Next()
 	}
 }

@@ -77,7 +77,7 @@ func AddStreamHandler(c *gin.Context) {
 	ConfigStoreFromContext(c).SetStreams(streams)
 
 	latestFileName := fmt.Sprintf("stream_%d_latest%s", id, filepath.Ext(".jpg"))
-	latestSavePath := filepath.Join("uploads", "streams", latestFileName)
+	latestSavePath := filepath.Join(StreamDirFromContext(c), latestFileName)
 	utils.GrabWebcamImage(stream.URL, latestSavePath)
 
 	c.JSON(http.StatusCreated, gin.H{"id": id, "streams": streams})

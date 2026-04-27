@@ -46,13 +46,12 @@ func seedStreamHTTP(t *testing.T, db *sql.DB) streamFixture {
 // ---------------------------------------------------------------------------
 
 func TestStream_AddHappyPath(t *testing.T) {
+	t.Parallel()
 	resetRateLimit(t)
 	// Scope filesystem writes from AddStreamHandler's GrabWebcamImage
 	// call to a tempdir so we don't pollute the repo's uploads/.
-	t.Chdir(t.TempDir())
-
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithStreamDir(t.TempDir()))
 	fix := seedStreamHTTP(t, db)
 
 	c := server.NewClient(t)
@@ -80,11 +79,10 @@ func TestStream_AddHappyPath(t *testing.T) {
 }
 
 func TestStream_AddRejectsBadURL(t *testing.T) {
+	t.Parallel()
 	resetRateLimit(t)
-	t.Chdir(t.TempDir())
-
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithStreamDir(t.TempDir()))
 	fix := seedStreamHTTP(t, db)
 
 	c := server.NewClient(t)
@@ -110,11 +108,10 @@ func TestStream_AddRejectsBadURL(t *testing.T) {
 }
 
 func TestStream_AddRejectsEmptyName(t *testing.T) {
+	t.Parallel()
 	resetRateLimit(t)
-	t.Chdir(t.TempDir())
-
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithStreamDir(t.TempDir()))
 	fix := seedStreamHTTP(t, db)
 
 	c := server.NewClient(t)
@@ -133,11 +130,10 @@ func TestStream_AddRejectsEmptyName(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStream_UpdateRenames(t *testing.T) {
+	t.Parallel()
 	resetRateLimit(t)
-	t.Chdir(t.TempDir())
-
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithStreamDir(t.TempDir()))
 	fix := seedStreamHTTP(t, db)
 
 	res, err := db.Exec(
@@ -171,11 +167,10 @@ func TestStream_UpdateRenames(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStream_DeleteRemovesRow(t *testing.T) {
+	t.Parallel()
 	resetRateLimit(t)
-	t.Chdir(t.TempDir())
-
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithStreamDir(t.TempDir()))
 	fix := seedStreamHTTP(t, db)
 
 	res, err := db.Exec(
@@ -200,11 +195,10 @@ func TestStream_DeleteRemovesRow(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStream_GetByZoneGroupsByZone(t *testing.T) {
+	t.Parallel()
 	resetRateLimit(t)
-	t.Chdir(t.TempDir())
-
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithStreamDir(t.TempDir()))
 	fix := seedStreamHTTP(t, db)
 
 	// Add a second zone + a stream in each.

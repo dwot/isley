@@ -1,8 +1,21 @@
 package watcher
 
+// +parallel:serial — streamBackoff package-global map and
+// config.RestoreInProgress atomic
+//
 // Phase 6a tests for grabber.go. The Grab loop runs forever in
 // production; tests drive it with a short-lived context so it executes
 // exactly one iteration and then exits via ctx.Done.
+//
+// These tests cannot call t.Parallel(): every test mutates the
+// package-level streamBackoff map (snapshotGrabState's
+// snapshot/restore would race two parallel tests' writes) and the
+// config.RestoreInProgress atomic (a process-global the grabber reads
+// each iteration). Phase 3 of TEST_PLAN_2.md cleared the t.Chdir
+// blocker by passing frameDir into Grab; the remaining serial cause
+// is documented above for the audit Phase 4 will run. Lifting it
+// would require extracting streamBackoff into a per-grabber instance
+// — out of scope for Phase 3.
 
 import (
 	"bytes"
@@ -64,12 +77,14 @@ func snapshotGrabState(t *testing.T) func() {
 	}
 }
 
-// runGrabOnce calls Grab(ctx, store) with a short ctx timeout so one
-// iteration runs and the function returns cleanly via ctx.Done. The
-// supplied store carries enabled/interval/streams; we force the
-// interval to 60s so the second iteration cannot start before the ctx
-// expires.
-func runGrabOnce(t *testing.T, store *config.Store) {
+// runGrabOnce calls Grab(ctx, store, frameDir) with a short ctx
+// timeout so one iteration runs and the function returns cleanly via
+// ctx.Done. The supplied store carries enabled/interval/streams; we
+// force the interval to 60s so the second iteration cannot start
+// before the ctx expires. frameDir is the per-test directory the
+// grabber writes frames into; tests pass t.TempDir() to keep writes
+// isolated from each other and from the repo's uploads/ tree.
+func runGrabOnce(t *testing.T, store *config.Store, frameDir string) {
 	t.Helper()
 	store.SetStreamGrabInterval(60) // seconds — well past the ctx deadline
 
@@ -79,7 +94,7 @@ func runGrabOnce(t *testing.T, store *config.Store) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		Grab(ctx, store)
+		Grab(ctx, store, frameDir)
 	}()
 	select {
 	case <-done:
@@ -99,25 +114,17 @@ func pngBytes(t *testing.T) []byte {
 	return buf.Bytes()
 }
 
-// chdirToTemp swaps the working directory to a per-test temp dir so
-// uploads/streams writes do not leak into the repo. t.Chdir restores
-// the prior CWD on cleanup.
-func chdirToTemp(t *testing.T) {
-	t.Helper()
-	t.Chdir(t.TempDir())
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 // TestGrabber_HappyPathWritesFrame exercises the success path: a stream
 // pointing at a fake server that returns a PNG should produce a file at
-// uploads/streams/stream_<id>_latest.jpg.
+// <frameDir>/stream_<id>_latest.jpg.
 func TestGrabber_HappyPathWritesFrame(t *testing.T) {
 	silenceWatcherLogger()
 	defer snapshotGrabState(t)()
-	chdirToTemp(t)
+	frameDir := t.TempDir()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
@@ -133,9 +140,9 @@ func TestGrabber_HappyPathWritesFrame(t *testing.T) {
 	config.RestoreInProgress.Store(false)
 	delete(streamBackoff, streamID) // start clean — no skip cycles in effect
 
-	runGrabOnce(t, store)
+	runGrabOnce(t, store, frameDir)
 
-	saved := filepath.Join("uploads", "streams", "stream_101_latest.jpg")
+	saved := filepath.Join(frameDir, "stream_101_latest.jpg")
 	_, err := os.Stat(saved)
 	require.NoError(t, err, "frame should be saved at %s", saved)
 
@@ -150,7 +157,7 @@ func TestGrabber_HappyPathWritesFrame(t *testing.T) {
 func TestGrabber_FailureIncrementsBackoff(t *testing.T) {
 	silenceWatcherLogger()
 	defer snapshotGrabState(t)()
-	chdirToTemp(t)
+	frameDir := t.TempDir()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -164,7 +171,7 @@ func TestGrabber_FailureIncrementsBackoff(t *testing.T) {
 	config.RestoreInProgress.Store(false)
 	delete(streamBackoff, streamID)
 
-	runGrabOnce(t, store)
+	runGrabOnce(t, store, frameDir)
 
 	got, ok := streamBackoff[streamID]
 	require.True(t, ok, "failure should produce a backoff entry")
@@ -173,11 +180,11 @@ func TestGrabber_FailureIncrementsBackoff(t *testing.T) {
 
 // TestGrabber_RespectsRestoreInProgress confirms the entire grab pass
 // is skipped when config.RestoreInProgress is true. No streams should be
-// fetched (so no upload directory should be created).
+// fetched (so no frames should be written).
 func TestGrabber_RespectsRestoreInProgress(t *testing.T) {
 	silenceWatcherLogger()
 	defer snapshotGrabState(t)()
-	chdirToTemp(t)
+	frameDir := t.TempDir()
 
 	hits := int32(0)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -193,7 +200,7 @@ func TestGrabber_RespectsRestoreInProgress(t *testing.T) {
 	store.SetStreamGrabEnabled(1)
 	config.RestoreInProgress.Store(true) // block the iteration body
 
-	runGrabOnce(t, store)
+	runGrabOnce(t, store, frameDir)
 
 	assert.Zero(t, atomic.LoadInt32(&hits), "no HTTP hits should occur while RestoreInProgress is true")
 }
@@ -203,7 +210,7 @@ func TestGrabber_RespectsRestoreInProgress(t *testing.T) {
 func TestGrabber_RespectsStreamGrabDisabled(t *testing.T) {
 	silenceWatcherLogger()
 	defer snapshotGrabState(t)()
-	chdirToTemp(t)
+	frameDir := t.TempDir()
 
 	hits := int32(0)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -217,7 +224,7 @@ func TestGrabber_RespectsStreamGrabDisabled(t *testing.T) {
 	store.SetStreamGrabEnabled(0) // disabled
 	config.RestoreInProgress.Store(false)
 
-	runGrabOnce(t, store)
+	runGrabOnce(t, store, frameDir)
 
 	assert.Zero(t, atomic.LoadInt32(&hits))
 }
@@ -228,7 +235,7 @@ func TestGrabber_RespectsStreamGrabDisabled(t *testing.T) {
 func TestGrabber_BackoffSkipsCycles(t *testing.T) {
 	silenceWatcherLogger()
 	defer snapshotGrabState(t)()
-	chdirToTemp(t)
+	frameDir := t.TempDir()
 
 	hits := int32(0)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -244,7 +251,7 @@ func TestGrabber_BackoffSkipsCycles(t *testing.T) {
 	config.RestoreInProgress.Store(false)
 	streamBackoff[streamID] = 3 // 3 skip cycles remaining
 
-	runGrabOnce(t, store)
+	runGrabOnce(t, store, frameDir)
 
 	assert.Zero(t, atomic.LoadInt32(&hits), "stream with backoff > 1 should not be requested this cycle")
 	assert.Equal(t, 2, streamBackoff[streamID], "backoff counter must decrement by 1")

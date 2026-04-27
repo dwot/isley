@@ -126,7 +126,7 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	engine, err := app.NewEngine(app.Config{
+	engineCfg := app.Config{
 		DB:             db,
 		Assets:         embeddedFiles,
 		Version:        version,
@@ -136,15 +136,25 @@ func main() {
 		TrustedProxies: trustedProxies,
 		DataDir:        "data",
 		ConfigStore:    configStore,
-	})
+	}
+	engine, err := app.NewEngine(engineCfg)
 	if err != nil {
 		logger.Log.WithError(err).Fatal("Failed to construct HTTP engine")
+	}
+
+	// Mirror the engine's resolved frame directory into the grabber so
+	// the on-disk path is configured in exactly one place. NewEngine
+	// applies the documented defaults when the field is empty, so the
+	// grabber stays in sync with whatever path the HTTP handlers write.
+	frameDir := engineCfg.FrameDir
+	if frameDir == "" {
+		frameDir = handlers.DefaultStreamDir(engineCfg.UploadDir)
 	}
 
 	bgWG.Add(1)
 	go func() {
 		defer bgWG.Done()
-		watcher.Grab(ctx, configStore)
+		watcher.Grab(ctx, configStore, frameDir)
 	}()
 
 	srv := &http.Server{

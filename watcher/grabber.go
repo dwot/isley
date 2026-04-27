@@ -23,8 +23,18 @@ const (
 // reads enabled/interval/streams from the supplied per-engine
 // *config.Store rather than package globals so multiple engines (e.g.
 // parallel tests) can run side-by-side without colliding on config.
-func Grab(ctx context.Context, store *config.Store) {
+//
+// frameDir is the on-disk directory frame snapshots are written into.
+// Production main.go threads the engine's resolved StreamDir/FrameDir
+// here; tests pass t.TempDir() so per-test grabber writes stay
+// isolated. An empty frameDir falls back to "uploads/streams" — the
+// historical default — so callers (e.g. legacy entry points) still
+// behave the same.
+func Grab(ctx context.Context, store *config.Store, frameDir string) {
 	logger.Log.Info("Started Stream Grabber")
+	if frameDir == "" {
+		frameDir = filepath.Join("uploads", "streams")
+	}
 	interval := defaultStreamGrabInterval
 
 	for {
@@ -47,8 +57,8 @@ func Grab(ctx context.Context, store *config.Store) {
 
 				logger.Log.WithField("stream", stream.Name).Debug("Grabbing stream image")
 				latestFileName := fmt.Sprintf("stream_%d_latest%s", stream.ID, filepath.Ext(".jpg"))
-				latestSavePath := filepath.Join("uploads", "streams", latestFileName)
-				utils.CreateFolderIfNotExists(filepath.Join("uploads", "streams"))
+				latestSavePath := filepath.Join(frameDir, latestFileName)
+				utils.CreateFolderIfNotExists(frameDir)
 
 				if err := utils.GrabWebcamImage(stream.URL, latestSavePath); err != nil {
 					// Record failure and set skip cycles for exponential backoff

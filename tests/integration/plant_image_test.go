@@ -7,8 +7,8 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -88,13 +88,15 @@ type multipartFile struct {
 // ---------------------------------------------------------------------------
 
 func TestPlantImage_UploadHappyPath(t *testing.T) {
+	t.Parallel()
 	resetRateLimit(t)
-	// Scope file writes to a tempdir; UploadPlantImages writes under
-	// uploads/plants/ relative to the working directory.
-	t.Chdir(t.TempDir())
+	// Scope file writes to a per-test upload root so UploadPlantImages
+	// writes land in an isolated tempdir; the handler reads the root
+	// from the engine's UploadDir rather than the process-CWD.
+	uploadDir := t.TempDir()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithUploadDir(uploadDir))
 	fix := seedPlantImageHTTP(t, db)
 
 	c := server.NewClient(t)
@@ -111,12 +113,14 @@ func TestPlantImage_UploadHappyPath(t *testing.T) {
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
 	require.Len(t, got.IDs, 1)
 
-	// DB row exists with the path the handler chose.
+	// DB row exists with the path the handler chose, and that path sits
+	// under the configured upload root.
 	var path string
 	require.NoError(t, db.QueryRow(
 		`SELECT image_path FROM plant_images WHERE id = $1`, got.IDs[0],
 	).Scan(&path))
-	assert.True(t, filepath.IsLocal(path), "image path should be a local relative path")
+	assert.Truef(t, strings.HasPrefix(path, uploadDir),
+		"image path %q should sit under the configured UploadDir %q", path, uploadDir)
 
 	// File on disk exists at that path.
 	_, err := os.Stat(path)
@@ -124,11 +128,11 @@ func TestPlantImage_UploadHappyPath(t *testing.T) {
 }
 
 func TestPlantImage_UploadAcceptsPNG(t *testing.T) {
+	t.Parallel()
 	resetRateLimit(t)
-	t.Chdir(t.TempDir())
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithUploadDir(t.TempDir()))
 	fix := seedPlantImageHTTP(t, db)
 
 	c := server.NewClient(t)
@@ -140,11 +144,11 @@ func TestPlantImage_UploadAcceptsPNG(t *testing.T) {
 }
 
 func TestPlantImage_UploadRejectsTextFile(t *testing.T) {
+	t.Parallel()
 	resetRateLimit(t)
-	t.Chdir(t.TempDir())
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithUploadDir(t.TempDir()))
 	fix := seedPlantImageHTTP(t, db)
 
 	c := server.NewClient(t)
@@ -157,11 +161,11 @@ func TestPlantImage_UploadRejectsTextFile(t *testing.T) {
 }
 
 func TestPlantImage_UploadRejectsBadPlantID(t *testing.T) {
+	t.Parallel()
 	resetRateLimit(t)
-	t.Chdir(t.TempDir())
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithUploadDir(t.TempDir()))
 	fix := seedPlantImageHTTP(t, db)
 
 	// non-numeric :plantID — handler returns 400 from strconv.Atoi.
@@ -193,11 +197,11 @@ func TestPlantImage_UploadRejectsBadPlantID(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPlantImage_DeleteRemovesFileAndRow(t *testing.T) {
+	t.Parallel()
 	resetRateLimit(t)
-	t.Chdir(t.TempDir())
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithUploadDir(t.TempDir()))
 	fix := seedPlantImageHTTP(t, db)
 
 	// Upload first so we have a real file + row to delete.
@@ -233,11 +237,11 @@ func TestPlantImage_DeleteRemovesFileAndRow(t *testing.T) {
 }
 
 func TestPlantImage_DeleteMissing(t *testing.T) {
+	t.Parallel()
 	resetRateLimit(t)
-	t.Chdir(t.TempDir())
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithUploadDir(t.TempDir()))
 	fix := seedPlantImageHTTP(t, db)
 
 	c := server.NewClient(t)
@@ -247,11 +251,11 @@ func TestPlantImage_DeleteMissing(t *testing.T) {
 }
 
 func TestPlantImage_DeleteBadID(t *testing.T) {
+	t.Parallel()
 	resetRateLimit(t)
-	t.Chdir(t.TempDir())
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithUploadDir(t.TempDir()))
 	fix := seedPlantImageHTTP(t, db)
 
 	c := server.NewClient(t)

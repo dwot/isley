@@ -57,6 +57,37 @@ type Config struct {
 	// t.TempDir() so each test has its own isolated tree.
 	DataDir string
 
+	// UploadDir is the root directory where user-uploaded plant images
+	// and logo files are written. Defaults to "uploads" when empty.
+	// Tests pass t.TempDir() (via testutil.WithUploadDir) so per-test
+	// upload writes do not pollute the repo's uploads/ tree and parallel
+	// tests cannot collide on the same on-disk paths.
+	UploadDir string
+
+	// StreamDir is the root directory where stream snapshot images are
+	// written by AddStreamHandler's initial GrabWebcamImage call. Defaults
+	// to filepath.Join(UploadDir, "streams") when empty. Tests pass
+	// t.TempDir() (via testutil.WithStreamDir) so per-test stream writes
+	// stay isolated.
+	StreamDir string
+
+	// FrameDir is the root directory where the watcher's grabber writes
+	// stream frame snapshots. Production currently shares this with
+	// StreamDir (both write to uploads/streams/<file>); the field is kept
+	// distinct so tests for the grabber can pass an isolated tempdir
+	// without affecting handler-side stream writes. Defaults to the same
+	// value as StreamDir when empty. NewEngine itself does not consume
+	// FrameDir — it is read by the watcher goroutine and surfaced here so
+	// production main can thread one configuration value through both
+	// subsystems.
+	FrameDir string
+
+	// LogsDir is the directory the GetLogs / DownloadLogs handlers read
+	// app.log and access.log from. Defaults to "logs" when empty.
+	// Tests pass t.TempDir() (via testutil.WithLogsDir) so log-file
+	// tests can write fixture logs without touching the repo's logs/.
+	LogsDir string
+
 	// BackupService, if non-nil, is wired into the engine instead of
 	// having NewEngine construct one from DB+DataDir. Used by tests that
 	// want a handle to the service so they can deterministically flip
