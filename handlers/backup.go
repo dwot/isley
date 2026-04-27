@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -94,58 +93,9 @@ type RestoreStatus struct {
 // INSERT during chunked restore of large tables (sensor_data).
 const insertBatchSize = 5000
 
-// backupsDir is the directory where backup archives are stored.
-const backupsDir = "data/backups"
-
-// backupMu protects concurrent backup creation.
-var backupMu sync.Mutex
-
-// currentBackup tracks the status of any in-flight async backup.
-var currentBackup = BackupStatus{}
-
-// restoreMu protects concurrent restore status access.
-var restoreMu sync.Mutex
-
-// currentRestore tracks the status of any in-flight async restore.
-var currentRestore = RestoreStatus{}
-
 // ---------------------------------------------------------------------------
-// Export (async — saves to data/backups/)
+// Export (async — saves to <DataDir>/backups/)
 // ---------------------------------------------------------------------------
-
-// ResetBackupStatusForTesting clears the in-memory backup-status singleton.
-// Lets tests start from a clean slate without depending on goroutine timing.
-// Production code does not call this; the helper exists for handler tests
-// that share this package's globals (Phase 7 of docs/TEST_PLAN.md will
-// migrate these to instance-scoped state).
-func ResetBackupStatusForTesting() {
-	backupMu.Lock()
-	currentBackup = BackupStatus{}
-	backupMu.Unlock()
-}
-
-// SetBackupInProgressForTesting marks a backup as in-flight so the next
-// CreateBackup call deterministically returns 409 without racing a real
-// goroutine. Pair with ResetBackupStatusForTesting in t.Cleanup.
-func SetBackupInProgressForTesting() {
-	backupMu.Lock()
-	currentBackup = BackupStatus{InProgress: true}
-	backupMu.Unlock()
-}
-
-// ResetRestoreStatusForTesting / SetRestoreInProgressForTesting are the
-// restore-side equivalents of the helpers above.
-func ResetRestoreStatusForTesting() {
-	restoreMu.Lock()
-	currentRestore = RestoreStatus{}
-	restoreMu.Unlock()
-}
-
-func SetRestoreInProgressForTesting() {
-	restoreMu.Lock()
-	currentRestore = RestoreStatus{InProgress: true}
-	restoreMu.Unlock()
-}
 
 // CreateBackup kicks off an async backup job and returns immediately.
 // Query params:
@@ -155,14 +105,11 @@ func SetRestoreInProgressForTesting() {
 func CreateBackup(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("handler", "CreateBackup")
 
-	backupMu.Lock()
-	if currentBackup.InProgress {
-		backupMu.Unlock()
+	svc := BackupServiceFromContext(c)
+	if !svc.BeginBackup() {
 		c.JSON(http.StatusConflict, gin.H{"error": T(c, "api_backup_in_progress")})
 		return
 	}
-	currentBackup = BackupStatus{InProgress: true}
-	backupMu.Unlock()
 
 	includeImages := c.DefaultQuery("images", "false") == "true"
 	sensorDays := 0 // default: all
@@ -173,16 +120,9 @@ func CreateBackup(c *gin.Context) {
 	fieldLogger.Infof("Starting async backup: images=%v sensor_days=%d", includeImages, sensorDays)
 
 	go func() {
-		defer func() {
-			backupMu.Lock()
-			currentBackup.InProgress = false
-			backupMu.Unlock()
-		}()
-
-		if err := runBackup(includeImages, sensorDays); err != nil {
-			backupMu.Lock()
-			currentBackup.Error = err.Error()
-			backupMu.Unlock()
+		filename, err := runBackup(svc, includeImages, sensorDays)
+		svc.CompleteBackup(filename, err)
+		if err != nil {
 			fieldLogger.WithError(err).Error("Async backup failed")
 		}
 	}()
@@ -192,48 +132,40 @@ func CreateBackup(c *gin.Context) {
 
 // GetBackupStatus returns the state of any in-progress backup.
 func GetBackupStatus(c *gin.Context) {
-	backupMu.Lock()
-	defer backupMu.Unlock()
-	c.JSON(http.StatusOK, currentBackup)
+	c.JSON(http.StatusOK, BackupServiceFromContext(c).BackupSnapshot())
 }
 
 // GetRestoreStatus returns the state of any in-progress restore.
 func GetRestoreStatus(c *gin.Context) {
-	restoreMu.Lock()
-	defer restoreMu.Unlock()
-	c.JSON(http.StatusOK, currentRestore)
+	c.JSON(http.StatusOK, BackupServiceFromContext(c).RestoreSnapshot())
 }
 
 // runBackup does the actual work of dumping the DB and writing the zip.
 // The archive contents are produced by BuildBackupArchive (which is
 // unit-tested directly); runBackup adds the production-only concerns:
-// resolving the DB, reading the VERSION file, naming the output, and
-// writing it under data/backups/.
-func runBackup(includeImages bool, sensorDays int) error {
+// reading the VERSION file, naming the output, and writing it under
+// <DataDir>/backups/. Returns the produced filename (empty on error).
+func runBackup(svc *BackupService, includeImages bool, sensorDays int) (string, error) {
 	fieldLogger := logger.Log.WithField("handler", "runBackup")
-
-	db, err := model.GetDB()
-	if err != nil {
-		return fmt.Errorf("get DB: %w", err)
-	}
 
 	version := "unknown"
 	if v, err := os.ReadFile("VERSION"); err == nil {
 		version = strings.TrimSpace(string(v))
 	}
 
-	archive, manifest, err := BuildBackupArchive(db, BuildArchiveOptions{
+	archive, manifest, err := BuildBackupArchive(svc.DB(), BuildArchiveOptions{
 		IncludeImages: includeImages,
 		SensorDays:    sensorDays,
 		Version:       version,
 		UploadsDir:    "uploads",
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 
+	backupsDir := svc.BackupDir()
 	if err := os.MkdirAll(backupsDir, os.ModePerm); err != nil {
-		return fmt.Errorf("create backups dir: %w", err)
+		return "", fmt.Errorf("create backups dir: %w", err)
 	}
 
 	ts := time.Now().Format("20060102-150405")
@@ -250,16 +182,12 @@ func runBackup(includeImages bool, sensorDays int) error {
 	destPath := filepath.Join(backupsDir, filename)
 
 	if err := os.WriteFile(destPath, archive, 0644); err != nil {
-		return fmt.Errorf("write %s: %w", destPath, err)
+		return "", fmt.Errorf("write %s: %w", destPath, err)
 	}
-
-	backupMu.Lock()
-	currentBackup.Filename = filename
-	backupMu.Unlock()
 
 	fieldLogger.Infof("Backup saved: %s (%d bytes, %d tables, %d files)",
 		filename, len(archive), manifest.Tables, manifest.Files)
-	return nil
+	return filename, nil
 }
 
 // dumpTableFiltered dumps sensor_data rows from the last N days only.
@@ -307,6 +235,7 @@ func dumpTableFiltered(db *sql.DB, table string, days int) ([]map[string]interfa
 
 // ListBackups returns a JSON array of available backup files.
 func ListBackups(c *gin.Context) {
+	backupsDir := BackupServiceFromContext(c).BackupDir()
 	entries, err := os.ReadDir(backupsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -352,7 +281,7 @@ func DownloadBackup(c *gin.Context) {
 		return
 	}
 
-	path := filepath.Join(backupsDir, name)
+	path := filepath.Join(BackupServiceFromContext(c).BackupDir(), name)
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		apiNotFound(c, "api_invalid_backup_file")
 		return
@@ -371,7 +300,7 @@ func DeleteBackup(c *gin.Context) {
 		return
 	}
 
-	path := filepath.Join(backupsDir, name)
+	path := filepath.Join(BackupServiceFromContext(c).BackupDir(), name)
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		apiNotFound(c, "api_invalid_backup_file")
 		return
@@ -423,21 +352,16 @@ func UploadSQLiteDB(c *gin.Context) {
 		return
 	}
 
-	restoreMu.Lock()
-	if currentRestore.InProgress {
-		restoreMu.Unlock()
+	svc := BackupServiceFromContext(c)
+	if !svc.BeginRestore("uploading") {
 		c.JSON(http.StatusConflict, gin.H{"error": T(c, "api_restore_in_progress")})
 		return
 	}
-	currentRestore = RestoreStatus{InProgress: true, Phase: "uploading"}
-	restoreMu.Unlock()
 
 	file, header, err := c.Request.FormFile("database")
 	if err != nil {
 		fieldLogger.WithError(err).Error("No database file in request")
-		restoreMu.Lock()
-		currentRestore = RestoreStatus{}
-		restoreMu.Unlock()
+		svc.AbortRestore()
 		apiBadRequest(c, "api_invalid_backup_file")
 		return
 	}
@@ -446,9 +370,7 @@ func UploadSQLiteDB(c *gin.Context) {
 
 	if header.Size > config.MaxBackupSize {
 		fieldLogger.Errorf("SQLite file too large: %d bytes (max %d)", header.Size, config.MaxBackupSize)
-		restoreMu.Lock()
-		currentRestore = RestoreStatus{}
-		restoreMu.Unlock()
+		svc.AbortRestore()
 		apiBadRequest(c, "api_backup_file_too_large")
 		return
 	}
@@ -456,9 +378,7 @@ func UploadSQLiteDB(c *gin.Context) {
 	body, err := io.ReadAll(file)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to read uploaded file")
-		restoreMu.Lock()
-		currentRestore = RestoreStatus{}
-		restoreMu.Unlock()
+		svc.AbortRestore()
 		apiInternalError(c, "api_database_error")
 		return
 	}
@@ -466,33 +386,30 @@ func UploadSQLiteDB(c *gin.Context) {
 	// Basic SQLite file validation — check the magic header bytes
 	if len(body) < 16 || string(body[:16]) != "SQLite format 3\x00" {
 		fieldLogger.Error("Uploaded file is not a valid SQLite database")
-		restoreMu.Lock()
-		currentRestore = RestoreStatus{}
-		restoreMu.Unlock()
+		svc.AbortRestore()
 		apiBadRequest(c, "api_invalid_backup_file")
 		return
 	}
 
-	go runSQLiteFileRestore(body)
+	go runSQLiteFileRestore(svc, body)
 
 	c.JSON(http.StatusAccepted, gin.H{"message": T(c, "api_restore_started")})
 }
 
 // runSQLiteFileRestore replaces the current SQLite file with the uploaded one.
-func runSQLiteFileRestore(data []byte) {
+func runSQLiteFileRestore(svc *BackupService, data []byte) {
 	fieldLogger := logger.Log.WithField("handler", "runSQLiteFileRestore")
 
+	var runErr error
 	defer func() {
-		restoreMu.Lock()
-		currentRestore.InProgress = false
-		restoreMu.Unlock()
+		svc.CompleteRestore(0, 0, runErr)
 	}()
 
 	config.RestoreInProgress.Store(true)
 	defer config.RestoreInProgress.Store(false)
 	fieldLogger.Info("Paused background watchers for SQLite file restore")
 
-	updateRestoreStatus("restoring", "database file", 0, 0, 0, 0)
+	svc.UpdateRestoreProgress("restoring", "database file", 0, 0, 0, 0)
 
 	dbFile := os.Getenv("ISLEY_DB_FILE")
 	if dbFile == "" {
@@ -502,9 +419,7 @@ func runSQLiteFileRestore(data []byte) {
 	// Close the current database connection so we can replace the file
 	if err := model.CloseDB(); err != nil {
 		fieldLogger.WithError(err).Error("Failed to close current database")
-		restoreMu.Lock()
-		currentRestore.Error = "Failed to close current database"
-		restoreMu.Unlock()
+		runErr = fmt.Errorf("Failed to close current database")
 		return
 	}
 
@@ -515,9 +430,7 @@ func runSQLiteFileRestore(data []byte) {
 	// Write the new database file
 	if err := os.WriteFile(dbFile, data, 0644); err != nil {
 		fieldLogger.WithError(err).Error("Failed to write new database file")
-		restoreMu.Lock()
-		currentRestore.Error = "Failed to write database file"
-		restoreMu.Unlock()
+		runErr = fmt.Errorf("Failed to write database file")
 		// Try to reopen the old DB (may fail if we partially wrote)
 		model.InitDB()
 		return
@@ -533,12 +446,6 @@ func runSQLiteFileRestore(data []byte) {
 	} else {
 		fieldLogger.WithError(dbErr).Error("Failed to obtain DB after reopen for LoadSettings")
 	}
-
-	restoreMu.Lock()
-	currentRestore.Phase = "complete"
-	currentRestore.Tables = 0
-	currentRestore.Files = 0
-	restoreMu.Unlock()
 
 	fieldLogger.Info("SQLite file restore complete")
 }
@@ -560,22 +467,17 @@ var largeTables = map[string]bool{
 func ImportBackup(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("handler", "ImportBackup")
 
-	restoreMu.Lock()
-	if currentRestore.InProgress {
-		restoreMu.Unlock()
+	svc := BackupServiceFromContext(c)
+	if !svc.BeginRestore("uploading") {
 		c.JSON(http.StatusConflict, gin.H{"error": T(c, "api_restore_in_progress")})
 		return
 	}
-	currentRestore = RestoreStatus{InProgress: true, Phase: "uploading"}
-	restoreMu.Unlock()
 
 	// ---- read the uploaded zip into memory --------------------------------
 	file, header, err := c.Request.FormFile("backup")
 	if err != nil {
 		fieldLogger.WithError(err).Error("No backup file in request")
-		restoreMu.Lock()
-		currentRestore = RestoreStatus{}
-		restoreMu.Unlock()
+		svc.AbortRestore()
 		apiBadRequest(c, "api_invalid_backup_file")
 		return
 	}
@@ -584,9 +486,7 @@ func ImportBackup(c *gin.Context) {
 
 	if header.Size > config.MaxBackupSize {
 		fieldLogger.Errorf("Backup file too large: %d bytes (max %d)", header.Size, config.MaxBackupSize)
-		restoreMu.Lock()
-		currentRestore = RestoreStatus{}
-		restoreMu.Unlock()
+		svc.AbortRestore()
 		apiBadRequest(c, "api_backup_file_too_large")
 		return
 	}
@@ -594,9 +494,7 @@ func ImportBackup(c *gin.Context) {
 	body, err := io.ReadAll(file)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to read uploaded file")
-		restoreMu.Lock()
-		currentRestore = RestoreStatus{}
-		restoreMu.Unlock()
+		svc.AbortRestore()
 		apiInternalError(c, "api_database_error")
 		return
 	}
@@ -604,9 +502,7 @@ func ImportBackup(c *gin.Context) {
 	zr, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
 	if err != nil {
 		fieldLogger.WithError(err).Error("Uploaded file is not a valid zip")
-		restoreMu.Lock()
-		currentRestore = RestoreStatus{}
-		restoreMu.Unlock()
+		svc.AbortRestore()
 		apiBadRequest(c, "api_invalid_backup_file")
 		return
 	}
@@ -619,9 +515,7 @@ func ImportBackup(c *gin.Context) {
 			rc, err := zf.Open()
 			if err != nil {
 				fieldLogger.WithError(err).Error("Failed to open backup.json in zip")
-				restoreMu.Lock()
-				currentRestore = RestoreStatus{}
-				restoreMu.Unlock()
+				svc.AbortRestore()
 				apiInternalError(c, "api_database_error")
 				return
 			}
@@ -630,9 +524,7 @@ func ImportBackup(c *gin.Context) {
 			if err := dec.Decode(&payload); err != nil {
 				rc.Close()
 				fieldLogger.WithError(err).Error("Failed to decode backup.json")
-				restoreMu.Lock()
-				currentRestore = RestoreStatus{}
-				restoreMu.Unlock()
+				svc.AbortRestore()
 				apiBadRequest(c, "api_invalid_backup_file")
 				return
 			}
@@ -643,9 +535,7 @@ func ImportBackup(c *gin.Context) {
 	}
 	if !foundJSON {
 		fieldLogger.Error("backup.json not found in archive")
-		restoreMu.Lock()
-		currentRestore = RestoreStatus{}
-		restoreMu.Unlock()
+		svc.AbortRestore()
 		apiBadRequest(c, "api_invalid_backup_file")
 		return
 	}
@@ -664,31 +554,21 @@ func ImportBackup(c *gin.Context) {
 	}
 
 	// Launch the restore in a background goroutine and return 202
-	go runRestore(payload, body)
+	go runRestore(svc, payload, body)
 
 	c.JSON(http.StatusAccepted, gin.H{"message": T(c, "api_restore_started")})
 }
 
-// updateRestoreStatus safely updates the current restore status fields.
-func updateRestoreStatus(phase, table string, batchNum, totalBatches, tablesLeft, totalTables int) {
-	restoreMu.Lock()
-	currentRestore.Phase = phase
-	currentRestore.CurrentTable = table
-	currentRestore.BatchNum = batchNum
-	currentRestore.TotalBatches = totalBatches
-	currentRestore.TablesLeft = tablesLeft
-	currentRestore.TotalTables = totalTables
-	restoreMu.Unlock()
-}
-
 // runRestore performs the actual database restore work in a background goroutine.
-func runRestore(payload BackupPayload, zipBody []byte) {
+func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte) {
 	fieldLogger := logger.Log.WithField("handler", "runRestore")
 
+	var (
+		filesRestored int
+		runErr        error
+	)
 	defer func() {
-		restoreMu.Lock()
-		currentRestore.InProgress = false
-		restoreMu.Unlock()
+		svc.CompleteRestore(payload.Manifest.Tables, filesRestored, runErr)
 	}()
 
 	// ---- pause background watchers ---------------------------------------
@@ -697,12 +577,10 @@ func runRestore(payload BackupPayload, zipBody []byte) {
 	fieldLogger.Info("Paused background watchers for restore")
 
 	// ---- restore database -------------------------------------------------
-	db, err := model.GetDB()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to get DB handle")
-		restoreMu.Lock()
-		currentRestore.Error = "Failed to get database handle"
-		restoreMu.Unlock()
+	db := svc.DB()
+	if db == nil {
+		fieldLogger.Error("BackupService has no DB handle")
+		runErr = fmt.Errorf("Failed to get database handle")
 		return
 	}
 
@@ -778,9 +656,7 @@ func runRestore(payload BackupPayload, zipBody []byte) {
 		conn, err := db.Conn(ctx)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to pin SQLite connection")
-			restoreMu.Lock()
-			currentRestore.Error = "Failed to pin database connection"
-			restoreMu.Unlock()
+			runErr = fmt.Errorf("Failed to pin database connection")
 			return
 		}
 		defer conn.Close()
@@ -805,14 +681,12 @@ func runRestore(payload BackupPayload, zipBody []byte) {
 	}
 
 	// Phase 1: truncate all tables + insert reference data in one txn.
-	updateRestoreStatus("truncating", "", 0, 0, totalTablesWithData, totalTablesWithData)
+	svc.UpdateRestoreProgress("truncating", "", 0, 0, totalTablesWithData, totalTablesWithData)
 
 	tx, err := exec.BeginTx(ctx, nil)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to begin transaction")
-		restoreMu.Lock()
-		currentRestore.Error = "Failed to begin transaction"
-		restoreMu.Unlock()
+		runErr = fmt.Errorf("Failed to begin transaction")
 		return
 	}
 
@@ -836,9 +710,7 @@ func runRestore(payload BackupPayload, zipBody []byte) {
 		if _, err := tx.Exec(stmt); err != nil {
 			tx.Rollback()
 			fieldLogger.WithError(err).Errorf("Failed to truncate %s", tbl)
-			restoreMu.Lock()
-			currentRestore.Error = fmt.Sprintf("Failed to truncate %s", tbl)
-			restoreMu.Unlock()
+			runErr = fmt.Errorf("Failed to truncate %s", tbl)
 			return
 		}
 	}
@@ -851,14 +723,12 @@ func runRestore(payload BackupPayload, zipBody []byte) {
 		}
 		tablesRestored++
 		remaining := totalTablesWithData - tablesRestored
-		updateRestoreStatus("restoring", tbl.name, 0, 0, remaining, totalTablesWithData)
+		svc.UpdateRestoreProgress("restoring", tbl.name, 0, 0, remaining, totalTablesWithData)
 
 		if err := insertRows(tx, tbl.name, tbl.rows); err != nil {
 			tx.Rollback()
 			fieldLogger.WithError(err).Errorf("Failed to insert into %s", tbl.name)
-			restoreMu.Lock()
-			currentRestore.Error = fmt.Sprintf("Failed to insert into %s", tbl.name)
-			restoreMu.Unlock()
+			runErr = fmt.Errorf("Failed to insert into %s", tbl.name)
 			return
 		}
 		fieldLogger.Infof("Restored %d rows into %s", len(tbl.rows), tbl.name)
@@ -872,9 +742,7 @@ func runRestore(payload BackupPayload, zipBody []byte) {
 
 	if err := tx.Commit(); err != nil {
 		fieldLogger.WithError(err).Error("Failed to commit reference data transaction")
-		restoreMu.Lock()
-		currentRestore.Error = "Failed to commit reference data"
-		restoreMu.Unlock()
+		runErr = fmt.Errorf("Failed to commit reference data")
 		return
 	}
 	fieldLogger.Info("Reference data restored, starting bulk data import")
@@ -908,13 +776,11 @@ func runRestore(payload BackupPayload, zipBody []byte) {
 		remaining := totalTablesWithData - tablesRestored
 
 		totalBatches := (len(tbl.rows) + insertBatchSize - 1) / insertBatchSize
-		updateRestoreStatus("restoring", tbl.name, 0, totalBatches, remaining, totalTablesWithData)
+		svc.UpdateRestoreProgress("restoring", tbl.name, 0, totalBatches, remaining, totalTablesWithData)
 
-		if err := insertRowsBatchedWithProgress(ctx, exec, tbl.name, tbl.rows, insertBatchSize, remaining, totalTablesWithData); err != nil {
+		if err := insertRowsBatchedWithProgress(ctx, svc, exec, tbl.name, tbl.rows, insertBatchSize, remaining, totalTablesWithData); err != nil {
 			fieldLogger.WithError(err).Errorf("Failed to bulk insert into %s", tbl.name)
-			restoreMu.Lock()
-			currentRestore.Error = fmt.Sprintf("Failed to bulk insert into %s", tbl.name)
-			restoreMu.Unlock()
+			runErr = fmt.Errorf("Failed to bulk insert into %s", tbl.name)
 			return
 		}
 		fieldLogger.Infof("Restored %d rows into %s (batched)", len(tbl.rows), tbl.name)
@@ -935,7 +801,7 @@ func runRestore(payload BackupPayload, zipBody []byte) {
 
 	// Phase 3: reset Postgres sequences.
 	if model.IsPostgres() {
-		updateRestoreStatus("sequences", "", 0, 0, 0, totalTablesWithData)
+		svc.UpdateRestoreProgress("sequences", "", 0, 0, 0, totalTablesWithData)
 		seqTables := []string{
 			"settings", "zones", "breeder", "sensors", "sensor_data",
 			"strain", "strain_lineage", "plant_status", "plant",
@@ -954,10 +820,9 @@ func runRestore(payload BackupPayload, zipBody []byte) {
 	}
 
 	// ---- extract upload files ---------------------------------------------
-	updateRestoreStatus("extracting", "", 0, 0, 0, totalTablesWithData)
+	svc.UpdateRestoreProgress("extracting", "", 0, 0, 0, totalTablesWithData)
 
 	uploadsDir := "uploads"
-	filesRestored := 0
 
 	// Re-open the zip from the in-memory body (the original zr may be stale
 	// since we're in a different goroutine context, but we kept zipBody).
@@ -1040,10 +905,9 @@ func runRestore(payload BackupPayload, zipBody []byte) {
 			}
 
 			if extractAborted {
-				restoreMu.Lock()
-				currentRestore.Error = "api_backup_extract_too_large"
-				restoreMu.Unlock()
+				runErr = fmt.Errorf("api_backup_extract_too_large")
 				fieldLogger.Error("Restore aborted: extraction size limit exceeded")
+				return
 			}
 		}
 	}
@@ -1051,22 +915,7 @@ func runRestore(payload BackupPayload, zipBody []byte) {
 	fieldLogger.Infof("Restore complete: %d files extracted", filesRestored)
 
 	// Reload in-memory config from the newly restored DB.
-	if reopenedDB, dbErr := model.GetDB(); dbErr == nil {
-		LoadSettings(reopenedDB)
-	} else {
-		fieldLogger.WithError(dbErr).Error("Failed to obtain DB after restore for LoadSettings")
-	}
-
-	// Mark complete with final stats
-	restoreMu.Lock()
-	currentRestore.Phase = "complete"
-	currentRestore.Tables = payload.Manifest.Tables
-	currentRestore.Files = filesRestored
-	currentRestore.CurrentTable = ""
-	currentRestore.BatchNum = 0
-	currentRestore.TotalBatches = 0
-	currentRestore.TablesLeft = 0
-	restoreMu.Unlock()
+	LoadSettings(db)
 }
 
 // ---------------------------------------------------------------------------
@@ -1195,7 +1044,7 @@ type bulkInserter interface {
 // one transaction — this avoids the overhead of parsing a massive SQL
 // string with 20K+ parameters per batch, which the pure-Go modernc
 // SQLite driver handles poorly at scale.
-func insertRowsBatchedWithProgress(ctx context.Context, exec bulkInserter, table string, rows []map[string]interface{}, batchSize, tablesLeft, totalTables int) error {
+func insertRowsBatchedWithProgress(ctx context.Context, svc *BackupService, exec bulkInserter, table string, rows []map[string]interface{}, batchSize, tablesLeft, totalTables int) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -1205,7 +1054,7 @@ func insertRowsBatchedWithProgress(ctx context.Context, exec bulkInserter, table
 	totalBatches := (totalRows + batchSize - 1) / batchSize
 
 	if model.IsSQLite() {
-		return insertRowsPreparedWithProgress(ctx, exec, table, cols, rows, batchSize, totalBatches, tablesLeft, totalTables)
+		return insertRowsPreparedWithProgress(ctx, svc, exec, table, cols, rows, batchSize, totalBatches, tablesLeft, totalTables)
 	}
 
 	// Postgres path: multi-row INSERT in batches (fast with lib/pq)
@@ -1222,7 +1071,7 @@ func insertRowsBatchedWithProgress(ctx context.Context, exec bulkInserter, table
 		batch := rows[i:end]
 		batchNum := i/batchSize + 1
 
-		updateRestoreStatus("restoring", table, batchNum, totalBatches, tablesLeft, totalTables)
+		svc.UpdateRestoreProgress("restoring", table, batchNum, totalBatches, tablesLeft, totalTables)
 
 		stmt, allVals := buildMultiRowInsert(table, cols, batch)
 		if _, err := tx.Exec(stmt, allVals...); err != nil {
@@ -1244,7 +1093,7 @@ func insertRowsBatchedWithProgress(ctx context.Context, exec bulkInserter, table
 // on SQLite because: (1) the SQL is parsed/compiled once (tiny statement),
 // (2) each Exec binds only N_cols values instead of thousands, and (3) the
 // VDBE bytecode is cached across all executions.
-func insertRowsPreparedWithProgress(ctx context.Context, exec bulkInserter, table string, cols []string, rows []map[string]interface{}, batchSize, totalBatches, tablesLeft, totalTables int) error {
+func insertRowsPreparedWithProgress(ctx context.Context, svc *BackupService, exec bulkInserter, table string, cols []string, rows []map[string]interface{}, batchSize, totalBatches, tablesLeft, totalTables int) error {
 	tx, err := exec.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin prepared insert: %w", err)
@@ -1272,7 +1121,7 @@ func insertRowsPreparedWithProgress(ctx context.Context, exec bulkInserter, tabl
 		// Update progress every batchSize rows
 		if (i+1)%batchSize == 0 || i == totalRows-1 {
 			batchNum := i/batchSize + 1
-			updateRestoreStatus("restoring", table, batchNum, totalBatches, tablesLeft, totalTables)
+			svc.UpdateRestoreProgress("restoring", table, batchNum, totalBatches, tablesLeft, totalTables)
 			logger.Log.Infof("  %s: batch %d/%d (%d rows)", table, batchNum, totalBatches, batchSize)
 		}
 	}

@@ -1,10 +1,9 @@
 package handlers_test
 
 // HTTP-layer tests for the nine backup endpoints in handlers/backup.go.
-// Phase 4b of docs/TEST_PLAN.md: every handler gets at least one happy
-// path plus explicit auth/validation/error coverage. Repo extraction is
-// not required at this layer — these tests drive the live HTTP surface
-// through testutil.NewTestServer.
+// Each test gets its own engine + per-test data directory via
+// testutil.WithDataDir so backup state never leaks between tests and
+// every test can call t.Parallel().
 //
 // The endpoints under test (all mounted on the api-protected group):
 //
@@ -27,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,20 +36,6 @@ import (
 	"isley/tests/testutil"
 )
 
-// resetBackupGlobals clears the singletons before AND after each test so
-// goroutines spawned by an earlier test (or this test) cannot leak into
-// the next one. Tests that mutate currentBackup/currentRestore must call
-// this in t.Cleanup.
-func resetBackupGlobals(t *testing.T) {
-	t.Helper()
-	handlers.ResetBackupStatusForTesting()
-	handlers.ResetRestoreStatusForTesting()
-	t.Cleanup(func() {
-		handlers.ResetBackupStatusForTesting()
-		handlers.ResetRestoreStatusForTesting()
-	})
-}
-
 // ---------------------------------------------------------------------------
 // Auth gating — every endpoint must reject unauthenticated traffic with
 // either 401 (AuthMiddlewareApi) or 403 (CSRF middleware on POST/DELETE
@@ -57,10 +43,10 @@ func resetBackupGlobals(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestBackupHTTP_AuthGating(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(t.TempDir()))
 
 	cases := []struct {
 		method, path string
@@ -97,15 +83,17 @@ func TestBackupHTTP_AuthGating(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // TestBackupHTTP_CreateBackup_Accepted verifies the happy 202 path:
-// CreateBackup spawns a goroutine and returns immediately. The goroutine
-// itself fails harmlessly because model.GetDB() returns nil in tests
-// (handlers.BuildBackupArchive guards against this and returns an error),
-// so no files are written.
+// CreateBackup spawns a goroutine and returns immediately. Because the
+// engine now wires a per-test BackupService bound to a real *sql.DB,
+// the goroutine actually runs and produces a backup file we can assert
+// on disk — proving the create flow works end-to-end, not just that the
+// status code is 202.
 func TestBackupHTTP_CreateBackup_Accepted(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
+	dataDir := t.TempDir()
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(dataDir))
 
 	const apiKey = "create-backup-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -115,29 +103,36 @@ func TestBackupHTTP_CreateBackup_Accepted(t *testing.T) {
 	require.NoError(t, err)
 	defer testutil.DrainAndClose(resp)
 
-	assert.Equal(t, http.StatusAccepted, resp.StatusCode, "first CreateBackup should return 202")
+	require.Equal(t, http.StatusAccepted, resp.StatusCode, "first CreateBackup should return 202")
 
 	var body struct {
 		Message string `json:"message"`
 	}
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
 	assert.NotEmpty(t, body.Message, "202 response should carry a message")
+
+	// Wait for the async backup to complete and assert a file was written.
+	waitForBackupComplete(t, server.BackupService, 10*time.Second)
+
+	files, err := os.ReadDir(filepath.Join(dataDir, "backups"))
+	require.NoError(t, err, "backups dir should have been created by the goroutine")
+	require.Len(t, files, 1, "exactly one backup zip should be on disk")
+	assert.Contains(t, files[0].Name(), "isley-backup-", "filename should follow the production prefix")
 }
 
 // TestBackupHTTP_CreateBackup_ConflictWhenInProgress verifies CreateBackup
-// returns 409 when another backup is in flight. Uses
-// SetBackupInProgressForTesting to flip the singleton without spawning a
-// real goroutine.
+// returns 409 when another backup is in flight. Flips the per-engine
+// service's in-progress flag directly so we don't race a real goroutine.
 func TestBackupHTTP_CreateBackup_ConflictWhenInProgress(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(t.TempDir()))
 
 	const apiKey = "create-conflict-key"
 	testutil.SeedAPIKey(t, db, apiKey)
 
-	handlers.SetBackupInProgressForTesting()
+	server.BackupService.SetBackupInProgress(true)
 
 	c := server.NewClient(t)
 	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/backup/create", apiKey, nil, ""))
@@ -152,16 +147,16 @@ func TestBackupHTTP_CreateBackup_ConflictWhenInProgress(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestBackupHTTP_GetBackupStatus_ReturnsCurrent(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(t.TempDir()))
 
 	const apiKey = "status-key"
 	testutil.SeedAPIKey(t, db, apiKey)
 
 	// Flip in-progress so we can assert the body actually reflects state.
-	handlers.SetBackupInProgressForTesting()
+	server.BackupService.SetBackupInProgress(true)
 
 	c := server.NewClient(t)
 	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+"/settings/backup/status", apiKey, nil, ""))
@@ -171,7 +166,7 @@ func TestBackupHTTP_GetBackupStatus_ReturnsCurrent(t *testing.T) {
 
 	var body handlers.BackupStatus
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
-	assert.True(t, body.InProgress, "in_progress should mirror the singleton")
+	assert.True(t, body.InProgress, "in_progress should mirror the service state")
 }
 
 // ---------------------------------------------------------------------------
@@ -179,15 +174,14 @@ func TestBackupHTTP_GetBackupStatus_ReturnsCurrent(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // TestBackupHTTP_ListBackups_EmptyWhenNoDir verifies ListBackups gracefully
-// returns [] when data/backups does not exist. t.Chdir to a fresh temp
-// dir guarantees the working tree has no backups regardless of what the
-// dev machine carries in data/backups.
+// returns [] when the per-engine backups directory does not exist. The
+// per-test DataDir guarantees the test's tree has no backups regardless
+// of what the dev machine carries on disk.
 func TestBackupHTTP_ListBackups_EmptyWhenNoDir(t *testing.T) {
-	resetBackupGlobals(t)
-	t.Chdir(t.TempDir())
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(t.TempDir()))
 
 	const apiKey = "list-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -204,22 +198,20 @@ func TestBackupHTTP_ListBackups_EmptyWhenNoDir(t *testing.T) {
 }
 
 // TestBackupHTTP_ListBackups_ListsZipsWithMetadata writes a fake zip into
-// a per-test data/backups directory (via t.Chdir to a temp dir) and
-// asserts the response includes its metadata. t.Chdir is safe here
-// because the test does not call t.Parallel and Go runs sequential tests
-// strictly before parallel ones in the same package.
+// the per-test data dir's backups subdirectory and asserts the response
+// includes its metadata.
 func TestBackupHTTP_ListBackups_ListsZipsWithMetadata(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
-	t.Chdir(t.TempDir())
-	require.NoError(t, os.MkdirAll(filepath.Join("data", "backups"), 0o755))
+	dataDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dataDir, "backups"), 0o755))
 	const fixture = "isley-backup-fixture.zip"
-	require.NoError(t, os.WriteFile(filepath.Join("data", "backups", fixture), []byte("zip-bytes"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dataDir, "backups", fixture), []byte("zip-bytes"), 0o644))
 	// Non-zip files in the directory should be ignored by ListBackups.
-	require.NoError(t, os.WriteFile(filepath.Join("data", "backups", "ignore-me.txt"), []byte("nope"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dataDir, "backups", "ignore-me.txt"), []byte("nope"), 0o644))
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(dataDir))
 
 	const apiKey = "list-zips-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -243,10 +235,10 @@ func TestBackupHTTP_ListBackups_ListsZipsWithMetadata(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestBackupHTTP_DownloadBackup_RejectsNonZipName(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(t.TempDir()))
 
 	const apiKey = "dl-bad-name-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -260,13 +252,13 @@ func TestBackupHTTP_DownloadBackup_RejectsNonZipName(t *testing.T) {
 }
 
 func TestBackupHTTP_DownloadBackup_NotFound(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
-	t.Chdir(t.TempDir())
-	require.NoError(t, os.MkdirAll(filepath.Join("data", "backups"), 0o755))
+	dataDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dataDir, "backups"), 0o755))
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(dataDir))
 
 	const apiKey = "dl-missing-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -280,17 +272,17 @@ func TestBackupHTTP_DownloadBackup_NotFound(t *testing.T) {
 }
 
 func TestBackupHTTP_DownloadBackup_HappyPath(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
-	t.Chdir(t.TempDir())
-	require.NoError(t, os.MkdirAll(filepath.Join("data", "backups"), 0o755))
+	dataDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dataDir, "backups"), 0o755))
 
 	const filename = "isley-backup-happy.zip"
 	const payload = "fake-zip-payload"
-	require.NoError(t, os.WriteFile(filepath.Join("data", "backups", filename), []byte(payload), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dataDir, "backups", filename), []byte(payload), 0o644))
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(dataDir))
 
 	const apiKey = "dl-happy-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -313,10 +305,10 @@ func TestBackupHTTP_DownloadBackup_HappyPath(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestBackupHTTP_DeleteBackup_RejectsNonZipName(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(t.TempDir()))
 
 	const apiKey = "del-bad-name-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -329,13 +321,13 @@ func TestBackupHTTP_DeleteBackup_RejectsNonZipName(t *testing.T) {
 }
 
 func TestBackupHTTP_DeleteBackup_NotFound(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
-	t.Chdir(t.TempDir())
-	require.NoError(t, os.MkdirAll(filepath.Join("data", "backups"), 0o755))
+	dataDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dataDir, "backups"), 0o755))
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(dataDir))
 
 	const apiKey = "del-missing-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -348,17 +340,17 @@ func TestBackupHTTP_DeleteBackup_NotFound(t *testing.T) {
 }
 
 func TestBackupHTTP_DeleteBackup_HappyPath(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
-	t.Chdir(t.TempDir())
-	require.NoError(t, os.MkdirAll(filepath.Join("data", "backups"), 0o755))
+	dataDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dataDir, "backups"), 0o755))
 
 	const filename = "isley-backup-todelete.zip"
-	path := filepath.Join("data", "backups", filename)
+	path := filepath.Join(dataDir, "backups", filename)
 	require.NoError(t, os.WriteFile(path, []byte("doomed"), 0o644))
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(dataDir))
 
 	const apiKey = "del-happy-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -378,10 +370,10 @@ func TestBackupHTTP_DeleteBackup_HappyPath(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestBackupHTTP_ImportBackup_RejectsMissingFileField(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(t.TempDir()))
 
 	const apiKey = "import-nofile-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -397,10 +389,10 @@ func TestBackupHTTP_ImportBackup_RejectsMissingFileField(t *testing.T) {
 }
 
 func TestBackupHTTP_ImportBackup_RejectsNonZipPayload(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(t.TempDir()))
 
 	const apiKey = "import-junk-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -417,10 +409,10 @@ func TestBackupHTTP_ImportBackup_RejectsNonZipPayload(t *testing.T) {
 // TestBackupHTTP_ImportBackup_RejectsZipWithoutManifest verifies a
 // well-formed zip that lacks backup.json is rejected with 400.
 func TestBackupHTTP_ImportBackup_RejectsZipWithoutManifest(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(t.TempDir()))
 
 	const apiKey = "import-no-manifest-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -446,10 +438,10 @@ func TestBackupHTTP_ImportBackup_RejectsZipWithoutManifest(t *testing.T) {
 // TestBackupHTTP_ImportBackup_RejectsMalformedManifest verifies a zip
 // whose backup.json is not valid JSON is rejected with 400.
 func TestBackupHTTP_ImportBackup_RejectsMalformedManifest(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(t.TempDir()))
 
 	const apiKey = "import-bad-json-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -472,18 +464,19 @@ func TestBackupHTTP_ImportBackup_RejectsMalformedManifest(t *testing.T) {
 }
 
 // TestBackupHTTP_ImportBackup_ConflictWhenRestoreInProgress verifies the
-// 409 path. Sets currentRestore.InProgress directly so we don't depend on
-// a real restore goroutine racing the second request.
+// 409 path. Sets the per-engine service's restore-in-progress flag
+// directly so we don't depend on a real restore goroutine racing the
+// second request.
 func TestBackupHTTP_ImportBackup_ConflictWhenRestoreInProgress(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(t.TempDir()))
 
 	const apiKey = "import-conflict-key"
 	testutil.SeedAPIKey(t, db, apiKey)
 
-	handlers.SetRestoreInProgressForTesting()
+	server.BackupService.SetRestoreInProgress(true)
 
 	body, ct := testutil.MultipartBody(t, "backup", "anything.zip", testutil.MustReadFixture(t, "backup/valid_minimal.zip"))
 
@@ -500,15 +493,15 @@ func TestBackupHTTP_ImportBackup_ConflictWhenRestoreInProgress(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestBackupHTTP_GetRestoreStatus_ReturnsCurrent(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(t.TempDir()))
 
 	const apiKey = "restore-status-key"
 	testutil.SeedAPIKey(t, db, apiKey)
 
-	handlers.SetRestoreInProgressForTesting()
+	server.BackupService.SetRestoreInProgress(true)
 
 	c := server.NewClient(t)
 	resp, err := c.Do(testutil.APIReq(t, http.MethodGet, c.BaseURL+"/settings/backup/restore/status", apiKey, nil, ""))
@@ -518,7 +511,7 @@ func TestBackupHTTP_GetRestoreStatus_ReturnsCurrent(t *testing.T) {
 
 	var body handlers.RestoreStatus
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
-	assert.True(t, body.InProgress, "in_progress should mirror the singleton")
+	assert.True(t, body.InProgress, "in_progress should mirror the service state")
 }
 
 // ---------------------------------------------------------------------------
@@ -529,16 +522,16 @@ func TestBackupHTTP_GetRestoreStatus_ReturnsCurrent(t *testing.T) {
 // global to postgres for the duration of the test and asserts the
 // endpoint returns 400 ("SQLite-only"). Restoring the driver in cleanup
 // is essential — the global is shared with every other test in the
-// process.
+// process, which is why this test cannot be t.Parallel(). NewTestDB
+// runs first so the testutil init-once block (which sets the driver to
+// "sqlite") cannot overwrite our deliberate driver swap below.
 func TestBackupHTTP_DownloadSQLiteDB_RejectsWhenPostgres(t *testing.T) {
-	resetBackupGlobals(t)
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(t.TempDir()))
 
 	prev := model.GetDriver()
 	model.SetDriverForTesting("postgres")
 	t.Cleanup(func() { model.SetDriverForTesting(prev) })
-
-	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "sqlite-dl-pg-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -555,13 +548,11 @@ func TestBackupHTTP_DownloadSQLiteDB_RejectsWhenPostgres(t *testing.T) {
 // path. Sets ISLEY_DB_FILE to a path inside t.TempDir() that is
 // guaranteed not to exist.
 func TestBackupHTTP_DownloadSQLiteDB_NotFound(t *testing.T) {
-	resetBackupGlobals(t)
-
 	missing := filepath.Join(t.TempDir(), "missing.db")
 	t.Setenv("ISLEY_DB_FILE", missing)
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(t.TempDir()))
 
 	const apiKey = "sqlite-dl-missing-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -574,15 +565,13 @@ func TestBackupHTTP_DownloadSQLiteDB_NotFound(t *testing.T) {
 }
 
 func TestBackupHTTP_DownloadSQLiteDB_HappyPath(t *testing.T) {
-	resetBackupGlobals(t)
-
 	dbFile := filepath.Join(t.TempDir(), "isley.db")
 	const payload = "SQLite format 3\x00rest-of-the-file"
 	require.NoError(t, os.WriteFile(dbFile, []byte(payload), 0o644))
 	t.Setenv("ISLEY_DB_FILE", dbFile)
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(t.TempDir()))
 
 	const apiKey = "sqlite-dl-happy-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -605,14 +594,12 @@ func TestBackupHTTP_DownloadSQLiteDB_HappyPath(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestBackupHTTP_UploadSQLiteDB_RejectsWhenPostgres(t *testing.T) {
-	resetBackupGlobals(t)
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(t.TempDir()))
 
 	prev := model.GetDriver()
 	model.SetDriverForTesting("postgres")
 	t.Cleanup(func() { model.SetDriverForTesting(prev) })
-
-	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
 
 	const apiKey = "sqlite-up-pg-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -627,10 +614,10 @@ func TestBackupHTTP_UploadSQLiteDB_RejectsWhenPostgres(t *testing.T) {
 }
 
 func TestBackupHTTP_UploadSQLiteDB_RejectsMissingFileField(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(t.TempDir()))
 
 	const apiKey = "sqlite-up-nofile-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -648,10 +635,10 @@ func TestBackupHTTP_UploadSQLiteDB_RejectsMissingFileField(t *testing.T) {
 // TestBackupHTTP_UploadSQLiteDB_RejectsBadMagic verifies a payload with
 // the wrong leading bytes is rejected with 400 before a goroutine runs.
 func TestBackupHTTP_UploadSQLiteDB_RejectsBadMagic(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(t.TempDir()))
 
 	const apiKey = "sqlite-up-magic-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -668,15 +655,15 @@ func TestBackupHTTP_UploadSQLiteDB_RejectsBadMagic(t *testing.T) {
 }
 
 func TestBackupHTTP_UploadSQLiteDB_ConflictWhenRestoreInProgress(t *testing.T) {
-	resetBackupGlobals(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithDataDir(t.TempDir()))
 
 	const apiKey = "sqlite-up-conflict-key"
 	testutil.SeedAPIKey(t, db, apiKey)
 
-	handlers.SetRestoreInProgressForTesting()
+	server.BackupService.SetRestoreInProgress(true)
 
 	// Body shape doesn't matter — the InProgress check fires before
 	// the multipart parser is even consulted.
@@ -698,4 +685,27 @@ func TestBackupHTTP_apiReqSetsHeader(t *testing.T) {
 	t.Parallel()
 	req := testutil.APIReq(t, http.MethodGet, "http://example/", "abc", nil, "")
 	assert.Equal(t, "abc", req.Header.Get("X-API-KEY"))
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+// waitForBackupComplete polls the in-process BackupService until its
+// in-progress flag flips back to false, or the timeout expires. Used by
+// async-create tests that need to assert post-goroutine state on disk.
+func waitForBackupComplete(t *testing.T, svc *handlers.BackupService, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		status := svc.BackupSnapshot()
+		if !status.InProgress {
+			if status.Error != "" {
+				t.Fatalf("backup goroutine reported error: %s", status.Error)
+			}
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("backup did not complete within %s", timeout)
 }

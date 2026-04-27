@@ -9,6 +9,8 @@ package app
 import (
 	"database/sql"
 	"io/fs"
+
+	"isley/handlers"
 )
 
 // Config bundles everything NewEngine needs. Each caller (production
@@ -45,4 +47,17 @@ type Config struct {
 	// c.ClientIP() returns the real client IP behind a reverse proxy.
 	// Tests typically pass nil to disable trust entirely.
 	TrustedProxies []string
+
+	// DataDir is the root directory where backup archives, scratch files,
+	// and other on-disk state live. Defaults to "data" when empty.
+	// Production passes "data" (or whatever the deploy uses); tests pass
+	// t.TempDir() so each test has its own isolated tree.
+	DataDir string
+
+	// BackupService, if non-nil, is wired into the engine instead of
+	// having NewEngine construct one from DB+DataDir. Used by tests that
+	// want a handle to the service so they can deterministically flip
+	// in-progress state without racing a real goroutine. Production
+	// leaves this nil and lets NewEngine build the service.
+	BackupService *handlers.BackupService
 }

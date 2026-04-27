@@ -78,6 +78,12 @@ func NewEngine(cfg Config) (*gin.Engine, error) {
 	r.Use(csrfMiddleware())
 	r.Use(dbMiddleware(cfg.DB))
 
+	backupSvc := cfg.BackupService
+	if backupSvc == nil {
+		backupSvc = handlers.NewBackupService(cfg.DB, cfg.DataDir)
+	}
+	r.Use(backupServiceMiddleware(backupSvc))
+
 	registerPublicRoutes(r, cfg)
 	registerProtectedRoutes(r, cfg)
 	registerAPIRoutes(r)
@@ -177,6 +183,17 @@ func csrfMiddleware() gin.HandlerFunc {
 func dbMiddleware(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Set("db", db)
+		c.Next()
+	}
+}
+
+// backupServiceMiddleware injects the per-engine *handlers.BackupService
+// into the Gin context. Handlers retrieve it via
+// handlers.BackupServiceFromContext(c). The service owns backup/restore
+// status state that previously lived in handlers package globals.
+func backupServiceMiddleware(svc *handlers.BackupService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		handlers.SetBackupServiceOnContext(c, svc)
 		c.Next()
 	}
 }

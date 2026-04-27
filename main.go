@@ -129,6 +129,7 @@ func main() {
 		SecureCookies:  handlers.SecureCookies,
 		GuestMode:      config.GuestMode == 1,
 		TrustedProxies: trustedProxies,
+		DataDir:        "data",
 	})
 	if err != nil {
 		logger.Log.WithError(err).Fatal("Failed to construct HTTP engine")

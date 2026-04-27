@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"isley/app"
+	"isley/handlers"
 )
 
 // TestServer wraps an httptest.Server backed by an in-process Gin engine
@@ -17,8 +18,15 @@ import (
 type TestServer struct {
 	*httptest.Server
 
-	DB     *sql.DB
-	Assets string // absolute path to the repo root used as the assets fs
+	DB      *sql.DB
+	Assets  string // absolute path to the repo root used as the assets fs
+	DataDir string // root data directory used by the engine (e.g. for backups)
+
+	// BackupService is the per-engine service that owns backup/restore
+	// status state. Tests can call its Set*InProgress methods to
+	// deterministically exercise 409 branches without racing a real
+	// goroutine.
+	BackupService *handlers.BackupService
 }
 
 // ServerOption tunes NewTestServer. Today we only need GuestMode; the
@@ -29,6 +37,7 @@ type ServerOption func(*serverOptions)
 type serverOptions struct {
 	guestMode     bool
 	sessionSecret []byte
+	dataDir       string
 }
 
 // WithGuestMode boots the engine with config.GuestMode == 1 semantics
@@ -41,6 +50,14 @@ func WithGuestMode() ServerOption {
 // Useful for verifying cookie cross-instance behavior.
 func WithSessionSecret(secret []byte) ServerOption {
 	return func(o *serverOptions) { o.sessionSecret = secret }
+}
+
+// WithDataDir overrides the engine's data directory (where backup
+// archives and other on-disk state live). Tests typically pass
+// t.TempDir() so each run has an isolated tree and parallel tests
+// cannot collide on backups/uploads/scratch paths.
+func WithDataDir(dir string) ServerOption {
+	return func(o *serverOptions) { o.dataDir = dir }
 }
 
 // NewTestServer constructs a Gin engine wired to db and serves it via
@@ -67,6 +84,8 @@ func NewTestServer(t *testing.T, db *sql.DB, opts ...ServerOption) *TestServer {
 		t.Fatalf("NewTestServer: locate repo root: %v", err)
 	}
 
+	backupSvc := handlers.NewBackupService(db, options.dataDir)
+
 	engine, err := app.NewEngine(app.Config{
 		DB:             db,
 		Assets:         os.DirFS(root),
@@ -75,6 +94,8 @@ func NewTestServer(t *testing.T, db *sql.DB, opts ...ServerOption) *TestServer {
 		SecureCookies:  false,
 		GuestMode:      options.guestMode,
 		TrustedProxies: nil,
+		DataDir:        options.dataDir,
+		BackupService:  backupSvc,
 	})
 	if err != nil {
 		t.Fatalf("NewTestServer: app.NewEngine: %v", err)
@@ -84,9 +105,11 @@ func NewTestServer(t *testing.T, db *sql.DB, opts ...ServerOption) *TestServer {
 	t.Cleanup(srv.Close)
 
 	return &TestServer{
-		Server: srv,
-		DB:     db,
-		Assets: root,
+		Server:        srv,
+		DB:            db,
+		Assets:        root,
+		DataDir:       options.dataDir,
+		BackupService: backupSvc,
 	}
 }
 
