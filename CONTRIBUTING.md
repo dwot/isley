@@ -87,6 +87,28 @@ one place owns the column ordering and default values; bypassing them in a
 fixture function silently re-introduces the drift the consolidation was
 meant to prevent.
 
+#### Authenticating mutating requests in tests
+
+Two patterns coexist, and they exercise different production code paths:
+
+- **`X-API-KEY` (`Client.APIPostJSON`, `Client.APIDelete`).** Use this for
+  the ingest contract (sensor data, operator scripts, external
+  integrations). Setting `X-API-KEY` causes `csrfMiddleware` to skip
+  validation entirely, which is correct for that contract but means
+  these tests do **not** cover the CSRF round-trip.
+- **Session cookie + CSRF (`TestServer.LoginAndFetchCSRF` →
+  `Client.SessionPostJSON`).** Use this for any handler whose real
+  user-facing contract is the dashboard — i.e. the same path browser JS
+  takes. `LoginAndFetchCSRF` logs in via `LoginAsAdmin` and then GETs
+  the supplied edit page to extract the CSRF token from
+  `<meta name="csrf-token">`; `SessionPostJSON` forwards the token in
+  `X-CSRF-Token`. This is the standard for new session-path tests.
+
+`tests/integration/session_csrf_test.go` keeps the cookie + CSRF
+round-trip covered for the major resources (plant, strain, settings,
+sensor edit, zone). When you add a new dashboard-only mutating
+endpoint, add a single round-trip test next to those.
+
 ### Coverage floor
 
 CI gates every PR on a documented coverage floor — one per build tag. The

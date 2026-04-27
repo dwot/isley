@@ -100,6 +100,12 @@ func (c *Client) APIDelete(t *testing.T, path, apiKey string) *http.Response {
 // the full HTML, since the form is small and the markup is stable.
 var csrfTokenRE = regexp.MustCompile(`name="csrf_token"\s+value="([^"]+)"`)
 
+// metaCSRFTokenRE finds the <meta name="csrf-token" content="..."> tag
+// emitted by common/header.html on dashboard pages. Frontend JS reads
+// the same tag and forwards the value via the X-CSRF-Token header on
+// XHR/fetch calls; tests for the session+CSRF round-trip do the same.
+var metaCSRFTokenRE = regexp.MustCompile(`<meta\s+name="csrf-token"\s+content="([^"]+)"`)
+
 // FetchCSRFToken issues GET path, reads the body, and returns the value
 // of the first csrf_token input. Used by LoginAsAdmin to round-trip the
 // session-bound CSRF token before submitting the login form.
@@ -119,6 +125,72 @@ func (c *Client) FetchCSRFToken(path string) string {
 		c.t.Fatalf("FetchCSRFToken: no csrf_token field found at %s; body starts: %s", path, head(body, 200))
 	}
 	return m[1]
+}
+
+// FetchMetaCSRFToken issues GET path on this client (which must already
+// be logged in if path is auth-gated) and returns the token from the
+// <meta name="csrf-token"> tag rendered by common/header.html. This is
+// the token dashboard JS reads and submits via X-CSRF-Token, so tests
+// using it exercise the session+CSRF contract real browser clients use.
+//
+// Use FetchCSRFToken for /login and /change-password — those forms POST
+// as form-encoded and ship a hidden csrf_token input rather than the
+// meta tag.
+func (c *Client) FetchMetaCSRFToken(path string) string {
+	c.t.Helper()
+	resp := c.Get(path)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		c.t.Fatalf("FetchMetaCSRFToken: GET %s: status %d", path, resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.t.Fatalf("FetchMetaCSRFToken: read body: %v", err)
+	}
+	m := metaCSRFTokenRE.FindStringSubmatch(string(body))
+	if len(m) < 2 {
+		c.t.Fatalf("FetchMetaCSRFToken: no <meta name=\"csrf-token\"> at %s; body starts: %s", path, head(body, 200))
+	}
+	return m[1]
+}
+
+// SessionPostJSON issues a JSON POST to path using the cookie jar's
+// session cookie plus the supplied CSRF token in the X-CSRF-Token
+// header — the contract the dashboard's frontend JS uses. Pass
+// csrfToken="" to deliberately omit the header (the 403 path).
+//
+// Caller closes the response body. Companion to APIPostJSON, which
+// authenticates via X-API-KEY and skips CSRF entirely.
+func (c *Client) SessionPostJSON(t *testing.T, path, csrfToken string, body interface{}) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, c.BaseURL+path, JSONBody(t, body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	if csrfToken != "" {
+		req.Header.Set("X-CSRF-Token", csrfToken)
+	}
+	resp, err := c.Do(req)
+	require.NoError(t, err)
+	return resp
+}
+
+// LoginAndFetchCSRF logs in via LoginAsAdmin and then GETs csrfPagePath
+// to extract the CSRF token rendered in <meta name="csrf-token">. The
+// returned client carries the session cookie; callers issue mutating
+// requests via SessionPostJSON (which forwards the token in
+// X-CSRF-Token).
+//
+// This is the standard helper for session-path tests. Existing
+// X-API-KEY tests are still correct — they exercise the API-key
+// contract that operator scripts and external integrations use; the
+// session path is what dashboard JS uses, and round-tripping it here
+// keeps the cookie+CSRF contract from regressing silently.
+//
+// Callers must SeedAdmin (with the same password) before this runs.
+func (s *TestServer) LoginAndFetchCSRF(t *testing.T, password, csrfPagePath string) (*Client, string) {
+	t.Helper()
+	c := s.LoginAsAdmin(t, password)
+	return c, c.FetchMetaCSRFToken(csrfPagePath)
 }
 
 // LoginAsAdmin returns a Client that has authenticated as user "admin"
