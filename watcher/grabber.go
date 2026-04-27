@@ -25,16 +25,18 @@ const (
 // parallel tests) can run side-by-side without colliding on config.
 //
 // frameDir is the on-disk directory frame snapshots are written into.
-// Production main.go threads the engine's resolved StreamDir/FrameDir
-// here; tests pass t.TempDir() so per-test grabber writes stay
-// isolated. An empty frameDir falls back to "uploads/streams" — the
-// historical default — so callers (e.g. legacy entry points) still
-// behave the same.
+// Production main.go threads the engine's resolved FrameDir here
+// (via app.ResolvePathDefaults); tests pass t.TempDir() so per-test
+// grabber writes stay isolated. An empty frameDir is a programmer
+// error — callers must resolve defaults before calling Grab — and
+// panics fast so the bug surfaces at the call site rather than
+// after the goroutine has been running for hours writing to the
+// process CWD.
 func Grab(ctx context.Context, store *config.Store, frameDir string) {
-	logger.Log.Info("Started Stream Grabber")
 	if frameDir == "" {
-		frameDir = filepath.Join("uploads", "streams")
+		panic("watcher.Grab: frameDir must be non-empty (resolve via app.ResolvePathDefaults)")
 	}
+	logger.Log.Info("Started Stream Grabber")
 	interval := defaultStreamGrabInterval
 
 	for {

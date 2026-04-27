@@ -97,7 +97,7 @@ func WithUploadDir(dir string) ServerOption {
 // WithStreamDir overrides the engine's stream-snapshot root (where
 // AddStreamHandler's initial GrabWebcamImage call writes the first
 // frame). Defaults to filepath.Join(UploadDir, "streams") when unset
-// — matching the engine's resolvePathDefaults behavior.
+// — matching the engine's ResolvePathDefaults behavior.
 func WithStreamDir(dir string) ServerOption {
 	return func(o *serverOptions) { o.streamDir = dir }
 }
@@ -177,7 +177,7 @@ func NewTestServer(t *testing.T, db *sql.DB, opts ...ServerOption) *TestServer {
 	}
 	// Resolve defaults so the TestServer's exported path fields reflect
 	// the same values the engine middleware injects into request context.
-	resolved := resolveTestPathDefaults(engineCfg)
+	resolved := app.ResolvePathDefaults(engineCfg)
 
 	engine, err := app.NewEngine(engineCfg)
 	if err != nil {
@@ -199,27 +199,6 @@ func NewTestServer(t *testing.T, db *sql.DB, opts ...ServerOption) *TestServer {
 		BackupService: backupSvc,
 		ConfigStore:   configStore,
 	}
-}
-
-// resolveTestPathDefaults mirrors app.resolvePathDefaults so the
-// TestServer's exported path fields surface the same values the engine
-// middleware will inject into request context. Kept here (rather than
-// exported from app/) to avoid widening app's API surface for a
-// test-only convenience.
-func resolveTestPathDefaults(cfg app.Config) app.Config {
-	if cfg.UploadDir == "" {
-		cfg.UploadDir = handlers.DefaultUploadDir
-	}
-	if cfg.StreamDir == "" {
-		cfg.StreamDir = handlers.DefaultStreamDir(cfg.UploadDir)
-	}
-	if cfg.FrameDir == "" {
-		cfg.FrameDir = cfg.StreamDir
-	}
-	if cfg.LogsDir == "" {
-		cfg.LogsDir = handlers.DefaultLogsDir
-	}
-	return cfg
 }
 
 // repoRoot walks up from this source file until it finds the directory

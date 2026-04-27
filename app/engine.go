@@ -27,13 +27,20 @@ import (
 	"isley/utils"
 )
 
-// resolvePathDefaults applies the documented defaults for the path
+// ResolvePathDefaults applies the documented defaults for the path
 // fields on Config. Centralised so NewEngine, production main, and
 // tests all see the same fallback rules: UploadDir → "uploads",
 // StreamDir → <UploadDir>/streams, FrameDir → <StreamDir>, LogsDir →
 // "logs". Returning a copy keeps the input Config immutable from the
 // caller's perspective.
-func resolvePathDefaults(cfg Config) Config {
+//
+// Exported so production main can read the resolved FrameDir before
+// constructing the watcher's grabber, and so tests/testutil can
+// mirror the engine's resolved values onto its TestServer struct
+// without duplicating the rules. NewEngine itself calls this — there
+// is no scenario in which it makes sense to construct an engine with
+// the unresolved Config.
+func ResolvePathDefaults(cfg Config) Config {
 	if cfg.UploadDir == "" {
 		cfg.UploadDir = handlers.DefaultUploadDir
 	}
@@ -64,7 +71,7 @@ func NewEngine(cfg Config) (*gin.Engine, error) {
 		return nil, fmt.Errorf("app.NewEngine: cfg.SessionSecret is required")
 	}
 
-	cfg = resolvePathDefaults(cfg)
+	cfg = ResolvePathDefaults(cfg)
 
 	configStore := cfg.ConfigStore
 	if configStore == nil {
@@ -245,7 +252,7 @@ func configStoreMiddleware(s *config.Store) gin.HandlerFunc {
 // pathDirsMiddleware injects the per-engine on-disk directory roots
 // (uploads, streams, logs) the handlers consult at request time. The
 // fields are pre-resolved with their documented defaults by
-// resolvePathDefaults, so handlers always see a non-empty value.
+// ResolvePathDefaults, so handlers always see a non-empty value.
 // Threading them via context — instead of a process-global — is what
 // lets tests pass per-test tempdirs and run in parallel without
 // colliding on filesystem paths.
