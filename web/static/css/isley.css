@@ -2528,42 +2528,158 @@ header .nav-link.active::after {
 }
 
 /* ===== Activity Log page ===== */
-.activity-log-filters {
-    background: var(--color-surface, transparent);
+.activities-controls {
+    margin-bottom: 1.5rem;
 }
-.activity-log-filters .form-label {
+.activities-controls-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+}
+.activities-search-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 180px;
+    max-width: 320px;
+}
+.activities-search-icon {
+    position: absolute;
+    left: 0.65rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-muted);
+    font-size: 0.8rem;
+    pointer-events: none;
+}
+.activities-search-wrap .form-control {
+    padding-left: 2rem;
+    background: var(--color-input-bg);
+    color: var(--color-input-fg);
+    border-color: var(--color-input-border);
+}
+.activities-controls-row .btn-group .layout-toggle {
+    border: 1px solid var(--color-view-btn-border);
+    background: transparent;
+    color: var(--color-fg);
+    font-weight: 500;
+    font-size: 0.85rem;
+    padding: 0.35rem 0.65rem;
+    transition: all 0.15s;
+}
+.activities-controls-row .btn-group .layout-toggle:hover {
+    background: var(--color-view-btn-hover-bg);
+    color: var(--color-view-btn-hover-fg);
+}
+.activities-controls-row .btn-group .layout-toggle.active {
+    background: var(--color-view-btn-active-bg);
+    color: var(--color-view-btn-active-fg);
+    border-color: var(--color-view-btn-active-border);
+}
+.activities-filters-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+.activities-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+.activities-filter-label {
     font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-muted);
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--color-muted);
-    margin-bottom: 0.25rem;
+    white-space: nowrap;
 }
-.activity-log-table {
+.activities-filter-group .form-select,
+.activities-filter-group .form-control {
+    min-width: 120px;
+    font-size: 0.85rem;
+    background: var(--color-input-bg);
+    color: var(--color-input-fg);
+    border-color: var(--color-input-border);
+}
+.activities-result-count {
+    font-size: 0.82rem;
+}
+
+/* Activity table */
+.activities-table-wrap {
+    border-radius: 8px;
+    overflow: hidden;
+}
+.activities-table {
     font-size: 0.95rem;
+    margin-bottom: 0;
 }
-.activity-log-table thead th {
+.activities-table thead th {
     font-size: 0.78rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--color-muted);
     background: transparent;
+    border-color: var(--color-border);
 }
-.activity-log-table td.activity-log-date {
+.al-sortable {
+    cursor: pointer;
+    user-select: none;
+}
+.activities-table tbody tr {
+    transition: background-color 0.15s;
+}
+.activities-table tbody tr:hover {
+    background-color: var(--color-hover-bg);
+}
+.al-th-date {
     width: 12rem;
+}
+.al-th-plant {
+    width: 12%;
+}
+.al-th-strain {
+    width: 12%;
+}
+.al-th-zone {
+    width: 10%;
+}
+.al-th-activity {
+    width: 12%;
+}
+.al-th-note {
+    flex-grow: 1;
+}
+.al-cell-date {
+    white-space: nowrap;
+    font-size: 0.9rem;
+}
+.al-cell-plant {
     white-space: nowrap;
 }
-.activity-log-table td.activity-log-plant {
+.al-cell-strain {
     white-space: nowrap;
 }
-.activity-log-table td.activity-log-note {
+.al-cell-zone {
+    white-space: nowrap;
+}
+.al-cell-activity {
+    white-space: nowrap;
+}
+.al-cell-note {
     white-space: pre-wrap;
     word-break: break-word;
     line-height: 1.45;
+    font-size: 0.9rem;
 }
-.activity-log-empty {
+.activities-empty {
     padding: 3rem 1rem;
     text-align: center;
     color: var(--color-muted);
+    display: none;
 }
 
 @media (max-width: 576px) {
