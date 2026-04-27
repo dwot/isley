@@ -1,13 +1,16 @@
 package watcher
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -17,6 +20,29 @@ import (
 	"isley/tests/testutil"
 	"isley/tests/testutil/fakes"
 )
+
+// stubHTTPDoer is a synctest-friendly HTTPDoer. The watcher's Run-loop
+// tests live inside a synctest bubble; a real httptest server (or
+// http.Transport speaking to one) spawns connection read/write loops
+// that block on network syscalls, which synctest considers
+// "non-durably blocked". Those loops would prevent the bubble from
+// ever observing all goroutines as durably blocked, so synctest.Wait
+// would hang. The stub returns a canned body inline with no goroutines
+// or I/O, keeping the bubble deterministic.
+type stubHTTPDoer struct {
+	hits int32
+	body []byte
+}
+
+func (s *stubHTTPDoer) Do(req *http.Request) (*http.Response, error) {
+	atomic.AddInt32(&s.hits, 1)
+	return &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(bytes.NewReader(s.body)),
+		Header:     make(http.Header),
+		Request:    req,
+	}, nil
+}
 
 // newTestWatcher returns a Watcher pre-wired for tests. Every getter
 // returns a sensible default that disables the production code paths;
@@ -274,75 +300,99 @@ func insertReadingAt(t *testing.T, db *sql.DB, sensorID int, value float64, ts t
 func TestRun_StopsOnContextCancel(t *testing.T) {
 	db := testutil.NewTestDB(t)
 
-	w := newTestWatcher(t, db)
-	// Long polling interval; the cancel below is what should unblock Run.
-	w.PollingInterval = func() time.Duration { return time.Hour }
+	synctest.Test(t, func(t *testing.T) {
+		w := newTestWatcher(t, db)
+		// Long polling interval; the cancel below is what should unblock Run.
+		// Under synctest the "hour" never elapses in real time — only ctx
+		// cancellation can wake the loop.
+		w.PollingInterval = func() time.Duration { return time.Hour }
 
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() {
-		w.Run(ctx)
-		close(done)
-	}()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-	cancel()
+		done := make(chan struct{})
+		go func() {
+			w.Run(ctx)
+			close(done)
+		}()
 
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("Run did not return within 2s after ctx cancel")
-	}
+		// Park the loop on its select<-ctx.Done()/time.After(1h).
+		synctest.Wait()
+
+		cancel()
+
+		// After cancel, the loop's ctx.Done case fires and Run returns.
+		<-done
+	})
 }
 
 func TestRun_RespectsRestoreInProgress(t *testing.T) {
 	db := testutil.NewTestDB(t)
-
-	// Inline httptest.NewServer rather than fakes.FakeACI because this
-	// test counts hits — fakes.FakeACI exposes only the URL and would
-	// require the test to attach its own counting middleware anyway.
 	body := testutil.MustReadFixture(t, "aci/happy.json")
-	var hits int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&hits, 1)
-		_, _ = w.Write(body)
-	}))
-	t.Cleanup(server.Close)
 
-	w := newTestWatcher(t, db)
-	w.ACIBaseURL = server.URL
-	w.ACIEnabled = func() bool { return true }
-	w.ACIToken = func() string { return "tok" }
-	w.RestoreInProgress = func() bool { return true }
-	w.PollingInterval = func() time.Duration { return time.Millisecond }
+	synctest.Test(t, func(t *testing.T) {
+		h := &stubHTTPDoer{body: body}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-	w.Run(ctx)
+		w := newTestWatcher(t, db)
+		w.HTTP = h
+		w.ACIBaseURL = "http://aci.example"
+		w.ACIEnabled = func() bool { return true }
+		w.ACIToken = func() string { return "tok" }
+		w.RestoreInProgress = func() bool { return true }
+		w.PollingInterval = func() time.Duration { return time.Millisecond }
 
-	assert.EqualValues(t, 0, atomic.LoadInt32(&hits), "no HTTP calls should fire while restore is in progress")
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		done := make(chan struct{})
+		go func() {
+			w.Run(ctx)
+			close(done)
+		}()
+
+		// Advance virtual time well past dozens of polling intervals; if
+		// RestoreInProgress weren't honored, many HTTP calls would fire
+		// during this window.
+		time.Sleep(100 * time.Millisecond)
+
+		cancel()
+		<-done
+
+		assert.EqualValues(t, 0, atomic.LoadInt32(&h.hits), "no HTTP calls should fire while restore is in progress")
+	})
 }
 
 func TestRun_PollsACIWhenEnabled(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	seedSensor(t, db, "acinfinity", "TESTDEV", "ACI.tempC")
-
 	body := testutil.MustReadFixture(t, "aci/happy.json")
-	var hits int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&hits, 1)
-		_, _ = w.Write(body)
-	}))
-	t.Cleanup(server.Close)
 
-	w := newTestWatcher(t, db)
-	w.ACIBaseURL = server.URL
-	w.ACIEnabled = func() bool { return true }
-	w.ACIToken = func() string { return "tok" }
-	w.PollingInterval = func() time.Duration { return time.Millisecond }
+	synctest.Test(t, func(t *testing.T) {
+		h := &stubHTTPDoer{body: body}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-	w.Run(ctx)
+		w := newTestWatcher(t, db)
+		w.HTTP = h
+		w.ACIBaseURL = "http://aci.example"
+		w.ACIEnabled = func() bool { return true }
+		w.ACIToken = func() string { return "tok" }
+		w.PollingInterval = func() time.Duration { return time.Millisecond }
 
-	assert.GreaterOrEqual(t, atomic.LoadInt32(&hits), int32(1), "at least one ACI request expected during the run window")
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		done := make(chan struct{})
+		go func() {
+			w.Run(ctx)
+			close(done)
+		}()
+
+		// Wait for the first iteration: PollACI fires once, the loop falls
+		// through the prune/rollup defaults, then parks on time.After.
+		synctest.Wait()
+
+		assert.GreaterOrEqual(t, atomic.LoadInt32(&h.hits), int32(1), "at least one ACI request expected")
+
+		cancel()
+		<-done
+	})
 }
