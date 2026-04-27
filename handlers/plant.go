@@ -53,10 +53,11 @@ func AddPlant(c *gin.Context) {
 	}
 
 	db := DBFromContext(c)
+	store := ConfigStoreFromContext(c)
 
 	if input.ZoneID == nil && input.NewZone != "" {
 		// Insert new zone into the database
-		zoneID, err := CreateNewZone(db, input.NewZone)
+		zoneID, err := CreateNewZone(db, store, input.NewZone)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
 			apiInternalError(c, "api_failed_to_create_new_zone")
@@ -68,7 +69,7 @@ func AddPlant(c *gin.Context) {
 	// Handle new strain creation
 	if input.StrainID == nil && input.NewStrain != nil {
 		// Insert new strain into the database
-		strainID, err := CreateNewStrain(db, input.NewStrain)
+		strainID, err := CreateNewStrain(db, store, input.NewStrain)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new strain")
 			apiInternalError(c, "api_failed_to_create_new_strain")
@@ -198,7 +199,11 @@ func GetStatuses(db *sql.DB) []types.Status {
 
 }
 
-func CreateNewStrain(db *sql.DB, newStrain *struct {
+// CreateNewStrain inserts a new strain (and optionally a new breeder)
+// and returns the new strain id. If store is non-nil it is refreshed
+// from the DB so subsequent reads observe the new rows; tests that
+// don't care about the in-memory side-effect may pass nil.
+func CreateNewStrain(db *sql.DB, store *config.Store, newStrain *struct {
 	Name       string `json:"name"`
 	BreederId  int    `json:"breeder_id"`
 	NewBreeder string `json:"new_breeder"`
@@ -215,7 +220,9 @@ func CreateNewStrain(db *sql.DB, newStrain *struct {
 			return 0, fmt.Errorf("failed to insert new breeder: %w", err)
 		}
 
-		config.Breeders = GetBreeders(db)
+		if store != nil {
+			store.SetBreeders(GetBreeders(db))
+		}
 	} else {
 		// Use the existing breeder ID
 		breederId = newStrain.BreederId
@@ -234,7 +241,9 @@ func CreateNewStrain(db *sql.DB, newStrain *struct {
 		return 0, fmt.Errorf("failed to insert new strain: %w", err)
 	}
 
-	config.Strains = GetStrains(db)
+	if store != nil {
+		store.SetStrains(GetStrains(db))
+	}
 
 	return id, nil
 }
@@ -789,10 +798,11 @@ func UpdatePlant(c *gin.Context) {
 
 	// Init the db
 	db := DBFromContext(c)
+	store := ConfigStoreFromContext(c)
 
 	if input.ZoneID == nil && input.NewZone != "" {
 		// Insert new zone into the database
-		zoneID, err := CreateNewZone(db, input.NewZone)
+		zoneID, err := CreateNewZone(db, store, input.NewZone)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
 			apiInternalError(c, "api_failed_to_create_new_zone")
@@ -804,7 +814,7 @@ func UpdatePlant(c *gin.Context) {
 	// Handle new strain creation
 	if input.StrainID == nil && input.NewStrain != nil {
 		// Insert new strain into the database
-		strainID, err := CreateNewStrain(db, input.NewStrain)
+		strainID, err := CreateNewStrain(db, store, input.NewStrain)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new strain")
 			apiInternalError(c, "api_failed_to_create_new_strain")

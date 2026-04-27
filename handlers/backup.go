@@ -368,8 +368,9 @@ func UploadSQLiteDB(c *gin.Context) {
 	defer file.Close()
 	fieldLogger.Infof("Received SQLite file: %s (%d bytes)", header.Filename, header.Size)
 
-	if header.Size > config.MaxBackupSize {
-		fieldLogger.Errorf("SQLite file too large: %d bytes (max %d)", header.Size, config.MaxBackupSize)
+	maxBackupSize := ConfigStoreFromContext(c).MaxBackupSize()
+	if header.Size > maxBackupSize {
+		fieldLogger.Errorf("SQLite file too large: %d bytes (max %d)", header.Size, maxBackupSize)
 		svc.AbortRestore()
 		apiBadRequest(c, "api_backup_file_too_large")
 		return
@@ -391,13 +392,13 @@ func UploadSQLiteDB(c *gin.Context) {
 		return
 	}
 
-	go runSQLiteFileRestore(svc, body)
+	go runSQLiteFileRestore(svc, body, ConfigStoreFromContext(c))
 
 	c.JSON(http.StatusAccepted, gin.H{"message": T(c, "api_restore_started")})
 }
 
 // runSQLiteFileRestore replaces the current SQLite file with the uploaded one.
-func runSQLiteFileRestore(svc *BackupService, data []byte) {
+func runSQLiteFileRestore(svc *BackupService, data []byte, store *config.Store) {
 	fieldLogger := logger.Log.WithField("handler", "runSQLiteFileRestore")
 
 	var runErr error
@@ -442,7 +443,7 @@ func runSQLiteFileRestore(svc *BackupService, data []byte) {
 
 	// Reload in-memory config from the newly reopened DB.
 	if reopenedDB, dbErr := model.GetDB(); dbErr == nil {
-		LoadSettings(reopenedDB)
+		LoadSettings(reopenedDB, store)
 	} else {
 		fieldLogger.WithError(dbErr).Error("Failed to obtain DB after reopen for LoadSettings")
 	}
@@ -484,8 +485,9 @@ func ImportBackup(c *gin.Context) {
 	defer file.Close()
 	fieldLogger.Infof("Received backup file: %s (%d bytes)", header.Filename, header.Size)
 
-	if header.Size > config.MaxBackupSize {
-		fieldLogger.Errorf("Backup file too large: %d bytes (max %d)", header.Size, config.MaxBackupSize)
+	maxBackupSize := ConfigStoreFromContext(c).MaxBackupSize()
+	if header.Size > maxBackupSize {
+		fieldLogger.Errorf("Backup file too large: %d bytes (max %d)", header.Size, maxBackupSize)
 		svc.AbortRestore()
 		apiBadRequest(c, "api_backup_file_too_large")
 		return
@@ -553,14 +555,18 @@ func ImportBackup(c *gin.Context) {
 		payload.SensorData = nil
 	}
 
-	// Launch the restore in a background goroutine and return 202
-	go runRestore(svc, payload, body)
+	// Launch the restore in a background goroutine and return 202.
+	// Capture maxBackupSize at the request site so the goroutine does not
+	// reach into the per-engine Store after the request returns. The Store
+	// itself is still passed so the post-restore reload populates the live
+	// engine's view of settings.
+	go runRestore(svc, payload, body, maxBackupSize, ConfigStoreFromContext(c))
 
 	c.JSON(http.StatusAccepted, gin.H{"message": T(c, "api_restore_started")})
 }
 
 // runRestore performs the actual database restore work in a background goroutine.
-func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte) {
+func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBackupSize int64, store *config.Store) {
 	fieldLogger := logger.Log.WithField("handler", "runRestore")
 
 	var (
@@ -844,7 +850,7 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte) {
 			}
 
 			var extractedBytes int64
-			extractLimit := config.MaxBackupSize
+			extractLimit := maxBackupSize
 			extractAborted := false
 
 			for _, zf := range zr2.File {
@@ -915,7 +921,7 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte) {
 	fieldLogger.Infof("Restore complete: %d files extracted", filesRestored)
 
 	// Reload in-memory config from the newly restored DB.
-	LoadSettings(db)
+	LoadSettings(db, store)
 }
 
 // ---------------------------------------------------------------------------

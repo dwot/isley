@@ -62,21 +62,26 @@ func main() {
 		logger.Log.WithError(err).Fatal("Failed to open database for credential init")
 	}
 
-	// Seed default admin credentials if absent.
+	// Seed default admin credentials if absent. Pass nil for the store
+	// because the engine (and its Store) hasn't been constructed yet —
+	// these rows are loaded into the Store by the LoadSettings call below.
 	present, err := handlers.ExistsSetting(db, "auth_username")
 	if err != nil {
 		logger.Log.WithError(err).Error("Error checking if default admin credentials are present")
 	} else if !present {
-		handlers.UpdateSetting(db, "auth_username", "admin")
+		handlers.UpdateSetting(db, nil, "auth_username", "admin")
 		hashedPassword, _ := utils.HashPassword("isley")
-		handlers.UpdateSetting(db, "auth_password", hashedPassword)
-		handlers.UpdateSetting(db, "force_password_change", "true")
+		handlers.UpdateSetting(db, nil, "auth_password", hashedPassword)
+		handlers.UpdateSetting(db, nil, "force_password_change", "true")
 	}
 
-	// Load settings before pruning so config.SensorRetention is populated.
-	handlers.LoadSettings(db)
+	// Construct the per-process configuration store and load DB-backed
+	// settings into it before any background work runs. The same store is
+	// threaded into app.NewEngine, the watcher, and the grabber.
+	configStore := config.NewStore()
+	handlers.LoadSettings(db, configStore)
 
-	if config.SensorRetention <= 0 {
+	if configStore.SensorRetention() <= 0 {
 		logger.Log.Warn("Sensor data retention is disabled (sensor_retention_days = 0). " +
 			"Sensor data will grow indefinitely. Consider setting a retention period " +
 			"(e.g. 90 days) in Settings to prevent unbounded database growth.")
@@ -90,7 +95,7 @@ func main() {
 	// for in-flight iterations to complete before exiting.
 	var bgWG sync.WaitGroup
 
-	w := watcher.New(db)
+	w := watcher.New(db, configStore)
 
 	// Prune old sensor data once before the watcher loop kicks in.
 	if err := w.PruneSensorData(); err != nil {
@@ -127,9 +132,10 @@ func main() {
 		Version:        version,
 		SessionSecret:  sessionSecret,
 		SecureCookies:  handlers.SecureCookies,
-		GuestMode:      config.GuestMode == 1,
+		GuestMode:      configStore.GuestMode() == 1,
 		TrustedProxies: trustedProxies,
 		DataDir:        "data",
+		ConfigStore:    configStore,
 	})
 	if err != nil {
 		logger.Log.WithError(err).Fatal("Failed to construct HTTP engine")
@@ -138,7 +144,7 @@ func main() {
 	bgWG.Add(1)
 	go func() {
 		defer bgWG.Done()
-		watcher.Grab(ctx)
+		watcher.Grab(ctx, configStore)
 	}()
 
 	srv := &http.Server{

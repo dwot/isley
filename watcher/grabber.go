@@ -19,13 +19,17 @@ const (
 	defaultStreamGrabInterval = 60 // seconds between stream image captures
 )
 
-func Grab(ctx context.Context) {
+// Grab runs the stream-image capture loop until ctx is cancelled. It
+// reads enabled/interval/streams from the supplied per-engine
+// *config.Store rather than package globals so multiple engines (e.g.
+// parallel tests) can run side-by-side without colliding on config.
+func Grab(ctx context.Context, store *config.Store) {
 	logger.Log.Info("Started Stream Grabber")
 	interval := defaultStreamGrabInterval
 
 	for {
-		if !config.RestoreInProgress.Load() && config.StreamGrabEnabled == 1 {
-			for _, stream := range config.Streams {
+		if !config.RestoreInProgress.Load() && store.StreamGrabEnabled() == 1 {
+			for _, stream := range store.Streams() {
 				// If this stream has consecutive failures, skip cycles proportionally
 				if failures, ok := streamBackoff[stream.ID]; ok && failures > 0 {
 					backoff := failures
@@ -63,8 +67,8 @@ func Grab(ctx context.Context) {
 				}
 			}
 		}
-		if config.StreamGrabInterval > 0 {
-			interval = config.StreamGrabInterval
+		if grab := store.StreamGrabInterval(); grab > 0 {
+			interval = grab
 		}
 
 		// Wait for either the grab interval or context cancellation

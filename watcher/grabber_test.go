@@ -41,23 +41,19 @@ func silenceWatcherLogger() {
 	logger.Log = l
 }
 
-// snapshotGlobals captures the current values of every config-package
-// global Grab reads, plus the streamBackoff map, and returns a
-// restorer the caller can defer.
-func snapshotGlobals(t *testing.T) func() {
+// snapshotGrabState captures the streamBackoff map and the
+// RestoreInProgress flag (the only process-globals Grab still touches
+// after the Phase 2 ConfigStore refactor) and returns a restorer the
+// caller can defer. Stream/enabled/interval state lives on a per-test
+// *config.Store now, so each test owns its own snapshot.
+func snapshotGrabState(t *testing.T) func() {
 	t.Helper()
-	prevStreams := config.Streams
-	prevEnabled := config.StreamGrabEnabled
-	prevInterval := config.StreamGrabInterval
 	prevRestore := config.RestoreInProgress.Load()
 	prevBackoff := make(map[uint]int, len(streamBackoff))
 	for k, v := range streamBackoff {
 		prevBackoff[k] = v
 	}
 	return func() {
-		config.Streams = prevStreams
-		config.StreamGrabEnabled = prevEnabled
-		config.StreamGrabInterval = prevInterval
 		config.RestoreInProgress.Store(prevRestore)
 		for k := range streamBackoff {
 			delete(streamBackoff, k)
@@ -68,13 +64,14 @@ func snapshotGlobals(t *testing.T) func() {
 	}
 }
 
-// runGrabOnce calls Grab(ctx) with a short ctx timeout so one iteration
-// runs and the function returns cleanly via ctx.Done. Returns when Grab
-// returns. The interval is set high enough that a second iteration
-// cannot start before the context expires.
-func runGrabOnce(t *testing.T) {
+// runGrabOnce calls Grab(ctx, store) with a short ctx timeout so one
+// iteration runs and the function returns cleanly via ctx.Done. The
+// supplied store carries enabled/interval/streams; we force the
+// interval to 60s so the second iteration cannot start before the ctx
+// expires.
+func runGrabOnce(t *testing.T, store *config.Store) {
 	t.Helper()
-	config.StreamGrabInterval = 60 // seconds — well past the ctx deadline
+	store.SetStreamGrabInterval(60) // seconds — well past the ctx deadline
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
@@ -82,7 +79,7 @@ func runGrabOnce(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		Grab(ctx)
+		Grab(ctx, store)
 	}()
 	select {
 	case <-done:
@@ -119,7 +116,7 @@ func chdirToTemp(t *testing.T) {
 // uploads/streams/stream_<id>_latest.jpg.
 func TestGrabber_HappyPathWritesFrame(t *testing.T) {
 	silenceWatcherLogger()
-	defer snapshotGlobals(t)()
+	defer snapshotGrabState(t)()
 	chdirToTemp(t)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -130,12 +127,13 @@ func TestGrabber_HappyPathWritesFrame(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	const streamID = uint(101)
-	config.Streams = []types.Stream{{ID: streamID, Name: "Tent A Cam", URL: srv.URL + "/snap.png"}}
-	config.StreamGrabEnabled = 1
+	store := config.NewStore()
+	store.SetStreams([]types.Stream{{ID: streamID, Name: "Tent A Cam", URL: srv.URL + "/snap.png"}})
+	store.SetStreamGrabEnabled(1)
 	config.RestoreInProgress.Store(false)
 	delete(streamBackoff, streamID) // start clean — no skip cycles in effect
 
-	runGrabOnce(t)
+	runGrabOnce(t, store)
 
 	saved := filepath.Join("uploads", "streams", "stream_101_latest.jpg")
 	_, err := os.Stat(saved)
@@ -151,7 +149,7 @@ func TestGrabber_HappyPathWritesFrame(t *testing.T) {
 // should bump the streamBackoff counter for that stream.
 func TestGrabber_FailureIncrementsBackoff(t *testing.T) {
 	silenceWatcherLogger()
-	defer snapshotGlobals(t)()
+	defer snapshotGrabState(t)()
 	chdirToTemp(t)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -160,12 +158,13 @@ func TestGrabber_FailureIncrementsBackoff(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	const streamID = uint(102)
-	config.Streams = []types.Stream{{ID: streamID, Name: "Bad Cam", URL: srv.URL + "/feed"}}
-	config.StreamGrabEnabled = 1
+	store := config.NewStore()
+	store.SetStreams([]types.Stream{{ID: streamID, Name: "Bad Cam", URL: srv.URL + "/feed"}})
+	store.SetStreamGrabEnabled(1)
 	config.RestoreInProgress.Store(false)
 	delete(streamBackoff, streamID)
 
-	runGrabOnce(t)
+	runGrabOnce(t, store)
 
 	got, ok := streamBackoff[streamID]
 	require.True(t, ok, "failure should produce a backoff entry")
@@ -177,7 +176,7 @@ func TestGrabber_FailureIncrementsBackoff(t *testing.T) {
 // fetched (so no upload directory should be created).
 func TestGrabber_RespectsRestoreInProgress(t *testing.T) {
 	silenceWatcherLogger()
-	defer snapshotGlobals(t)()
+	defer snapshotGrabState(t)()
 	chdirToTemp(t)
 
 	hits := int32(0)
@@ -189,11 +188,12 @@ func TestGrabber_RespectsRestoreInProgress(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	config.Streams = []types.Stream{{ID: 103, Name: "Pause Test", URL: srv.URL + "/snap.png"}}
-	config.StreamGrabEnabled = 1
+	store := config.NewStore()
+	store.SetStreams([]types.Stream{{ID: 103, Name: "Pause Test", URL: srv.URL + "/snap.png"}})
+	store.SetStreamGrabEnabled(1)
 	config.RestoreInProgress.Store(true) // block the iteration body
 
-	runGrabOnce(t)
+	runGrabOnce(t, store)
 
 	assert.Zero(t, atomic.LoadInt32(&hits), "no HTTP hits should occur while RestoreInProgress is true")
 }
@@ -202,7 +202,7 @@ func TestGrabber_RespectsRestoreInProgress(t *testing.T) {
 // is skipped when StreamGrabEnabled is 0.
 func TestGrabber_RespectsStreamGrabDisabled(t *testing.T) {
 	silenceWatcherLogger()
-	defer snapshotGlobals(t)()
+	defer snapshotGrabState(t)()
 	chdirToTemp(t)
 
 	hits := int32(0)
@@ -212,11 +212,12 @@ func TestGrabber_RespectsStreamGrabDisabled(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	config.Streams = []types.Stream{{ID: 104, Name: "Disabled Test", URL: srv.URL + "/snap.png"}}
-	config.StreamGrabEnabled = 0 // disabled
+	store := config.NewStore()
+	store.SetStreams([]types.Stream{{ID: 104, Name: "Disabled Test", URL: srv.URL + "/snap.png"}})
+	store.SetStreamGrabEnabled(0) // disabled
 	config.RestoreInProgress.Store(false)
 
-	runGrabOnce(t)
+	runGrabOnce(t, store)
 
 	assert.Zero(t, atomic.LoadInt32(&hits))
 }
@@ -226,7 +227,7 @@ func TestGrabber_RespectsStreamGrabDisabled(t *testing.T) {
 // HTTP request and should instead decrement the counter.
 func TestGrabber_BackoffSkipsCycles(t *testing.T) {
 	silenceWatcherLogger()
-	defer snapshotGlobals(t)()
+	defer snapshotGrabState(t)()
 	chdirToTemp(t)
 
 	hits := int32(0)
@@ -237,12 +238,13 @@ func TestGrabber_BackoffSkipsCycles(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	const streamID = uint(105)
-	config.Streams = []types.Stream{{ID: streamID, Name: "Cooldown", URL: srv.URL + "/snap.png"}}
-	config.StreamGrabEnabled = 1
+	store := config.NewStore()
+	store.SetStreams([]types.Stream{{ID: streamID, Name: "Cooldown", URL: srv.URL + "/snap.png"}})
+	store.SetStreamGrabEnabled(1)
 	config.RestoreInProgress.Store(false)
 	streamBackoff[streamID] = 3 // 3 skip cycles remaining
 
-	runGrabOnce(t)
+	runGrabOnce(t, store)
 
 	assert.Zero(t, atomic.LoadInt32(&hits), "stream with backoff > 1 should not be requested this cycle")
 	assert.Equal(t, 2, streamBackoff[streamID], "backoff counter must decrement by 1")

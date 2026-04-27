@@ -89,6 +89,11 @@ const (
 	// DefaultStreamGrabInterval is the fallback interval (in seconds)
 	// between stream image captures when no config value is set.
 	DefaultStreamGrabInterval = 60
+	// defaultPollingIntervalSeconds is the fallback polling-interval value
+	// the cache TTL helpers fall back to when no Store is supplied.
+	// Mirrors config.NewStore's default; a duplicated literal is cheaper
+	// than a circular import.
+	defaultPollingIntervalSeconds = 60
 )
 
 // ---------------------------------------------------------------------------

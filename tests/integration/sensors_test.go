@@ -121,13 +121,13 @@ func TestSensors_DeleteCascadesData(t *testing.T) {
 
 func TestSensors_GroupedReturnsLatestReading(t *testing.T) {
 	resetRateLimit(t)
-	withPollingInterval(t, 600) // disable cache TTL pressure
 	// The grouped-sensor cache is a process-global; clear it so an
 	// earlier test's cache state doesn't bleed in.
 	handlers.ResetGroupedSensorCache()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	// Disable cache TTL pressure with a long polling interval.
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithPollingInterval(600)))
 	fix := seedSensorHTTP(t, db)
 
 	// Two readings — the latest should win.

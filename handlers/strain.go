@@ -3,7 +3,6 @@ package handlers
 import (
 	"database/sql"
 	"html"
-	"isley/config"
 	"isley/logger"
 	model "isley/model"
 	"isley/model/types"
@@ -67,7 +66,7 @@ func AddBreederHandler(c *gin.Context) {
 		apiInternalError(c, "api_failed_to_add_breeder")
 		return
 	}
-	config.Breeders = append(config.Breeders, types.Breeder{ID: id, Name: breeder.Name})
+	ConfigStoreFromContext(c).AppendBreeder(types.Breeder{ID: id, Name: breeder.Name})
 
 	c.JSON(http.StatusCreated, gin.H{"id": id})
 }
@@ -99,7 +98,7 @@ func UpdateBreederHandler(c *gin.Context) {
 	}
 
 	//Reload Config
-	config.Breeders = GetBreeders(db)
+	ConfigStoreFromContext(c).SetBreeders(GetBreeders(db))
 
 	apiOK(c, "api_breeder_updated")
 }
@@ -154,7 +153,7 @@ func DeleteBreederHandler(c *gin.Context) {
 	}
 
 	//Reload Config
-	config.Breeders = GetBreeders(db)
+	ConfigStoreFromContext(c).SetBreeders(GetBreeders(db))
 
 	apiOK(c, "api_breeder_deleted")
 }
@@ -242,6 +241,7 @@ func AddStrainHandler(c *gin.Context) {
 
 	// Open the database
 	db := DBFromContext(c)
+	store := ConfigStoreFromContext(c)
 
 	// Check for new breeder and insert if needed
 	var breederID int
@@ -264,7 +264,7 @@ func AddStrainHandler(c *gin.Context) {
 			return
 		}
 
-		config.Breeders = GetBreeders(db)
+		store.SetBreeders(GetBreeders(db))
 	} else {
 		// Use existing breeder ID
 		breederID = *req.BreederID
@@ -290,7 +290,7 @@ func AddStrainHandler(c *gin.Context) {
 		return
 	}
 
-	config.Strains = GetStrains(db)
+	store.SetStrains(GetStrains(db))
 
 	// Respond with success
 	c.JSON(http.StatusCreated, gin.H{"id": id, "message": T(c, "api_strain_added")})
@@ -390,7 +390,7 @@ func UpdateStrainHandler(c *gin.Context) {
 			return
 		}
 
-		config.Breeders = GetBreeders(db)
+		ConfigStoreFromContext(c).SetBreeders(GetBreeders(db))
 	} else {
 		breederID = *req.BreederID
 	}

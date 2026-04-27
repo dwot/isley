@@ -2,9 +2,10 @@ package handlers_test
 
 // HTTP-layer tests for the 13 endpoints declared in handlers/settings.go.
 // Phase 4b of docs/TEST_PLAN.md: each endpoint gets at least one happy
-// path plus explicit auth/validation coverage. The handler under test
-// retains its mutation of config.* globals — these tests deliberately do
-// NOT assert on those globals to stay decoupled from cross-test order.
+// path plus explicit auth/validation coverage. After Phase 2 of
+// TEST_PLAN_2.md the handlers mutate a per-engine *config.Store rather
+// than process globals, so these tests are now intrinsically isolated;
+// no cross-test order coupling exists to assert around.
 //
 // Routes covered (all on the api-protected group):
 //

@@ -101,10 +101,11 @@ func ScanACInfinitySensors(c *gin.Context) {
 		return
 	}
 	db := DBFromContext(c)
+	store := ConfigStoreFromContext(c)
 
 	if input.ZoneID == nil && input.NewZone != "" {
 		// Insert a new zone into the database
-		zoneID, err := CreateNewZone(db, input.NewZone)
+		zoneID, err := CreateNewZone(db, store, input.NewZone)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
 			apiInternalError(c, "api_zone_creation_failed")
@@ -114,7 +115,8 @@ func ScanACInfinitySensors(c *gin.Context) {
 	}
 
 	// Query settings table and write result to console
-	url := "https://www.acinfinityserver.com/api/user/devInfoListAll?userId=" + config.ACIToken
+	aciToken := store.ACIToken()
+	url := "https://www.acinfinityserver.com/api/user/devInfoListAll?userId=" + aciToken
 	reqBody := bytes.NewBuffer([]byte(""))
 
 	req, err := http.NewRequest("POST", url, reqBody)
@@ -123,7 +125,7 @@ func ScanACInfinitySensors(c *gin.Context) {
 		return
 	}
 
-	req.Header.Add("token", config.ACIToken)
+	req.Header.Add("token", aciToken)
 	req.Header.Add("Host", "www.acinfinityserver.com")
 	req.Header.Add("User-Agent", "okhttp/3.10.0")
 	req.Header.Add("Content-Encoding", "gzip")
@@ -345,13 +347,14 @@ func DumpACInfinityJSON(c *gin.Context) {
 		}
 	}
 
-	if config.ACIToken == "" {
+	aciToken := ConfigStoreFromContext(c).ACIToken()
+	if aciToken == "" {
 		fieldLogger.Error("ACIToken is not configured")
 		apiInternalError(c, "api_aci_token_not_configured")
 		return
 	}
 
-	url := "https://www.acinfinityserver.com/api/user/devInfoListAll?userId=" + config.ACIToken
+	url := "https://www.acinfinityserver.com/api/user/devInfoListAll?userId=" + aciToken
 	reqBody := bytes.NewBuffer([]byte(""))
 
 	req, err := http.NewRequest("POST", url, reqBody)
@@ -361,7 +364,7 @@ func DumpACInfinityJSON(c *gin.Context) {
 		return
 	}
 
-	req.Header.Add("token", config.ACIToken)
+	req.Header.Add("token", aciToken)
 	req.Header.Add("Host", "www.acinfinityserver.com")
 	req.Header.Add("User-Agent", "okhttp/3.10.0")
 	req.Header.Add("Content-Encoding", "gzip")
@@ -477,10 +480,11 @@ func ScanEcoWittSensors(c *gin.Context) {
 		return
 	}
 	db := DBFromContext(c)
+	store := ConfigStoreFromContext(c)
 
 	if input.ZoneID == nil && input.NewZone != "" {
 		// Insert a new zone into the database
-		zoneID, err := CreateNewZone(db, input.NewZone)
+		zoneID, err := CreateNewZone(db, store, input.NewZone)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
 			apiInternalError(c, "api_zone_creation_failed")
@@ -558,7 +562,7 @@ func ScanEcoWittSensors(c *gin.Context) {
 	//Set ECDevices
 	strECDevices, err := LoadEcDevices(db)
 	if err == nil {
-		config.ECDevices = strECDevices
+		store.SetECDevices(strECDevices)
 	} else {
 		fieldLogger.WithError(err).Error("Error loading EC devices")
 	}
@@ -643,7 +647,11 @@ func GetZones(db *sql.DB) []types.Zone {
 	return zones
 }
 
-func CreateNewZone(db *sql.DB, name string) (int, error) {
+// CreateNewZone inserts a new zone and returns its id. If store is
+// non-nil it is refreshed from the DB so subsequent reads observe the
+// new row; tests that don't care about the in-memory side-effect may
+// pass nil.
+func CreateNewZone(db *sql.DB, store *config.Store, name string) (int, error) {
 	fieldLogger := logger.Log.WithField("func", "CreateNewZone")
 
 	var id int
@@ -653,7 +661,9 @@ func CreateNewZone(db *sql.DB, name string) (int, error) {
 		return 0, err
 	}
 
-	config.Zones = GetZones(db)
+	if store != nil {
+		store.SetZones(GetZones(db))
+	}
 
 	return id, nil
 }
@@ -662,7 +672,8 @@ func CreateNewZone(db *sql.DB, name string) (int, error) {
 // Exists so tests touching /sensors/grouped or /api/overlay (which
 // indirectly reads the cache) can isolate themselves from cache state
 // left by earlier tests in the same process. Production code does not
-// call this — Phase 7's config.Store rework will replace the global.
+// call this — the cache is still process-global and outlives any
+// individual engine instance.
 func ResetGroupedSensorCache() {
 	cacheMutex.Lock()
 	sensorCache = nil
@@ -670,13 +681,17 @@ func ResetGroupedSensorCache() {
 	cacheMutex.Unlock()
 }
 
-func GetGroupedSensorsWithLatestReading(db *sql.DB) map[string]map[string][]map[string]interface{} {
+func GetGroupedSensorsWithLatestReading(db *sql.DB, store *config.Store) map[string]map[string][]map[string]interface{} {
 	fieldLogger := logger.Log.WithField("func", "GetGroupedSensorsWithLatestReading")
 	cacheMutex.Lock()
 	defer cacheMutex.Unlock()
 
 	// Check if the cache is still valid
-	if time.Since(cacheLastUpdatedTime) < time.Duration(config.PollingInterval/10)*time.Second {
+	pollInterval := defaultPollingIntervalSeconds
+	if store != nil {
+		pollInterval = store.PollingInterval()
+	}
+	if time.Since(cacheLastUpdatedTime) < time.Duration(pollInterval/10)*time.Second {
 		return sensorCache
 	}
 
@@ -1005,8 +1020,10 @@ type SensorDataPayload struct {
 func IngestSensorData(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "IngestSensorData")
 
+	store := ConfigStoreFromContext(c)
+
 	// Check whether API ingest is enabled in config
-	if config.APIIngestEnabled == 0 {
+	if store.APIIngestEnabled() == 0 {
 		fieldLogger.Warn("API ingest is disabled via settings")
 		apiForbidden(c, "api_api_ingest_disabled")
 		return
@@ -1067,7 +1084,7 @@ func IngestSensorData(c *gin.Context) {
 			// If an existing zone is found, use its ID
 			payload.ZoneID = &existingZoneID
 		} else {
-			zoneID, err := CreateNewZone(db, payload.NewZone)
+			zoneID, err := CreateNewZone(db, store, payload.NewZone)
 			if err != nil {
 				fieldLogger.WithError(err).Error("Failed to create new zone")
 				apiInternalError(c, "api_zone_creation_failed")

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"isley/app"
+	"isley/config"
 	"isley/handlers"
 )
 
@@ -27,6 +28,12 @@ type TestServer struct {
 	// deterministically exercise 409 branches without racing a real
 	// goroutine.
 	BackupService *handlers.BackupService
+
+	// ConfigStore is the per-engine *config.Store that handlers read at
+	// request time. Tests pre-populate fields via WithConfigStore (or
+	// access this handle directly after construction) instead of mutating
+	// process-global config.
+	ConfigStore *config.Store
 }
 
 // ServerOption tunes NewTestServer. Today we only need GuestMode; the
@@ -38,10 +45,11 @@ type serverOptions struct {
 	guestMode     bool
 	sessionSecret []byte
 	dataDir       string
+	configStore   *config.Store
 }
 
-// WithGuestMode boots the engine with config.GuestMode == 1 semantics
-// (basic routes are public).
+// WithGuestMode boots the engine with guest-mode semantics
+// (basic routes are public, mirroring the Store's GuestMode == 1).
 func WithGuestMode() ServerOption {
 	return func(o *serverOptions) { o.guestMode = true }
 }
@@ -58,6 +66,15 @@ func WithSessionSecret(secret []byte) ServerOption {
 // cannot collide on backups/uploads/scratch paths.
 func WithDataDir(dir string) ServerOption {
 	return func(o *serverOptions) { o.dataDir = dir }
+}
+
+// WithConfigStore overrides the per-engine *config.Store. Tests that
+// need a code path conditional on runtime config (e.g. ACIToken set,
+// APIIngestEnabled = 1) construct a Store, call its Set* methods, and
+// pass it here so the handler reads the desired value without mutating
+// any process-global. Pass nil to use a default-constructed Store.
+func WithConfigStore(s *config.Store) ServerOption {
+	return func(o *serverOptions) { o.configStore = s }
 }
 
 // NewTestServer constructs a Gin engine wired to db and serves it via
@@ -86,6 +103,11 @@ func NewTestServer(t *testing.T, db *sql.DB, opts ...ServerOption) *TestServer {
 
 	backupSvc := handlers.NewBackupService(db, options.dataDir)
 
+	configStore := options.configStore
+	if configStore == nil {
+		configStore = config.NewStore()
+	}
+
 	engine, err := app.NewEngine(app.Config{
 		DB:             db,
 		Assets:         os.DirFS(root),
@@ -96,6 +118,7 @@ func NewTestServer(t *testing.T, db *sql.DB, opts ...ServerOption) *TestServer {
 		TrustedProxies: nil,
 		DataDir:        options.dataDir,
 		BackupService:  backupSvc,
+		ConfigStore:    configStore,
 	})
 	if err != nil {
 		t.Fatalf("NewTestServer: app.NewEngine: %v", err)
@@ -110,6 +133,7 @@ func NewTestServer(t *testing.T, db *sql.DB, opts ...ServerOption) *TestServer {
 		Assets:        root,
 		DataDir:       options.dataDir,
 		BackupService: backupSvc,
+		ConfigStore:   configStore,
 	}
 }
 

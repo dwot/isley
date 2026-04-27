@@ -3,7 +3,6 @@ package handlers
 import (
 	"database/sql"
 	"fmt"
-	"isley/config"
 	"isley/logger"
 	"isley/model/types"
 	"isley/utils"
@@ -75,7 +74,7 @@ func AddStreamHandler(c *gin.Context) {
 	}
 
 	streams := GetStreams(db)
-	config.Streams = streams
+	ConfigStoreFromContext(c).SetStreams(streams)
 
 	latestFileName := fmt.Sprintf("stream_%d_latest%s", id, filepath.Ext(".jpg"))
 	latestSavePath := filepath.Join("uploads", "streams", latestFileName)
@@ -127,7 +126,7 @@ func UpdateStreamHandler(c *gin.Context) {
 	}
 
 	streams := GetStreams(db)
-	config.Streams = streams
+	ConfigStoreFromContext(c).SetStreams(streams)
 
 	c.JSON(http.StatusOK, gin.H{"message": T(c, "api_stream_updated"), "streams": streams})
 }
@@ -148,7 +147,7 @@ func DeleteStreamHandler(c *gin.Context) {
 	}
 
 	streams := GetStreams(db)
-	config.Streams = streams
+	ConfigStoreFromContext(c).SetStreams(streams)
 
 	c.JSON(http.StatusOK, gin.H{"message": T(c, "api_stream_deleted"), "streams": streams})
 }

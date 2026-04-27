@@ -3,7 +3,6 @@ package handlers
 import (
 	"database/sql"
 	"fmt"
-	"isley/config"
 	"isley/logger"
 	"isley/model/types"
 	"isley/utils"
@@ -79,7 +78,8 @@ func ChartHandler(c *gin.Context) {
 	cached, found := sensorDataCache[cacheKey]
 	sdCacheMutex.RUnlock()
 
-	if found && time.Since(cached.timestamp) < time.Duration(config.PollingInterval/10)*time.Second {
+	pollInterval := ConfigStoreFromContext(c).PollingInterval()
+	if found && time.Since(cached.timestamp) < time.Duration(pollInterval/10)*time.Second {
 		sensorLogger.Info("Serving data from cache")
 		c.JSON(http.StatusOK, cached.data)
 		return

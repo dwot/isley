@@ -53,8 +53,8 @@ type HTTPDoer interface {
 // once at process startup via New, or assemble one by hand in tests.
 //
 // All getter functions (PollingInterval, RestoreInProgress, etc.) are
-// invoked on every iteration so a Watcher built from the config
-// package globals stays current with runtime settings changes.
+// invoked on every iteration so a Watcher built from the per-engine
+// *config.Store stays current with runtime settings changes.
 type Watcher struct {
 	DB         *sql.DB
 	HTTP       HTTPDoer
@@ -71,10 +71,11 @@ type Watcher struct {
 	SensorRetention   func() int
 }
 
-// New returns a Watcher wired to the production config and a default
-// HTTP client. Production code (main.go) calls this; tests typically
-// construct a Watcher literal so each field can be controlled.
-func New(db *sql.DB) *Watcher {
+// New returns a Watcher wired to the supplied per-engine *config.Store
+// and a default HTTP client. Production code (main.go) calls this with
+// the engine's Store; tests typically construct a Watcher literal so
+// each field can be controlled.
+func New(db *sql.DB, store *config.Store) *Watcher {
 	return &Watcher{
 		DB:         db,
 		HTTP:       &http.Client{Timeout: httpClientTimeout},
@@ -82,13 +83,13 @@ func New(db *sql.DB) *Watcher {
 		Logger:     logger.Log,
 
 		Now:               time.Now,
-		PollingInterval:   func() time.Duration { return time.Duration(config.PollingInterval) * time.Second },
+		PollingInterval:   func() time.Duration { return time.Duration(store.PollingInterval()) * time.Second },
 		RestoreInProgress: config.RestoreInProgress.Load,
-		ACIEnabled:        func() bool { return config.ACIEnabled == 1 },
-		ACIToken:          func() string { return config.ACIToken },
-		ECEnabled:         func() bool { return config.ECEnabled == 1 },
-		ECDevices:         func() []string { return config.ECDevices },
-		SensorRetention:   func() int { return config.SensorRetention },
+		ACIEnabled:        func() bool { return store.ACIEnabled() == 1 },
+		ACIToken:          store.ACIToken,
+		ECEnabled:         func() bool { return store.ECEnabled() == 1 },
+		ECDevices:         store.ECDevices,
+		SensorRetention:   store.SensorRetention,
 	}
 }
 
@@ -162,7 +163,7 @@ func (w *Watcher) Run(ctx context.Context) {
 
 // PollEcoWitt fetches livedata from a single EcoWitt server and writes
 // matching sensor rows. server is the host[:port] portion as it
-// appears in config.ECDevices.
+// appears in the Store's ECDevices() slice.
 func (w *Watcher) PollEcoWitt(ctx context.Context, server string) {
 	w.Logger.WithField("timestamp", w.Now()).Info("Updating EC sensor data")
 

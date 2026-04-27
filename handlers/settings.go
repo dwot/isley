@@ -80,6 +80,7 @@ func SaveSettings(c *gin.Context) {
 	}
 
 	db := DBFromContext(c)
+	store := ConfigStoreFromContext(c)
 
 	// Generate new API key if requested
 	if settings.APIKey == "generate" {
@@ -87,13 +88,13 @@ func SaveSettings(c *gin.Context) {
 		hashedKey := HashAPIKey(plaintextKey)
 
 		// Store the hashed key in the database
-		err := UpdateSetting(db, "api_key", hashedKey)
+		err := UpdateSetting(db, store, "api_key", hashedKey)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to save API key")
 			apiInternalError(c, "api_failed_to_save_api_key")
 			return
 		}
-		config.APIKey = hashedKey
+		store.SetAPIKey(hashedKey)
 
 		// Return the plaintext key only once — it cannot be retrieved again
 		c.JSON(http.StatusOK, gin.H{
@@ -103,58 +104,62 @@ func SaveSettings(c *gin.Context) {
 		return
 	}
 
-	// saveBool persists a boolean setting as "1"/"0" and updates the
-	// corresponding config int in one step, removing the repetitive
-	// if/else blocks that previously handled each boolean individually.
-	saveBool := func(key string, val bool, configField *int) error {
+	// saveBool persists a boolean setting as "1"/"0" and pushes the
+	// matching value into the Store via the supplied setter. Replaces
+	// the prev/cleanup pattern that mutated package globals directly.
+	saveBool := func(key string, val bool, set func(int)) error {
 		dbVal := "0"
 		cfgVal := 0
 		if val {
 			dbVal = "1"
 			cfgVal = 1
 		}
-		if err := UpdateSetting(db, key, dbVal); err != nil {
+		if err := UpdateSetting(db, store, key, dbVal); err != nil {
 			return err
 		}
-		*configField = cfgVal
+		set(cfgVal)
 		return nil
 	}
 
 	boolSettings := []struct {
-		key   string
-		val   bool
-		field *int
+		key string
+		val bool
+		set func(int)
 	}{
-		{"aci.enabled", settings.ACI.Enabled, &config.ACIEnabled},
-		{"ec.enabled", settings.EC.Enabled, &config.ECEnabled},
-		{"guest_mode", settings.GuestMode, &config.GuestMode},
-		{"stream_grab_enabled", settings.StreamGrabEnabled, &config.StreamGrabEnabled},
-		{"api_ingest_enabled", !settings.DisableAPIIngest, &config.APIIngestEnabled},
+		{"aci.enabled", settings.ACI.Enabled, store.SetACIEnabled},
+		{"ec.enabled", settings.EC.Enabled, store.SetECEnabled},
+		{"guest_mode", settings.GuestMode, store.SetGuestMode},
+		{"stream_grab_enabled", settings.StreamGrabEnabled, store.SetStreamGrabEnabled},
+		{"api_ingest_enabled", !settings.DisableAPIIngest, store.SetAPIIngestEnabled},
 	}
 
 	for _, bs := range boolSettings {
-		if err := saveBool(bs.key, bs.val, bs.field); err != nil {
+		if err := saveBool(bs.key, bs.val, bs.set); err != nil {
 			fieldLogger.WithError(err).Error("Failed to save settings")
 			apiInternalError(c, "api_failed_to_save_settings")
 			return
 		}
 	}
 
-	err := UpdateSetting(db, "polling_interval", settings.PollingInterval)
+	err := UpdateSetting(db, store, "polling_interval", settings.PollingInterval)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to save settings")
 		apiInternalError(c, "api_failed_to_save_settings")
 		return
 	}
-	config.PollingInterval, _ = strconv.Atoi(settings.PollingInterval)
+	if v, convErr := strconv.Atoi(settings.PollingInterval); convErr == nil {
+		store.SetPollingInterval(v)
+	}
 
-	err = UpdateSetting(db, "stream_grab_interval", settings.StreamGrabInterval)
+	err = UpdateSetting(db, store, "stream_grab_interval", settings.StreamGrabInterval)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to save settings")
 		apiInternalError(c, "api_failed_to_save_settings")
 		return
 	}
-	config.StreamGrabInterval, _ = strconv.Atoi(settings.StreamGrabInterval)
+	if v, convErr := strconv.Atoi(settings.StreamGrabInterval); convErr == nil {
+		store.SetStreamGrabInterval(v)
+	}
 
 	// API key is managed separately via the "generate" flow.
 	// Only update if a non-empty value is explicitly provided (backward compat).
@@ -166,66 +171,71 @@ func SaveSettings(c *gin.Context) {
 		if !isBcrypt && !isSHA256 {
 			apiKeyToStore = HashAPIKey(settings.APIKey)
 		}
-		err = UpdateSetting(db, "api_key", apiKeyToStore)
+		err = UpdateSetting(db, store, "api_key", apiKeyToStore)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to save API key")
 			apiInternalError(c, "api_failed_to_save_api_key")
 			return
 		}
-		config.APIKey = apiKeyToStore
+		store.SetAPIKey(apiKeyToStore)
 	}
 
-	err = UpdateSetting(db, "sensor_retention_days", settings.SensorRetentionDays)
+	err = UpdateSetting(db, store, "sensor_retention_days", settings.SensorRetentionDays)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to save sensor retention setting")
 		apiInternalError(c, "api_failed_to_save_settings")
 		return
-	} else {
-		config.SensorRetention, _ = strconv.Atoi(settings.SensorRetentionDays)
+	}
+	if v, convErr := strconv.Atoi(settings.SensorRetentionDays); convErr == nil {
+		store.SetSensorRetention(v)
 	}
 
-	err = UpdateSetting(db, "log_level", settings.LogLevel)
+	err = UpdateSetting(db, store, "log_level", settings.LogLevel)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to save log level setting")
 		apiInternalError(c, "api_failed_to_save_settings")
 		return
-	} else {
-		config.LogLevel = settings.LogLevel
-		logger.SetLevel(config.LogLevel)
 	}
+	store.SetLogLevel(settings.LogLevel)
+	logger.SetLevel(settings.LogLevel)
 
 	if settings.MaxBackupSizeMB != "" {
 		if mb, convErr := strconv.Atoi(settings.MaxBackupSizeMB); convErr == nil && mb >= MinBackupSizeMB {
-			err = UpdateSetting(db, "max_backup_size_mb", settings.MaxBackupSizeMB)
+			err = UpdateSetting(db, store, "max_backup_size_mb", settings.MaxBackupSizeMB)
 			if err != nil {
 				fieldLogger.WithError(err).Error("Failed to save max backup size setting")
 				apiInternalError(c, "api_failed_to_save_settings")
 				return
 			}
-			config.MaxBackupSize = int64(mb) * 1024 * 1024
+			store.SetMaxBackupSize(int64(mb) * 1024 * 1024)
 		}
 	}
 
 	// Timezone setting — always persist (empty = system default)
-	err = UpdateSetting(db, "timezone", settings.Timezone)
+	err = UpdateSetting(db, store, "timezone", settings.Timezone)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to save timezone setting")
 		apiInternalError(c, "api_failed_to_save_settings")
 		return
 	}
-	config.Timezone = settings.Timezone
+	store.SetTimezone(settings.Timezone)
 	// Capture shadow metadata for future UTC migration
 	if settings.Timezone != "" {
-		captureTimezoneMetadata(db, settings.Timezone)
+		captureTimezoneMetadata(db, store, settings.Timezone)
 	}
 
 	//Load Settings
-	LoadSettings(db)
+	LoadSettings(db, store)
 
 	apiOK(c, "api_settings_saved")
 }
 
-func UpdateSetting(db *sql.DB, name string, value string) error {
+// UpdateSetting persists a key-value setting to the settings table and
+// reloads the in-memory Store from DB so handlers see the new value
+// immediately. The store argument is required when callers expect the
+// reload behavior; main.go's first-boot bootstrap path passes the
+// engine's Store, and SaveSettings does the same.
+func UpdateSetting(db *sql.DB, store *config.Store, name string, value string) error {
 	fieldLogger := logger.Log.WithField("func", "UpdateSetting")
 	existId := 0
 	// Query settings table and write result to console
@@ -264,8 +274,12 @@ func UpdateSetting(db *sql.DB, name string, value string) error {
 		}
 	}
 
-	// Reload settings
-	LoadSettings(db)
+	// Reload settings if a Store was provided. Some callers (e.g. the
+	// first-boot bootstrap or tests touching settings without a Store)
+	// pass nil to skip the reload.
+	if store != nil {
+		LoadSettings(db, store)
+	}
 
 	return nil
 }
@@ -361,7 +375,7 @@ func AddZoneHandler(c *gin.Context) {
 		return
 	}
 	//Add the new zone to the config
-	config.Zones = append(config.Zones, types.Zone{ID: uint(id), Name: zone.Name})
+	ConfigStoreFromContext(c).AppendZone(types.Zone{ID: uint(id), Name: zone.Name})
 
 	c.JSON(http.StatusCreated, gin.H{"id": id})
 }
@@ -405,7 +419,7 @@ func AddMetricHandler(c *gin.Context) {
 		apiInternalError(c, "api_failed_to_add_metric")
 		return
 	}
-	config.Metrics = append(config.Metrics, types.Metric{ID: id, Name: metric.Name, Unit: metric.Unit})
+	ConfigStoreFromContext(c).AppendMetric(types.Metric{ID: id, Name: metric.Name, Unit: metric.Unit})
 
 	c.JSON(http.StatusCreated, gin.H{"id": id})
 }
@@ -443,7 +457,7 @@ func AddActivityHandler(c *gin.Context) {
 		apiInternalError(c, "api_failed_to_add_activity")
 		return
 	}
-	config.Activities = append(config.Activities, types.Activity{ID: id, Name: activity.Name})
+	ConfigStoreFromContext(c).AppendActivity(types.Activity{ID: id, Name: activity.Name})
 
 	c.JSON(http.StatusCreated, gin.H{"id": id})
 }
@@ -474,7 +488,7 @@ func UpdateZoneHandler(c *gin.Context) {
 		return
 	}
 	//Reload Config
-	config.Zones = GetZones(db)
+	ConfigStoreFromContext(c).SetZones(GetZones(db))
 
 	apiOK(c, "api_zone_updated")
 }
@@ -526,7 +540,7 @@ func UpdateMetricHandler(c *gin.Context) {
 	}
 
 	//Reload Config
-	config.Metrics = GetMetrics(db)
+	ConfigStoreFromContext(c).SetMetrics(GetMetrics(db))
 
 	apiOK(c, "api_metric_updated")
 }
@@ -569,7 +583,7 @@ func UpdateActivityHandler(c *gin.Context) {
 	}
 
 	//Reload Config
-	config.Activities = GetActivities(db)
+	ConfigStoreFromContext(c).SetActivities(GetActivities(db))
 
 	apiOK(c, "api_activity_updated")
 }
@@ -658,7 +672,7 @@ func DeleteZoneHandler(c *gin.Context) {
 	}
 
 	//Reload Config
-	config.Zones = GetZones(db)
+	ConfigStoreFromContext(c).SetZones(GetZones(db))
 
 	apiOK(c, "api_zone_deleted")
 }
@@ -702,7 +716,7 @@ func DeleteMetricHandler(c *gin.Context) {
 	}
 
 	//Reload Config
-	config.Metrics = GetMetrics(db)
+	ConfigStoreFromContext(c).SetMetrics(GetMetrics(db))
 
 	apiOK(c, "api_metric_deleted")
 }
@@ -741,7 +755,7 @@ func DeleteActivityHandler(c *gin.Context) {
 	}
 
 	//Reload Config
-	config.Activities = GetActivities(db)
+	ConfigStoreFromContext(c).SetActivities(GetActivities(db))
 
 	apiOK(c, "api_activity_deleted")
 }
@@ -836,7 +850,7 @@ func UploadLogo(c *gin.Context) {
 
 	// Update the database with the new logo path
 	db := DBFromContext(c)
-	err = UpdateSetting(db, "logo_image", fileName)
+	err = UpdateSetting(db, ConfigStoreFromContext(c), "logo_image", fileName)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update logo setting")
 		apiInternalError(c, "api_failed_to_update_logo")
@@ -925,12 +939,12 @@ func directUpdateSetting(db *sql.DB, name string, value string) error {
 // captureTimezoneMetadata records shadow metadata about the timezone state
 // of the installation. This data will be used in a future release to inform
 // automated data migration when we normalise all timestamps to UTC.
-func captureTimezoneMetadata(db *sql.DB, userTZ string) {
+func captureTimezoneMetadata(db *sql.DB, store *config.Store, userTZ string) {
 	fieldLogger := logger.Log.WithField("func", "captureTimezoneMetadata")
 
 	// tz_system: the Go process's system timezone (from TZ env or OS)
 	sysTZ := time.Now().Location().String()
-	if err := UpdateSetting(db, "tz_system", sysTZ); err != nil {
+	if err := UpdateSetting(db, store, "tz_system", sysTZ); err != nil {
 		fieldLogger.WithError(err).Error("Failed to save tz_system")
 	}
 
@@ -943,32 +957,35 @@ func captureTimezoneMetadata(db *sql.DB, userTZ string) {
 	} else {
 		fieldLogger.WithError(err).Warn("Failed to query DB timestamp")
 	}
-	if err := UpdateSetting(db, "tz_database", dbTZ); err != nil {
+	if err := UpdateSetting(db, store, "tz_database", dbTZ); err != nil {
 		fieldLogger.WithError(err).Error("Failed to save tz_database")
 	}
 
 	// tz_user: what the user selected in the UI
-	if err := UpdateSetting(db, "tz_user", userTZ); err != nil {
+	if err := UpdateSetting(db, store, "tz_user", userTZ); err != nil {
 		fieldLogger.WithError(err).Error("Failed to save tz_user")
 	}
 
 	// tz_snapshot_at: when this snapshot was taken (server wall-clock)
 	snapshot := time.Now().Format(time.RFC3339)
-	if err := UpdateSetting(db, "tz_snapshot_at", snapshot); err != nil {
+	if err := UpdateSetting(db, store, "tz_snapshot_at", snapshot); err != nil {
 		fieldLogger.WithError(err).Error("Failed to save tz_snapshot_at")
 	}
 }
 
-// Helper functions
-// LoadSettings refreshes the package-level config.* globals from the
-// settings table. It takes the *sql.DB explicitly so tests (and the
-// in-process harness) can pass their own database; production code gets
-// it from model.GetDB() at the call site.
-func LoadSettings(db *sql.DB) {
+// LoadSettings refreshes the supplied *config.Store from the settings
+// table. It takes the *sql.DB and *config.Store explicitly so tests
+// (and the in-process harness) construct one Store per engine and the
+// production path threads the engine's Store through the same code.
+func LoadSettings(db *sql.DB, store *config.Store) {
 	fieldLogger := logger.Log.WithField("func", "LoadSettings")
 
 	if db == nil {
 		fieldLogger.Error("LoadSettings called with nil DB")
+		return
+	}
+	if store == nil {
+		fieldLogger.Error("LoadSettings called with nil Store")
 		return
 	}
 
@@ -976,52 +993,52 @@ func LoadSettings(db *sql.DB) {
 	strPollingInterval, err := GetSetting(db, "polling_interval")
 	if err == nil {
 		if iPollingInterval, err := strconv.Atoi(strPollingInterval); err == nil {
-			config.PollingInterval = iPollingInterval
+			store.SetPollingInterval(iPollingInterval)
 		}
 	}
 
 	strACIEnabled, err := GetSetting(db, "aci.enabled")
 	if err == nil {
 		if iACIEnabled, err := strconv.Atoi(strACIEnabled); err == nil {
-			config.ACIEnabled = iACIEnabled
+			store.SetACIEnabled(iACIEnabled)
 		}
 	}
 
 	strECEnabled, err := GetSetting(db, "ec.enabled")
 	if err == nil {
 		if iECEnabled, err := strconv.Atoi(strECEnabled); err == nil {
-			config.ECEnabled = iECEnabled
+			store.SetECEnabled(iECEnabled)
 		}
 	}
 
 	strACIToken, err := GetSetting(db, "aci.token")
 	if err == nil {
-		config.ACIToken = strACIToken
+		store.SetACIToken(strACIToken)
 	}
 
 	strECDevices, err := LoadEcDevices(db)
 	if err == nil {
-		config.ECDevices = strECDevices
+		store.SetECDevices(strECDevices)
 	}
 
 	strGuestMode, err := GetSetting(db, "guest_mode")
 	if err == nil {
 		if iGuestMode, err := strconv.Atoi(strGuestMode); err == nil {
-			config.GuestMode = iGuestMode
+			store.SetGuestMode(iGuestMode)
 		}
 	}
 
 	strStreamGrabEnabled, err := GetSetting(db, "stream_grab_enabled")
 	if err == nil {
 		if iStreamGrabEnabled, err := strconv.Atoi(strStreamGrabEnabled); err == nil {
-			config.StreamGrabEnabled = iStreamGrabEnabled
+			store.SetStreamGrabEnabled(iStreamGrabEnabled)
 		}
 	}
 
 	strStreamGrabInterval, err := GetSetting(db, "stream_grab_interval")
 	if err == nil {
 		if iStreamGrabInterval, err := strconv.Atoi(strStreamGrabInterval); err == nil {
-			config.StreamGrabInterval = iStreamGrabInterval
+			store.SetStreamGrabInterval(iStreamGrabInterval)
 		}
 	}
 
@@ -1029,7 +1046,7 @@ func LoadSettings(db *sql.DB) {
 	if err == nil {
 		fieldLogger.Debug("API key setting loaded")
 
-		config.APIKey = strAPIKey
+		store.SetAPIKey(strAPIKey)
 	} else {
 		// Log out error
 		fieldLogger.WithError(err).Error("Failed to get API key setting")
@@ -1038,26 +1055,26 @@ func LoadSettings(db *sql.DB) {
 	strSensorRetention, err := GetSetting(db, "sensor_retention_days")
 	if err == nil {
 		if iSensorRetention, err := strconv.Atoi(strSensorRetention); err == nil {
-			config.SensorRetention = iSensorRetention
+			store.SetSensorRetention(iSensorRetention)
 		}
 	}
 
 	strLogLevel, err := GetSetting(db, "log_level")
 	if err == nil && strLogLevel != "" {
-		config.LogLevel = strLogLevel
-		logger.SetLevel(config.LogLevel)
+		store.SetLogLevel(strLogLevel)
+		logger.SetLevel(strLogLevel)
 	}
 
 	strMaxBackupSize, err := GetSetting(db, "max_backup_size_mb")
 	if err == nil {
 		if mb, err := strconv.Atoi(strMaxBackupSize); err == nil && mb >= MinBackupSizeMB {
-			config.MaxBackupSize = int64(mb) * 1024 * 1024
+			store.SetMaxBackupSize(int64(mb) * 1024 * 1024)
 		}
 	}
 
 	strTimezone, err := GetSetting(db, "timezone")
 	if err == nil && strTimezone != "" {
-		config.Timezone = strTimezone
+		store.SetTimezone(strTimezone)
 	}
 
 	// On first boot after the timezone migration, capture a baseline snapshot
@@ -1079,13 +1096,13 @@ func LoadSettings(db *sql.DB) {
 		fieldLogger.Info("Captured initial timezone metadata snapshot")
 	}
 
-	config.Activities = GetActivities(db)
-	config.Metrics = GetMetrics(db)
-	config.Statuses = GetStatuses(db)
-	config.Zones = GetZones(db)
-	config.Strains = GetStrains(db)
-	config.Breeders = GetBreeders(db)
-	config.Streams = GetStreams(db)
+	store.SetActivities(GetActivities(db))
+	store.SetMetrics(GetMetrics(db))
+	store.SetStatuses(GetStatuses(db))
+	store.SetZones(GetZones(db))
+	store.SetStrains(GetStrains(db))
+	store.SetBreeders(GetBreeders(db))
+	store.SetStreams(GetStreams(db))
 }
 
 // Breeder CRUD handlers have been moved to strain.go

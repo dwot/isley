@@ -53,7 +53,7 @@ func TestZoneHelpers_RoundTrip(t *testing.T) {
 	// Empty initially.
 	assert.Empty(t, handlers.GetZones(db))
 
-	id, err := handlers.CreateNewZone(db, "Tent 1")
+	id, err := handlers.CreateNewZone(db, nil, "Tent 1")
 	require.NoError(t, err)
 	assert.NotZero(t, id)
 

@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"isley/config"
 	"isley/model"
 	"isley/utils"
 )
@@ -47,26 +46,22 @@ func TestSlugify(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestFormatActivityDate_NoConfiguredTimezone(t *testing.T) {
-	// Pin config.Timezone to "" so appTimeLocation falls through to
-	// time.Local. Restore on exit so we don't pollute other tests.
-	prev := configTimezoneSwap("")
-	t.Cleanup(func() { configTimezoneSwap(prev) })
+	t.Parallel()
 
 	stamp := time.Date(2026, 4, 25, 10, 30, 0, 0, time.UTC)
 	// We don't assert the exact string (depends on the host's local
 	// zone) but we DO assert the function follows
 	// `t.In(time.Local).Format(utils.LayoutDateTime)`.
 	want := stamp.In(time.Local).Format(utils.LayoutDateTime)
-	assert.Equal(t, want, formatActivityDate(stamp))
+	assert.Equal(t, want, formatActivityDate(stamp, ""))
 }
 
 func TestFormatActivityDate_WithUTCTimezone(t *testing.T) {
-	prev := configTimezoneSwap("UTC")
-	t.Cleanup(func() { configTimezoneSwap(prev) })
+	t.Parallel()
 
 	stamp := time.Date(2026, 4, 25, 10, 30, 0, 0, time.UTC)
 	// LayoutDateTime is "01/02/2006 03:04 PM" — month/day/year, 12-hour.
-	assert.Equal(t, "04/25/2026 10:30 AM", formatActivityDate(stamp))
+	assert.Equal(t, "04/25/2026 10:30 AM", formatActivityDate(stamp, "UTC"))
 }
 
 // ---------------------------------------------------------------------------
@@ -189,14 +184,6 @@ func TestBuildActivityLogQuery_CombinedFilters(t *testing.T) {
 // helpers — keep this test file self-contained without exporting more
 // than necessary from the production package
 // ---------------------------------------------------------------------------
-
-// configTimezoneSwap rewrites config.Timezone and returns the prior
-// value so callers can restore it via t.Cleanup.
-func configTimezoneSwap(next string) string {
-	prev := config.Timezone
-	config.Timezone = next
-	return prev
-}
 
 // swapDriver flips model's package-global driver via the test setter
 // and returns the prior value. buildActivityLogQuery reads

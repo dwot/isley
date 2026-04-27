@@ -23,25 +23,24 @@ import (
 // Helpers
 // ---------------------------------------------------------------------------
 
-// withAPIIngestEnabled snapshots config.APIIngestEnabled, sets it to
-// the desired value, and restores on cleanup. Tests touching the
-// ingest endpoint should call this so they don't permanently mutate
-// the package-global config (Phase 7 will replace it with a Store).
-func withAPIIngestEnabled(t *testing.T, enabled int) {
-	t.Helper()
-	prev := config.APIIngestEnabled
-	config.APIIngestEnabled = enabled
-	t.Cleanup(func() { config.APIIngestEnabled = prev })
+// storeWithAPIIngest returns a per-test *config.Store with
+// APIIngestEnabled set. Tests touching the ingest endpoint pass it
+// via testutil.WithConfigStore so the engine reads it without any
+// process-global mutation.
+func storeWithAPIIngest(enabled int) *config.Store {
+	s := config.NewStore()
+	s.SetAPIIngestEnabled(enabled)
+	return s
 }
 
-// withPollingInterval pins config.PollingInterval for the duration of
-// a test. ChartHandler caches results for `PollingInterval/10` seconds;
-// pinning the value avoids cross-test interference via the cache.
-func withPollingInterval(t *testing.T, seconds int) {
-	t.Helper()
-	prev := config.PollingInterval
-	config.PollingInterval = seconds
-	t.Cleanup(func() { config.PollingInterval = prev })
+// storeWithPollingInterval returns a per-test *config.Store with
+// PollingInterval set. ChartHandler caches results for
+// `PollingInterval/10` seconds; pinning the value avoids cross-test
+// interference via the cache.
+func storeWithPollingInterval(seconds int) *config.Store {
+	s := config.NewStore()
+	s.SetPollingInterval(seconds)
+	return s
 }
 
 // resetIngestRateLimiter swaps in a fresh limiter so this test starts
@@ -83,10 +82,9 @@ func ingestPostKeepsRateOK(t *testing.T, c *testutil.Client, apiKey string, body
 func TestSensorIngest_HappyPath(t *testing.T) {
 	resetRateLimit(t)
 	resetIngestRateLimiter(t)
-	withAPIIngestEnabled(t, 1)
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithAPIIngest(1)))
 	apiKey := seedSensorIngestKey(t, db)
 
 	c := server.NewClient(t)
@@ -129,10 +127,9 @@ func TestSensorIngest_HappyPath(t *testing.T) {
 func TestSensorIngest_ReusesExistingSensor(t *testing.T) {
 	resetRateLimit(t)
 	resetIngestRateLimiter(t)
-	withAPIIngestEnabled(t, 1)
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithAPIIngest(1)))
 	apiKey := seedSensorIngestKey(t, db)
 
 	c := server.NewClient(t)
@@ -155,10 +152,9 @@ func TestSensorIngest_ReusesExistingSensor(t *testing.T) {
 func TestSensorIngest_CreatesNewZone(t *testing.T) {
 	resetRateLimit(t)
 	resetIngestRateLimiter(t)
-	withAPIIngestEnabled(t, 1)
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithAPIIngest(1)))
 	apiKey := seedSensorIngestKey(t, db)
 
 	c := server.NewClient(t)
@@ -183,10 +179,10 @@ func TestSensorIngest_CreatesNewZone(t *testing.T) {
 func TestSensorIngest_DisabledByConfig(t *testing.T) {
 	resetRateLimit(t)
 	resetIngestRateLimiter(t)
-	withAPIIngestEnabled(t, 0) // disabled
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	// disabled
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithAPIIngest(0)))
 	apiKey := seedSensorIngestKey(t, db)
 
 	c := server.NewClient(t)
@@ -200,10 +196,9 @@ func TestSensorIngest_DisabledByConfig(t *testing.T) {
 func TestSensorIngest_RejectsMissingSource(t *testing.T) {
 	resetRateLimit(t)
 	resetIngestRateLimiter(t)
-	withAPIIngestEnabled(t, 1)
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithAPIIngest(1)))
 	apiKey := seedSensorIngestKey(t, db)
 
 	c := server.NewClient(t)
@@ -219,10 +214,9 @@ func TestSensorIngest_RejectsMissingSource(t *testing.T) {
 func TestSensorIngest_RejectsNonFiniteValue(t *testing.T) {
 	resetRateLimit(t)
 	resetIngestRateLimiter(t)
-	withAPIIngestEnabled(t, 1)
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithAPIIngest(1)))
 	apiKey := seedSensorIngestKey(t, db)
 
 	c := server.NewClient(t)
@@ -249,10 +243,9 @@ func TestSensorIngest_RejectsNonFiniteValue(t *testing.T) {
 func TestChartHandler_RawShortRange(t *testing.T) {
 	resetRateLimit(t)
 	resetIngestRateLimiter(t)
-	withPollingInterval(t, 60)
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithPollingInterval(60)))
 
 	// Seed a sensor + two recent readings (within last 60 minutes).
 	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
@@ -282,10 +275,9 @@ func TestChartHandler_RawShortRange(t *testing.T) {
 func TestChartHandler_RollupLongRange(t *testing.T) {
 	resetRateLimit(t)
 	resetIngestRateLimiter(t)
-	withPollingInterval(t, 60)
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithPollingInterval(60)))
 
 	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
 	testutil.MustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type) VALUES (1, 'Tent Temp', 1, 'src', 'D', 'temp')`)
@@ -318,10 +310,9 @@ func TestChartHandler_RollupLongRange(t *testing.T) {
 
 func TestChartHandler_RejectsMissingSensorParam(t *testing.T) {
 	resetRateLimit(t)
-	withPollingInterval(t, 60)
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithPollingInterval(60)))
 
 	testutil.SeedAdmin(t, db, "chart-pw-3")
 	c := server.LoginAsAdmin(t, "chart-pw-3")
@@ -332,10 +323,9 @@ func TestChartHandler_RejectsMissingSensorParam(t *testing.T) {
 
 func TestChartHandler_RejectsMissingTimeParams(t *testing.T) {
 	resetRateLimit(t)
-	withPollingInterval(t, 60)
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithPollingInterval(60)))
 
 	testutil.SeedAdmin(t, db, "chart-pw-4")
 	c := server.LoginAsAdmin(t, "chart-pw-4")
@@ -353,10 +343,9 @@ func TestChartHandler_RejectsMissingTimeParams(t *testing.T) {
 func TestSensorIngest_ConcurrentSameSensor(t *testing.T) {
 	resetRateLimit(t)
 	resetIngestRateLimiter(t)
-	withAPIIngestEnabled(t, 1)
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithAPIIngest(1)))
 	apiKey := seedSensorIngestKey(t, db)
 
 	const writers = 4

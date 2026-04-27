@@ -42,6 +42,11 @@ func NewEngine(cfg Config) (*gin.Engine, error) {
 		return nil, fmt.Errorf("app.NewEngine: cfg.SessionSecret is required")
 	}
 
+	configStore := cfg.ConfigStore
+	if configStore == nil {
+		configStore = config.NewStore()
+	}
+
 	r := gin.New()
 
 	if len(cfg.TrustedProxies) > 0 {
@@ -56,10 +61,10 @@ func NewEngine(cfg Config) (*gin.Engine, error) {
 
 	r.Use(gin.Recovery())
 	r.Use(gin.LoggerWithWriter(logger.AccessWriter))
-	r.Use(securityHeadersMiddleware())
+	r.Use(securityHeadersMiddleware(configStore))
 	r.Use(currentPathMiddleware())
 
-	templ, err := parseTemplates(cfg.Assets)
+	templ, err := parseTemplates(cfg.Assets, configStore)
 	if err != nil {
 		return nil, fmt.Errorf("parse templates: %w", err)
 	}
@@ -77,6 +82,7 @@ func NewEngine(cfg Config) (*gin.Engine, error) {
 	r.Use(sessions.Sessions("isley_session", store))
 	r.Use(csrfMiddleware())
 	r.Use(dbMiddleware(cfg.DB))
+	r.Use(configStoreMiddleware(configStore))
 
 	backupSvc := cfg.BackupService
 	if backupSvc == nil {
@@ -95,7 +101,7 @@ func NewEngine(cfg Config) (*gin.Engine, error) {
 // Middleware
 // ---------------------------------------------------------------------------
 
-func securityHeadersMiddleware() gin.HandlerFunc {
+func securityHeadersMiddleware(store *config.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("X-Frame-Options", "DENY")
 		c.Header("X-Content-Type-Options", "nosniff")
@@ -111,7 +117,7 @@ func securityHeadersMiddleware() gin.HandlerFunc {
 		// can reach user-configured stream servers (e.g. Owncast).
 		connectSrc := "'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com"
 		mediaSrc := "'self' blob:"
-		for _, s := range config.Streams {
+		for _, s := range store.Streams() {
 			if parsed, err := url.Parse(s.URL); err == nil && parsed.Host != "" {
 				origin := parsed.Scheme + "://" + parsed.Host
 				if !strings.Contains(connectSrc, origin) {
@@ -198,16 +204,45 @@ func backupServiceMiddleware(svc *handlers.BackupService) gin.HandlerFunc {
 	}
 }
 
+// configStoreMiddleware injects the per-engine *config.Store into the
+// Gin context. Handlers retrieve it via
+// handlers.ConfigStoreFromContext(c). The store owns all runtime-mutable
+// configuration that previously lived in config package globals; making
+// it per-engine is what lets handler tests run in parallel without
+// colliding on global state.
+func configStoreMiddleware(s *config.Store) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		handlers.SetConfigStoreOnContext(c, s)
+		c.Next()
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Templates and static assets
 // ---------------------------------------------------------------------------
 
-func parseTemplates(assets fs.FS) (*template.Template, error) {
-	funcMap := buildFuncMap()
+func parseTemplates(assets fs.FS, store *config.Store) (*template.Template, error) {
+	funcMap := buildFuncMap(store)
 	return template.New("").Funcs(funcMap).ParseFS(assets, "web/templates/**/*.html")
 }
 
-func buildFuncMap() template.FuncMap {
+func buildFuncMap(store *config.Store) template.FuncMap {
+	// configuredLocation returns the Store's configured *time.Location,
+	// falling back to nil when none is set or the value doesn't parse.
+	// Closing over the per-engine Store keeps the helper deterministic
+	// in tests that construct their own engine and timezone.
+	configuredLocation := func() *time.Location {
+		tz := store.Timezone()
+		if tz == "" {
+			return nil
+		}
+		loc, err := time.LoadLocation(tz)
+		if err != nil {
+			return nil
+		}
+		return loc
+	}
+
 	return template.FuncMap{
 		"upper":     strings.ToUpper,
 		"lower":     strings.ToLower,
@@ -227,34 +262,26 @@ func buildFuncMap() template.FuncMap {
 			return string(a)
 		},
 		"formatDateTimeLocal": func(t time.Time) string {
-			if config.Timezone != "" {
-				if loc, err := time.LoadLocation(config.Timezone); err == nil {
-					return t.In(loc).Format(utils.LayoutDateTimeLocal)
-				}
+			if loc := configuredLocation(); loc != nil {
+				return t.In(loc).Format(utils.LayoutDateTimeLocal)
 			}
 			return t.Local().Format(utils.LayoutDateTimeLocal)
 		},
 		"formatDate": func(t time.Time) string {
-			if config.Timezone != "" {
-				if loc, err := time.LoadLocation(config.Timezone); err == nil {
-					return t.In(loc).Format(utils.LayoutDate)
-				}
+			if loc := configuredLocation(); loc != nil {
+				return t.In(loc).Format(utils.LayoutDate)
 			}
 			return t.Format(utils.LayoutDate)
 		},
 		"formatDateTime": func(t time.Time) string {
-			if config.Timezone != "" {
-				if loc, err := time.LoadLocation(config.Timezone); err == nil {
-					return t.In(loc).Format(utils.LayoutDateTime)
-				}
+			if loc := configuredLocation(); loc != nil {
+				return t.In(loc).Format(utils.LayoutDateTime)
 			}
 			return t.Format(utils.LayoutDateTime)
 		},
 		"formatDateISO": func(t time.Time) string {
-			if config.Timezone != "" {
-				if loc, err := time.LoadLocation(config.Timezone); err == nil {
-					return t.In(loc).Format(utils.LayoutDate)
-				}
+			if loc := configuredLocation(); loc != nil {
+				return t.In(loc).Format(utils.LayoutDate)
 			}
 			return t.Format(utils.LayoutDate)
 		},
@@ -294,10 +321,8 @@ func buildFuncMap() template.FuncMap {
 			return t
 		},
 		"now": func() time.Time {
-			if config.Timezone != "" {
-				if loc, err := time.LoadLocation(config.Timezone); err == nil {
-					return time.Now().In(loc)
-				}
+			if loc := configuredLocation(); loc != nil {
+				return time.Now().In(loc)
 			}
 			return time.Now()
 		},

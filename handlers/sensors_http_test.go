@@ -27,6 +27,22 @@ import (
 	"isley/tests/testutil"
 )
 
+// newStoreWithACIToken returns a fresh *config.Store seeded with the
+// given ACIToken. Used by ACI-related test helpers below.
+func newStoreWithACIToken(token string) *config.Store {
+	s := config.NewStore()
+	s.SetACIToken(token)
+	return s
+}
+
+// newStoreWithAPIIngest returns a fresh *config.Store with
+// APIIngestEnabled set. Used by ingest validation tests.
+func newStoreWithAPIIngest(enabled int) *config.Store {
+	s := config.NewStore()
+	s.SetAPIIngestEnabled(enabled)
+	return s
+}
+
 // ---------------------------------------------------------------------------
 // Auth gating
 // ---------------------------------------------------------------------------
@@ -157,15 +173,13 @@ func TestSensorsHTTP_ScanEC_RejectsLongServerAddress(t *testing.T) {
 
 // TestSensorsHTTP_DumpACI_FailsWhenTokenUnconfigured exercises the only
 // branch we can reach without a live ACI server: the up-front guard on
-// config.ACIToken. Saves the prior value and restores it in cleanup so
-// tests that depend on a configured token are unaffected.
+// the engine's ACIToken setting. Constructs a per-test Store with an
+// empty token so the assertion is local to this engine instance.
 func TestSensorsHTTP_DumpACI_FailsWhenTokenUnconfigured(t *testing.T) {
-	prev := config.ACIToken
-	config.ACIToken = ""
-	t.Cleanup(func() { config.ACIToken = prev })
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(newStoreWithACIToken("")))
 
 	const apiKey = "dump-aci-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -288,12 +302,10 @@ func TestSensorsHTTP_DeleteSensor_NoOpOnMissing(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSensorsHTTP_Ingest_RejectsLongDevice(t *testing.T) {
-	prev := config.APIIngestEnabled
-	config.APIIngestEnabled = 1
-	t.Cleanup(func() { config.APIIngestEnabled = prev })
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(newStoreWithAPIIngest(1)))
 
 	const apiKey = "ingest-long-device-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -312,12 +324,10 @@ func TestSensorsHTTP_Ingest_RejectsLongDevice(t *testing.T) {
 }
 
 func TestSensorsHTTP_Ingest_RejectsLongType(t *testing.T) {
-	prev := config.APIIngestEnabled
-	config.APIIngestEnabled = 1
-	t.Cleanup(func() { config.APIIngestEnabled = prev })
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(newStoreWithAPIIngest(1)))
 
 	const apiKey = "ingest-long-type-key"
 	testutil.SeedAPIKey(t, db, apiKey)
@@ -336,12 +346,10 @@ func TestSensorsHTTP_Ingest_RejectsLongType(t *testing.T) {
 }
 
 func TestSensorsHTTP_Ingest_RejectsLongUnit(t *testing.T) {
-	prev := config.APIIngestEnabled
-	config.APIIngestEnabled = 1
-	t.Cleanup(func() { config.APIIngestEnabled = prev })
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(newStoreWithAPIIngest(1)))
 
 	const apiKey = "ingest-long-unit-key"
 	testutil.SeedAPIKey(t, db, apiKey)

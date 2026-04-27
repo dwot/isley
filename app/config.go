@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"io/fs"
 
+	"isley/config"
 	"isley/handlers"
 )
 
@@ -39,8 +40,10 @@ type Config struct {
 	// reads ISLEY_SECURE_COOKIES; tests default to false.
 	SecureCookies bool
 
-	// GuestMode mirrors config.GuestMode == 1: when true, Basic routes
-	// are added to the public group instead of the protected group.
+	// GuestMode mirrors the Store's GuestMode == 1: when true, Basic
+	// routes are added to the public group instead of the protected
+	// group. Production reads it from the Store after LoadSettings runs;
+	// tests pass it explicitly.
 	GuestMode bool
 
 	// TrustedProxies is forwarded to Gin's SetTrustedProxies so that
@@ -60,4 +63,13 @@ type Config struct {
 	// in-progress state without racing a real goroutine. Production
 	// leaves this nil and lets NewEngine build the service.
 	BackupService *handlers.BackupService
+
+	// ConfigStore, if non-nil, is the per-engine runtime configuration
+	// store handlers read at request time. Tests construct one and
+	// pre-populate the few fields they care about (e.g. APIIngestEnabled,
+	// ACIToken) so the body of the test stays focused. Production leaves
+	// this nil and NewEngine constructs a default; main.go is then
+	// responsible for calling handlers.LoadSettings to populate it from
+	// the DB before traffic arrives.
+	ConfigStore *config.Store
 }
