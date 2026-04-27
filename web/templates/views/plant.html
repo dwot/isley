@@ -727,8 +727,13 @@ document.addEventListener("DOMContentLoaded", () => {
     var prevId = {{ .prevPlantID }};
     var nextId = {{ .nextPlantID }};
     document.addEventListener('keydown', function(e) {
+        // Don't navigate if the image modal is open...
+        var imageModal = document.getElementById('imageModal');
+        if (imageModal && imageModal.classList.contains('show')) return;
+        // ...focus is on an input, textarea, select...
         var tag = document.activeElement && document.activeElement.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        // ...or on a contenteditable enabled
         if (document.activeElement && document.activeElement.isContentEditable) return;
         if (e.key === 'ArrowLeft' && prevId) {
             window.location.href = '/plant/' + prevId;
