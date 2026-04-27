@@ -49,13 +49,12 @@ func NewTestDB(t *testing.T) *sql.DB {
 		t.Fatalf("NewTestDB: open: %v", err)
 	}
 
-	// SetMaxOpenConns(1) ensures every query lands on the same connection,
-	// which keeps the in-memory DB alive for the test's lifetime even if
-	// callers do not hold a reference. The shared-cache DSN also makes
-	// additional connections see the same data, so this limit is mostly
-	// belt-and-suspenders.
-	db.SetMaxOpenConns(1)
-
+	// Per audit #13 / TEST_PLAN Phase 4: do not cap MaxOpenConns. The
+	// shared-cache DSN keeps the in-memory database alive across
+	// connections, and a single-conn cap deadlocks any code path that
+	// pins one connection (e.g. handlers/backup.go runRestore) while
+	// another part of the same goroutine, or the request driving it,
+	// needs a second connection from the pool.
 	if err := db.Ping(); err != nil {
 		_ = db.Close()
 		t.Fatalf("NewTestDB: ping: %v", err)
