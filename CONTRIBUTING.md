@@ -91,19 +91,33 @@ meant to prevent.
 
 CI gates every PR on a documented coverage floor — one per build tag. The
 SQLite floor lives in `.github/workflows/release.yml` and `.gitlab-ci.yml`
-as `floor=55.0`; the `integration_postgres` floor lives in the same files
+as `floor=11.0`; the `integration_postgres` floor lives in the same files
 as `floor=2.0`. A PR that drops total statement coverage below either
 floor fails the pipeline.
+
+The numbers are intentionally low: CI runs `go test -coverpkg=./...`,
+which credits coverage across the whole tree (untested packages
+drag the total down) rather than the per-package average `go test
+-cover` reports by default. The two are not comparable — the
+per-package number for this codebase is roughly 5× larger. See
+`audits/TESTING.md`'s "Phase 6c recalibration" note for why the
+cross-tree number is the honest one. If you check coverage locally,
+run with `-coverpkg=./...` so your reading matches CI's:
+
+```bash
+go test -race -coverpkg=./... -coverprofile=coverage.out -timeout=20m ./...
+go tool cover -func=coverage.out | tail -1
+```
 
 Bumping rules:
 
 - **PRs that increase coverage MAY bump the floor accordingly.** If your
-  change ratchets the SQLite total from 56.5% to 58.0%, you may bump
-  `floor=55.0` → `floor=57.0` in the same PR. Use `floor(total - 1.0)`
+  change ratchets the SQLite total from 12.4% to 14.0%, you may bump
+  `floor=11.0` → `floor=13.0` in the same PR. Use `floor(total - 1.0)`
   rounded down — a 1.0-point slack absorbs harmless churn from later
   refactors that don't touch the test surface.
 - **PRs that don't change coverage MUST NOT bump the floor down.** The
-  floor is a ratchet. If a refactor moves coverage from 56.6% to 55.4%
+  floor is a ratchet. If a refactor moves coverage from 12.4% to 11.4%
   without removing any tests, fix the test (or the refactor) — don't
   loosen the gate.
 - **Raising the floor is a deliberate choice.** The default is to let

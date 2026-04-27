@@ -74,14 +74,17 @@ jobs:
 
       # docs/TEST_PLAN_2.md Phase 1: gate on a documented coverage floor so
       # PRs that drop the bar fail review at CI time, not in a follow-up
-      # audit. Floor was set to floor(total - 1.0) where total was the
-      # `go tool cover` reading on the dev branch when this gate landed.
-      # Bump the floor in PRs that earn it; never lower it (see
-      # CONTRIBUTING.md "Coverage floor").
+      # audit. Floor is floor(total - 1.0) where total is the honest
+      # `-coverpkg=./...` reading from this same job on the dev branch
+      # — see audits/TESTING.md "Phase 6c recalibration" for why the
+      # honest cross-tree number (~12%) is the right denominator and
+      # not the per-package number (~55%) `go test -cover` reports
+      # without `-coverpkg=./...`. Bump the floor in PRs that earn it;
+      # never lower it (see CONTRIBUTING.md "Coverage floor").
       - name: Enforce coverage floor
         run: |
           total=$(go tool cover -func=coverage.out | awk '/^total:/ {gsub("%","",$3); print $3}')
-          floor=55.0
+          floor=11.0
           awk -v t="$total" -v f="$floor" 'BEGIN { exit !(t+0 >= f+0) }' \
             || { echo "::error::coverage $total% < floor $floor%"; exit 1; }
           echo "coverage $total% >= floor $floor%"
