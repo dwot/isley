@@ -15,8 +15,30 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"isley/handlers"
+	"isley/model"
 	"isley/utils"
 )
+
+// insertReturnID runs an INSERT and returns the row's id in a dialect-
+// agnostic way. SQLite supports res.LastInsertId(); Postgres does not, so
+// the caller's plain INSERT is rewritten to add `RETURNING id` and read
+// via QueryRow when the active driver is Postgres. Phase 7 of
+// docs/TEST_PLAN_2.md added this so the Seed* helpers work under the
+// integration_postgres build tag without each call site branching.
+func insertReturnID(t *testing.T, db *sql.DB, query string, args ...interface{}) int {
+	t.Helper()
+	if model.IsPostgres() {
+		var id int
+		err := db.QueryRow(query+" RETURNING id", args...).Scan(&id)
+		require.NoErrorf(t, err, "insertReturnID (postgres): %s", query)
+		return id
+	}
+	res, err := db.Exec(query, args...)
+	require.NoErrorf(t, err, "insertReturnID (sqlite): %s", query)
+	id, err := res.LastInsertId()
+	require.NoError(t, err)
+	return int(id)
+}
 
 // SeedAdmin writes the admin credentials directly to the settings table,
 // mirroring what main.go's startup hook does for a fresh database. It
@@ -89,11 +111,7 @@ func SeedAPIKey(t *testing.T, db *sql.DB, plaintext string) string {
 // SeedBreeder inserts a breeder row and returns its id.
 func SeedBreeder(t *testing.T, db *sql.DB, name string) int {
 	t.Helper()
-	res, err := db.Exec(`INSERT INTO breeder (name) VALUES ($1)`, name)
-	require.NoErrorf(t, err, "SeedBreeder insert %q", name)
-	id, err := res.LastInsertId()
-	require.NoError(t, err)
-	return int(id)
+	return insertReturnID(t, db, `INSERT INTO breeder (name) VALUES ($1)`, name)
 }
 
 // SeedStrain inserts a strain rooted at breederID and returns its id.
@@ -101,25 +119,17 @@ func SeedBreeder(t *testing.T, db *sql.DB, name string) int {
 // seeds — matches the sentinel "test strain" most existing fixtures use.
 func SeedStrain(t *testing.T, db *sql.DB, breederID int, name string) int {
 	t.Helper()
-	res, err := db.Exec(
+	return insertReturnID(t, db,
 		`INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
 		 VALUES ($1, $2, 50, 50, 0, '', 5)`,
 		name, breederID,
 	)
-	require.NoErrorf(t, err, "SeedStrain insert %q", name)
-	id, err := res.LastInsertId()
-	require.NoError(t, err)
-	return int(id)
 }
 
 // SeedZone inserts a zones row and returns its id.
 func SeedZone(t *testing.T, db *sql.DB, name string) int {
 	t.Helper()
-	res, err := db.Exec(`INSERT INTO zones (name) VALUES ($1)`, name)
-	require.NoErrorf(t, err, "SeedZone insert %q", name)
-	id, err := res.LastInsertId()
-	require.NoError(t, err)
-	return int(id)
+	return insertReturnID(t, db, `INSERT INTO zones (name) VALUES ($1)`, name)
 }
 
 // SeedPlant inserts a plant linked to strainID + zoneID and returns its
@@ -128,15 +138,11 @@ func SeedZone(t *testing.T, db *sql.DB, name string) int {
 // branching the helper.
 func SeedPlant(t *testing.T, db *sql.DB, name string, strainID, zoneID int) int {
 	t.Helper()
-	res, err := db.Exec(
+	return insertReturnID(t, db,
 		`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
 		 VALUES ($1, $2, $3, '', 0, '2026-01-01', '[]')`,
 		name, zoneID, strainID,
 	)
-	require.NoErrorf(t, err, "SeedPlant insert %q", name)
-	id, err := res.LastInsertId()
-	require.NoError(t, err)
-	return int(id)
 }
 
 // SeedSensor inserts a sensors row keyed by (source, device, kind) and
@@ -144,26 +150,18 @@ func SeedPlant(t *testing.T, db *sql.DB, name string, strainID, zoneID int) int 
 // that care about the name can UPDATE it afterwards.
 func SeedSensor(t *testing.T, db *sql.DB, source, device, kind string) int {
 	t.Helper()
-	res, err := db.Exec(
+	return insertReturnID(t, db,
 		`INSERT INTO sensors (name, source, device, type) VALUES ($1, $2, $3, $4)`,
 		device+":"+kind, source, device, kind,
 	)
-	require.NoErrorf(t, err, "SeedSensor insert %s/%s/%s", source, device, kind)
-	id, err := res.LastInsertId()
-	require.NoError(t, err)
-	return int(id)
 }
 
 // SeedActivity inserts a plant_activity row for plantID and returns
 // its id. Tests that need a non-empty note should UPDATE the row.
 func SeedActivity(t *testing.T, db *sql.DB, plantID, activityID int, when time.Time) int {
 	t.Helper()
-	res, err := db.Exec(
+	return insertReturnID(t, db,
 		`INSERT INTO plant_activity (plant_id, activity_id, note, date) VALUES ($1, $2, '', $3)`,
 		plantID, activityID, when.Format("2006-01-02 15:04:05"),
 	)
-	require.NoErrorf(t, err, "SeedActivity plant=%d activity=%d", plantID, activityID)
-	id, err := res.LastInsertId()
-	require.NoError(t, err)
-	return int(id)
 }

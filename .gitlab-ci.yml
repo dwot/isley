@@ -103,18 +103,24 @@ test-postgres:
     policy: pull-push
   script:
     - go version
-    # `-run Postgres` keeps the SQLite-only tests in tests/integration
-    # out of the test binary's run set: under the integration_postgres
-    # tag both kinds of tests compile in, but they share the
-    # model.dbDriver global via SetDriverForTesting. Filtering by name
-    # is the contract that lets them coexist in one package.
-    - go test -race -tags=integration_postgres -coverpkg=./... -coverprofile=coverage-postgres.out -run Postgres -timeout=20m ./tests/integration/... ./model/...
+    # `-run Postgres` keeps the SQLite-only tests in tests/integration,
+    # handlers, and watcher out of the test binary's run set: under
+    # the integration_postgres tag both kinds of tests compile in,
+    # but they share the model.dbDriver global via SetDriverForTesting.
+    # Filtering by name is the contract that lets them coexist in
+    # one package — every Postgres test in the watcher and handlers
+    # packages added by docs/TEST_PLAN_2.md Phase 7 carries "Postgres"
+    # in its function name so this filter still picks them up.
+    - go test -race -tags=integration_postgres -coverpkg=./... -coverprofile=coverage-postgres.out -run Postgres -timeout=20m ./tests/integration/... ./model/... ./handlers/... ./watcher/...
     - go tool cover -func=coverage-postgres.out | tail -1
-    # docs/TEST_PLAN_2.md Phase 1: this floor reflects today's `test-postgres`
-    # job which only exercises smoke + migrations + sqlite_to_postgres
-    # (a small fraction of the codebase). Phase 7 lifts dialect-branched
-    # handler tests into this job; raise the floor at that point. Bump on
-    # earn, never lower (see CONTRIBUTING.md "Coverage floor").
+    # docs/TEST_PLAN_2.md Phase 1: this floor was originally set when
+    # `test-postgres` only exercised smoke + migrations +
+    # sqlite_to_postgres (a small fraction of the codebase). Phase 7
+    # added dialect-branched handler/watcher tests to this job; once
+    # the first dev-branch run reports the post-Phase-7 number, raise
+    # this floor to floor(total - 1.0) per CONTRIBUTING.md "Coverage
+    # floor". Until then the existing 2.0 holds — bumping speculatively
+    # would risk false negatives. Bump on earn, never lower.
     - |
       total=$(go tool cover -func=coverage-postgres.out | awk '/^total:/ {gsub("%","",$3); print $3}')
       floor=2.0
