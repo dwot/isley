@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +20,15 @@ import (
 
 	"isley/model"
 )
+
+// driverSetOnce serializes the one-time write to model.dbDriver so
+// parallel postgres tests using NewTestPostgresDB do not race on the
+// package global. Every caller in this build-tagged binary needs
+// driver=="postgres", and SQLite-only tests are filtered out at run
+// time by `-run Postgres` (see CI invocation), so a single set-and-
+// leave is the right shape. The race the model-package fix landed for
+// is latent here too — fix pre-emptively.
+var driverSetOnce sync.Once
 
 // PostgresEnv resolves the connection parameters used by the Postgres
 // test harness. Defaults match the local docker-run example in
@@ -101,8 +111,10 @@ func NewTestPostgresDB(t *testing.T) *sql.DB {
 	// Defer driver-flag flip until we know Postgres is reachable. Setting
 	// it earlier and then skipping leaves the global at "postgres" for
 	// any later SQLite test in the same binary, which silently breaks
-	// dialect-aware production helpers.
-	model.SetDriverForTesting("postgres")
+	// dialect-aware production helpers. driverSetOnce makes the write
+	// idempotent so concurrent NewTestPostgresDB calls don't race on
+	// the package global.
+	driverSetOnce.Do(func() { model.SetDriverForTesting("postgres") })
 
 	if _, err := admin.Exec(fmt.Sprintf("CREATE DATABASE %s", quoteIdent(dbName))); err != nil {
 		t.Fatalf("NewTestPostgresDB: create db %q: %v", dbName, err)

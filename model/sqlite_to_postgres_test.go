@@ -23,11 +23,12 @@
 //
 // IMPORTANT: this file shares the model_test binary with migrate_test.go,
 // which is plain SQLite and untagged. The Postgres tests below set
-// model.dbDriver to "postgres" via SetDriverForTesting; we restore the
-// previous value via t.Cleanup so a later test in the same binary does
-// not see a stale driver. Run with `-run` filters that target only
-// these tests if mixing SQLite and Postgres in one process becomes
-// flaky.
+// model.dbDriver to "postgres" via SetDriverForTesting exactly once
+// per binary (driverSetOnce); the value is NOT restored on cleanup
+// because (a) every Postgres test needs the same value and (b) parallel
+// cleanups racing on the global is what triggered the original
+// -race CI failure. Always run with `-run Postgres` so the SQLite
+// tests in migrate_test.go don't see the postgres-flavored driver.
 
 package model
 
@@ -39,6 +40,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -87,14 +89,24 @@ func (e pgEnv) dsn(database string) string {
 	)
 }
 
+// driverSetOnce serializes the one-time write to model.dbDriver so
+// parallel postgres tests do not race on the package global. Every
+// test in this build-tagged binary needs driver=="postgres", and the
+// SQLite tests in migrate_test.go are filtered out at run time by
+// `-run Postgres` (see CI invocation), so a single set-and-leave is
+// the right shape — no per-test restore. The earlier prev/restore
+// pattern caused -race failures in CI when parallel tests' cleanup
+// goroutines all wrote to dbDriver concurrently.
+var driverSetOnce sync.Once
+
 // freshPostgresDB creates a fresh per-test Postgres database. When
 // withMigrations is true, the model's bundled Postgres migrations are
 // applied; otherwise the database is bare (no user tables). Cleanup
 // drops the database when the test finishes.
 //
-// Sets the package-level dbDriver to "postgres" so production helpers
-// like IsPostgres() report the active dialect for the duration of the
-// test, then restores the previous value on cleanup.
+// Sets the package-level dbDriver to "postgres" exactly once per test
+// binary via driverSetOnce, so production helpers like IsPostgres()
+// report the active dialect for the duration of the run.
 func freshPostgresDB(t *testing.T, withMigrations bool) *sql.DB {
 	t.Helper()
 	initTestLogger()
@@ -118,9 +130,7 @@ func freshPostgresDB(t *testing.T, withMigrations bool) *sql.DB {
 		t.Skipf("%s — set ISLEY_TEST_DB_* or run: docker run -e POSTGRES_PASSWORD=test -p 5432:5432 -d postgres:16", msg)
 	}
 
-	prevDriver := GetDriver()
-	SetDriverForTesting("postgres")
-	t.Cleanup(func() { SetDriverForTesting(prevDriver) })
+	driverSetOnce.Do(func() { SetDriverForTesting("postgres") })
 
 	name := uniquePGDBName(t)
 	if _, err := admin.Exec(fmt.Sprintf(`CREATE DATABASE %s`, quoteIdentPG(name))); err != nil {
