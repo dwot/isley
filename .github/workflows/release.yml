@@ -55,9 +55,54 @@ jobs:
         if: always()
         run: go tool cover -func=coverage.out | tail -1
 
+  test-postgres:
+    name: Test (Postgres)
+    runs-on: ubuntu-latest
+    # docs/TEST_PLAN.md Phase 5: every dialect-branching path runs against
+    # real PostgreSQL on every PR. Without this matrix the project's
+    # second supported backend has only ever been exercised against a
+    # SetDriverForTesting flag, not a real server.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.8'
+
+      - name: Verify Go Modules
+        run: go mod verify
+
+      # `-run Postgres` keeps the SQLite-only tests in tests/integration
+      # out of the test binary's run set: under the integration_postgres
+      # tag both kinds of tests compile in, but they share the
+      # model.dbDriver global via SetDriverForTesting. Filtering by name
+      # is the contract that lets them coexist in one package.
+      - name: Test (Postgres)
+        run: go test -race -tags=integration_postgres -run Postgres -timeout=20m ./tests/integration/... ./model/...
+        env:
+          ISLEY_TEST_DB_HOST: localhost
+          ISLEY_TEST_DB_PORT: '5432'
+          ISLEY_TEST_DB_USER: postgres
+          ISLEY_TEST_DB_PASSWORD: test
+
   build:
     name: Build and Release Artifacts
-    needs: test
+    needs: [test, test-postgres]
     runs-on: ubuntu-latest
     permissions:
       contents: write  # Required for creating releases

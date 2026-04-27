@@ -54,6 +54,46 @@ test:
     expire_in: 1 week
     when: always
 
+# docs/TEST_PLAN.md Phase 5: every dialect-branching path runs against
+# real PostgreSQL on every PR. Without this matrix the project's second
+# supported backend has only ever been exercised against a SetDriverForTesting
+# flag, not a real server. Lives in the same `test` stage as the SQLite
+# job so the `build` stage gates on both automatically.
+test-postgres:
+  stage: test
+  image: golang:1.25.8
+  rules:
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  services:
+    - name: postgres:16
+      alias: postgres
+  variables:
+    POSTGRES_PASSWORD: test
+    POSTGRES_DB: postgres
+    GOPATH: $CI_PROJECT_DIR/.go
+    GOCACHE: $CI_PROJECT_DIR/.gocache
+    ISLEY_TEST_DB_HOST: postgres
+    ISLEY_TEST_DB_PORT: '5432'
+    ISLEY_TEST_DB_USER: postgres
+    ISLEY_TEST_DB_PASSWORD: test
+  cache:
+    key:
+      files:
+        - go.sum
+    paths:
+      - .go/pkg/mod
+      - .gocache
+    policy: pull-push
+  script:
+    - go version
+    # `-run Postgres` keeps the SQLite-only tests in tests/integration
+    # out of the test binary's run set: under the integration_postgres
+    # tag both kinds of tests compile in, but they share the
+    # model.dbDriver global via SetDriverForTesting. Filtering by name
+    # is the contract that lets them coexist in one package.
+    - go test -race -tags=integration_postgres -run Postgres -timeout=20m ./tests/integration/... ./model/...
+
 build-dev:
   stage: build
   image:
