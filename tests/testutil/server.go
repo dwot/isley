@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"database/sql"
+	"io/fs"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -13,6 +14,19 @@ import (
 	"isley/config"
 	"isley/handlers"
 )
+
+// RepoFS returns an fs.FS rooted at the repository's go.mod directory,
+// suitable for app.Config.Assets in tests that construct an engine
+// directly (the integration suite reaches the same FS via NewTestServer).
+// Fails the test if the repo root cannot be located.
+func RepoFS(t *testing.T) fs.FS {
+	t.Helper()
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatalf("RepoFS: locate repo root: %v", err)
+	}
+	return os.DirFS(root)
+}
 
 // TestServer wraps an httptest.Server backed by an in-process Gin engine
 // constructed via app.NewEngine. Each test gets its own server, its own
