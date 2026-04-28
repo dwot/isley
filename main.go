@@ -146,10 +146,11 @@ func main() {
 		logger.Log.WithError(err).Fatal("Failed to construct HTTP engine")
 	}
 
+	grabber := watcher.NewGrabber(configStore, engineCfg.FrameDir)
 	bgWG.Add(1)
 	go func() {
 		defer bgWG.Done()
-		watcher.Grab(ctx, configStore, engineCfg.FrameDir)
+		grabber.Run(ctx)
 	}()
 
 	srv := &http.Server{
