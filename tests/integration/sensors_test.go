@@ -1,13 +1,5 @@
 package integration
 
-// +parallel:serial — handlers/sensors.go chart cache package-global
-//
-// TestSensors_GroupedReturnsLatestReading calls
-// handlers.ResetGroupedSensorCache to scrub the process-global grouped
-// sensor cache; the rest of the file shares the singleton even when it
-// does not reset it. The chart-cache annotation is cleared by Phase 4.2
-// of TEST_PLAN_2.md (SensorCacheService).
-
 import (
 	"database/sql"
 	"encoding/json"
@@ -18,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"isley/handlers"
 	"isley/tests/testutil"
 )
 
@@ -48,6 +39,8 @@ func seedSensorHTTP(t *testing.T, db *sql.DB) sensorFixture {
 // ---------------------------------------------------------------------------
 
 func TestSensors_EditUpdatesFields(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedSensorHTTP(t, db)
@@ -77,6 +70,8 @@ func TestSensors_EditUpdatesFields(t *testing.T) {
 }
 
 func TestSensors_EditRejectsInvalidVisibility(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedSensorHTTP(t, db)
@@ -98,6 +93,8 @@ func TestSensors_EditRejectsInvalidVisibility(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSensors_DeleteCascadesData(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedSensorHTTP(t, db)
@@ -125,9 +122,7 @@ func TestSensors_DeleteCascadesData(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSensors_GroupedReturnsLatestReading(t *testing.T) {
-	// The grouped-sensor cache is a process-global; clear it so an
-	// earlier test's cache state doesn't bleed in.
-	handlers.ResetGroupedSensorCache()
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	// Disable cache TTL pressure with a long polling interval.

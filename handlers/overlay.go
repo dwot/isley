@@ -18,7 +18,7 @@ func GetOverlayData(c *gin.Context) {
 	db := DBFromContext(c)
 	c.JSON(http.StatusOK, gin.H{
 		"plants":  GetOverlayPlants(db),
-		"sensors": GetGroupedSensorsWithLatestReading(db, ConfigStoreFromContext(c)),
+		"sensors": GetGroupedSensorsWithLatestReading(db, SensorCacheServiceFromContext(c)),
 	})
 }
 

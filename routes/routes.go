@@ -268,7 +268,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	r.GET("/sensorData", handlers.ChartHandler)
 	r.GET("/sensors/grouped", func(c *gin.Context) {
 		groupedSensors := handlers.GetGroupedSensorsWithLatestReading(
-			handlers.DBFromContext(c), handlers.ConfigStoreFromContext(c))
+			handlers.DBFromContext(c), handlers.SensorCacheServiceFromContext(c))
 		c.JSON(http.StatusOK, groupedSensors)
 	})
 	r.GET("/strains/:id", handlers.GetStrainHandler)

@@ -111,4 +111,13 @@ type Config struct {
 	// and NewEngine constructs a default service with the documented
 	// limits (60/min ingest, MaxLoginAttempts/min login).
 	RateLimiterService *handlers.RateLimiterService
+
+	// SensorCacheService, if non-nil, is the per-engine service that
+	// owns the grouped-sensor and per-query LRU chart caches. Tests
+	// pass a fresh instance so each test starts from an empty cache
+	// and parallel tests cannot clobber each other's cached responses.
+	// Production leaves this nil and NewEngine constructs a default
+	// service whose grouped TTL closure reads from the engine's
+	// *config.Store.
+	SensorCacheService *handlers.SensorCacheService
 }

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"isley/app"
 	"isley/config"
@@ -47,6 +48,14 @@ type TestServer struct {
 	// access this handle directly after construction) instead of mutating
 	// process-global config.
 	ConfigStore *config.Store
+
+	// SensorCacheService is the per-engine *handlers.SensorCacheService
+	// that owns the chart and grouped-sensor caches. Tests reach for
+	// this handle when they need to assert against cache state directly
+	// (e.g. force-eviction in mid-test) rather than going through the
+	// HTTP layer; the per-engine scope means each parallel test sees
+	// its own buckets.
+	SensorCacheService *handlers.SensorCacheService
 }
 
 // ServerOption tunes NewTestServer. Today we only need GuestMode; the
@@ -64,6 +73,7 @@ type serverOptions struct {
 	frameDir           string
 	configStore        *config.Store
 	rateLimiterService *handlers.RateLimiterService
+	sensorCacheService *handlers.SensorCacheService
 }
 
 // WithGuestMode boots the engine with guest-mode semantics
@@ -141,6 +151,17 @@ func WithRateLimiterService(s *handlers.RateLimiterService) ServerOption {
 	return func(o *serverOptions) { o.rateLimiterService = s }
 }
 
+// WithSensorCacheService overrides the per-engine
+// *handlers.SensorCacheService. Tests that want to assert specific
+// cache behavior (e.g. seed an entry then verify the chart handler
+// serves it) construct a service and pass it here. Pass nil to let
+// NewTestServer construct a default per-test service, which is the
+// usual case — every test gets its own buckets, which is what makes
+// t.Parallel() safe on the chart-exercising tests.
+func WithSensorCacheService(s *handlers.SensorCacheService) ServerOption {
+	return func(o *serverOptions) { o.sensorCacheService = s }
+}
+
 // NewTestServer constructs a Gin engine wired to db and serves it via
 // httptest.NewServer. The server is shut down automatically when the
 // test finishes. Background services (watcher, grabber) are NOT started;
@@ -177,6 +198,25 @@ func NewTestServer(t *testing.T, db *sql.DB, opts ...ServerOption) *TestServer {
 		rateLimiterSvc = handlers.NewRateLimiterService(nil, nil)
 	}
 
+	sensorCacheSvc := options.sensorCacheService
+	if sensorCacheSvc == nil {
+		// Mirror the engine's production TTL closure so tests see the
+		// same staleness rules — the closure reads PollingInterval off
+		// the per-test Store, so a test that pins PollingInterval via
+		// WithConfigStore controls the TTL exactly.
+		store := configStore
+		sensorCacheSvc = handlers.NewSensorCacheService(func() time.Duration {
+			interval := handlers.DefaultPollingIntervalSeconds
+			if store != nil {
+				interval = store.PollingInterval()
+			}
+			if interval <= 0 {
+				interval = handlers.DefaultPollingIntervalSeconds
+			}
+			return time.Duration(interval/10) * time.Second
+		}, 0)
+	}
+
 	engineCfg := app.Config{
 		DB:                 db,
 		Assets:             os.DirFS(root),
@@ -193,6 +233,7 @@ func NewTestServer(t *testing.T, db *sql.DB, opts ...ServerOption) *TestServer {
 		BackupService:      backupSvc,
 		ConfigStore:        configStore,
 		RateLimiterService: rateLimiterSvc,
+		SensorCacheService: sensorCacheSvc,
 	}
 	// Resolve defaults so the TestServer's exported path fields reflect
 	// the same values the engine middleware injects into request context.
@@ -207,16 +248,17 @@ func NewTestServer(t *testing.T, db *sql.DB, opts ...ServerOption) *TestServer {
 	t.Cleanup(srv.Close)
 
 	return &TestServer{
-		Server:        srv,
-		DB:            db,
-		Assets:        root,
-		DataDir:       options.dataDir,
-		UploadDir:     resolved.UploadDir,
-		StreamDir:     resolved.StreamDir,
-		LogsDir:       resolved.LogsDir,
-		FrameDir:      resolved.FrameDir,
-		BackupService: backupSvc,
-		ConfigStore:   configStore,
+		Server:             srv,
+		DB:                 db,
+		Assets:             root,
+		DataDir:            options.dataDir,
+		UploadDir:          resolved.UploadDir,
+		StreamDir:          resolved.StreamDir,
+		LogsDir:            resolved.LogsDir,
+		FrameDir:           resolved.FrameDir,
+		BackupService:      backupSvc,
+		ConfigStore:        configStore,
+		SensorCacheService: sensorCacheSvc,
 	}
 }
 

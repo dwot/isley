@@ -19,16 +19,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-)
-
-var (
-	sensorCache          map[string]map[string][]map[string]interface{}
-	cacheLastUpdatedTime time.Time
-	cacheMutex           sync.RWMutex
 )
 
 func GetSensors(db *sql.DB) []map[string]interface{} {
@@ -668,35 +661,14 @@ func CreateNewZone(db *sql.DB, store *config.Store, name string) (int, error) {
 	return id, nil
 }
 
-// ResetGroupedSensorCache clears the in-memory grouped-sensor cache.
-// Exists so tests touching /sensors/grouped or /api/overlay (which
-// indirectly reads the cache) can isolate themselves from cache state
-// left by earlier tests in the same process. Production code does not
-// call this — the cache is still process-global and outlives any
-// individual engine instance.
-func ResetGroupedSensorCache() {
-	cacheMutex.Lock()
-	sensorCache = nil
-	cacheLastUpdatedTime = time.Time{}
-	cacheMutex.Unlock()
-}
-
-func GetGroupedSensorsWithLatestReading(db *sql.DB, store *config.Store) map[string]map[string][]map[string]interface{} {
+func GetGroupedSensorsWithLatestReading(db *sql.DB, cache *SensorCacheService) map[string]map[string][]map[string]interface{} {
 	fieldLogger := logger.Log.WithField("func", "GetGroupedSensorsWithLatestReading")
-	cacheMutex.Lock()
-	defer cacheMutex.Unlock()
 
-	// Check if the cache is still valid
-	pollInterval := defaultPollingIntervalSeconds
-	if store != nil {
-		pollInterval = store.PollingInterval()
-	}
-	if time.Since(cacheLastUpdatedTime) < time.Duration(pollInterval/10)*time.Second {
-		return sensorCache
+	if cached, ok := cache.GroupedGet(); ok {
+		return cached
 	}
 
-	// Refresh the cache
-	rows, err := db.Query(`SELECT 
+	rows, err := db.Query(`SELECT
     s.id AS sensor_id,
     z.name AS zone_name,
     s.device,
@@ -775,11 +747,9 @@ ORDER BY z.name, s.device, s.type;
 		}
 	}
 
-	// Update the global cache and timestamp
-	sensorCache = newCache
-	cacheLastUpdatedTime = time.Now()
+	cache.GroupedPut(newCache)
 
-	return sensorCache
+	return newCache
 }
 
 // buildActivePlantSensorMap returns a map of sensor ID → plant name for all

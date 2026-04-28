@@ -1,15 +1,5 @@
 package handlers
 
-// +parallel:serial — handlers/sensor_data.go sensorDataCache package-global
-//
-// TestSDCachePut_* mutate the package-global sensorDataCache map and
-// sdCacheOrder slice. The withCleanCache helper snapshots and restores
-// them on cleanup; running these tests in parallel would race on the
-// snapshot/restore. The cache is a separate concern from the
-// handlers/sensors.go chart cache that Phase 4.2 of TEST_PLAN_2.md
-// covers — lifting it into per-engine state is a follow-on cleanup not
-// scoped to any phase yet.
-
 import (
 	"strconv"
 	"sync"
@@ -18,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"isley/model/types"
 )
 
 // ---------------------------------------------------------------------------
@@ -86,92 +78,73 @@ func TestTimeConversion(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// sdCachePut LRU eviction
+// SensorCacheService.DataPut LRU eviction
 // ---------------------------------------------------------------------------
 
-// withCleanCache snapshots and resets the package-global sensor-data
-// cache so a test starts from a known empty state. The previous
-// contents are restored via t.Cleanup so other tests in the same
-// process aren't affected.
-func withCleanCache(t *testing.T) {
-	t.Helper()
-	sdCacheMutex.Lock()
-	prevMap := sensorDataCache
-	prevOrder := sdCacheOrder
-	sensorDataCache = make(map[string]cachedEntry, maxCacheEntries)
-	sdCacheOrder = nil
-	sdCacheMutex.Unlock()
-
-	t.Cleanup(func() {
-		sdCacheMutex.Lock()
-		sensorDataCache = prevMap
-		sdCacheOrder = prevOrder
-		sdCacheMutex.Unlock()
-	})
+// newDataCache returns a SensorCacheService sized to the production
+// default. The grouped TTL closure is irrelevant for these tests — only
+// the data-cache half is exercised.
+func newDataCache() *SensorCacheService {
+	return NewSensorCacheService(nil, 0)
 }
 
-func TestSDCachePut_StoresAndRetrievesEntries(t *testing.T) {
-	withCleanCache(t)
+func TestSensorCache_DataPutStoresAndRetrievesEntries(t *testing.T) {
+	t.Parallel()
 
-	sdCacheMutex.Lock()
-	sdCachePut("k1", cachedEntry{timestamp: time.Now()})
-	sdCachePut("k2", cachedEntry{timestamp: time.Now()})
-	sdCacheMutex.Unlock()
+	cache := newDataCache()
+	cache.DataPut("k1", []types.SensorData{{ID: uint(1)}})
+	cache.DataPut("k2", []types.SensorData{{ID: uint(2)}})
 
-	sdCacheMutex.RLock()
-	defer sdCacheMutex.RUnlock()
-	assert.Contains(t, sensorDataCache, "k1")
-	assert.Contains(t, sensorDataCache, "k2")
-	assert.Equal(t, []string{"k1", "k2"}, sdCacheOrder, "order tracks insertions")
+	assert.True(t, cache.DataHas("k1"))
+	assert.True(t, cache.DataHas("k2"))
+	assert.Equal(t, []string{"k1", "k2"}, cache.DataOrder(),
+		"order tracks insertions")
 }
 
-func TestSDCachePut_EvictsOldestPastCapacity(t *testing.T) {
-	withCleanCache(t)
+func TestSensorCache_DataPutEvictsOldestPastCapacity(t *testing.T) {
+	t.Parallel()
 
-	// Fill exactly to capacity.
-	sdCacheMutex.Lock()
-	for i := 0; i < maxCacheEntries; i++ {
-		sdCachePut("k"+strconv.Itoa(i), cachedEntry{})
+	const small = 4
+	cache := NewSensorCacheService(nil, small)
+
+	for i := 0; i < small; i++ {
+		cache.DataPut("k"+strconv.Itoa(i), nil)
 	}
-	require.Len(t, sensorDataCache, maxCacheEntries)
-	sdCacheMutex.Unlock()
+	require.Equal(t, small, cache.DataLen())
 
-	// One more — oldest ("k0") should evict.
-	sdCacheMutex.Lock()
-	sdCachePut("overflow", cachedEntry{})
-	sdCacheMutex.Unlock()
+	cache.DataPut("overflow", nil)
 
-	sdCacheMutex.RLock()
-	defer sdCacheMutex.RUnlock()
-	assert.Len(t, sensorDataCache, maxCacheEntries, "size stays at capacity")
-	assert.NotContains(t, sensorDataCache, "k0", "oldest key evicted")
-	assert.Contains(t, sensorDataCache, "overflow")
-	assert.Contains(t, sensorDataCache, "k"+strconv.Itoa(maxCacheEntries-1), "newest pre-overflow key still present")
+	assert.Equal(t, small, cache.DataLen(), "size stays at capacity")
+	assert.False(t, cache.DataHas("k0"), "oldest key evicted")
+	assert.True(t, cache.DataHas("overflow"))
+	assert.True(t, cache.DataHas("k"+strconv.Itoa(small-1)),
+		"newest pre-overflow key still present")
 }
 
-func TestSDCachePut_UpdateInPlace(t *testing.T) {
-	withCleanCache(t)
+func TestSensorCache_DataPutUpdateInPlace(t *testing.T) {
+	t.Parallel()
 
-	sdCacheMutex.Lock()
-	sdCachePut("same", cachedEntry{timestamp: time.Unix(1, 0)})
-	sdCachePut("same", cachedEntry{timestamp: time.Unix(2, 0)})
-	sdCacheMutex.Unlock()
+	cache := newDataCache()
+	cache.DataPut("same", []types.SensorData{{ID: 1}})
+	cache.DataPut("same", []types.SensorData{{ID: 2}})
 
-	sdCacheMutex.RLock()
-	defer sdCacheMutex.RUnlock()
-	assert.Equal(t, time.Unix(2, 0), sensorDataCache["same"].timestamp,
+	got, _, ok := cache.DataGet("same")
+	require.True(t, ok)
+	require.Len(t, got, 1)
+	assert.EqualValues(t, 2, got[0].ID,
 		"second put should overwrite the entry's payload")
-	assert.Equal(t, []string{"same"}, sdCacheOrder,
+	assert.Equal(t, []string{"same"}, cache.DataOrder(),
 		"updating an existing key must NOT duplicate the order entry")
 }
 
 // ---------------------------------------------------------------------------
-// Concurrency smoke check — sdCachePut is safe under the mutex.
+// Concurrency smoke check — DataPut is safe under the service mutex.
 // ---------------------------------------------------------------------------
 
-func TestSDCachePut_ConcurrentWritersDoNotPanic(t *testing.T) {
-	withCleanCache(t)
+func TestSensorCache_DataPutConcurrentWritersDoNotPanic(t *testing.T) {
+	t.Parallel()
 
+	cache := newDataCache()
 	const writers = 8
 	const perWriter = 32
 
@@ -182,17 +155,69 @@ func TestSDCachePut_ConcurrentWritersDoNotPanic(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for i := 0; i < perWriter; i++ {
-				sdCacheMutex.Lock()
-				sdCachePut("w"+strconv.Itoa(w)+"-"+strconv.Itoa(i), cachedEntry{})
-				sdCacheMutex.Unlock()
+				cache.DataPut("w"+strconv.Itoa(w)+"-"+strconv.Itoa(i), nil)
 			}
 		}()
 	}
 	wg.Wait()
 
-	sdCacheMutex.RLock()
-	defer sdCacheMutex.RUnlock()
 	// No assertions on exact size — the LRU eviction may have trimmed
 	// some; the important property is that no race or panic occurred.
-	assert.LessOrEqual(t, len(sensorDataCache), maxCacheEntries)
+	assert.LessOrEqual(t, cache.DataLen(), defaultSensorDataMaxSize)
+}
+
+// TestSensorCache_DataResetClearsState verifies that DataReset removes
+// every entry without affecting the configured capacity.
+func TestSensorCache_DataResetClearsState(t *testing.T) {
+	t.Parallel()
+
+	cache := newDataCache()
+	cache.DataPut("k1", nil)
+	cache.DataPut("k2", nil)
+	require.Equal(t, 2, cache.DataLen())
+
+	cache.DataReset()
+	assert.Zero(t, cache.DataLen(), "reset clears all entries")
+	assert.Empty(t, cache.DataOrder(), "reset clears insertion order")
+}
+
+// TestSensorCache_GroupedRespectsTTL verifies that GroupedGet returns
+// the cached payload while inside the TTL window and signals miss
+// once the TTL has elapsed. Uses a small TTL so the test is fast and
+// deterministic without faking time.
+func TestSensorCache_GroupedRespectsTTL(t *testing.T) {
+	t.Parallel()
+
+	const ttl = 25 * time.Millisecond
+	cache := NewSensorCacheService(func() time.Duration { return ttl }, 0)
+
+	payload := map[string]map[string][]map[string]interface{}{
+		"Z": {"D": []map[string]interface{}{{"id": 1}}},
+	}
+	cache.GroupedPut(payload)
+
+	got, ok := cache.GroupedGet()
+	require.True(t, ok, "fresh write should be served from cache")
+	require.Contains(t, got, "Z")
+
+	time.Sleep(ttl + 10*time.Millisecond)
+
+	_, ok = cache.GroupedGet()
+	assert.False(t, ok, "stale entry should miss cache and force refresh")
+}
+
+// TestSensorCache_GroupedResetEvictsCurrentEntry covers the test-only
+// reset path used by integration tests that share a service across
+// cases.
+func TestSensorCache_GroupedResetEvictsCurrentEntry(t *testing.T) {
+	t.Parallel()
+
+	cache := NewSensorCacheService(func() time.Duration { return time.Hour }, 0)
+	cache.GroupedPut(map[string]map[string][]map[string]interface{}{"Z": nil})
+	_, ok := cache.GroupedGet()
+	require.True(t, ok)
+
+	cache.GroupedReset()
+	_, ok = cache.GroupedGet()
+	assert.False(t, ok, "reset must drop the cached payload")
 }

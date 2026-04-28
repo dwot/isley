@@ -8,48 +8,11 @@ import (
 	"isley/utils"
 	"net/http"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
-
-// ---------------------------------------------------------------------------
-// Sensor data cache with LRU eviction
-// ---------------------------------------------------------------------------
-
-// maxCacheEntries caps the number of entries in sensorDataCache.
-// Each entry holds a single chart query result, so 256 entries is generous
-// for typical usage while preventing unbounded memory growth.
-const maxCacheEntries = 256
-
-var (
-	sensorDataCache = make(map[string]cachedEntry, maxCacheEntries)
-	sdCacheOrder    []string // tracks insertion order for LRU eviction
-	sdCacheMutex    sync.RWMutex
-)
-
-type cachedEntry struct {
-	data      []types.SensorData
-	timestamp time.Time
-}
-
-// sdCachePut inserts or updates a cache entry, evicting the oldest entries
-// when the cache exceeds maxCacheEntries. Caller must hold sdCacheMutex write lock.
-func sdCachePut(key string, entry cachedEntry) {
-	if _, exists := sensorDataCache[key]; !exists {
-		sdCacheOrder = append(sdCacheOrder, key)
-	}
-	sensorDataCache[key] = entry
-
-	// Evict oldest entries if over capacity
-	for len(sensorDataCache) > maxCacheEntries {
-		oldest := sdCacheOrder[0]
-		sdCacheOrder = sdCacheOrder[1:]
-		delete(sensorDataCache, oldest)
-	}
-}
 
 func ChartHandler(c *gin.Context) {
 	sensorLogger := logger.Log.WithField("handler", "ChartHandler")
@@ -73,15 +36,13 @@ func ChartHandler(c *gin.Context) {
 	}
 
 	cacheKey := generateCacheKey(sensor, timeMinutes, startDate, endDate)
+	cache := SensorCacheServiceFromContext(c)
 
-	sdCacheMutex.RLock()
-	cached, found := sensorDataCache[cacheKey]
-	sdCacheMutex.RUnlock()
-
+	cachedData, cachedAt, found := cache.DataGet(cacheKey)
 	pollInterval := ConfigStoreFromContext(c).PollingInterval()
-	if found && time.Since(cached.timestamp) < time.Duration(pollInterval/10)*time.Second {
+	if found && time.Since(cachedAt) < time.Duration(pollInterval/10)*time.Second {
 		sensorLogger.Info("Serving data from cache")
-		c.JSON(http.StatusOK, cached.data)
+		c.JSON(http.StatusOK, cachedData)
 		return
 	}
 
@@ -106,12 +67,7 @@ func ChartHandler(c *gin.Context) {
 		return
 	}
 
-	sdCacheMutex.Lock()
-	sdCachePut(cacheKey, cachedEntry{
-		data:      sensorData,
-		timestamp: time.Now().In(time.Local),
-	})
-	sdCacheMutex.Unlock()
+	cache.DataPut(cacheKey, sensorData)
 
 	sensorLogger.Info("Returning queried sensor data")
 	c.JSON(http.StatusOK, sensorData)

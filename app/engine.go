@@ -128,6 +128,15 @@ func NewEngine(cfg Config) (*gin.Engine, error) {
 	}
 	r.Use(rateLimiterServiceMiddleware(rateLimiterSvc))
 
+	sensorCacheSvc := cfg.SensorCacheService
+	if sensorCacheSvc == nil {
+		sensorCacheSvc = handlers.NewSensorCacheService(
+			groupedSensorTTLFromStore(configStore),
+			0,
+		)
+	}
+	r.Use(sensorCacheServiceMiddleware(sensorCacheSvc))
+
 	registerPublicRoutes(r, cfg)
 	registerProtectedRoutes(r, cfg)
 	registerAPIRoutes(r)
@@ -251,6 +260,37 @@ func rateLimiterServiceMiddleware(svc *handlers.RateLimiterService) gin.HandlerF
 	return func(c *gin.Context) {
 		handlers.SetRateLimiterServiceOnContext(c, svc)
 		c.Next()
+	}
+}
+
+// sensorCacheServiceMiddleware injects the per-engine
+// *handlers.SensorCacheService into the Gin context. The chart and
+// grouped-sensor handlers resolve the cache through this so every
+// engine carries its own buckets — what unblocks t.Parallel() on the
+// chart-exercising tests.
+func sensorCacheServiceMiddleware(svc *handlers.SensorCacheService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		handlers.SetSensorCacheServiceOnContext(c, svc)
+		c.Next()
+	}
+}
+
+// groupedSensorTTLFromStore returns the closure NewSensorCacheService
+// consults on each grouped-cache read. The TTL is PollingInterval/10
+// seconds, mirroring the pre-Phase-4.2 calculation in
+// GetGroupedSensorsWithLatestReading; reading off the live Store on
+// every call lets a settings change take effect on the next cache miss
+// without re-wiring the service.
+func groupedSensorTTLFromStore(store *config.Store) func() time.Duration {
+	return func() time.Duration {
+		interval := handlers.DefaultPollingIntervalSeconds
+		if store != nil {
+			interval = store.PollingInterval()
+		}
+		if interval <= 0 {
+			interval = handlers.DefaultPollingIntervalSeconds
+		}
+		return time.Duration(interval/10) * time.Second
 	}
 }
 
