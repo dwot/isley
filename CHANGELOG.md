@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Fixed an ordering bug when uploading multiple plant images at once
+  where descriptions and dates could be paired with the wrong image. (PR #157)
 
 ### Changed
 
