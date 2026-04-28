@@ -59,6 +59,8 @@ func pngFixture(t *testing.T) []byte {
 // ---------------------------------------------------------------------------
 
 func TestSettingsHTTP_AuthGating(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -101,6 +103,8 @@ func TestSettingsHTTP_AuthGating(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSettingsHTTP_SaveSettings_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -131,6 +135,8 @@ func TestSettingsHTTP_SaveSettings_HappyPath(t *testing.T) {
 }
 
 func TestSettingsHTTP_SaveSettings_RejectsMalformedJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -146,6 +152,8 @@ func TestSettingsHTTP_SaveSettings_RejectsMalformedJSON(t *testing.T) {
 }
 
 func TestSettingsHTTP_SaveSettings_GenerateAPIKeyReturnsPlaintext(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -177,6 +185,8 @@ func TestSettingsHTTP_SaveSettings_GenerateAPIKeyReturnsPlaintext(t *testing.T) 
 // ---------------------------------------------------------------------------
 
 func TestSettingsHTTP_AddZone_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -202,6 +212,8 @@ func TestSettingsHTTP_AddZone_HappyPath(t *testing.T) {
 }
 
 func TestSettingsHTTP_AddZone_RejectsBlankName(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -217,6 +229,8 @@ func TestSettingsHTTP_AddZone_RejectsBlankName(t *testing.T) {
 }
 
 func TestSettingsHTTP_UpdateZone_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -240,6 +254,8 @@ func TestSettingsHTTP_UpdateZone_HappyPath(t *testing.T) {
 }
 
 func TestSettingsHTTP_UpdateZone_RejectsBlankName(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -255,6 +271,8 @@ func TestSettingsHTTP_UpdateZone_RejectsBlankName(t *testing.T) {
 }
 
 func TestSettingsHTTP_DeleteZone_RemovesRow(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -281,6 +299,8 @@ func TestSettingsHTTP_DeleteZone_RemovesRow(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSettingsHTTP_AddMetric_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -296,6 +316,8 @@ func TestSettingsHTTP_AddMetric_HappyPath(t *testing.T) {
 }
 
 func TestSettingsHTTP_AddMetric_RejectsBlankName(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -311,6 +333,8 @@ func TestSettingsHTTP_AddMetric_RejectsBlankName(t *testing.T) {
 }
 
 func TestSettingsHTTP_UpdateMetric_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -338,6 +362,8 @@ func TestSettingsHTTP_UpdateMetric_HappyPath(t *testing.T) {
 // lock=true bit is set cannot be deleted (the only branch in the handler
 // that returns 400). The default seeded "Height" metric is locked.
 func TestSettingsHTTP_DeleteMetric_RejectsLocked(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -362,6 +388,8 @@ func TestSettingsHTTP_DeleteMetric_RejectsLocked(t *testing.T) {
 }
 
 func TestSettingsHTTP_DeleteMetric_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -389,6 +417,8 @@ func TestSettingsHTTP_DeleteMetric_HappyPath(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSettingsHTTP_AddActivity_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -406,6 +436,8 @@ func TestSettingsHTTP_AddActivity_HappyPath(t *testing.T) {
 // TestSettingsHTTP_AddActivity_RejectsReservedName verifies the handler
 // blocks the three reserved built-in names ("Water", "Feed", "Note").
 func TestSettingsHTTP_AddActivity_RejectsReservedName(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -426,6 +458,8 @@ func TestSettingsHTTP_AddActivity_RejectsReservedName(t *testing.T) {
 }
 
 func TestSettingsHTTP_UpdateActivity_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -449,6 +483,8 @@ func TestSettingsHTTP_UpdateActivity_HappyPath(t *testing.T) {
 }
 
 func TestSettingsHTTP_DeleteActivity_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -523,6 +559,8 @@ func TestSettingsHTTP_UploadLogo_RejectsNonImage(t *testing.T) {
 }
 
 func TestSettingsHTTP_UploadLogo_RejectsMissingField(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 

@@ -22,6 +22,8 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestACInfinityHTTP_RequiresAuth(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -43,6 +45,8 @@ func TestACInfinityHTTP_RequiresAuth(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestACInfinityHTTP_RejectsBadJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 

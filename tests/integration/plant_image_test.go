@@ -1,5 +1,14 @@
 package integration
 
+// +parallel:serial — login rate limiter package-global
+//
+// Tests call resetRateLimit(t) which clears the process-global
+// handlers.loginAttempts map. The previous t.Parallel() calls in this
+// file were latently broken: parallel tests racing on the same
+// singleton could trip the per-IP lockout for unrelated tests. Phase 4
+// of TEST_PLAN_2.md removed them; Phase 4.1 lifts the limiter into a
+// per-engine RateLimiterService at which point t.Parallel() returns.
+
 import (
 	"bytes"
 	"database/sql"
@@ -88,7 +97,6 @@ type multipartFile struct {
 // ---------------------------------------------------------------------------
 
 func TestPlantImage_UploadHappyPath(t *testing.T) {
-	t.Parallel()
 	resetRateLimit(t)
 	// Scope file writes to a per-test upload root so UploadPlantImages
 	// writes land in an isolated tempdir; the handler reads the root
@@ -128,7 +136,6 @@ func TestPlantImage_UploadHappyPath(t *testing.T) {
 }
 
 func TestPlantImage_UploadAcceptsPNG(t *testing.T) {
-	t.Parallel()
 	resetRateLimit(t)
 
 	db := testutil.NewTestDB(t)
@@ -144,7 +151,6 @@ func TestPlantImage_UploadAcceptsPNG(t *testing.T) {
 }
 
 func TestPlantImage_UploadRejectsTextFile(t *testing.T) {
-	t.Parallel()
 	resetRateLimit(t)
 
 	db := testutil.NewTestDB(t)
@@ -161,7 +167,6 @@ func TestPlantImage_UploadRejectsTextFile(t *testing.T) {
 }
 
 func TestPlantImage_UploadRejectsBadPlantID(t *testing.T) {
-	t.Parallel()
 	resetRateLimit(t)
 
 	db := testutil.NewTestDB(t)
@@ -197,7 +202,6 @@ func TestPlantImage_UploadRejectsBadPlantID(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPlantImage_DeleteRemovesFileAndRow(t *testing.T) {
-	t.Parallel()
 	resetRateLimit(t)
 
 	db := testutil.NewTestDB(t)
@@ -237,7 +241,6 @@ func TestPlantImage_DeleteRemovesFileAndRow(t *testing.T) {
 }
 
 func TestPlantImage_DeleteMissing(t *testing.T) {
-	t.Parallel()
 	resetRateLimit(t)
 
 	db := testutil.NewTestDB(t)
@@ -251,7 +254,6 @@ func TestPlantImage_DeleteMissing(t *testing.T) {
 }
 
 func TestPlantImage_DeleteBadID(t *testing.T) {
-	t.Parallel()
 	resetRateLimit(t)
 
 	db := testutil.NewTestDB(t)

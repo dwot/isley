@@ -7,6 +7,12 @@
 // and use httptest.NewServer via testutil.NewTestServer.
 package integration
 
+// +parallel:serial — login rate limiter package-global
+//
+// TestAppSmoke drives /login via the real handler chain, which mutates
+// the process-global handlers.loginAttempts map. Cleared by Phase 4.1
+// of TEST_PLAN_2.md when RateLimiterService lifts the singleton.
+
 import (
 	"net/http"
 	"net/url"

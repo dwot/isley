@@ -22,6 +22,8 @@ import (
 // uses, since several handlers (UpdatePlantStatus, EditStatus,
 // DeleteStatus, GetPlant) all read or write into it.
 func TestPlantStatusLog_SchemaShape(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	seedStatusFixture(t, db)
 
@@ -44,6 +46,8 @@ func TestPlantStatusLog_SchemaShape(t *testing.T) {
 // seed two entries — the older "Veg" and the newer "Flower" — and
 // verify GetPlant returns the latter.
 func TestGetPlantResolvesLatestStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	plantID := seedStatusFixture(t, db)
 

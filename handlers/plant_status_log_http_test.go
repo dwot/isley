@@ -23,6 +23,8 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestPlantStatusLogHTTP_AuthGating(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -54,6 +56,8 @@ func TestPlantStatusLogHTTP_AuthGating(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPlantStatusLogHTTP_Edit_RejectsBadJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 

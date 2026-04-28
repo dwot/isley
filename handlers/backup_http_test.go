@@ -1,5 +1,17 @@
 package handlers_test
 
+// +parallel:serial — model.SetDriverForTesting
+//
+// TestBackupHTTP_DownloadSQLiteDB_RejectsWhenPostgres and
+// TestBackupHTTP_UploadSQLiteDB_RejectsWhenPostgres flip
+// model.dbDriver to "postgres" via model.SetDriverForTesting and
+// TestBackupHTTP_DownloadSQLiteDB_NotFound /
+// TestBackupHTTP_DownloadSQLiteDB_HappyPath use t.Setenv on
+// ISLEY_DB_FILE — Go's testing package forbids t.Parallel() in any
+// test that calls t.Setenv. The other tests in this file already call
+// t.Parallel() and remain parallel-eligible; the file-level annotation
+// just opts the lint out for the four affected tests.
+//
 // HTTP-layer tests for the nine backup endpoints in handlers/backup.go.
 // Each test gets its own engine + per-test data directory via
 // testutil.WithDataDir so backup state never leaks between tests and

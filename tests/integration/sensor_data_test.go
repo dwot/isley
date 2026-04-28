@@ -1,5 +1,14 @@
 package integration
 
+// +parallel:serial — ingest rate limiter package-global
+// +parallel:serial — login rate limiter package-global
+//
+// Tests in this file mutate handlers.IngestRateLimiter (via
+// resetIngestRateLimiter) and handlers.loginAttempts (via
+// resetRateLimit). Both globals get lifted in Phase 4.1 of
+// TEST_PLAN_2.md, at which point both annotations come off and every
+// test calls t.Parallel().
+
 import (
 	"database/sql"
 	"encoding/json"

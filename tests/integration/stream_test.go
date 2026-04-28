@@ -1,5 +1,14 @@
 package integration
 
+// +parallel:serial — login rate limiter package-global
+//
+// Tests call resetRateLimit(t) which clears the process-global
+// handlers.loginAttempts map. The previous t.Parallel() calls in this
+// file were latently broken: parallel tests racing on the same
+// singleton could trip the per-IP lockout for unrelated tests. Phase 4
+// of TEST_PLAN_2.md removed them; Phase 4.1 lifts the limiter into a
+// per-engine RateLimiterService at which point t.Parallel() returns.
+
 import (
 	"database/sql"
 	"encoding/json"
@@ -46,7 +55,6 @@ func seedStreamHTTP(t *testing.T, db *sql.DB) streamFixture {
 // ---------------------------------------------------------------------------
 
 func TestStream_AddHappyPath(t *testing.T) {
-	t.Parallel()
 	resetRateLimit(t)
 	// Scope filesystem writes from AddStreamHandler's GrabWebcamImage
 	// call to a tempdir so we don't pollute the repo's uploads/.
@@ -79,7 +87,6 @@ func TestStream_AddHappyPath(t *testing.T) {
 }
 
 func TestStream_AddRejectsBadURL(t *testing.T) {
-	t.Parallel()
 	resetRateLimit(t)
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithStreamDir(t.TempDir()))
@@ -108,7 +115,6 @@ func TestStream_AddRejectsBadURL(t *testing.T) {
 }
 
 func TestStream_AddRejectsEmptyName(t *testing.T) {
-	t.Parallel()
 	resetRateLimit(t)
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithStreamDir(t.TempDir()))
@@ -130,7 +136,6 @@ func TestStream_AddRejectsEmptyName(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStream_UpdateRenames(t *testing.T) {
-	t.Parallel()
 	resetRateLimit(t)
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithStreamDir(t.TempDir()))
@@ -167,7 +172,6 @@ func TestStream_UpdateRenames(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStream_DeleteRemovesRow(t *testing.T) {
-	t.Parallel()
 	resetRateLimit(t)
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithStreamDir(t.TempDir()))
@@ -195,7 +199,6 @@ func TestStream_DeleteRemovesRow(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStream_GetByZoneGroupsByZone(t *testing.T) {
-	t.Parallel()
 	resetRateLimit(t)
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithStreamDir(t.TempDir()))

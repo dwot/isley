@@ -1,5 +1,13 @@
 package handlers
 
+// +parallel:serial — model.SetDriverForTesting
+//
+// TestBuildInsertStmt_* and TestBuildMultiRowInsert_* flip
+// model.dbDriver between "sqlite" and "postgres" via
+// model.SetDriverForTesting to exercise both placeholder branches.
+// The other tests in this file are pure but live in the same file, so
+// the whole file is serial.
+
 import (
 	"encoding/json"
 	"sort"

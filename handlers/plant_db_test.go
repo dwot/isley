@@ -21,6 +21,8 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestGetActivities_DefaultSeed(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 
 	// Migration 001 inserts Water/Feed/Note as built-ins.
@@ -37,6 +39,8 @@ func TestGetActivities_DefaultSeed(t *testing.T) {
 }
 
 func TestGetMetrics_DefaultSeed(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 
 	got := handlers.GetMetrics(db)
@@ -53,6 +57,8 @@ func TestGetMetrics_DefaultSeed(t *testing.T) {
 }
 
 func TestGetStatuses_OrderedByStatusOrder(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 
 	got := handlers.GetStatuses(db)
@@ -75,6 +81,8 @@ func TestGetStatuses_OrderedByStatusOrder(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestDeletePlantById_RemovesChildren(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	plantID := seedPlantTree(t, db)
 
@@ -113,6 +121,8 @@ func TestDeletePlantById_RemovesChildren(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGetPlant_PopulatesFields(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	plantID := seedPlantTree(t, db)
 
@@ -136,6 +146,8 @@ func TestGetPlant_PopulatesFields(t *testing.T) {
 }
 
 func TestGetPlant_UnknownIDReturnsZeroValue(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	// No rows inserted; GetPlant on a missing ID logs and returns the
 	// zero value of types.Plant (current code path).

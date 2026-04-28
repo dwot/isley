@@ -86,6 +86,8 @@ func countSensorData(t *testing.T, db *sql.DB, sensorID int) int {
 // ---------------------------------------------------------------------------
 
 func TestAddSensorData_WritesRow(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	id := seedSensor(t, db, "test", "dev1", "temp")
 
@@ -100,6 +102,8 @@ func TestAddSensorData_WritesRow(t *testing.T) {
 }
 
 func TestAddSensorData_RejectsNonNumeric(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	id := seedSensor(t, db, "test", "dev1", "temp")
 
@@ -110,6 +114,8 @@ func TestAddSensorData_RejectsNonNumeric(t *testing.T) {
 }
 
 func TestAddSensorData_SkipsUnknownSensor(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	// Intentionally do NOT seed any sensor row.
 
@@ -126,6 +132,8 @@ func TestAddSensorData_SkipsUnknownSensor(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPollACI_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	tempC := seedSensor(t, db, "acinfinity", "TESTDEV", "ACI.tempC")
 	humidity := seedSensor(t, db, "acinfinity", "TESTDEV", "ACI.humidity")
@@ -166,6 +174,8 @@ func TestPollACI_HappyPath(t *testing.T) {
 }
 
 func TestPollACI_NetworkErrorIsSwallowed(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	seedSensor(t, db, "acinfinity", "TESTDEV", "ACI.tempC")
 
@@ -192,6 +202,8 @@ func TestPollACI_NetworkErrorIsSwallowed(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPollEcoWitt_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 
 	// fakes.FakeEcoWitt enforces the /get_livedata_info path so a
@@ -224,6 +236,8 @@ func TestPollEcoWitt_HappyPath(t *testing.T) {
 }
 
 func TestTrimTrailingPercent(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		in, want string
 	}{
@@ -244,6 +258,8 @@ func TestTrimTrailingPercent(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPruneSensorData_RetentionDisabled(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	id := seedSensor(t, db, "x", "y", "z")
 	insertReadingAt(t, db, id, 1.0, time.Now().AddDate(0, 0, -100))
@@ -256,6 +272,8 @@ func TestPruneSensorData_RetentionDisabled(t *testing.T) {
 }
 
 func TestPruneSensorData_DeletesOnlyOldRows(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	id := seedSensor(t, db, "x", "y", "z")
 
@@ -298,6 +316,8 @@ func insertReadingAt(t *testing.T, db *sql.DB, sensorID int, value float64, ts t
 // ---------------------------------------------------------------------------
 
 func TestRun_StopsOnContextCancel(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 
 	synctest.Test(t, func(t *testing.T) {
@@ -327,6 +347,8 @@ func TestRun_StopsOnContextCancel(t *testing.T) {
 }
 
 func TestRun_RespectsRestoreInProgress(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	body := testutil.MustReadFixture(t, "aci/happy.json")
 
@@ -363,6 +385,8 @@ func TestRun_RespectsRestoreInProgress(t *testing.T) {
 }
 
 func TestRun_PollsACIWhenEnabled(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	seedSensor(t, db, "acinfinity", "TESTDEV", "ACI.tempC")
 	body := testutil.MustReadFixture(t, "aci/happy.json")

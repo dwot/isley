@@ -37,6 +37,11 @@ test:
     - go version
     - go mod verify
     - go vet ./...
+    # docs/TEST_PLAN_2.md Phase 4: fail before `go test` if any
+    # top-level Test function in a non-annotated file omits
+    # t.Parallel(). Cheap pre-test gate; the alternative is finding
+    # out via a flaky -race failure once enough state accumulates.
+    - bash scripts/check-parallel.sh
     # Phase 6c: -coverpkg=./... credits cross-package coverage so that
     # integration tests boot via app.NewEngine — and the handler/model
     # code they exercise — count toward the totals.
@@ -103,6 +108,10 @@ test-postgres:
     policy: pull-push
   script:
     - go version
+    # docs/TEST_PLAN_2.md Phase 4: same parallelism lint as the
+    # SQLite test job — keeps the postgres job from passing while a
+    # non-annotated test slips through.
+    - bash scripts/check-parallel.sh
     # `-run Postgres` keeps the SQLite-only tests in tests/integration,
     # handlers, and watcher out of the test binary's run set: under
     # the integration_postgres tag both kinds of tests compile in,

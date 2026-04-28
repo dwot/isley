@@ -1,5 +1,16 @@
 package integration
 
+// +parallel:serial — handlers/sensors.go chart cache package-global
+// +parallel:serial — login rate limiter package-global
+//
+// TestSensors_GroupedReturnsLatestReading calls
+// handlers.ResetGroupedSensorCache to scrub the process-global grouped
+// sensor cache; the rest of the file shares the singleton even when it
+// does not reset it. Every test also calls resetRateLimit(t) to clear
+// handlers.loginAttempts. The chart-cache annotation is cleared by
+// Phase 4.2 of TEST_PLAN_2.md (SensorCacheService) and the login
+// annotation by Phase 4.1 (RateLimiterService).
+
 import (
 	"database/sql"
 	"encoding/json"

@@ -1,5 +1,11 @@
 package integration
 
+// +parallel:serial — login rate limiter package-global
+//
+// Tests call resetRateLimit(t) which clears the process-global
+// handlers.loginAttempts map. Cleared by Phase 4.1 of TEST_PLAN_2.md
+// when RateLimiterService lifts the singleton.
+
 import (
 	"net/http"
 	"strconv"

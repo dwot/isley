@@ -50,6 +50,8 @@ func lineageSeedStrains(t *testing.T, db *sql.DB) {
 // ---------------------------------------------------------------------------
 
 func TestLineageHTTP_AuthGating(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -83,6 +85,8 @@ func TestLineageHTTP_AuthGating(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLineageHTTP_Add_RejectsNonNumericStrainID(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -98,6 +102,8 @@ func TestLineageHTTP_Add_RejectsNonNumericStrainID(t *testing.T) {
 }
 
 func TestLineageHTTP_Add_RejectsBadJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -113,6 +119,8 @@ func TestLineageHTTP_Add_RejectsBadJSON(t *testing.T) {
 }
 
 func TestLineageHTTP_Add_RejectsLongParentName(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -132,6 +140,8 @@ func TestLineageHTTP_Add_RejectsLongParentName(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLineageHTTP_Update_RejectsNonNumericLineageID(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -147,6 +157,8 @@ func TestLineageHTTP_Update_RejectsNonNumericLineageID(t *testing.T) {
 }
 
 func TestLineageHTTP_Update_RejectsBadJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -166,6 +178,8 @@ func TestLineageHTTP_Update_RejectsBadJSON(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLineageHTTP_Delete_RejectsNonNumericLineageID(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -184,6 +198,8 @@ func TestLineageHTTP_Delete_RejectsNonNumericLineageID(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLineageHTTP_Set_RejectsNonNumericStrainID(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -199,6 +215,8 @@ func TestLineageHTTP_Set_RejectsNonNumericStrainID(t *testing.T) {
 }
 
 func TestLineageHTTP_Set_RejectsBadJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -218,6 +236,8 @@ func TestLineageHTTP_Set_RejectsBadJSON(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLineageHTTP_Get_RejectsNonNumericID(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithGuestMode())
 
@@ -228,6 +248,8 @@ func TestLineageHTTP_Get_RejectsNonNumericID(t *testing.T) {
 }
 
 func TestLineageHTTP_Get_EmptyReturnsArray(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithGuestMode())
 	lineageSeedStrains(t, db)
@@ -245,6 +267,8 @@ func TestLineageHTTP_Get_EmptyReturnsArray(t *testing.T) {
 }
 
 func TestLineageHTTP_Descendants_RejectsNonNumericID(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithGuestMode())
 
@@ -255,6 +279,8 @@ func TestLineageHTTP_Descendants_RejectsNonNumericID(t *testing.T) {
 }
 
 func TestLineageHTTP_Descendants_EmptyReturnsArray(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithGuestMode())
 	lineageSeedStrains(t, db)
@@ -275,6 +301,8 @@ func TestLineageHTTP_Descendants_EmptyReturnsArray(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLineageHTTP_Lookup_TruncatesOverlongQuery(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithGuestMode())
 

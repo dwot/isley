@@ -1,5 +1,13 @@
 package handlers
 
+// +parallel:serial — model.SetDriverForTesting
+//
+// TestBuildActivityLogQuery_FreeTextSearch_SQLite/_Postgres and
+// TestBuildActivityLogQuery_OrderVariants flip model.dbDriver via
+// swapDriver to exercise the dialect-specific branches of
+// buildActivityLogQuery. The other tests in this file are pure but
+// share the file, so the whole file is serial.
+
 import (
 	"strings"
 	"testing"

@@ -61,6 +61,8 @@ func rowCount(t *testing.T, db *sql.DB, table string) int {
 // ---------------------------------------------------------------------------
 
 func TestBuildBackupArchive_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	seedSampleData(t, db)
 
@@ -115,6 +117,8 @@ func TestBuildBackupArchive_HappyPath(t *testing.T) {
 }
 
 func TestBuildBackupArchive_SkipSensorData(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	seedSampleData(t, db)
 
@@ -130,6 +134,8 @@ func TestBuildBackupArchive_SkipSensorData(t *testing.T) {
 }
 
 func TestBuildBackupArchive_FilteredSensorDays(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	seedSampleData(t, db)
 
@@ -208,6 +214,8 @@ func TestParseBackupArchive_BadJSON(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestApplyBackupToDB_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	src := testutil.NewTestDB(t)
 	seedSampleData(t, src)
 
@@ -241,6 +249,8 @@ func TestApplyBackupToDB_RoundTrip(t *testing.T) {
 }
 
 func TestApplyBackupToDB_OverwritesExistingData(t *testing.T) {
+	t.Parallel()
+
 	dst := testutil.NewTestDB(t)
 	// Pre-populate with rows that should be wiped by the restore.
 	_, err := dst.Exec(`INSERT INTO settings (name, value) VALUES ('stale', 'should-be-gone')`)

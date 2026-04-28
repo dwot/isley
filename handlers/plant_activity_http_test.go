@@ -26,6 +26,8 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestPlantActivityHTTP_AuthGating(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -59,6 +61,8 @@ func TestPlantActivityHTTP_AuthGating(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPlantActivityHTTP_Edit_RejectsBadJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -74,6 +78,8 @@ func TestPlantActivityHTTP_Edit_RejectsBadJSON(t *testing.T) {
 }
 
 func TestPlantActivityHTTP_Delete_NoOpOnMissing(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -89,6 +95,8 @@ func TestPlantActivityHTTP_Delete_NoOpOnMissing(t *testing.T) {
 }
 
 func TestPlantActivityHTTP_Multi_RejectsBadJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -104,6 +112,8 @@ func TestPlantActivityHTTP_Multi_RejectsBadJSON(t *testing.T) {
 }
 
 func TestPlantActivityHTTP_Create_RejectsBadJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 

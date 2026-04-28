@@ -16,6 +16,8 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestGetSensors_OrderedAndShaped(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Tent A')`)
 	testutil.MustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type, unit) VALUES (1, 'Temp Probe', 1, 'acinfinity', 'AAA', 'temp', 'C')`)
@@ -38,6 +40,8 @@ func TestGetSensors_OrderedAndShaped(t *testing.T) {
 }
 
 func TestGetSensors_EmptyDB(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	got := handlers.GetSensors(db)
 	assert.Empty(t, got)
@@ -48,6 +52,8 @@ func TestGetSensors_EmptyDB(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestZoneHelpers_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 
 	// Empty initially.
@@ -76,6 +82,8 @@ func TestZoneHelpers_RoundTrip(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestDeleteSensorByID_CascadesSensorData(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
 	testutil.MustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type) VALUES (1, 'Doomed', 1, 'src', 'D', 'temp')`)
@@ -96,6 +104,8 @@ func TestDeleteSensorByID_CascadesSensorData(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGetSensorName(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
 	testutil.MustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type) VALUES (1, 'Tent Temp', 1, 'src', 'D', 'temp')`)

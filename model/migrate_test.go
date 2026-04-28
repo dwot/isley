@@ -1,5 +1,14 @@
 package model
 
+// +parallel:serial — model.SetDriverForTesting
+//
+// TestDriverHelpers_RoundTripViaSetDriverForTesting and
+// TestRunStartupMaintenance_NoOpForSQLite mutate the model.dbDriver
+// package-global; TestCloseDB_NilSafe / TestGetDB_ReturnsCurrentGlobal
+// mutate the model.db package-global; TestDbPath_* call t.Setenv
+// (which forbids parallel). All of those globals are legitimate
+// process-wide state and are not lifted by any later phase.
+//
 // Phase 6a tests for migrate.go. The Postgres branches of MigrateDB and
 // IsPostgresEmpty live behind the integration_postgres build tag and are
 // covered separately by Phase 8. The tests here exercise:

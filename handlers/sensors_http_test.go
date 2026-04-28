@@ -48,6 +48,8 @@ func newStoreWithAPIIngest(enabled int) *config.Store {
 // ---------------------------------------------------------------------------
 
 func TestSensorsHTTP_AuthGating(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -82,6 +84,8 @@ func TestSensorsHTTP_AuthGating(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSensorsHTTP_ScanACI_RejectsBadJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -97,6 +101,8 @@ func TestSensorsHTTP_ScanACI_RejectsBadJSON(t *testing.T) {
 }
 
 func TestSensorsHTTP_ScanACI_RejectsLongNewZone(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -118,6 +124,8 @@ func TestSensorsHTTP_ScanACI_RejectsLongNewZone(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSensorsHTTP_ScanEC_RejectsBadJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -133,6 +141,8 @@ func TestSensorsHTTP_ScanEC_RejectsBadJSON(t *testing.T) {
 }
 
 func TestSensorsHTTP_ScanEC_RejectsLongNewZone(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -151,6 +161,8 @@ func TestSensorsHTTP_ScanEC_RejectsLongNewZone(t *testing.T) {
 }
 
 func TestSensorsHTTP_ScanEC_RejectsLongServerAddress(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -197,6 +209,8 @@ func TestSensorsHTTP_DumpACI_FailsWhenTokenUnconfigured(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSensorsHTTP_EditSensor_RejectsBadJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -212,6 +226,8 @@ func TestSensorsHTTP_EditSensor_RejectsBadJSON(t *testing.T) {
 }
 
 func TestSensorsHTTP_EditSensor_RejectsLongName(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -233,6 +249,8 @@ func TestSensorsHTTP_EditSensor_RejectsLongName(t *testing.T) {
 }
 
 func TestSensorsHTTP_EditSensor_RejectsLongUnit(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -254,6 +272,8 @@ func TestSensorsHTTP_EditSensor_RejectsLongUnit(t *testing.T) {
 }
 
 func TestSensorsHTTP_EditSensor_RejectsUnknownVisibility(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -283,6 +303,8 @@ func TestSensorsHTTP_EditSensor_RejectsUnknownVisibility(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSensorsHTTP_DeleteSensor_NoOpOnMissing(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 

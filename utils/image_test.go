@@ -73,6 +73,8 @@ func writeTempPNG(t *testing.T) string {
 // ---------------------------------------------------------------------------
 
 func TestParseHexColor(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		in      string
@@ -112,6 +114,8 @@ func TestParseHexColor(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestIsPathWithinDir(t *testing.T) {
+	t.Parallel()
+
 	tmp := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "uploads", "logos"), 0o755))
 
@@ -140,6 +144,8 @@ func TestIsPathWithinDir(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestIsHLSURL(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		url  string
 		want bool
@@ -164,12 +170,16 @@ func TestIsHLSURL(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestValidateImageFile_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	silenceImageLogger()
 	path := writeTempPNG(t)
 	require.NoError(t, validateImageFile(path))
 }
 
 func TestValidateImageFile_RejectsTraversalPath(t *testing.T) {
+	t.Parallel()
+
 	silenceImageLogger()
 	// filepath.Clean leaves "../" intact when the path begins with one,
 	// so the traversal check fires before any disk access.
@@ -179,6 +189,8 @@ func TestValidateImageFile_RejectsTraversalPath(t *testing.T) {
 }
 
 func TestValidateImageFile_RejectsMissingFile(t *testing.T) {
+	t.Parallel()
+
 	silenceImageLogger()
 	err := validateImageFile(filepath.Join(t.TempDir(), "does-not-exist.png"))
 	require.Error(t, err)
@@ -186,6 +198,8 @@ func TestValidateImageFile_RejectsMissingFile(t *testing.T) {
 }
 
 func TestValidateImageFile_RejectsNonImage(t *testing.T) {
+	t.Parallel()
+
 	silenceImageLogger()
 	path := filepath.Join(t.TempDir(), "junk.png")
 	require.NoError(t, os.WriteFile(path, []byte("not an image"), 0o644))
@@ -200,6 +214,8 @@ func TestValidateImageFile_RejectsNonImage(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCreateFolderIfNotExists_CreatesNewFolder(t *testing.T) {
+	t.Parallel()
+
 	silenceImageLogger()
 	target := filepath.Join(t.TempDir(), "a", "b", "c")
 	CreateFolderIfNotExists(target)
@@ -209,6 +225,8 @@ func TestCreateFolderIfNotExists_CreatesNewFolder(t *testing.T) {
 }
 
 func TestCreateFolderIfNotExists_NoOpWhenExists(t *testing.T) {
+	t.Parallel()
+
 	silenceImageLogger()
 	target := t.TempDir() // already exists
 	require.NotPanics(t, func() { CreateFolderIfNotExists(target) })
@@ -224,6 +242,8 @@ func TestCreateFolderIfNotExists_NoOpWhenExists(t *testing.T) {
 // TestGrabWebcamImage_RejectsInvalidURL covers the early URL-parse and
 // host-required guards.
 func TestGrabWebcamImage_RejectsInvalidURL(t *testing.T) {
+	t.Parallel()
+
 	silenceImageLogger()
 
 	cases := []string{
@@ -245,6 +265,8 @@ func TestGrabWebcamImage_RejectsInvalidURL(t *testing.T) {
 // server that returns a PNG payload, then asserts GrabWebcamImage writes
 // the body to the requested path.
 func TestGrabWebcamImage_DirectSnapshotHappyPath(t *testing.T) {
+	t.Parallel()
+
 	silenceImageLogger()
 
 	payload := pngBytes(t)
@@ -266,6 +288,8 @@ func TestGrabWebcamImage_DirectSnapshotHappyPath(t *testing.T) {
 // TestGrabWebcamImage_NonImageResponseRejected verifies that even with a
 // 200 response, a non-image body is rejected before being persisted.
 func TestGrabWebcamImage_NonImageResponseRejected(t *testing.T) {
+	t.Parallel()
+
 	silenceImageLogger()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -287,6 +311,8 @@ func TestGrabWebcamImage_NonImageResponseRejected(t *testing.T) {
 // TestGrabWebcamImage_NonOKStatusReturnsError covers the resp.StatusCode
 // != http.StatusOK branch.
 func TestGrabWebcamImage_NonOKStatusReturnsError(t *testing.T) {
+	t.Parallel()
+
 	silenceImageLogger()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -305,6 +331,8 @@ func TestGrabWebcamImage_NonOKStatusReturnsError(t *testing.T) {
 // grabMJPEGFrame writes the body verbatim and never re-decodes — the
 // content of the part is opaque.
 func TestGrabWebcamImage_MJPEGFirstFrame(t *testing.T) {
+	t.Parallel()
+
 	silenceImageLogger()
 
 	payload := pngBytes(t)
@@ -335,6 +363,8 @@ func TestGrabWebcamImage_MJPEGFirstFrame(t *testing.T) {
 // server serves a thumbnail at /thumbnail.jpg (the first item in
 // hlsThumbnailPaths) and returns 404 for the playlist itself.
 func TestGrabWebcamImage_HLSURLFallsBackToThumbnail(t *testing.T) {
+	t.Parallel()
+
 	silenceImageLogger()
 
 	payload := pngBytes(t)
@@ -361,6 +391,8 @@ func TestGrabWebcamImage_HLSURLFallsBackToThumbnail(t *testing.T) {
 // TestGrabWebcamImage_HLSNoThumbnailReturnsError covers the all-paths-failed
 // branch of grabHLSThumbnail. The fake server 404s every URL.
 func TestGrabWebcamImage_HLSNoThumbnailReturnsError(t *testing.T) {
+	t.Parallel()
+
 	silenceImageLogger()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

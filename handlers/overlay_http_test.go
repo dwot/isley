@@ -1,5 +1,13 @@
 package handlers_test
 
+// +parallel:serial — handlers/sensors.go chart cache package-global
+//
+// GetOverlayData calls GetGroupedSensorsWithLatestReading, which reads
+// and writes the process-global sensorCache map in handlers/sensors.go.
+// Two parallel tests with different seeded data would clobber each
+// other's cached results. Cleared by Phase 4.2 of TEST_PLAN_2.md when
+// SensorCacheService lifts the singleton.
+//
 // HTTP-layer tests for handlers/overlay.go (GetOverlayData on
 // /api/overlay). Authentication paths are already locked down by
 // tests/integration/auth_test.go's TestAuth_APIKey_* suite; this file

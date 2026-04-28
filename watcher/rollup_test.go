@@ -43,6 +43,8 @@ func hourlyBucket(t *testing.T, db *sql.DB, sensorID int, bucket string) (minV, 
 // empty rollup table triggers a full backfill: every hourly bucket
 // present in sensor_data ends up in sensor_data_hourly.
 func TestRefreshHourlyRollups_FullBackfillEmptyTable(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	id := seedSensor(t, db, "test", "dev", "temp")
 
@@ -77,6 +79,8 @@ func TestRefreshHourlyRollups_FullBackfillEmptyTable(t *testing.T) {
 // non-empty rollup table only re-aggregates the last 25 hours. Old
 // rollup rows persist; old raw data outside the window is ignored.
 func TestRefreshHourlyRollups_IncrementalSkipsOldData(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	id := seedSensor(t, db, "test", "dev", "temp")
 
@@ -117,6 +121,8 @@ func TestRefreshHourlyRollups_IncrementalSkipsOldData(t *testing.T) {
 // data arrives within the 25-hour window, the existing row is updated
 // rather than producing a duplicate.
 func TestRefreshHourlyRollups_IncrementalUpdatesInWindowBucket(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	id := seedSensor(t, db, "test", "dev", "temp")
 

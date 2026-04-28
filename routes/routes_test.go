@@ -64,6 +64,8 @@ func requireAllPresent(t *testing.T, got map[routeKey]bool, want []routeKey, lab
 }
 
 func TestAddBasicRoutes_RegistersAllExpectedRoutes(t *testing.T) {
+	t.Parallel()
+
 	e := gin.New()
 	AddBasicRoutes(e.Group("/"), "test-version")
 
@@ -102,6 +104,8 @@ func TestAddBasicRoutes_RegistersAllExpectedRoutes(t *testing.T) {
 }
 
 func TestAddProtectedApiRoutes_RegistersAllExpectedRoutes(t *testing.T) {
+	t.Parallel()
+
 	e := gin.New()
 	AddProtectedApiRoutes(e.Group("/"))
 
@@ -189,6 +193,8 @@ func TestAddProtectedApiRoutes_RegistersAllExpectedRoutes(t *testing.T) {
 }
 
 func TestAddExternalApiRoutes_RegistersIngestAndOverlay(t *testing.T) {
+	t.Parallel()
+
 	e := gin.New()
 	AddExternalApiRoutes(e.Group("/"))
 
@@ -200,6 +206,8 @@ func TestAddExternalApiRoutes_RegistersIngestAndOverlay(t *testing.T) {
 }
 
 func TestAddProtectedRoutes_RegistersAuthGatedHTML(t *testing.T) {
+	t.Parallel()
+
 	e := gin.New()
 	AddProtectedRoutes(e.Group("/"), "test-version")
 
@@ -220,6 +228,8 @@ func TestAddProtectedRoutes_RegistersAuthGatedHTML(t *testing.T) {
 // handler name as "Handler" and the count of all handlers in the chain
 // as `len(Handlers)`. We check the count differs between the two.
 func TestAddExternalApiRoutes_IngestHasExtraMiddleware(t *testing.T) {
+	t.Parallel()
+
 	e := gin.New()
 	AddExternalApiRoutes(e.Group("/"))
 

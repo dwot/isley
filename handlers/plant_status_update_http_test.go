@@ -21,6 +21,8 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestPlantStatusUpdateHTTP_RequiresAuth(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -42,6 +44,8 @@ func TestPlantStatusUpdateHTTP_RequiresAuth(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPlantStatusUpdateHTTP_RejectsBadJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -57,6 +61,8 @@ func TestPlantStatusUpdateHTTP_RejectsBadJSON(t *testing.T) {
 }
 
 func TestPlantStatusUpdateHTTP_RejectsMissingPlantID(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -72,6 +78,8 @@ func TestPlantStatusUpdateHTTP_RejectsMissingPlantID(t *testing.T) {
 }
 
 func TestPlantStatusUpdateHTTP_RejectsMissingStatusID(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 

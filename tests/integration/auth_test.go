@@ -1,5 +1,14 @@
 package integration
 
+// +parallel:serial — login rate limiter package-global
+//
+// Every test in this file calls resetRateLimit(t), which clears the
+// process-global handlers.loginAttempts map. Running these tests in
+// parallel would race on that singleton and could trip the per-IP
+// lockout for unrelated tests. Phase 4.1 of TEST_PLAN_2.md lifts the
+// limiter into a per-engine RateLimiterService, at which point this
+// annotation can be removed and t.Parallel() added to every test.
+
 import (
 	"database/sql"
 	"encoding/json"

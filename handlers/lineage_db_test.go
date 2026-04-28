@@ -72,6 +72,8 @@ func seedStrainTree(t *testing.T, db *sql.DB) strainTreeIDs {
 // ---------------------------------------------------------------------------
 
 func TestGetLineage_OrderedByParentName(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	ids := seedStrainTree(t, db)
 
@@ -89,6 +91,8 @@ func TestGetLineage_OrderedByParentName(t *testing.T) {
 }
 
 func TestGetLineage_StrainWithoutParents(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	ids := seedStrainTree(t, db)
 
@@ -98,6 +102,8 @@ func TestGetLineage_StrainWithoutParents(t *testing.T) {
 }
 
 func TestGetLineage_FreeTextParentHasNullStrainID(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	ids := seedStrainTree(t, db)
 
@@ -117,6 +123,8 @@ func TestGetLineage_FreeTextParentHasNullStrainID(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGetAncestryTree_Recurses(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	ids := seedStrainTree(t, db)
 
@@ -140,6 +148,8 @@ func TestGetAncestryTree_Recurses(t *testing.T) {
 // if the lineage table contains a cycle, GetAncestryTree returns rather
 // than recursing forever.
 func TestGetAncestryTree_DepthCap(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	ids := seedStrainTree(t, db)
 
@@ -170,6 +180,8 @@ func TestGetAncestryTree_DepthCap(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGetDescendants_ReturnsAllDescendantsWithOtherParents(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	ids := seedStrainTree(t, db)
 
@@ -189,6 +201,8 @@ func TestGetDescendants_ReturnsAllDescendantsWithOtherParents(t *testing.T) {
 }
 
 func TestGetDescendants_NoneReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	ids := seedStrainTree(t, db)
 

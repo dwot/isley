@@ -1,5 +1,15 @@
 package handlers
 
+// +parallel:serial — handlers/sensor_data.go sensorDataCache package-global
+//
+// TestSDCachePut_* mutate the package-global sensorDataCache map and
+// sdCacheOrder slice. The withCleanCache helper snapshots and restores
+// them on cleanup; running these tests in parallel would race on the
+// snapshot/restore. The cache is a separate concern from the
+// handlers/sensors.go chart cache that Phase 4.2 of TEST_PLAN_2.md
+// covers — lifting it into per-engine state is a follow-on cleanup not
+// scoped to any phase yet.
+
 import (
 	"strconv"
 	"sync"

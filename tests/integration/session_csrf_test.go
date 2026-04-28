@@ -1,5 +1,15 @@
 package integration
 
+// +parallel:serial — login rate limiter package-global
+//
+// Every test in this file calls resetRateLimit(t) before
+// LoginAndFetchCSRF, which mutates the process-global
+// handlers.loginAttempts map. The session-CSRF flow is built on the
+// real /login endpoint, so the limiter is in the hot path. Cleared by
+// Phase 4.1 of TEST_PLAN_2.md when RateLimiterService lifts the
+// singleton; this file is the prototype for the login-limiter
+// annotation referenced in Phase 4's acceptance criteria.
+
 import (
 	"net/http"
 	"testing"

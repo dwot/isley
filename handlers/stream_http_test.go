@@ -21,6 +21,8 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestStreamHTTP_AuthGating(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -53,6 +55,8 @@ func TestStreamHTTP_AuthGating(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStreamHTTP_Add_RejectsBadJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -68,6 +72,8 @@ func TestStreamHTTP_Add_RejectsBadJSON(t *testing.T) {
 }
 
 func TestStreamHTTP_Add_RejectsLongName(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -90,6 +96,8 @@ func TestStreamHTTP_Add_RejectsLongName(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStreamHTTP_Update_RejectsBadJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -105,6 +113,8 @@ func TestStreamHTTP_Update_RejectsBadJSON(t *testing.T) {
 }
 
 func TestStreamHTTP_Update_RejectsBlankName(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -123,6 +133,8 @@ func TestStreamHTTP_Update_RejectsBlankName(t *testing.T) {
 }
 
 func TestStreamHTTP_Update_RejectsBadURL(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -145,6 +157,8 @@ func TestStreamHTTP_Update_RejectsBadURL(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStreamHTTP_Delete_NoOpOnMissing(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -163,6 +177,8 @@ func TestStreamHTTP_Delete_NoOpOnMissing(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStreamHTTP_GetByZone_EmptyReturnsObject(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithGuestMode())
 

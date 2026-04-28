@@ -1,5 +1,14 @@
 package handlers
 
+// +parallel:serial — login rate limiter package-global
+//
+// TestIsLoginRateLimited_* mutate the loginAttempts package-global
+// directly via resetLoginAttempts. Other tests in this file are
+// stateless but live in the same file because they all exercise auth
+// helpers; once Phase 4.1 of TEST_PLAN_2.md lifts loginAttempts into
+// RateLimiterService, this annotation comes off and every test calls
+// t.Parallel().
+
 import (
 	"crypto/sha256"
 	"encoding/hex"

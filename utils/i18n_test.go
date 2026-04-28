@@ -5,25 +5,31 @@ package utils
 // fallback behavior.
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// initI18nForTests boots the package translation service if it has not
-// been initialised yet. Init is idempotent in practice — it overwrites
-// TranslationService each call — but we only need it once for the
-// suite.
+// initI18nOnce gates the one-time Init("en") call so parallel tests
+// don't race on TranslationService and AvailableLanguages. Init reads
+// embedded YAML files and reassigns both globals; calling it from two
+// goroutines concurrently is unsafe even though the result is the same.
+var initI18nOnce sync.Once
+
+// initI18nForTests boots the package translation service exactly once
+// for the test binary. Subsequent tests see a fully-populated
+// TranslationService and only read it (read-only access is safe under
+// t.Parallel()).
 func initI18nForTests(t *testing.T) {
 	t.Helper()
 	silenceImageLogger() // shared "no-op logger" helper from image_test.go
-	if TranslationService == nil {
-		Init("en")
-	}
+	initI18nOnce.Do(func() { Init("en") })
 }
 
 func TestI18n_InitPopulatesAvailableLanguages(t *testing.T) {
+	t.Parallel()
 	initI18nForTests(t)
 
 	// The repo ships locales/{en,de,es,fr}.yaml. Init reads the embedded
@@ -35,6 +41,7 @@ func TestI18n_InitPopulatesAvailableLanguages(t *testing.T) {
 // TestI18n_GetTranslations_HasEnglishKeys confirms a non-empty key set
 // was discovered from en.yaml during Init.
 func TestI18n_GetTranslations_HasEnglishKeys(t *testing.T) {
+	t.Parallel()
 	initI18nForTests(t)
 
 	got := TranslationService.GetTranslations("en")
@@ -51,6 +58,7 @@ func TestI18n_GetTranslations_HasEnglishKeys(t *testing.T) {
 // requested locale is missing a key (or the locale itself is unknown),
 // the English value is returned rather than an empty string.
 func TestI18n_GetTranslations_FallsBackToEnglish(t *testing.T) {
+	t.Parallel()
 	initI18nForTests(t)
 
 	// "xx-YY" is not a registered locale; localizer falls back to en.
@@ -76,6 +84,7 @@ func TestI18n_GetTranslations_FallsBackToEnglish(t *testing.T) {
 // from the English equivalent. This catches regressions where the
 // fallback path swallows real translations.
 func TestI18n_GetTranslations_NonEnglishLocaleHasOverrides(t *testing.T) {
+	t.Parallel()
 	initI18nForTests(t)
 	if !contains(AvailableLanguages, "de") {
 		t.Skip("de.yaml not bundled in this build")

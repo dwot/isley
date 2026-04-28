@@ -48,6 +48,8 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestStrainHTTP_AuthGating(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -83,6 +85,8 @@ func TestStrainHTTP_AuthGating(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStrainHTTP_AddBreeder_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -104,6 +108,8 @@ func TestStrainHTTP_AddBreeder_HappyPath(t *testing.T) {
 }
 
 func TestStrainHTTP_AddBreeder_RejectsBlank(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -119,6 +125,8 @@ func TestStrainHTTP_AddBreeder_RejectsBlank(t *testing.T) {
 }
 
 func TestStrainHTTP_AddBreeder_RejectsLongName(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -134,6 +142,8 @@ func TestStrainHTTP_AddBreeder_RejectsLongName(t *testing.T) {
 }
 
 func TestStrainHTTP_AddBreeder_RejectsBadJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -153,6 +163,8 @@ func TestStrainHTTP_AddBreeder_RejectsBadJSON(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStrainHTTP_UpdateBreeder_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -173,6 +185,8 @@ func TestStrainHTTP_UpdateBreeder_HappyPath(t *testing.T) {
 }
 
 func TestStrainHTTP_UpdateBreeder_RejectsBlank(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -192,6 +206,8 @@ func TestStrainHTTP_UpdateBreeder_RejectsBlank(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStrainHTTP_AddStrain_RejectsBadJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -207,6 +223,8 @@ func TestStrainHTTP_AddStrain_RejectsBadJSON(t *testing.T) {
 }
 
 func TestStrainHTTP_AddStrain_RejectsMissingBreederWhenNoNewBreeder(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -231,6 +249,8 @@ func TestStrainHTTP_AddStrain_RejectsMissingBreederWhenNoNewBreeder(t *testing.T
 // ---------------------------------------------------------------------------
 
 func TestStrainHTTP_UpdateStrain_RejectsNonNumericID(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -252,6 +272,8 @@ func TestStrainHTTP_UpdateStrain_RejectsNonNumericID(t *testing.T) {
 }
 
 func TestStrainHTTP_UpdateStrain_RejectsBadIndicaSativaSum(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -272,6 +294,8 @@ func TestStrainHTTP_UpdateStrain_RejectsBadIndicaSativaSum(t *testing.T) {
 }
 
 func TestStrainHTTP_UpdateStrain_RejectsMissingBreeder(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -296,6 +320,8 @@ func TestStrainHTTP_UpdateStrain_RejectsMissingBreeder(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStrainHTTP_DeleteStrain_RejectsNonNumericID(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -314,6 +340,8 @@ func TestStrainHTTP_DeleteStrain_RejectsNonNumericID(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStrainHTTP_GetStrain_RejectsNonNumericID(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithGuestMode())
 
@@ -324,6 +352,8 @@ func TestStrainHTTP_GetStrain_RejectsNonNumericID(t *testing.T) {
 }
 
 func TestStrainHTTP_GetStrain_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithGuestMode())
 
@@ -338,6 +368,8 @@ func TestStrainHTTP_GetStrain_NotFound(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStrainHTTP_PlantsByStrain_RejectsNonNumericID(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithGuestMode())
 
@@ -348,6 +380,8 @@ func TestStrainHTTP_PlantsByStrain_RejectsNonNumericID(t *testing.T) {
 }
 
 func TestStrainHTTP_PlantsByStrain_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithGuestMode())
 
@@ -378,6 +412,8 @@ func TestStrainHTTP_PlantsByStrain_HappyPath(t *testing.T) {
 // responds 200 with an array shape even with no rows. The integration
 // suite asserts on content; here we lock down the basic contract.
 func TestStrainHTTP_InStock_SmokeReturnsArray(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithGuestMode())
 
@@ -395,6 +431,8 @@ func TestStrainHTTP_InStock_SmokeReturnsArray(t *testing.T) {
 }
 
 func TestStrainHTTP_OutOfStock_SmokeReturnsArray(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithGuestMode())
 

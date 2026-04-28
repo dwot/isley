@@ -45,6 +45,13 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # docs/TEST_PLAN_2.md Phase 4: fail before `go test` if any
+      # top-level Test function in a non-annotated file omits
+      # t.Parallel(). Cheap pre-test gate; the alternative is finding
+      # out via a flaky -race failure once enough state accumulates.
+      - name: Check test parallelism
+        run: bash scripts/check-parallel.sh
+
       # docs/TEST_PLAN.md Phase 5 retired the legacy subprocess test suite
       # so `go test ./...` now runs fully in-process. No pre-built binary
       # required.
@@ -159,6 +166,12 @@ jobs:
 
       - name: Verify Go Modules
         run: go mod verify
+
+      # docs/TEST_PLAN_2.md Phase 4: same parallelism lint as the
+      # SQLite test job — keeps the postgres job from passing while a
+      # non-annotated test slips through.
+      - name: Check test parallelism
+        run: bash scripts/check-parallel.sh
 
       # `-run Postgres` keeps the SQLite-only tests in tests/integration,
       # handlers, and watcher out of the test binary's run set: under

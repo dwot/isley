@@ -109,6 +109,20 @@ round-trip covered for the major resources (plant, strain, settings,
 sensor edit, zone). When you add a new dashboard-only mutating
 endpoint, add a single round-trip test next to those.
 
+### Test parallelism
+
+Every test calls `t.Parallel()` unless its file is annotated
+`// +parallel:serial` at the top. Files that exercise singleton state
+(rate-limiters, driver flips, anything behind a `*ForTesting` setter)
+carry the annotation with a one-line reason naming the cause; everything
+else parallelizes. `scripts/check-parallel.sh` runs in CI before
+`go test` and fails the build if a top-level `Test` function in a
+non-annotated file forgets `t.Parallel()` — the lint exists because
+parallelism is the project's smell-detector for shared mutable state in
+tests, and it only works when someone is checking. See `docs/TEST_PLAN_2.md`
+Phase 4 for the catalogue of acceptable serial causes and which later
+phase removes which annotation.
+
 ### Coverage floor
 
 CI gates every PR on a documented coverage floor — one per build tag. The

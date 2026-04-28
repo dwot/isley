@@ -59,6 +59,8 @@ func plantStatusID(t *testing.T, db *sql.DB, name string) int {
 // surfaces overlength values as 400 (the failure message contains the
 // validator's "too long" text).
 func TestPlantHTTP_Add_RejectsLongName(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := plantTestSeed(t, db)
@@ -81,6 +83,8 @@ func TestPlantHTTP_Add_RejectsLongName(t *testing.T) {
 // TestPlantHTTP_Add_RejectsBadJSON confirms a malformed body trips the
 // initial ShouldBindJSON branch with 400.
 func TestPlantHTTP_Add_RejectsBadJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := plantTestSeed(t, db)
@@ -98,6 +102,8 @@ func TestPlantHTTP_Add_RejectsBadJSON(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPlantHTTP_Update_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := plantTestSeed(t, db)
@@ -128,6 +134,8 @@ func TestPlantHTTP_Update_HappyPath(t *testing.T) {
 }
 
 func TestPlantHTTP_Update_RejectsLongDescription(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := plantTestSeed(t, db)
@@ -150,6 +158,8 @@ func TestPlantHTTP_Update_RejectsLongDescription(t *testing.T) {
 }
 
 func TestPlantHTTP_Update_RejectsBadJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := plantTestSeed(t, db)
@@ -167,6 +177,8 @@ func TestPlantHTTP_Update_RejectsBadJSON(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPlantHTTP_LinkSensors_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := plantTestSeed(t, db)
@@ -195,6 +207,8 @@ func TestPlantHTTP_LinkSensors_HappyPath(t *testing.T) {
 }
 
 func TestPlantHTTP_LinkSensors_RejectsBadJSON(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := plantTestSeed(t, db)
@@ -215,6 +229,8 @@ func TestPlantHTTP_LinkSensors_RejectsBadJSON(t *testing.T) {
 // 200 even when the row does not exist (the SQL DELETE is a no-op). The
 // handler is forgiving by design.
 func TestPlantHTTP_Delete_NoOpOnMissingPlant(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := plantTestSeed(t, db)
@@ -235,6 +251,8 @@ func TestPlantHTTP_Delete_NoOpOnMissingPlant(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPlantHTTP_LivingPlants_RequiresLogin(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -249,6 +267,8 @@ func TestPlantHTTP_LivingPlants_RequiresLogin(t *testing.T) {
 }
 
 func TestPlantHTTP_LivingPlants_ReturnsActivePlants(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	plantTestSeed(t, db) // resets api_key but we don't use it; only need FK chain
@@ -270,6 +290,8 @@ func TestPlantHTTP_LivingPlants_ReturnsActivePlants(t *testing.T) {
 }
 
 func TestPlantHTTP_HarvestedPlants_RequiresLogin(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -280,6 +302,8 @@ func TestPlantHTTP_HarvestedPlants_RequiresLogin(t *testing.T) {
 }
 
 func TestPlantHTTP_HarvestedPlants_ReturnsHarvested(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	plantTestSeed(t, db)
@@ -302,6 +326,8 @@ func TestPlantHTTP_HarvestedPlants_ReturnsHarvested(t *testing.T) {
 }
 
 func TestPlantHTTP_DeadPlants_RequiresLogin(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -312,6 +338,8 @@ func TestPlantHTTP_DeadPlants_RequiresLogin(t *testing.T) {
 }
 
 func TestPlantHTTP_DeadPlants_ReturnsDead(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	plantTestSeed(t, db)
@@ -337,6 +365,8 @@ func TestPlantHTTP_DeadPlants_ReturnsDead(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPlantHTTP_AuthGating_APIRoutes(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 

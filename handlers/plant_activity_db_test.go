@@ -69,6 +69,8 @@ func seedActivityFixture(t *testing.T, db *sql.DB) activityFixture {
 // ---------------------------------------------------------------------------
 
 func TestQueryActivityLog_NoFiltersReturnsAll(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	seedActivityFixture(t, db)
 
@@ -80,6 +82,8 @@ func TestQueryActivityLog_NoFiltersReturnsAll(t *testing.T) {
 }
 
 func TestQueryActivityLog_FilterByPlantID(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	fix := seedActivityFixture(t, db)
 
@@ -93,6 +97,8 @@ func TestQueryActivityLog_FilterByPlantID(t *testing.T) {
 }
 
 func TestQueryActivityLog_FilterByActivityIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	fix := seedActivityFixture(t, db)
 
@@ -107,6 +113,8 @@ func TestQueryActivityLog_FilterByActivityIDs(t *testing.T) {
 }
 
 func TestQueryActivityLog_FilterByZoneID(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	fix := seedActivityFixture(t, db)
 
@@ -120,6 +128,8 @@ func TestQueryActivityLog_FilterByZoneID(t *testing.T) {
 }
 
 func TestQueryActivityLog_FreeTextSearch(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	seedActivityFixture(t, db)
 
@@ -133,6 +143,8 @@ func TestQueryActivityLog_FreeTextSearch(t *testing.T) {
 }
 
 func TestQueryActivityLog_Pagination(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	seedActivityFixture(t, db)
 
@@ -154,6 +166,8 @@ func TestQueryActivityLog_Pagination(t *testing.T) {
 }
 
 func TestQueryActivityLog_OrderingDateAsc(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	seedActivityFixture(t, db)
 

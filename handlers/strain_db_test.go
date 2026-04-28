@@ -18,12 +18,16 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestGetBreeders_EmptyDatabase(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	got := handlers.GetBreeders(db)
 	assert.Empty(t, got, "fresh DB has no breeders")
 }
 
 func TestGetBreeders_SeededRows(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'Alpha')`)
 	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (2, 'Bravo')`)
@@ -40,6 +44,8 @@ func TestGetBreeders_SeededRows(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGetStrains_OrderedAlphabetically(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
 	testutil.MustExec(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
@@ -61,6 +67,8 @@ func TestGetStrains_OrderedAlphabetically(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGetStrain_PopulatesFields(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (7, 'Acme Genetics')`)
 	testutil.MustExec(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count, cycle_time, url)
@@ -80,6 +88,8 @@ func TestGetStrain_PopulatesFields(t *testing.T) {
 }
 
 func TestGetStrain_MissingIDReturnsZeroValue(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	got := handlers.GetStrain(db, "9999")
 	assert.Zero(t, got.ID, "missing id should yield zero-value Strain")
@@ -96,6 +106,8 @@ func TestGetStrain_MissingIDReturnsZeroValue(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGetStrains_FiltersBySeedCountManual(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	testutil.MustExec(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'B')`)
 	testutil.MustExec(t, db, `INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
