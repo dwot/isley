@@ -727,11 +727,11 @@ color: #0d6efd; /* Primary color */
 
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="activityIsWatering">
-                        <label class="form-check-label" for="activityIsWatering">Watering</label>
+                        <label class="form-check-label" for="activityIsWatering">{{ .lcl.activity_flag_watering }}</label>
                     </div>
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" id="activityIsFeeding">
-                        <label class="form-check-label" for="activityIsFeeding">Feeding</label>
+                        <label class="form-check-label" for="activityIsFeeding">{{ .lcl.activity_flag_feeding }}</label>
                     </div>
 
                     <!-- Submit Button -->
@@ -836,11 +836,11 @@ color: #0d6efd; /* Primary color */
                     </div>
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="editActivityIsWatering">
-                        <label class="form-check-label" for="editActivityIsWatering">Watering</label>
+                        <label class="form-check-label" for="editActivityIsWatering">{{ .lcl.activity_flag_watering }}</label>
                     </div>
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" id="editActivityIsFeeding">
-                        <label class="form-check-label" for="editActivityIsFeeding">Feeding</label>
+                        <label class="form-check-label" for="editActivityIsFeeding">{{ .lcl.activity_flag_feeding }}</label>
                     </div>
                     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
                     <button type="button" class="btn btn-danger" id="deleteActivity"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_activity }}</button>
