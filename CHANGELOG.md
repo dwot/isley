@@ -21,7 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-
+- The plant detail page now has prev/next arrows in the hero and responds to ArrowLeft / ArrowRight keyboard navigation, cycling within the plant's current top-level state (Living / Harvested / Dead). (PR #158)
+ 
 ### Changed
 
 ### Deprecated
