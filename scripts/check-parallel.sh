@@ -14,6 +14,16 @@
 # Exits 0 when every *_test.go file is either annotated serial or has
 # t.Parallel() in every top-level Test function. Exits 1 with a list of
 # offenders otherwise.
+#
+# The find below excludes vendor/, node_modules/, .git/, plus the
+# GitLab CI's project-local Go caches (.go/, .gocache/) — that pipeline
+# pins GOPATH to $CI_PROJECT_DIR/.go so the module cache survives
+# between runs, which means modernc.org/sqlite's test files end up
+# inside the checkout. Without these exclusions the lint flags every
+# third-party test in every dependency. GitHub Actions and local
+# `go test` use ~/go for GOPATH and aren't affected, but the
+# exclusions are cheap and keep the script working anywhere GOPATH
+# happens to land inside the working tree.
 set -euo pipefail
 
 status=0
@@ -50,7 +60,13 @@ while IFS= read -r f; do
         }
         END { exit rc }
     ' "$f" || status=1
-done < <(find . -name "*_test.go" -not -path "./vendor/*" -not -path "./node_modules/*" | sort)
+done < <(find . -name "*_test.go" \
+    -not -path "./vendor/*" \
+    -not -path "./node_modules/*" \
+    -not -path "./.go/*" \
+    -not -path "./.gocache/*" \
+    -not -path "./.git/*" \
+    | sort)
 
 if [ "$status" -ne 0 ]; then
     cat >&2 <<'MSG'
