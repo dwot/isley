@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed an ordering bug when uploading multiple plant images at once
   where descriptions and dates could be paired with the wrong image. (PR #157)
 - The plant detail page now has prev/next arrows in the hero and responds to ArrowLeft / ArrowRight keyboard navigation, cycling within the plant's current top-level state (Living / Harvested / Dead). (PR #158)
+- Activities can now be flagged as "watering" and/or "feeding". The built-in "Water" and "Feed" activities are migrated to set the matching flag, and the dashboard "days since last watering / feeding" calculations now use the flags rather than hardcoded names — so renaming or translating the built-in activities no longer breaks tracking. (PR #160)
 
 ### Changed
 

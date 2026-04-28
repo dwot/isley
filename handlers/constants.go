@@ -52,17 +52,6 @@ func isHumiditySensor(sensorType int) bool {
 }
 
 // ---------------------------------------------------------------------------
-// Activity type IDs — built-in activity identifiers
-// ---------------------------------------------------------------------------
-
-const (
-	// ActivityWater is the built-in "Water" activity.
-	ActivityWater = 1
-	// ActivityFeed is the built-in "Feed" activity.
-	ActivityFeed = 2
-)
-
-// ---------------------------------------------------------------------------
 // HTTP client timeouts
 // ---------------------------------------------------------------------------
 

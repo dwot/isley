@@ -29,11 +29,11 @@ func TestDeriveActivityDates_LatestWins(t *testing.T) {
 	d3 := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
 
 	activities := []types.PlantActivity{
-		{ActivityId: ActivityWater, Date: d1},
-		{ActivityId: ActivityWater, Date: d3},
-		{ActivityId: ActivityWater, Date: d2},
-		{ActivityId: ActivityFeed, Date: d2},
-		{ActivityId: ActivityFeed, Date: d1},
+		{IsWatering: true, Date: d1},
+		{IsWatering: true, Date: d3},
+		{IsWatering: true, Date: d2},
+		{IsFeeding: true, Date: d2},
+		{IsFeeding: true, Date: d1},
 	}
 
 	water, feed := deriveActivityDates(activities)
@@ -41,11 +41,12 @@ func TestDeriveActivityDates_LatestWins(t *testing.T) {
 	assert.Equal(t, d2, feed, "latest feed date should win")
 }
 
-func TestDeriveActivityDates_IgnoresOtherActivities(t *testing.T) {
+func TestDeriveActivityDates_IgnoresUnflaggedActivities(t *testing.T) {
 	t.Parallel()
 
 	d := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	// ID 99 is neither water (1) nor feed (2)
+	// Neither flag set: derive should treat the row as a non-water /
+	// non-feed activity (e.g. a "Note" or any user-defined activity).
 	activities := []types.PlantActivity{
 		{ActivityId: 99, Date: d},
 	}
