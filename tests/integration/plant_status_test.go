@@ -1,11 +1,5 @@
 package integration
 
-// +parallel:serial — login rate limiter package-global
-//
-// Tests call resetRateLimit(t) which clears the process-global
-// handlers.loginAttempts map. Cleared by Phase 4.1 of TEST_PLAN_2.md
-// when RateLimiterService lifts the singleton.
-
 import (
 	"database/sql"
 	"encoding/json"
@@ -63,7 +57,8 @@ func statusLogRowCount(t *testing.T, db *sql.DB, plantID int64) int {
 // ---------------------------------------------------------------------------
 
 func TestPlantStatus_UpdateInsertsNewLogWhenChanged(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedStatusHTTP(t, db)
@@ -88,7 +83,8 @@ func TestPlantStatus_UpdateInsertsNewLogWhenChanged(t *testing.T) {
 }
 
 func TestPlantStatus_UpdateNoOpWhenSameStatus(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedStatusHTTP(t, db)
@@ -113,7 +109,8 @@ func TestPlantStatus_UpdateNoOpWhenSameStatus(t *testing.T) {
 }
 
 func TestPlantStatus_UpdateRejectsMissingFields(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedStatusHTTP(t, db)
@@ -133,7 +130,8 @@ func TestPlantStatus_UpdateRejectsMissingFields(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPlantStatus_EditUpdatesDate(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedStatusHTTP(t, db)
@@ -161,7 +159,8 @@ func TestPlantStatus_EditUpdatesDate(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPlantStatus_DeleteRemovesEntry(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedStatusHTTP(t, db)
@@ -191,7 +190,8 @@ func TestPlantStatus_DeleteRemovesEntry(t *testing.T) {
 }
 
 func TestPlantStatus_DeleteRejectsLastStatus(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedStatusHTTP(t, db)
@@ -212,7 +212,8 @@ func TestPlantStatus_DeleteRejectsLastStatus(t *testing.T) {
 }
 
 func TestPlantStatus_DeleteMissing(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedStatusHTTP(t, db)

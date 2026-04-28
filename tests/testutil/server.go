@@ -55,14 +55,15 @@ type TestServer struct {
 type ServerOption func(*serverOptions)
 
 type serverOptions struct {
-	guestMode     bool
-	sessionSecret []byte
-	dataDir       string
-	uploadDir     string
-	streamDir     string
-	logsDir       string
-	frameDir      string
-	configStore   *config.Store
+	guestMode          bool
+	sessionSecret      []byte
+	dataDir            string
+	uploadDir          string
+	streamDir          string
+	logsDir            string
+	frameDir           string
+	configStore        *config.Store
+	rateLimiterService *handlers.RateLimiterService
 }
 
 // WithGuestMode boots the engine with guest-mode semantics
@@ -128,6 +129,18 @@ func WithConfigStore(s *config.Store) ServerOption {
 	return func(o *serverOptions) { o.configStore = s }
 }
 
+// WithRateLimiterService overrides the per-engine
+// *handlers.RateLimiterService. Tests that want to drive the 429
+// branch on /login or /api/sensors/ingest construct a service with a
+// tightened policy and pass it here; tests that want to sidestep the
+// limiter entirely construct one with a generous limit. Pass nil to
+// use the default service (60/min ingest, MaxLoginAttempts/min login).
+// Each test gets its own service instance, which is what makes
+// t.Parallel() safe.
+func WithRateLimiterService(s *handlers.RateLimiterService) ServerOption {
+	return func(o *serverOptions) { o.rateLimiterService = s }
+}
+
 // NewTestServer constructs a Gin engine wired to db and serves it via
 // httptest.NewServer. The server is shut down automatically when the
 // test finishes. Background services (watcher, grabber) are NOT started;
@@ -159,21 +172,27 @@ func NewTestServer(t *testing.T, db *sql.DB, opts ...ServerOption) *TestServer {
 		configStore = config.NewStore()
 	}
 
+	rateLimiterSvc := options.rateLimiterService
+	if rateLimiterSvc == nil {
+		rateLimiterSvc = handlers.NewRateLimiterService(nil, nil)
+	}
+
 	engineCfg := app.Config{
-		DB:             db,
-		Assets:         os.DirFS(root),
-		Version:        "isley-test",
-		SessionSecret:  options.sessionSecret,
-		SecureCookies:  false,
-		GuestMode:      options.guestMode,
-		TrustedProxies: nil,
-		DataDir:        options.dataDir,
-		UploadDir:      options.uploadDir,
-		StreamDir:      options.streamDir,
-		FrameDir:       options.frameDir,
-		LogsDir:        options.logsDir,
-		BackupService:  backupSvc,
-		ConfigStore:    configStore,
+		DB:                 db,
+		Assets:             os.DirFS(root),
+		Version:            "isley-test",
+		SessionSecret:      options.sessionSecret,
+		SecureCookies:      false,
+		GuestMode:          options.guestMode,
+		TrustedProxies:     nil,
+		DataDir:            options.dataDir,
+		UploadDir:          options.uploadDir,
+		StreamDir:          options.streamDir,
+		FrameDir:           options.frameDir,
+		LogsDir:            options.logsDir,
+		BackupService:      backupSvc,
+		ConfigStore:        configStore,
+		RateLimiterService: rateLimiterSvc,
 	}
 	// Resolve defaults so the TestServer's exported path fields reflect
 	// the same values the engine middleware injects into request context.

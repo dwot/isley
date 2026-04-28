@@ -75,14 +75,14 @@ func (rl *RateLimiter) Allow(key string) bool {
 	return entry.count <= rl.limit
 }
 
-// IngestRateLimiter is the default rate limiter for the sensor ingest API.
-// Allows 60 requests per minute per key/IP.
-var IngestRateLimiter = NewRateLimiter(60, 1*time.Minute)
-
-// RateLimitMiddleware returns a Gin middleware that rate-limits requests.
-// It keys on X-API-KEY if present, otherwise on the client IP.
-func RateLimitMiddleware(rl *RateLimiter) gin.HandlerFunc {
+// IngestRateLimitMiddleware returns a Gin middleware that rate-limits
+// inbound ingest requests. It reads the per-engine ingest limiter from
+// the RateLimiterService on the request context and keys on X-API-KEY
+// if present, otherwise on the client IP.
+func IngestRateLimitMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		rl := RateLimiterServiceFromContext(c).Ingest()
+
 		key := c.GetHeader("X-API-KEY")
 		if key == "" {
 			key = "ip:" + c.ClientIP()

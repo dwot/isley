@@ -122,6 +122,12 @@ func NewEngine(cfg Config) (*gin.Engine, error) {
 	}
 	r.Use(backupServiceMiddleware(backupSvc))
 
+	rateLimiterSvc := cfg.RateLimiterService
+	if rateLimiterSvc == nil {
+		rateLimiterSvc = handlers.NewRateLimiterService(nil, nil)
+	}
+	r.Use(rateLimiterServiceMiddleware(rateLimiterSvc))
+
 	registerPublicRoutes(r, cfg)
 	registerProtectedRoutes(r, cfg)
 	registerAPIRoutes(r)
@@ -232,6 +238,18 @@ func dbMiddleware(db *sql.DB) gin.HandlerFunc {
 func backupServiceMiddleware(svc *handlers.BackupService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		handlers.SetBackupServiceOnContext(c, svc)
+		c.Next()
+	}
+}
+
+// rateLimiterServiceMiddleware injects the per-engine
+// *handlers.RateLimiterService into the Gin context. The ingest
+// middleware and the /login handler resolve the active limiter from
+// context, which is what lets every test construct its own service
+// (and therefore call t.Parallel() without colliding on counter state).
+func rateLimiterServiceMiddleware(svc *handlers.RateLimiterService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		handlers.SetRateLimiterServiceOnContext(c, svc)
 		c.Next()
 	}
 }

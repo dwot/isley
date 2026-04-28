@@ -103,4 +103,12 @@ type Config struct {
 	// responsible for calling handlers.LoadSettings to populate it from
 	// the DB before traffic arrives.
 	ConfigStore *config.Store
+
+	// RateLimiterService, if non-nil, is the per-engine service that
+	// owns the ingest and login rate limiters. Tests pass an instance
+	// with a tightened or relaxed policy when they need to deterministically
+	// drive the 429 branch (or sidestep it). Production leaves this nil
+	// and NewEngine constructs a default service with the documented
+	// limits (60/min ingest, MaxLoginAttempts/min login).
+	RateLimiterService *handlers.RateLimiterService
 }

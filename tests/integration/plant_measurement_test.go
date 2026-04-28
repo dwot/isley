@@ -1,11 +1,5 @@
 package integration
 
-// +parallel:serial — login rate limiter package-global
-//
-// Tests call resetRateLimit(t) which clears the process-global
-// handlers.loginAttempts map. Cleared by Phase 4.1 of TEST_PLAN_2.md
-// when RateLimiterService lifts the singleton.
-
 import (
 	"net/http"
 	"strconv"
@@ -22,7 +16,8 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestMeasurement_CreateHappyPath(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedActivityHTTP(t, db)
@@ -46,7 +41,8 @@ func TestMeasurement_CreateHappyPath(t *testing.T) {
 }
 
 func TestMeasurement_CreateRejectsBadJSON(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedActivityHTTP(t, db)
@@ -68,7 +64,8 @@ func TestMeasurement_CreateRejectsBadJSON(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestMeasurement_EditUpdatesRow(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedActivityHTTP(t, db)
@@ -99,7 +96,8 @@ func TestMeasurement_EditUpdatesRow(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestMeasurement_DeleteRemovesRow(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedActivityHTTP(t, db)

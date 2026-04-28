@@ -357,7 +357,7 @@ func AddProtectedApiRoutes(r *gin.RouterGroup) {
 
 // AddExternalApiRoutes External API endpoints
 func AddExternalApiRoutes(r *gin.RouterGroup) {
-	r.POST("/api/sensors/ingest", handlers.RateLimitMiddleware(handlers.IngestRateLimiter), handlers.IngestSensorData)
+	r.POST("/api/sensors/ingest", handlers.IngestRateLimitMiddleware(), handlers.IngestSensorData)
 	r.GET("/api/overlay", handlers.GetOverlayData)
 }
 

@@ -1,11 +1,5 @@
 package integration
 
-// +parallel:serial — login rate limiter package-global
-//
-// Tests call resetRateLimit(t) which clears the process-global
-// handlers.loginAttempts map. Cleared by Phase 4.1 of TEST_PLAN_2.md
-// when RateLimiterService lifts the singleton.
-
 import (
 	"database/sql"
 	"encoding/json"
@@ -40,7 +34,8 @@ func readID(t *testing.T, resp *http.Response) int {
 // ---------------------------------------------------------------------------
 
 func TestZoneCRUD_HappyPath(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := settingsCRUDFixture(t, db)
@@ -72,7 +67,8 @@ func TestZoneCRUD_HappyPath(t *testing.T) {
 }
 
 func TestZone_DeleteCascadesPlantsSensorsStreams(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := settingsCRUDFixture(t, db)
@@ -98,7 +94,8 @@ func TestZone_DeleteCascadesPlantsSensorsStreams(t *testing.T) {
 }
 
 func TestZone_AddRejectsEmptyName(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := settingsCRUDFixture(t, db)
@@ -114,7 +111,8 @@ func TestZone_AddRejectsEmptyName(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestMetric_CRUDHappyPath(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := settingsCRUDFixture(t, db)
@@ -140,7 +138,8 @@ func TestMetric_CRUDHappyPath(t *testing.T) {
 }
 
 func TestMetric_DeleteLockedReturns400(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := settingsCRUDFixture(t, db)
@@ -156,7 +155,8 @@ func TestMetric_DeleteLockedReturns400(t *testing.T) {
 }
 
 func TestMetric_AddRejectsEmptyName(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := settingsCRUDFixture(t, db)
@@ -172,7 +172,8 @@ func TestMetric_AddRejectsEmptyName(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestActivity_CRUDHappyPath(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := settingsCRUDFixture(t, db)
@@ -205,7 +206,8 @@ func TestActivity_CRUDHappyPath(t *testing.T) {
 }
 
 func TestActivity_RejectsReservedName(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := settingsCRUDFixture(t, db)
@@ -222,7 +224,8 @@ func TestActivity_RejectsReservedName(t *testing.T) {
 }
 
 func TestActivity_DeleteCascadesPlantActivity(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := settingsCRUDFixture(t, db)

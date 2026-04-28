@@ -1,15 +1,12 @@
 package integration
 
 // +parallel:serial — handlers/sensors.go chart cache package-global
-// +parallel:serial — login rate limiter package-global
 //
 // TestSensors_GroupedReturnsLatestReading calls
 // handlers.ResetGroupedSensorCache to scrub the process-global grouped
 // sensor cache; the rest of the file shares the singleton even when it
-// does not reset it. Every test also calls resetRateLimit(t) to clear
-// handlers.loginAttempts. The chart-cache annotation is cleared by
-// Phase 4.2 of TEST_PLAN_2.md (SensorCacheService) and the login
-// annotation by Phase 4.1 (RateLimiterService).
+// does not reset it. The chart-cache annotation is cleared by Phase 4.2
+// of TEST_PLAN_2.md (SensorCacheService).
 
 import (
 	"database/sql"
@@ -51,7 +48,6 @@ func seedSensorHTTP(t *testing.T, db *sql.DB) sensorFixture {
 // ---------------------------------------------------------------------------
 
 func TestSensors_EditUpdatesFields(t *testing.T) {
-	resetRateLimit(t)
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedSensorHTTP(t, db)
@@ -81,7 +77,6 @@ func TestSensors_EditUpdatesFields(t *testing.T) {
 }
 
 func TestSensors_EditRejectsInvalidVisibility(t *testing.T) {
-	resetRateLimit(t)
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedSensorHTTP(t, db)
@@ -103,7 +98,6 @@ func TestSensors_EditRejectsInvalidVisibility(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSensors_DeleteCascadesData(t *testing.T) {
-	resetRateLimit(t)
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedSensorHTTP(t, db)
@@ -131,7 +125,6 @@ func TestSensors_DeleteCascadesData(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSensors_GroupedReturnsLatestReading(t *testing.T) {
-	resetRateLimit(t)
 	// The grouped-sensor cache is a process-global; clear it so an
 	// earlier test's cache state doesn't bleed in.
 	handlers.ResetGroupedSensorCache()

@@ -1,11 +1,5 @@
 package integration
 
-// +parallel:serial — login rate limiter package-global
-//
-// Tests call resetRateLimit(t) which clears the process-global
-// handlers.loginAttempts map. Cleared by Phase 4.1 of TEST_PLAN_2.md
-// when RateLimiterService lifts the singleton.
-
 import (
 	"database/sql"
 	"encoding/json"
@@ -68,7 +62,8 @@ func seedLineageHTTP(t *testing.T, db *sql.DB) lineageHTTPFixture {
 // ---------------------------------------------------------------------------
 
 func TestLineage_GetTree(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedLineageHTTP(t, db)
@@ -93,7 +88,8 @@ func TestLineage_GetTree(t *testing.T) {
 }
 
 func TestLineage_GetTreeEmptyReturnsArray(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedLineageHTTP(t, db)
@@ -112,7 +108,8 @@ func TestLineage_GetTreeEmptyReturnsArray(t *testing.T) {
 }
 
 func TestLineage_GetTreeBadID(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	_ = seedLineageHTTP(t, db)
@@ -130,7 +127,8 @@ func TestLineage_GetTreeBadID(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLineage_AddEntryWithStrainLink(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedLineageHTTP(t, db)
@@ -161,7 +159,8 @@ func TestLineage_AddEntryWithStrainLink(t *testing.T) {
 }
 
 func TestLineage_AddEntryFreeTextParent(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedLineageHTTP(t, db)
@@ -183,7 +182,8 @@ func TestLineage_AddEntryFreeTextParent(t *testing.T) {
 }
 
 func TestLineage_AddRejectsEmptyParentName(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedLineageHTTP(t, db)
@@ -197,7 +197,8 @@ func TestLineage_AddRejectsEmptyParentName(t *testing.T) {
 }
 
 func TestLineage_AddBadStrainID(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedLineageHTTP(t, db)
@@ -215,7 +216,8 @@ func TestLineage_AddBadStrainID(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLineage_UpdateEntry(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedLineageHTTP(t, db)
@@ -245,7 +247,8 @@ func TestLineage_UpdateEntry(t *testing.T) {
 }
 
 func TestLineage_UpdateBadLineageID(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedLineageHTTP(t, db)
@@ -263,7 +266,8 @@ func TestLineage_UpdateBadLineageID(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLineage_DeleteEntry(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedLineageHTTP(t, db)
@@ -284,7 +288,8 @@ func TestLineage_DeleteEntry(t *testing.T) {
 }
 
 func TestLineage_DeleteMissing(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedLineageHTTP(t, db)
@@ -300,7 +305,8 @@ func TestLineage_DeleteMissing(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLineage_SetReplacesAllEntries(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedLineageHTTP(t, db)
@@ -332,7 +338,8 @@ func TestLineage_SetReplacesAllEntries(t *testing.T) {
 }
 
 func TestLineage_SetSkipsEmptyParentNames(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedLineageHTTP(t, db)
@@ -359,7 +366,8 @@ func TestLineage_SetSkipsEmptyParentNames(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLineage_Descendants(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedLineageHTTP(t, db)
@@ -388,7 +396,8 @@ func TestLineage_Descendants(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLineage_LookupByName_CaseInsensitive(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	_ = seedLineageHTTP(t, db)
@@ -407,7 +416,8 @@ func TestLineage_LookupByName_CaseInsensitive(t *testing.T) {
 }
 
 func TestLineage_LookupEmptyQueryReturnsEmptyArray(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	_ = seedLineageHTTP(t, db)
@@ -425,7 +435,8 @@ func TestLineage_LookupEmptyQueryReturnsEmptyArray(t *testing.T) {
 }
 
 func TestLineage_LookupNoMatches(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	_ = seedLineageHTTP(t, db)

@@ -1,11 +1,5 @@
 package integration
 
-// +parallel:serial — login rate limiter package-global
-//
-// Tests call resetRateLimit(t) which clears the process-global
-// handlers.loginAttempts map. Cleared by Phase 4.1 of TEST_PLAN_2.md
-// when RateLimiterService lifts the singleton.
-
 import (
 	"database/sql"
 	"encoding/json"
@@ -41,7 +35,8 @@ func apiPutJSON(t *testing.T, c *testutil.Client, path, apiKey string, body inte
 // ---------------------------------------------------------------------------
 
 func TestStrain_AddHappyPath(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := seedBreederWithKey(t, db)
@@ -83,7 +78,8 @@ func TestStrain_AddHappyPath(t *testing.T) {
 }
 
 func TestStrain_AddCreatesNewBreeder(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -111,7 +107,8 @@ func TestStrain_AddCreatesNewBreeder(t *testing.T) {
 }
 
 func TestStrain_AddRejectsIndicaSativaSum(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := seedBreederWithKey(t, db)
@@ -130,7 +127,8 @@ func TestStrain_AddRejectsIndicaSativaSum(t *testing.T) {
 }
 
 func TestStrain_AddRejectsMissingBreeder(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -155,7 +153,8 @@ func TestStrain_AddRejectsMissingBreeder(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStrain_UpdateHappyPath(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := seedBreederWithKey(t, db)
@@ -201,7 +200,8 @@ func TestStrain_UpdateHappyPath(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStrain_DeleteHappyPath(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := seedBreederWithKey(t, db)
@@ -224,7 +224,8 @@ func TestStrain_DeleteHappyPath(t *testing.T) {
 }
 
 func TestStrain_DeleteMissing(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := seedBreederWithKey(t, db)
@@ -247,7 +248,8 @@ func TestStrain_DeleteMissing(t *testing.T) {
 // session-protected basic-route group: log in as admin first.
 
 func TestStrain_GetByIDJSON(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -276,7 +278,8 @@ func TestStrain_GetByIDJSON(t *testing.T) {
 }
 
 func TestStrain_GetByIDNotFound(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -292,7 +295,8 @@ func TestStrain_GetByIDNotFound(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStrain_InStockOnlyReturnsPositiveSeedCount(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -316,7 +320,8 @@ func TestStrain_InStockOnlyReturnsPositiveSeedCount(t *testing.T) {
 }
 
 func TestStrain_OutOfStockOnlyReturnsZeroSeedCount(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -344,7 +349,8 @@ func TestStrain_OutOfStockOnlyReturnsZeroSeedCount(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestBreeder_AddHappyPath(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -370,7 +376,8 @@ func TestBreeder_AddHappyPath(t *testing.T) {
 }
 
 func TestBreeder_AddRejectsEmptyName(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -386,7 +393,8 @@ func TestBreeder_AddRejectsEmptyName(t *testing.T) {
 }
 
 func TestBreeder_UpdateRenames(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -407,7 +415,8 @@ func TestBreeder_UpdateRenames(t *testing.T) {
 }
 
 func TestBreeder_DeleteCascadesStrainsAndPlants(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 

@@ -1,11 +1,5 @@
 package integration
 
-// +parallel:serial — login rate limiter package-global
-//
-// Tests call resetRateLimit(t) which clears the process-global
-// handlers.loginAttempts map. Cleared by Phase 4.1 of TEST_PLAN_2.md
-// when RateLimiterService lifts the singleton.
-
 import (
 	"database/sql"
 	"encoding/json"
@@ -56,7 +50,8 @@ func seedActivityHTTP(t *testing.T, db *sql.DB) activityHTTPFixture {
 // ---------------------------------------------------------------------------
 
 func TestActivity_CreateHappyPath(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedActivityHTTP(t, db)
@@ -77,7 +72,8 @@ func TestActivity_CreateHappyPath(t *testing.T) {
 }
 
 func TestActivity_CreateRejectsBadJSON(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedActivityHTTP(t, db)
@@ -98,7 +94,8 @@ func TestActivity_CreateRejectsBadJSON(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestActivity_EditUpdatesRow(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedActivityHTTP(t, db)
@@ -134,7 +131,8 @@ func TestActivity_EditUpdatesRow(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestActivity_DeleteRemovesRow(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedActivityHTTP(t, db)
@@ -161,7 +159,8 @@ func TestActivity_DeleteRemovesRow(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestActivity_MultiPlantHappyPath(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedActivityHTTP(t, db)
@@ -190,7 +189,8 @@ func TestActivity_MultiPlantHappyPath(t *testing.T) {
 }
 
 func TestActivity_MultiPlantRejectsEmptyList(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedActivityHTTP(t, db)
@@ -211,7 +211,8 @@ func TestActivity_MultiPlantRejectsEmptyList(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestActivity_ListPaginated(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedActivityHTTP(t, db)
@@ -245,7 +246,8 @@ func TestActivity_ListPaginated(t *testing.T) {
 }
 
 func TestActivity_ListFilterByPlantID(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedActivityHTTP(t, db)
@@ -288,7 +290,8 @@ func TestActivity_ListFilterByPlantID(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestActivity_ExportCSV(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	fix := seedActivityHTTP(t, db)

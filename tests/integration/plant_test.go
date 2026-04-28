@@ -1,11 +1,5 @@
 package integration
 
-// +parallel:serial — login rate limiter package-global
-//
-// Tests call resetRateLimit(t) which clears the process-global
-// handlers.loginAttempts map. Cleared by Phase 4.1 of TEST_PLAN_2.md
-// when RateLimiterService lifts the singleton.
-
 import (
 	"bytes"
 	"database/sql"
@@ -37,7 +31,8 @@ func seedPlantTreeWithKey(t *testing.T, db *sql.DB) string {
 // ---------------------------------------------------------------------------
 
 func TestPlant_AddHappyPath(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := seedPlantTreeWithKey(t, db)
@@ -74,7 +69,8 @@ func TestPlant_AddHappyPath(t *testing.T) {
 }
 
 func TestPlant_AddRejectsMissingName(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := seedPlantTreeWithKey(t, db)
@@ -93,7 +89,8 @@ func TestPlant_AddRejectsMissingName(t *testing.T) {
 }
 
 func TestPlant_AddDecrementsSeedCount(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := seedPlantTreeWithKey(t, db)
@@ -120,7 +117,8 @@ func TestPlant_AddDecrementsSeedCount(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPlant_DeleteRemovesRow(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	apiKey := seedPlantTreeWithKey(t, db)
@@ -149,7 +147,8 @@ func TestPlant_DeleteRemovesRow(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPlant_LivingPlantsLandsOnlyActiveStatuses(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -198,7 +197,8 @@ func TestPlant_LivingPlantsLandsOnlyActiveStatuses(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPlant_AddRequiresAuth(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 	// No SeedAPIKey, no login — request should be rejected.

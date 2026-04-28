@@ -35,7 +35,7 @@ func registerPublicRoutes(r *gin.Engine, cfg Config) {
 	})
 
 	r.POST("/login", func(c *gin.Context) {
-		if handlers.IsLoginRateLimited(c.ClientIP()) {
+		if !handlers.RateLimiterServiceFromContext(c).Login().Allow(c.ClientIP()) {
 			c.AbortWithStatus(http.StatusTooManyRequests)
 			return
 		}

@@ -1,14 +1,5 @@
 package integration
 
-// +parallel:serial — login rate limiter package-global
-//
-// Every test in this file calls resetRateLimit(t), which clears the
-// process-global handlers.loginAttempts map. Running these tests in
-// parallel would race on that singleton and could trip the per-IP
-// lockout for unrelated tests. Phase 4.1 of TEST_PLAN_2.md lifts the
-// limiter into a per-engine RateLimiterService, at which point this
-// annotation can be removed and t.Parallel() added to every test.
-
 import (
 	"database/sql"
 	"encoding/json"
@@ -23,20 +14,11 @@ import (
 	"isley/tests/testutil"
 )
 
-// resetRateLimit clears the process-global login-attempt map so this
-// test does not see counts accumulated by earlier tests (or vice
-// versa). Phase 7 of TEST_PLAN.md replaces the global with an
-// instance-scoped store.
-func resetRateLimit(t *testing.T) {
-	t.Helper()
-	handlers.ResetLoginAttempts()
-}
-
 // TestAuth_Logout verifies the full session-clear contract: after
 // /logout the session cookie no longer authenticates against /, which
 // goes back to redirecting to /login.
 func TestAuth_Logout(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
@@ -67,7 +49,7 @@ func TestAuth_Logout(t *testing.T) {
 // route like /login. The session-bound CSRF token must be submitted
 // with every POST/PUT/DELETE.
 func TestAuth_CSRFRejectsPostWithoutToken(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
@@ -94,7 +76,7 @@ func TestAuth_CSRFRejectsPostWithoutToken(t *testing.T) {
 // TestAuth_LoginRateLimiter verifies that after MaxLoginAttempts failed
 // POSTs from one IP, the next attempt returns 429 rather than 401.
 func TestAuth_LoginRateLimiter(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
@@ -124,7 +106,7 @@ func TestAuth_LoginRateLimiter(t *testing.T) {
 // This is the mechanism HandleChangePassword uses to revoke other
 // devices when a user rotates their password.
 func TestAuth_SessionVersionInvalidation(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
@@ -152,7 +134,7 @@ func TestAuth_SessionVersionInvalidation(t *testing.T) {
 // admin logs in, gets redirected to /change-password, posts a new
 // password, ends up at "/", and can re-login with the new credentials.
 func TestAuth_ChangePasswordFlow(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
@@ -187,9 +169,8 @@ func TestAuth_ChangePasswordFlow(t *testing.T) {
 	assert.Equal(t, http.StatusOK, dash.StatusCode)
 
 	// And the new credentials should authenticate from a brand-new
-	// client. Use a fresh server reset to dodge accumulated rate-limit
-	// counters from this test.
-	resetRateLimit(t)
+	// client. The per-engine RateLimiterService is scoped to this test,
+	// so the single login attempt above is well under the limit.
 	c2 := server.LoginAsAdmin(t, "new-pw-12345")
 	again := c2.Get("/")
 	again.Body.Close()
@@ -200,7 +181,7 @@ func TestAuth_ChangePasswordFlow(t *testing.T) {
 // passwords and too-short passwords both return 400 without persisting
 // anything.
 func TestAuth_ChangePasswordValidation(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
@@ -232,8 +213,9 @@ func TestAuth_ChangePasswordValidation(t *testing.T) {
 		})
 	}
 
-	// The original password should still work.
-	resetRateLimit(t)
+	// The original password should still work. The per-engine
+	// RateLimiterService is scoped to this test, so the rejected
+	// change-password POSTs above did not consume login attempts.
 	c2 := server.NewClient(t)
 	tok := c2.FetchCSRFToken("/login")
 	resp := c2.PostForm("/login", loginForm("admin", "starting-pw", tok))
@@ -244,7 +226,7 @@ func TestAuth_ChangePasswordValidation(t *testing.T) {
 // TestAuth_APIKey_HappyPath verifies that an X-API-KEY header satisfies
 // AuthMiddlewareApi on /api/overlay without any session cookie.
 func TestAuth_APIKey_HappyPath(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
@@ -266,7 +248,7 @@ func TestAuth_APIKey_HappyPath(t *testing.T) {
 
 // TestAuth_APIKey_RejectsBadKey verifies a wrong key produces 401.
 func TestAuth_APIKey_RejectsBadKey(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
@@ -282,7 +264,7 @@ func TestAuth_APIKey_RejectsBadKey(t *testing.T) {
 // TestAuth_APIKey_RejectsNoCredentials verifies that a request with
 // neither an X-API-KEY header nor a session cookie returns 401.
 func TestAuth_APIKey_RejectsNoCredentials(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)

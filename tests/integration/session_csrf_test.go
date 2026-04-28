@@ -1,15 +1,5 @@
 package integration
 
-// +parallel:serial — login rate limiter package-global
-//
-// Every test in this file calls resetRateLimit(t) before
-// LoginAndFetchCSRF, which mutates the process-global
-// handlers.loginAttempts map. The session-CSRF flow is built on the
-// real /login endpoint, so the limiter is in the hot path. Cleared by
-// Phase 4.1 of TEST_PLAN_2.md when RateLimiterService lifts the
-// singleton; this file is the prototype for the login-limiter
-// annotation referenced in Phase 4's acceptance criteria.
-
 import (
 	"net/http"
 	"testing"
@@ -46,7 +36,7 @@ const sessionCSRFPassword = "session-csrf-pw"
 // path. The CSRF token is pulled from /plant/new (the dashboard's add
 // form), matching what the real frontend reads.
 func TestSessionCSRF_PlantCreate(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -92,7 +82,7 @@ func TestSessionCSRF_PlantCreate(t *testing.T) {
 // TestSessionCSRF_StrainCreate covers POST /strains. CSRF token comes
 // from /strain/new.
 func TestSessionCSRF_StrainCreate(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -135,7 +125,7 @@ func TestSessionCSRF_StrainCreate(t *testing.T) {
 // from /settings (which is itself an auth-gated edit page, not a
 // dedicated "new" form).
 func TestSessionCSRF_SettingsSave(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -173,7 +163,7 @@ func TestSessionCSRF_SettingsSave(t *testing.T) {
 // TestSessionCSRF_SensorEdit covers POST /sensors/edit. CSRF token
 // comes from /sensors. Editing requires a pre-existing sensor row.
 func TestSessionCSRF_SensorEdit(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -215,7 +205,7 @@ func TestSessionCSRF_SensorEdit(t *testing.T) {
 // TestSessionCSRF_ZoneCreate covers POST /zones. Zones are managed
 // from /settings, so the CSRF token is fetched there.
 func TestSessionCSRF_ZoneCreate(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 

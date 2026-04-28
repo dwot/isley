@@ -9,55 +9,15 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
 
-// ---------------------------------------------------------------------------
-// Login rate limiting
-// ---------------------------------------------------------------------------
-
-var (
-	loginAttempts   = make(map[string][]time.Time)
-	loginAttemptsMu sync.Mutex
-
-	// SecureCookies controls the Secure flag on session cookies.
-	// Set via the ISLEY_SECURE_COOKIES environment variable.
-	SecureCookies = strings.EqualFold(os.Getenv("ISLEY_SECURE_COOKIES"), "true")
-)
-
-// ResetLoginAttempts clears the in-memory rate-limiter map. It exists so
-// that tests touching the /login route can isolate themselves from
-// other tests in the same process — the underlying map is shared
-// global state (Phase 7 in docs/TEST_PLAN.md will replace it with an
-// instance-scoped store). Production code does not call this.
-func ResetLoginAttempts() {
-	loginAttemptsMu.Lock()
-	loginAttempts = make(map[string][]time.Time)
-	loginAttemptsMu.Unlock()
-}
-
-// IsLoginRateLimited returns true if the given IP has exceeded 5 login
-// attempts within the last minute.
-func IsLoginRateLimited(ip string) bool {
-	loginAttemptsMu.Lock()
-	defer loginAttemptsMu.Unlock()
-	now := time.Now()
-	cutoff := now.Add(-time.Minute)
-	attempts := loginAttempts[ip]
-	var recent []time.Time
-	for _, t := range attempts {
-		if t.After(cutoff) {
-			recent = append(recent, t)
-		}
-	}
-	recent = append(recent, now)
-	loginAttempts[ip] = recent
-	return len(recent) > MaxLoginAttempts
-}
+// SecureCookies controls the Secure flag on session cookies.
+// Set via the ISLEY_SECURE_COOKIES environment variable.
+var SecureCookies = strings.EqualFold(os.Getenv("ISLEY_SECURE_COOKIES"), "true")
 
 // ---------------------------------------------------------------------------
 // CSRF token generation

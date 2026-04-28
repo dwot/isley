@@ -1,11 +1,5 @@
 package integration
 
-// +parallel:serial — login rate limiter package-global
-//
-// Tests call resetRateLimit(t) which clears the process-global
-// handlers.loginAttempts map. Cleared by Phase 4.1 of TEST_PLAN_2.md
-// when RateLimiterService lifts the singleton.
-
 import (
 	"net/http"
 	"testing"
@@ -25,7 +19,7 @@ import (
 // when authenticated. With no backups directory present (fresh test
 // repo), the endpoint should return [] not 500.
 func TestBackup_ListWithAPIKey(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
@@ -44,7 +38,7 @@ func TestBackup_ListWithAPIKey(t *testing.T) {
 // returns 400 (not 500) when the uploaded file is not a valid zip.
 // Auth via API key.
 func TestBackup_RestoreInvalidZip(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)

@@ -7,12 +7,6 @@
 // and use httptest.NewServer via testutil.NewTestServer.
 package integration
 
-// +parallel:serial — login rate limiter package-global
-//
-// TestAppSmoke drives /login via the real handler chain, which mutates
-// the process-global handlers.loginAttempts map. Cleared by Phase 4.1
-// of TEST_PLAN_2.md when RateLimiterService lifts the singleton.
-
 import (
 	"net/http"
 	"net/url"
@@ -29,6 +23,8 @@ import (
 // unauthenticated /health probe, walks through the login flow with a
 // seeded admin, and confirms post-login navigation works.
 func TestAppSmoke(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 

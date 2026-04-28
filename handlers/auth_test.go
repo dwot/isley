@@ -1,14 +1,5 @@
 package handlers
 
-// +parallel:serial — login rate limiter package-global
-//
-// TestIsLoginRateLimited_* mutate the loginAttempts package-global
-// directly via resetLoginAttempts. Other tests in this file are
-// stateless but live in the same file because they all exercise auth
-// helpers; once Phase 4.1 of TEST_PLAN_2.md lifts loginAttempts into
-// RateLimiterService, this annotation comes off and every test calls
-// t.Parallel().
-
 import (
 	"crypto/sha256"
 	"encoding/hex"
@@ -40,20 +31,12 @@ func ensureLoggerForTests() {
 	})
 }
 
-// resetLoginAttempts clears the package-global rate-limiter map so
-// tests can exercise the limiter from a clean slate. Required because
-// IsLoginRateLimited keeps state across calls within the process.
-func resetLoginAttempts() {
-	loginAttemptsMu.Lock()
-	loginAttempts = make(map[string][]time.Time)
-	loginAttemptsMu.Unlock()
-}
-
 // ---------------------------------------------------------------------------
 // ValidatePasswordComplexity
 // ---------------------------------------------------------------------------
 
 func TestValidatePasswordComplexity(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name, password string
 		wantOK         bool
@@ -99,52 +82,73 @@ func TestGenerateCSRFToken(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// IsLoginRateLimited
+// LoginRateLimiter
 // ---------------------------------------------------------------------------
 
-func TestIsLoginRateLimited_LocksAfterMaxAttempts(t *testing.T) {
-	resetLoginAttempts()
-	t.Cleanup(resetLoginAttempts)
+// LoginRateLimiter.Allow returns true while attempts in the window
+// remain at or below the limit and false once the limit is exceeded.
+// (The free IsLoginRateLimited returned true to mean "blocked"; Allow
+// inverts the polarity so the receiver matches *RateLimiter.Allow.)
+func TestLoginRateLimiter_LocksAfterMaxAttempts(t *testing.T) {
+	t.Parallel()
 
+	rl := NewLoginRateLimiter(MaxLoginAttempts, time.Minute)
 	const ip = "10.0.0.1"
 
-	// First MaxLoginAttempts calls must NOT trigger the lockout.
+	// First MaxLoginAttempts calls must each be allowed.
 	for i := 1; i <= MaxLoginAttempts; i++ {
-		assert.Falsef(t, IsLoginRateLimited(ip), "attempt %d/%d should not be limited", i, MaxLoginAttempts)
+		assert.Truef(t, rl.Allow(ip), "attempt %d/%d should be allowed", i, MaxLoginAttempts)
 	}
 
-	// The next call must.
-	assert.True(t, IsLoginRateLimited(ip), "attempt MaxLoginAttempts+1 should be limited")
+	// The next call must be rejected.
+	assert.False(t, rl.Allow(ip), "attempt MaxLoginAttempts+1 should be blocked")
 }
 
-func TestIsLoginRateLimited_PerIPIsolation(t *testing.T) {
-	resetLoginAttempts()
-	t.Cleanup(resetLoginAttempts)
+func TestLoginRateLimiter_PerIPIsolation(t *testing.T) {
+	t.Parallel()
 
-	// Burn one IP up to its limit.
+	rl := NewLoginRateLimiter(MaxLoginAttempts, time.Minute)
+
+	// Burn one IP past its limit.
 	for i := 0; i < MaxLoginAttempts+1; i++ {
-		IsLoginRateLimited("10.0.0.1")
+		rl.Allow("10.0.0.1")
 	}
 
 	// A different IP must still be allowed.
-	assert.False(t, IsLoginRateLimited("10.0.0.2"), "second IP should not be affected by first IP's lockout")
+	assert.True(t, rl.Allow("10.0.0.2"), "second IP should not be affected by first IP's lockout")
 }
 
-func TestIsLoginRateLimited_OldAttemptsDropOff(t *testing.T) {
-	resetLoginAttempts()
-	t.Cleanup(resetLoginAttempts)
+func TestLoginRateLimiter_OldAttemptsDropOff(t *testing.T) {
+	t.Parallel()
 
+	rl := NewLoginRateLimiter(MaxLoginAttempts, time.Minute)
 	const ip = "10.0.0.3"
 
-	// Inject MaxLoginAttempts attempts that are 2 minutes old — outside
-	// the 1-minute window. They should not count toward the limit.
+	// Inject MaxLoginAttempts+2 attempts that are 2 minutes old —
+	// outside the 1-minute window. They should not count toward the
+	// limit when a fresh attempt arrives.
 	old := time.Now().Add(-2 * time.Minute)
-	loginAttemptsMu.Lock()
-	loginAttempts[ip] = []time.Time{old, old, old, old, old, old, old}
-	loginAttemptsMu.Unlock()
+	rl.inject(ip, old, old, old, old, old, old, old)
 
 	// A fresh attempt joins an empty effective window.
-	assert.False(t, IsLoginRateLimited(ip), "stale attempts should be ignored")
+	assert.True(t, rl.Allow(ip), "stale attempts should be ignored")
+}
+
+// TestLoginRateLimiter_ResetClearsState verifies Reset wipes per-key
+// state so a previously-blocked key can immediately Allow again. Production
+// code does not call Reset; this is the test-only path.
+func TestLoginRateLimiter_ResetClearsState(t *testing.T) {
+	t.Parallel()
+
+	rl := NewLoginRateLimiter(2, time.Minute)
+	const ip = "10.0.0.4"
+	for i := 0; i < 3; i++ {
+		rl.Allow(ip)
+	}
+	require.False(t, rl.Allow(ip), "fourth attempt is expected to be blocked")
+
+	rl.Reset()
+	assert.True(t, rl.Allow(ip), "after Reset the same key should be allowed")
 }
 
 // ---------------------------------------------------------------------------

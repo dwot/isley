@@ -1,14 +1,5 @@
 package integration
 
-// +parallel:serial — ingest rate limiter package-global
-// +parallel:serial — login rate limiter package-global
-//
-// Tests in this file mutate handlers.IngestRateLimiter (via
-// resetIngestRateLimiter) and handlers.loginAttempts (via
-// resetRateLimit). Both globals get lifted in Phase 4.1 of
-// TEST_PLAN_2.md, at which point both annotations come off and every
-// test calls t.Parallel().
-
 import (
 	"database/sql"
 	"encoding/json"
@@ -23,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"isley/config"
-	"isley/handlers"
 	"isley/model/types"
 	"isley/tests/testutil"
 )
@@ -52,16 +42,6 @@ func storeWithPollingInterval(seconds int) *config.Store {
 	return s
 }
 
-// resetIngestRateLimiter swaps in a fresh limiter so this test starts
-// from a clean count. Restores the original on cleanup. Mirrors the
-// resetRateLimit pattern used elsewhere for /login.
-func resetIngestRateLimiter(t *testing.T) {
-	t.Helper()
-	prev := handlers.IngestRateLimiter
-	handlers.IngestRateLimiter = handlers.NewRateLimiter(60, time.Minute)
-	t.Cleanup(func() { handlers.IngestRateLimiter = prev })
-}
-
 // seedSensorIngestKey creates an API key suitable for X-API-KEY auth
 // against the ingest endpoint and returns the plaintext.
 func seedSensorIngestKey(t *testing.T, db *sql.DB) string {
@@ -69,35 +49,19 @@ func seedSensorIngestKey(t *testing.T, db *sql.DB) string {
 	return testutil.SeedAPIKey(t, db, "test-sensor-ingest-key")
 }
 
-// ingestPostKeepsRateOK retries the ingest call once if the limiter
-// blocks — the global IngestRateLimiter persists across tests and we
-// guard explicitly via resetIngestRateLimiter, but adding a defensive
-// retry here makes the suite robust to ordering changes.
-func ingestPostKeepsRateOK(t *testing.T, c *testutil.Client, apiKey string, body interface{}) *http.Response {
-	t.Helper()
-	resp := c.APIPostJSON(t, "/api/sensors/ingest", apiKey, body)
-	if resp.StatusCode == http.StatusTooManyRequests {
-		resp.Body.Close()
-		resetIngestRateLimiter(t)
-		resp = c.APIPostJSON(t, "/api/sensors/ingest", apiKey, body)
-	}
-	return resp
-}
-
 // ---------------------------------------------------------------------------
 // POST /api/sensors/ingest
 // ---------------------------------------------------------------------------
 
 func TestSensorIngest_HappyPath(t *testing.T) {
-	resetRateLimit(t)
-	resetIngestRateLimiter(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithAPIIngest(1)))
 	apiKey := seedSensorIngestKey(t, db)
 
 	c := server.NewClient(t)
-	resp := ingestPostKeepsRateOK(t, c, apiKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/api/sensors/ingest", apiKey, map[string]interface{}{
 		"source": "test-src",
 		"device": "DEVICE-1",
 		"type":   "temp",
@@ -134,19 +98,18 @@ func TestSensorIngest_HappyPath(t *testing.T) {
 }
 
 func TestSensorIngest_ReusesExistingSensor(t *testing.T) {
-	resetRateLimit(t)
-	resetIngestRateLimiter(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithAPIIngest(1)))
 	apiKey := seedSensorIngestKey(t, db)
 
 	c := server.NewClient(t)
-	r1 := ingestPostKeepsRateOK(t, c, apiKey, map[string]interface{}{
+	r1 := c.APIPostJSON(t, "/api/sensors/ingest", apiKey, map[string]interface{}{
 		"source": "src", "device": "D", "type": "temp", "value": 1.0,
 	})
 	r1.Body.Close()
-	r2 := ingestPostKeepsRateOK(t, c, apiKey, map[string]interface{}{
+	r2 := c.APIPostJSON(t, "/api/sensors/ingest", apiKey, map[string]interface{}{
 		"source": "src", "device": "D", "type": "temp", "value": 2.0,
 	})
 	r2.Body.Close()
@@ -159,15 +122,14 @@ func TestSensorIngest_ReusesExistingSensor(t *testing.T) {
 }
 
 func TestSensorIngest_CreatesNewZone(t *testing.T) {
-	resetRateLimit(t)
-	resetIngestRateLimiter(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithAPIIngest(1)))
 	apiKey := seedSensorIngestKey(t, db)
 
 	c := server.NewClient(t)
-	resp := ingestPostKeepsRateOK(t, c, apiKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/api/sensors/ingest", apiKey, map[string]interface{}{
 		"source": "src", "device": "D", "type": "temp", "value": 1.0,
 		"new_zone": "Greenhouse 7",
 	})
@@ -186,8 +148,7 @@ func TestSensorIngest_CreatesNewZone(t *testing.T) {
 }
 
 func TestSensorIngest_DisabledByConfig(t *testing.T) {
-	resetRateLimit(t)
-	resetIngestRateLimiter(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	// disabled
@@ -195,7 +156,7 @@ func TestSensorIngest_DisabledByConfig(t *testing.T) {
 	apiKey := seedSensorIngestKey(t, db)
 
 	c := server.NewClient(t)
-	resp := ingestPostKeepsRateOK(t, c, apiKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/api/sensors/ingest", apiKey, map[string]interface{}{
 		"source": "src", "device": "D", "type": "temp", "value": 1.0,
 	})
 	defer resp.Body.Close()
@@ -203,8 +164,7 @@ func TestSensorIngest_DisabledByConfig(t *testing.T) {
 }
 
 func TestSensorIngest_RejectsMissingSource(t *testing.T) {
-	resetRateLimit(t)
-	resetIngestRateLimiter(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithAPIIngest(1)))
@@ -213,7 +173,7 @@ func TestSensorIngest_RejectsMissingSource(t *testing.T) {
 	c := server.NewClient(t)
 	// `source` is required by the binding tag — payload without it must
 	// fail JSON binding and surface as 400.
-	resp := ingestPostKeepsRateOK(t, c, apiKey, map[string]interface{}{
+	resp := c.APIPostJSON(t, "/api/sensors/ingest", apiKey, map[string]interface{}{
 		"device": "D", "type": "temp", "value": 1.0,
 	})
 	defer resp.Body.Close()
@@ -221,8 +181,7 @@ func TestSensorIngest_RejectsMissingSource(t *testing.T) {
 }
 
 func TestSensorIngest_RejectsNonFiniteValue(t *testing.T) {
-	resetRateLimit(t)
-	resetIngestRateLimiter(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithAPIIngest(1)))
@@ -250,8 +209,7 @@ func TestSensorIngest_RejectsNonFiniteValue(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestChartHandler_RawShortRange(t *testing.T) {
-	resetRateLimit(t)
-	resetIngestRateLimiter(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithPollingInterval(60)))
@@ -282,8 +240,7 @@ func TestChartHandler_RawShortRange(t *testing.T) {
 }
 
 func TestChartHandler_RollupLongRange(t *testing.T) {
-	resetRateLimit(t)
-	resetIngestRateLimiter(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithPollingInterval(60)))
@@ -318,7 +275,7 @@ func TestChartHandler_RollupLongRange(t *testing.T) {
 }
 
 func TestChartHandler_RejectsMissingSensorParam(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithPollingInterval(60)))
@@ -331,7 +288,7 @@ func TestChartHandler_RejectsMissingSensorParam(t *testing.T) {
 }
 
 func TestChartHandler_RejectsMissingTimeParams(t *testing.T) {
-	resetRateLimit(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithPollingInterval(60)))
@@ -350,8 +307,7 @@ func TestChartHandler_RejectsMissingTimeParams(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSensorIngest_ConcurrentSameSensor(t *testing.T) {
-	resetRateLimit(t)
-	resetIngestRateLimiter(t)
+	t.Parallel()
 
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithAPIIngest(1)))
@@ -374,7 +330,7 @@ func TestSensorIngest_ConcurrentSameSensor(t *testing.T) {
 		go func() {
 			c := server.NewClient(t)
 			for i := 0; i < perWriter; i++ {
-				resp := ingestPostKeepsRateOK(t, c, apiKey, body)
+				resp := c.APIPostJSON(t, "/api/sensors/ingest", apiKey, body)
 				if resp.StatusCode == http.StatusOK {
 					ok.Add(1)
 				}
