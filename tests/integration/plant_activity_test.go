@@ -245,6 +245,75 @@ func TestActivity_ListPaginated(t *testing.T) {
 	assert.Equal(t, 1, got.Page)
 }
 
+// TestActivity_ListPaginationCap exercises the page_size guard in
+// ListAllActivities. The SPA-style activities page requests
+// page_size=10000 to render the full log client-side; the cap was
+// raised from 1000 to 100000 to support that without removing the
+// defense-in-depth ceiling.
+func TestActivity_ListPaginationCap(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db)
+	fix := seedActivityHTTP(t, db)
+
+	// Seed a small number of rows; we're testing the page_size guard,
+	// not pagination behavior at scale.
+	for i := 0; i < 5; i++ {
+		_, err := db.Exec(
+			`INSERT INTO plant_activity (plant_id, activity_id, note, date) VALUES ($1, $2, $3, $4)`,
+			fix.PlantID, fix.WaterID, "row "+strconv.Itoa(i), "2026-04-10",
+		)
+		require.NoError(t, err)
+	}
+
+	testutil.SeedAdmin(t, db, "cap-pw")
+	c := server.LoginAsAdmin(t, "cap-pw")
+
+	type listResp struct {
+		Entries  []handlers.ActivityLogEntry `json:"entries"`
+		Total    int                         `json:"total"`
+		Page     int                         `json:"page"`
+		PageSize int                         `json:"page_size"`
+	}
+
+	cases := []struct {
+		name         string
+		query        string
+		wantPageSize int
+	}{
+		// Within the new ceiling — request honored.
+		{"under_new_ceiling", "?page_size=5000", 5000},
+		// At the SPA's typical request size — honored.
+		{"spa_request_size", "?page_size=10000", 10000},
+		// Above the new ceiling — falls back to default.
+		{"above_ceiling", "?page_size=200000", 100},
+		// Zero — falls back to default (n > 0 guard).
+		{"zero", "?page_size=0", 100},
+		// Negative — falls back to default.
+		{"negative", "?page_size=-5", 100},
+		// Pre-existing small value — unchanged.
+		{"small_value", "?page_size=50", 50},
+		// Unset — default applies.
+		{"unset", "", 100},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			resp := c.Get("/activities/list" + tc.query)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			var got listResp
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
+			assert.Equal(t, tc.wantPageSize, got.PageSize,
+				"page_size=%q should report PageSize=%d", tc.query, tc.wantPageSize)
+			assert.Equal(t, 5, got.Total, "all 5 seeded rows should be counted")
+		})
+	}
+}
+
 func TestActivity_ListFilterByPlantID(t *testing.T) {
 	t.Parallel()
 

@@ -260,7 +260,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <tr class="al-row" data-activity='${JSON.stringify(a).replace(/'/g, "&apos;")}' style="cursor:pointer">
                 <td class="al-cell-date">${formatDateTime(a.date)}</td>
                 <td class="al-cell-plant">
-                    <a href="/plant/${a.plant_id}" class="text-decoration-none" onclick="event.stopPropagation()">
+                    <a href="/plant/${a.plant_id}" class="text-decoration-none">
                         ${esc(a.plant_name)}
                     </a>
                 </td>

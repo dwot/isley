@@ -313,7 +313,7 @@ func ListAllActivities(c *gin.Context) {
 	}
 	pageSize := activityLogPageSize
 	if v := strings.TrimSpace(c.Query("page_size")); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 1000 {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 100000 {
 			pageSize = n
 		}
 	}

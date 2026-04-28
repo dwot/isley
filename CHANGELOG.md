@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activities can now be flagged as "watering" and/or "feeding". The built-in "Water" and "Feed" activities are migrated to set the matching flag, and the dashboard "days since last watering / feeding" calculations now use the flags rather than hardcoded names — so renaming or translating the built-in activities no longer breaks tracking. (PR #160)
 
 ### Changed
+- The activities page now matches the look and feel of the plants, strains, and sensors pages: in-page search, filter dropdowns, sortable column headers, and a result count, with no full-page reload between filter changes. CSV and XLSX export honor the active filters. Behind the scenes, the `/activities/list` JSON endpoint now accepts a larger `page_size` so the page can render the full activity log client-side. Shared CSS for the controls bar and table styling across the four list views was deduplicated. (PR #159)
 
 ### Deprecated
 
