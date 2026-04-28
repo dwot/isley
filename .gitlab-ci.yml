@@ -183,46 +183,23 @@ publish_dev_to_github:
   stage: sync-public
   image: alpine:3.20
   before_script:
-    - apk add git gnupg
-    - gpg --batch --import "$GPG_PRIVATE_KEY"
-    # SANITY CHECK: This MUST show 'sec' in the job logs
-    - gpg --list-secret-keys
-    - git config --global user.email "68145+dwot@users.noreply.github.com"
-    - git config --global user.name "isley-ci-sync"
-    - git config --global user.signingkey "$GPG_KEY_ID"
-    - git config --global commit.gpgsign true
+    - apk add git
   script:
-    - git remote add github https://x-access-token:${GITHUB_TOKEN}@github.com/dwot/isley.git
-    - git fetch github dev
-    - git checkout -B sync-branch github/dev
-    - git merge --squash $CI_COMMIT_SHA
-    # Signed squash-sync. Embed the originating GitLab short SHA so published
-    # Docker Hub images (which are tagged with the post-squash GitHub SHA)
-    # can be traced back to the internal commit that triggered them.
+    # Push-through sync: GitHub `dev` is a 1:1 mirror of GitLab `dev`.
+    # Each commit arrives on GitHub with its original author, message,
+    # and signature intact, so contributor attribution, PR cross-refs
+    # (`Fixes #142`, `Closes #133`), and per-commit GPG signatures all
+    # flow through naturally — no synthesized squash commit, no
+    # `Co-authored-by:` machinery, no force-push.
     #
-    # Author attribution: the squash commit's Author/Committer is the
-    # `isley-ci-sync` bot, but the work it absorbs was authored by real
-    # humans (maintainer commits plus cherry-picked external-contributor
-    # commits). Walk the squashed range and emit one `Co-authored-by:`
-    # trailer per distinct author so GitHub credits them on the commit
-    # page and in the repo's contributors graph. `--no-merges` skips
-    # integration commits whose authorship is already covered by the
-    # commits they merge in. The bot itself is filtered out so a sync
-    # can't self-credit if its range ever happens to include a previous
-    # sync commit.
-    - |
-      trailers=$(git log --no-merges "github/dev..${CI_COMMIT_SHA}" --format='%an <%ae>' \
-        | grep -v '^isley-ci-sync ' \
-        | sort -u \
-        | sed 's/^/Co-authored-by: /')
-      subject="Dev Update $(date -u +'%Y-%m-%d') [Signed Sync] from gitlab@${CI_COMMIT_SHORT_SHA}"
-      if [ -n "$trailers" ]; then
-        git commit -S -m "$subject" -m "$trailers"
-      else
-        git commit -S -m "$subject"
-      fi
-    # Explicitly push the local sync-branch to the remote dev branch
-    - git push github sync-branch:dev --force
+    # If GitHub `dev` has commits we don't have locally (typically a
+    # Dependabot PR or external PR merged via the GitHub UI between
+    # syncs), this push fails non-fast-forward. Recovery is ordinary
+    # multi-remote git: pull those commits into the local checkout,
+    # push them to GitLab `dev`, re-trigger this job. That round-trip
+    # keeps GitLab as the source of truth — see docs/SDLC.md Stage 3.
+    - git remote add github https://x-access-token:${GITHUB_TOKEN}@github.com/dwot/isley.git
+    - git push github HEAD:dev
   rules:
     - if: '$CI_COMMIT_BRANCH == "dev"'
       when: manual
