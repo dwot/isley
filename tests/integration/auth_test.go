@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -75,11 +76,26 @@ func TestAuth_CSRFRejectsPostWithoutToken(t *testing.T) {
 
 // TestAuth_LoginRateLimiter verifies that after MaxLoginAttempts failed
 // POSTs from one IP, the next attempt returns 429 rather than 401.
+//
+// The limiter's sliding window is widened to 10 minutes here so the
+// test does not race the wallclock under heavy CI load. Production
+// uses 1 minute (NewRateLimiterService(nil, nil) default), but a
+// parallel test running under -race against bcrypt validation can
+// take 60+ seconds to issue six POSTs on a contended runner —
+// observed at 91s in CI on 2026-04-28 — and the early attempts
+// would age out of a 1-minute window before the +1 attempt fires.
+// The behavior under test (count attempts, trip at limit+1) is
+// identical at any window > test runtime; only the wallclock
+// dependency goes away.
 func TestAuth_LoginRateLimiter(t *testing.T) {
 	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
+	rls := handlers.NewRateLimiterService(
+		nil,
+		handlers.NewLoginRateLimiter(handlers.MaxLoginAttempts, 10*time.Minute),
+	)
+	server := testutil.NewTestServer(t, db, testutil.WithRateLimiterService(rls))
 	testutil.SeedAdmin(t, db, "the-real-password")
 
 	c := server.NewClient(t)
