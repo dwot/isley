@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"isley/handlers"
 	"isley/tests/testutil"
 )
 
@@ -218,6 +219,136 @@ func TestPlant_AddRequiresAuth(t *testing.T) {
 		[]int{http.StatusUnauthorized, http.StatusForbidden},
 		resp.StatusCode,
 		"unauthenticated POST /plants should be rejected (got %d)", resp.StatusCode)
+}
+
+// ---------------------------------------------------------------------------
+// GetAdjacentPlantIDs (prev/next plant navigation, PR #158)
+// ---------------------------------------------------------------------------
+
+// adjPlant inserts a plant with the given name and start_dt and writes a
+// plant_status_log row linking it to statusName. Returns the plant id.
+func adjPlant(t *testing.T, db *sql.DB, name, startDt, statusName string, strainID, zoneID int) int {
+	t.Helper()
+	pid := testutil.SeedPlant(t, db, name, strainID, zoneID)
+	testutil.MustExec(t, db, `UPDATE plant SET start_dt = $1 WHERE id = $2`, startDt, pid)
+	testutil.MustExec(t,
+		db,
+		`INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, $3)`,
+		pid, statusIDByNameInt(t, db, statusName), startDt,
+	)
+	return pid
+}
+
+func TestGetAdjacentPlantIDs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("middle of partition", func(t *testing.T) {
+		t.Parallel()
+		db := testutil.NewTestDB(t)
+		breederID := testutil.SeedBreeder(t, db, "B")
+		strainID := testutil.SeedStrain(t, db, breederID, "S")
+		zoneID := testutil.SeedZone(t, db, "Z")
+
+		a := adjPlant(t, db, "A", "2026-01-01", "Veg", strainID, zoneID)
+		b := adjPlant(t, db, "B", "2026-02-01", "Veg", strainID, zoneID)
+		c := adjPlant(t, db, "C", "2026-03-01", "Veg", strainID, zoneID)
+
+		prev, next := handlers.GetAdjacentPlantIDs(db, b)
+		assert.Equal(t, a, prev, "prev of B should be A")
+		assert.Equal(t, c, next, "next of B should be C")
+	})
+
+	t.Run("first in partition", func(t *testing.T) {
+		t.Parallel()
+		db := testutil.NewTestDB(t)
+		breederID := testutil.SeedBreeder(t, db, "B")
+		strainID := testutil.SeedStrain(t, db, breederID, "S")
+		zoneID := testutil.SeedZone(t, db, "Z")
+
+		a := adjPlant(t, db, "A", "2026-01-01", "Veg", strainID, zoneID)
+		b := adjPlant(t, db, "B", "2026-02-01", "Veg", strainID, zoneID)
+
+		prev, next := handlers.GetAdjacentPlantIDs(db, a)
+		assert.Equal(t, 0, prev, "first plant has no prev")
+		assert.Equal(t, b, next)
+	})
+
+	t.Run("last in partition", func(t *testing.T) {
+		t.Parallel()
+		db := testutil.NewTestDB(t)
+		breederID := testutil.SeedBreeder(t, db, "B")
+		strainID := testutil.SeedStrain(t, db, breederID, "S")
+		zoneID := testutil.SeedZone(t, db, "Z")
+
+		b := adjPlant(t, db, "B", "2026-01-01", "Veg", strainID, zoneID)
+		c := adjPlant(t, db, "C", "2026-02-01", "Veg", strainID, zoneID)
+
+		prev, next := handlers.GetAdjacentPlantIDs(db, c)
+		assert.Equal(t, b, prev)
+		assert.Equal(t, 0, next, "last plant has no next")
+	})
+
+	t.Run("only plant in partition", func(t *testing.T) {
+		t.Parallel()
+		db := testutil.NewTestDB(t)
+		breederID := testutil.SeedBreeder(t, db, "B")
+		strainID := testutil.SeedStrain(t, db, breederID, "S")
+		zoneID := testutil.SeedZone(t, db, "Z")
+
+		a := adjPlant(t, db, "A", "2026-01-01", "Veg", strainID, zoneID)
+
+		prev, next := handlers.GetAdjacentPlantIDs(db, a)
+		assert.Equal(t, 0, prev)
+		assert.Equal(t, 0, next)
+	})
+
+	t.Run("plant does not exist", func(t *testing.T) {
+		t.Parallel()
+		db := testutil.NewTestDB(t)
+
+		prev, next := handlers.GetAdjacentPlantIDs(db, 99999)
+		assert.Equal(t, 0, prev)
+		assert.Equal(t, 0, next)
+	})
+
+	t.Run("tie on start_dt orders by name", func(t *testing.T) {
+		t.Parallel()
+		db := testutil.NewTestDB(t)
+		breederID := testutil.SeedBreeder(t, db, "B")
+		strainID := testutil.SeedStrain(t, db, breederID, "S")
+		zoneID := testutil.SeedZone(t, db, "Z")
+
+		// Insert in reverse-name order so we can confirm the LAG/LEAD
+		// ordering tiebreaker (name ASC) holds regardless of insert order.
+		bb := adjPlant(t, db, "Bravo", "2026-01-01", "Veg", strainID, zoneID)
+		aa := adjPlant(t, db, "Alpha", "2026-01-01", "Veg", strainID, zoneID)
+
+		prev, next := handlers.GetAdjacentPlantIDs(db, aa)
+		assert.Equal(t, 0, prev, "Alpha (alphabetically first) should have no prev")
+		assert.Equal(t, bb, next, "next of Alpha should be Bravo")
+
+		prev, next = handlers.GetAdjacentPlantIDs(db, bb)
+		assert.Equal(t, aa, prev)
+		assert.Equal(t, 0, next)
+	})
+
+	t.Run("active and inactive partitions do not cross", func(t *testing.T) {
+		t.Parallel()
+		db := testutil.NewTestDB(t)
+		breederID := testutil.SeedBreeder(t, db, "B")
+		strainID := testutil.SeedStrain(t, db, breederID, "S")
+		zoneID := testutil.SeedZone(t, db, "Z")
+
+		// "Success" is an inactive status (active=0). The dead plant has
+		// the earliest start_dt of any plant, so a naive query without
+		// PARTITION BY would surface it as living's prev.
+		_ = adjPlant(t, db, "Dead", "2025-12-01", "Success", strainID, zoneID)
+		living := adjPlant(t, db, "Living", "2026-01-01", "Veg", strainID, zoneID)
+
+		prev, next := handlers.GetAdjacentPlantIDs(db, living)
+		assert.Equal(t, 0, prev, "living plant must not see the dead plant as prev")
+		assert.Equal(t, 0, next)
+	})
 }
 
 // ---------------------------------------------------------------------------

@@ -189,18 +189,22 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 		translations := utils.TranslationService.GetTranslations(lang)
 		currentPath, _ := c.Get("currentPath")
 		store := handlers.ConfigStoreFromContext(c)
+		db := handlers.DBFromContext(c)
+		idStr := c.Param("id")
+		plant := handlers.GetPlant(db, idStr)
+		prevPlantID, nextPlantID := handlers.GetAdjacentPlantIDs(db, int(plant.ID))
 		c.HTML(http.StatusOK, "views/plant.html", gin.H{
 			"title":           "Plant Details",
 			"currentPath":     currentPath,
 			"version":         version,
-			"plant":           handlers.GetPlant(handlers.DBFromContext(c), c.Param("id")),
+			"plant":           plant,
 			"zones":           store.Zones(),
 			"strains":         store.Strains(),
 			"statuses":        store.Statuses(),
 			"breeders":        store.Breeders(),
 			"measurements":    store.Metrics(),
-			"sensors":         handlers.GetSensors(handlers.DBFromContext(c)),
-			"plants":          handlers.GetLivingPlants(handlers.DBFromContext(c)),
+			"sensors":         handlers.GetSensors(db),
+			"plants":          handlers.GetLivingPlants(db),
 			"activities":      store.Activities(),
 			"loggedIn":        sessions.Default(c).Get("logged_in"),
 			"lcl":             translations,
@@ -208,6 +212,8 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 			"currentLanguage": lang,
 			"csrfToken":       c.GetString("csrf_token"),
 			"cspNonce":        c.GetString("cspNonce"),
+			"prevPlantID":     prevPlantID,
+			"nextPlantID":     nextPlantID,
 		})
 	})
 

@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Fixed an ordering bug when uploading multiple plant images at once
   where descriptions and dates could be paired with the wrong image. (PR #157)
+- The plant detail page now has prev/next arrows in the hero and responds to ArrowLeft / ArrowRight keyboard navigation, cycling within the plant's current top-level state (Living / Harvested / Dead). (PR #158)
 
 ### Changed
 
