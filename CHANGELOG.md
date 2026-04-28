@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Activities can now be flagged as "watering" and/or "feeding". The built-in "Water" and "Feed" activities are migrated to set the matching flag, and the dashboard "days since last watering / feeding" calculations now use the flags rather than hardcoded names — so renaming or translating the built-in activities no longer breaks tracking. (PR #160)
 
 ### Changed
 
