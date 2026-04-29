@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   where descriptions and dates could be paired with the wrong image. (PR #157)
 - The plant detail page now has prev/next arrows in the hero and responds to ArrowLeft / ArrowRight keyboard navigation, cycling within the plant's current top-level state (Living / Harvested / Dead). (PR #158)
 - Activities can now be flagged as "watering" and/or "feeding". The built-in "Water" and "Feed" activities are migrated to set the matching flag, and the dashboard "days since last watering / feeding" calculations now use the flags rather than hardcoded names — so renaming or translating the built-in activities no longer breaks tracking. (PR #160)
+- Activities can now be linked to metrics. When an activity type has linked metrics, the relevant measurement fields appear on the activity-entry form (single-plant, multi-plant, and edit modals), so values like fertilizer amount or pH can be captured alongside the activity rather than buried in the notes. Required vs. optional metrics are configurable per activity in Settings, and recorded measurements stay linked to the activity that produced them. (PR #161)
 - Extensive Testing overhaul, dramatically improved test coverage
 - New `ISLEY_SECURE_COOKIES` documented in the README env-var table — set to `true` when fronting Isley with a TLS reverse proxy.
 - `dependabot.yml` now also tracks `docker` and `github-actions` ecosystems so base-image and action bumps surface as PRs instead of stale pins.
@@ -40,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `/api/overlay` endpoint now shares the ingest rate limiter (60 req/min/key) so an unauthenticated misconfiguration can no longer hammer it unbounded.
 - Bumped Linux release-binary Go toolchain in `.github/workflows/release.yml` from `1.25.0` to `1.25.8`, matching the test jobs.
 - GitLab CI `sign-dev` and `publish_dev_to_github` jobs upgraded from `alpine:3.20` to `alpine:3.23` to match the Dockerfile runtime base.
-- `RecordMultiPlantActivity` now wraps its N inserts in a single transaction with a prepared statement — partial failures no longer leave the activity log inconsistent and SQLite pays one WAL fsync instead of N.
+- All activity write paths (create, edit, delete, multi-plant create) now run inside database transactions. Partial failures no longer leave the activity log in a half-written state, and multi-plant creates pay one WAL fsync instead of N on SQLite.
 - AC Infinity / EcoWitt scan handlers now route their sensor registration through the locked `findOrCreateSensor` helper, eliminating an unprotected SELECT-then-INSERT path that could create duplicate rows under concurrent scans.
 
 ### Deprecated
