@@ -83,6 +83,7 @@ func BuildBackupArchive(db *sql.DB, opts BuildArchiveOptions) ([]byte, BackupMan
 		{"strain_lineage", &payload.StrainLineage},
 		{"metric", &payload.Metrics},
 		{"activity", &payload.Activities},
+		{"activity_metric", &payload.ActivityMetric},
 		{"plant", &payload.Plants},
 		{"plant_status_log", &payload.PlantStatusLog},
 		{"plant_measurements", &payload.PlantMeasure},
@@ -247,6 +248,7 @@ func ApplyBackupToDB(ctx context.Context, db *sql.DB, payload BackupPayload) err
 		"rolling_averages",
 		"sensors",
 		"strain",
+		"activity_metric",
 		"activity",
 		"metric",
 		"plant_status",
@@ -266,6 +268,7 @@ func ApplyBackupToDB(ctx context.Context, db *sql.DB, payload BackupPayload) err
 		{"plant_status", payload.PlantStatuses},
 		{"metric", payload.Metrics},
 		{"activity", payload.Activities},
+		{"activity_metric", payload.ActivityMetric},
 		{"sensors", payload.Sensors},
 		// rolling_averages BEFORE sensor_data: there's an AFTER INSERT
 		// trigger on sensor_data that does INSERT OR REPLACE INTO
@@ -342,7 +345,7 @@ func ApplyBackupToDB(ctx context.Context, db *sql.DB, payload BackupPayload) err
 			"settings", "zones", "breeder", "sensors", "sensor_data",
 			"strain", "strain_lineage", "plant_status", "plant",
 			"plant_status_log", "metric", "plant_measurements",
-			"activity", "plant_activity", "plant_images", "streams",
+			"activity", "activity_metric", "plant_activity", "plant_images", "streams",
 		}
 		for _, tbl := range seqTables {
 			q := fmt.Sprintf(

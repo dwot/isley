@@ -15,10 +15,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"isley/config"
 	"isley/logger"
 	"isley/model"
+
+	"github.com/gin-gonic/gin"
 )
 
 // ---------------------------------------------------------------------------
@@ -53,6 +54,7 @@ type BackupPayload struct {
 	Plants         []map[string]interface{} `json:"plant"`
 	PlantStatusLog []map[string]interface{} `json:"plant_status_log"`
 	Metrics        []map[string]interface{} `json:"metric"`
+	ActivityMetric []map[string]interface{} `json:"activity_metric"`
 	PlantMeasure   []map[string]interface{} `json:"plant_measurements"`
 	Activities     []map[string]interface{} `json:"activity"`
 	PlantActivity  []map[string]interface{} `json:"plant_activity"`
@@ -603,6 +605,7 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 		"rolling_averages",
 		"sensors",
 		"strain",
+		"activity_metric",
 		"activity",
 		"metric",
 		"plant_status",
@@ -622,6 +625,7 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 		{"plant_status", payload.PlantStatuses},
 		{"metric", payload.Metrics},
 		{"activity", payload.Activities},
+		{"activity_metric", payload.ActivityMetric},
 		{"sensors", payload.Sensors},
 		{"sensor_data", payload.SensorData},
 		{"rolling_averages", payload.RollingAvgs},
@@ -812,7 +816,7 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 			"settings", "zones", "breeder", "sensors", "sensor_data",
 			"strain", "strain_lineage", "plant_status", "plant",
 			"plant_status_log", "metric", "plant_measurements",
-			"activity", "plant_activity", "plant_images", "streams",
+			"activity", "activity_metric", "plant_activity", "plant_images", "streams",
 		}
 		for _, tbl := range seqTables {
 			q := fmt.Sprintf(

@@ -2,10 +2,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const form = document.getElementById("addMultiPlantActivityForm");
     const addMultiPlantActivityModal = document.getElementById("addMultiPlantActivityModal");
     const activityMultiDateInput = document.getElementById("activityMultiDate");
+    const activitySelect = document.getElementById("activityMultiName");
+    const measurementsContainer = document.getElementById("multiActivityMeasurements");
+
+    async function updateMeasurementInputs() {
+        const links = activityMetrics.getLinksFromSelect(activitySelect);
+        await activityMetrics.renderInputs(measurementsContainer, links);
+    }
+
+    activitySelect.addEventListener("change", updateMeasurementInputs);
 
     // Set default date/time when the modal is shown
     addMultiPlantActivityModal.addEventListener("show.bs.modal", () => {
         formHelpers.setDateTimeNow("activityMultiDate");
+        updateMeasurementInputs();
     });
 
     form.addEventListener("submit", (e) => {
@@ -19,7 +29,8 @@ document.addEventListener("DOMContentLoaded", () => {
             plant_ids: selectedPlants,
             activity_id: parseInt(document.getElementById("activityMultiName").value),
             note: document.getElementById("activityMultiNote").value,
-            date: document.getElementById("activityMultiDate").value
+            date: document.getElementById("activityMultiDate").value,
+            measurements: activityMetrics.collectValues(measurementsContainer),
         };
 
         // Send POST request to backend

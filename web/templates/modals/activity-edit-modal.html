@@ -18,10 +18,15 @@
                         <label for="editActivityType" class="form-label">{{ .lcl.title_type }}</label>
                         <select class="form-select" id="editActivityType" required>
                             {{ range .activities }}
-                            <option value="{{ .ID }}">{{ .Name }}</option>
+                            <option value="{{ .ID }}" data-metrics='{{ json .Metrics }}'>{{ .Name }}</option>
                             {{ end }}
                         </select>
                     </div>
+
+                    <!-- Measurement input container -->
+                    <div id="editActivityMeasurements"></div>
+
+                    <!-- Activity Note Input -->
                     <div class="mb-3">
                         <label for="editActivityNote" class="form-label">{{ .lcl.title_note }}</label>
                         <textarea class="form-control" id="editActivityNote" rows="3"></textarea>

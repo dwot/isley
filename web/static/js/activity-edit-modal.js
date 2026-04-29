@@ -2,6 +2,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const editActivityModal = new bootstrap.Modal(document.getElementById("editActivityModal"));
     const activityForm = document.getElementById("editActivityForm");
     const deleteActivityButton = document.getElementById("deleteActivity");
+    const activityTypeSelect = document.getElementById("editActivityType");
+    const measurementsContainer = document.getElementById("editActivityMeasurements");
 
     // Format a Date as a local datetime-local string (YYYY-MM-DDTHH:MM:SS)
     // without converting to UTC (unlike toISOString which shifts timezone).
@@ -9,6 +11,13 @@ document.addEventListener("DOMContentLoaded", () => {
         const pad = (n) => String(n).padStart(2, '0');
         return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     }
+
+    async function updateMeasurementInputs(existingValues) {
+        const links = activityMetrics.getLinksFromSelect(activityTypeSelect);
+        await activityMetrics.renderInputs(measurementsContainer, links, existingValues);
+    }
+
+    activityTypeSelect.addEventListener("change", () => updateMeasurementInputs());
 
     document.querySelectorAll(".activity-row").forEach(row => {
         row.addEventListener("click", (e) => {
@@ -24,6 +33,15 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById("editActivityType").value = activityData.activity_id;
             document.getElementById("editActivityNote").value = activityData.note;
 
+            // Build existing values map from activity measurements
+            const existingValues = {};
+            if (activityData.measurements) {
+                activityData.measurements.forEach(m => {
+                    existingValues[m.metric_id] = m.value;
+                });
+            }
+            updateMeasurementInputs(existingValues);
+
             editActivityModal.show();
         });
     });
@@ -36,6 +54,7 @@ document.addEventListener("DOMContentLoaded", () => {
             date: document.getElementById("editActivityDate").value,
             activity_id: parseInt(document.getElementById("editActivityType").value, 10),
             note: document.getElementById("editActivityNote").value,
+            measurements: activityMetrics.collectValues(measurementsContainer),
         };
 
         fetch("/plantActivity/edit", {
