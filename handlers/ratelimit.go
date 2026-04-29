@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -106,10 +108,19 @@ func IngestRateLimitMiddleware() gin.HandlerFunc {
 	}
 }
 
+var rateLimitRedactionKey = []byte(func() string {
+	if v := os.Getenv("RATE_LIMIT_REDACTION_KEY"); v != "" {
+		return v
+	}
+	return "default-rate-limit-redaction-key"
+}())
+
 // redactAPIKey returns a stable, non-reversible identifier for an API key
 // so rate-limit logs can correlate offending callers without leaking the
-// raw secret. Returns the first 12 hex chars of SHA-256(key).
+// raw secret. Returns the first 12 hex chars of HMAC-SHA-256(key).
 func redactAPIKey(key string) string {
-	sum := sha256.Sum256([]byte(key))
-	return hex.EncodeToString(sum[:])[:12]
+	mac := hmac.New(sha256.New, rateLimitRedactionKey)
+	mac.Write([]byte(key))
+	sum := mac.Sum(nil)
+	return hex.EncodeToString(sum)[:12]
 }
