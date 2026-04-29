@@ -14,10 +14,13 @@
                         <label for="activityMultiName" class="form-label required">{{ .lcl.activity_name }}</label>
                         <select class="form-select" id="activityMultiName" required>
                             {{ range .activities }}
-                            <option value="{{ .ID }}">{{ .Name }}</option>
+                            <option value="{{ .ID }}" data-metrics='{{ json .Metrics }}'>{{ .Name }}</option>
                             {{ end }}
                         </select>
                     </div>
+
+                    <!-- Measurement input container -->
+                    <div id="multiActivityMeasurements"></div>
 
                     <!-- Activity Note Input -->
                     <div class="mb-3">

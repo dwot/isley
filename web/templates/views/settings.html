@@ -290,12 +290,14 @@ color: #0d6efd; /* Primary color */
                         <thead class="bg-themed">
                         <tr>
                             <th>{{ .lcl.title_activity }}</th>
+                            <th>{{ .lcl.title_metrics }}</th>
                         </tr>
                         </thead>
                         <tbody>
                         {{ range .activities }}
                         <tr class="clickable-row activity-row" data-activity='{{ json . }}'>
                             <td>{{ .Name }}</td>
+                            <td>{{ len .Metrics }}</td>
                         </tr>
                         {{ end }}
                         </tbody>
@@ -734,6 +736,26 @@ color: #0d6efd; /* Primary color */
                         <label class="form-check-label" for="activityIsFeeding">Feeding</label>
                     </div>
 
+                    <div class="mb-3">
+                        <label for="activityRequiredMetrics" class="form-label">{{ .lcl.activity_required_metrics }}</label>
+                        <select class="form-select" id="activityRequiredMetrics" multiple>
+                            {{ range .metrics }}
+                            <option value="{{ .ID }}">{{ .Name }}{{ if .Unit }} ({{ .Unit }}){{ end }}</option>
+                            {{ end }}
+                        </select>
+                        <small class="text-muted">{{ .lcl.multi_select_metric_note }}</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="activityOptionalMetrics" class="form-label">{{ .lcl.activity_optional_metrics }}</label>
+                        <select class="form-select" id="activityOptionalMetrics" multiple>
+                            {{ range .metrics }}
+                            <option value="{{ .ID }}">{{ .Name }}{{ if .Unit }} ({{ .Unit }}){{ end }}</option>
+                            {{ end }}
+                        </select>
+                        <small class="text-muted">{{ .lcl.multi_select_metric_note }}</small>
+                    </div>
+
                     <!-- Submit Button -->
                     <button type="submit" class="btn btn-primary">{{ .lcl.add_activity }}</button>
                 </form>
@@ -841,6 +863,24 @@ color: #0d6efd; /* Primary color */
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" id="editActivityIsFeeding">
                         <label class="form-check-label" for="editActivityIsFeeding">Feeding</label>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editActivityRequiredMetrics" class="form-label">{{ .lcl.activity_required_metrics }}</label>
+                        <select class="form-select" id="editActivityRequiredMetrics" multiple>
+                            {{ range .metrics }}
+                            <option value="{{ .ID }}">{{ .Name }}{{ if .Unit }} ({{ .Unit }}){{ end }}</option>
+                            {{ end }}
+                        </select>
+                        <small class="text-muted">{{ .lcl.multi_select_metric_note }}</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editActivityOptionalMetrics" class="form-label">{{ .lcl.activity_optional_metrics }}</label>
+                        <select class="form-select" id="editActivityOptionalMetrics" multiple>
+                            {{ range .metrics }}
+                            <option value="{{ .ID }}">{{ .Name }}{{ if .Unit }} ({{ .Unit }}){{ end }}</option>
+                            {{ end }}
+                        </select>
+                        <small class="text-muted">{{ .lcl.multi_select_metric_note }}</small>
                     </div>
                     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
                     <button type="button" class="btn btn-danger" id="deleteActivity"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_activity }}</button>
@@ -1289,6 +1329,23 @@ color: #0d6efd; /* Primary color */
         const form = document.getElementById("addActivityForm");
         const addActivityModal = document.getElementById("addActivityModal");
 
+        function selectedMetricIds(selectId) {
+            return Array.from(document.getElementById(selectId).selectedOptions)
+                .map(opt => parseInt(opt.value, 10))
+                .filter(id => Number.isInteger(id) && id > 0);
+        }
+
+        function buildActivityMetricsPayload(requiredSelectId, optionalSelectId) {
+            const requiredIDs = selectedMetricIds(requiredSelectId);
+            const requiredSet = new Set(requiredIDs);
+            const optionalIDs = selectedMetricIds(optionalSelectId).filter(id => !requiredSet.has(id));
+            const metrics = [];
+
+            requiredIDs.forEach(metricID => metrics.push({ metric_id: metricID, required: true }));
+            optionalIDs.forEach(metricID => metrics.push({ metric_id: metricID, required: false }));
+            return metrics;
+        }
+
         form.addEventListener("submit", (e) => {
             e.preventDefault();
 
@@ -1303,6 +1360,7 @@ color: #0d6efd; /* Primary color */
                 activity_name: activityName,
                 is_watering: isWatering,
                 is_feeding: isFeeding,
+                activity_metrics: buildActivityMetricsPayload("activityRequiredMetrics", "activityOptionalMetrics"),
             };
 
             // Send POST request to /plantMeasurement
@@ -1337,14 +1395,43 @@ color: #0d6efd; /* Primary color */
         const activityForm = document.getElementById("editActivityForm");
         const deleteActivityButton = document.getElementById("deleteActivity");
 
+        function setSelectedOptions(selectId, values) {
+            const valueSet = new Set((values || []).map(v => String(v)));
+            Array.from(document.getElementById(selectId).options).forEach(opt => {
+                opt.selected = valueSet.has(opt.value);
+            });
+        }
+
+        function selectedMetricIds(selectId) {
+            return Array.from(document.getElementById(selectId).selectedOptions)
+                .map(opt => parseInt(opt.value, 10))
+                .filter(id => Number.isInteger(id) && id > 0);
+        }
+
+        function buildActivityMetricsPayload(requiredSelectId, optionalSelectId) {
+            const requiredIDs = selectedMetricIds(requiredSelectId);
+            const requiredSet = new Set(requiredIDs);
+            const optionalIDs = selectedMetricIds(optionalSelectId).filter(id => !requiredSet.has(id));
+            const metrics = [];
+
+            requiredIDs.forEach(metricID => metrics.push({ metric_id: metricID, required: true }));
+            optionalIDs.forEach(metricID => metrics.push({ metric_id: metricID, required: false }));
+            return metrics;
+        }
+
         document.querySelectorAll(".activity-row").forEach(row => {
             row.addEventListener("click", () => {
                 const activityData = JSON.parse(row.getAttribute("data-activity"));
+                const activityMetrics = Array.isArray(activityData.metrics) ? activityData.metrics : [];
+                const requiredMetricIDs = activityMetrics.filter(m => !!m.required).map(m => m.metric_id);
+                const optionalMetricIDs = activityMetrics.filter(m => !m.required).map(m => m.metric_id);
 
                 document.getElementById("activityId").value = activityData.id;
                 document.getElementById("editActivityName").value = activityData.name;
                 document.getElementById("editActivityIsWatering").checked = !!activityData.is_watering;
                 document.getElementById("editActivityIsFeeding").checked = !!activityData.is_feeding;
+                setSelectedOptions("editActivityRequiredMetrics", requiredMetricIDs);
+                setSelectedOptions("editActivityOptionalMetrics", optionalMetricIDs);
 
                 editActivityModal.show();
             });
@@ -1357,6 +1444,7 @@ color: #0d6efd; /* Primary color */
                 activity_name: document.getElementById("editActivityName").value,
                 is_watering: document.getElementById("editActivityIsWatering").checked,
                 is_feeding: document.getElementById("editActivityIsFeeding").checked,
+                activity_metrics: buildActivityMetricsPayload("editActivityRequiredMetrics", "editActivityOptionalMetrics"),
             };
 
             fetch(`/activities/${activityId}`, {

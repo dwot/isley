@@ -1,14 +1,15 @@
 package routes
 
 import (
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-gonic/gin"
 	"isley/config"
 	"isley/handlers"
 	"isley/model"
 	"isley/utils"
 	"net/http"
 	"strconv"
+
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
 )
 
 func AddBasicRoutes(r *gin.RouterGroup, version string) {
@@ -315,9 +316,12 @@ func AddProtectedApiRoutes(r *gin.RouterGroup) {
 	r.POST("/zones", handlers.AddZoneHandler)
 	r.PUT("/zones/:id", handlers.UpdateZoneHandler)
 	r.DELETE("/zones/:id", handlers.DeleteZoneHandler)
+
 	r.POST("/metrics", handlers.AddMetricHandler)
+	r.GET("/metrics", handlers.GetMetricsHandler)
 	r.PUT("/metrics/:id", handlers.UpdateMetricHandler)
 	r.DELETE("/metrics/:id", handlers.DeleteMetricHandler)
+
 	r.POST("/activities", handlers.AddActivityHandler)
 	r.PUT("/activities/:id", handlers.UpdateActivityHandler)
 	r.DELETE("/activities/:id", handlers.DeleteActivityHandler)

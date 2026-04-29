@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	_ "github.com/lib/pq"
 	"isley/logger"
+
+	_ "github.com/lib/pq"
 	_ "modernc.org/sqlite"
 )
 
@@ -28,6 +29,7 @@ var conflictKeys = map[string]string{
 	"metric":             "id",
 	"plant_measurements": "id",
 	"activity":           "id",
+	"activity_metric":    "id",
 	"plant_activity":     "id",
 	"plant_images":       "id",
 	"breeder":            "id",
@@ -54,6 +56,7 @@ var orderedTables = []string{
 	"metric",
 	"plant_measurements",
 	"activity",
+	"activity_metric",
 	"plant_activity",
 	"plant_images",
 	"streams",
@@ -243,6 +246,7 @@ func hasSerialID(table string) bool {
 		"metric":             true,
 		"plant_measurements": true,
 		"activity":           true,
+		"activity_metric":    true,
 		"plant_activity":     true,
 		"plant_images":       true,
 		"breeder":            true,

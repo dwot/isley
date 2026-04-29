@@ -131,21 +131,61 @@ func AddPlant(c *gin.Context) {
 func GetActivities(db *sql.DB) []types.Activity {
 	fieldLogger := logger.Log.WithField("func", "GetActivities")
 
-	rows, err := db.Query("SELECT id, name, is_watering, is_feeding FROM activity")
+	rows, err := db.Query(`
+		SELECT
+			a.id,
+			a.name,
+			a.is_watering,
+			a.is_feeding,
+			am.metric_id,
+			am.required
+		FROM activity a
+		LEFT JOIN activity_metric am ON am.activity_id = a.id
+		ORDER BY a.name`)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query activities")
 		return nil
 	}
+	defer rows.Close()
 
 	var activities []types.Activity
+	activityIdx := make(map[int]int)
 	for rows.Next() {
-		var activity types.Activity
-		err = rows.Scan(&activity.ID, &activity.Name, &activity.IsWatering, &activity.IsFeeding)
+		var (
+			activityID   int
+			activityName string
+			isWatering   bool
+			isFeeding    bool
+			// Use Null types for optional metric fields
+			metricID sql.NullInt64
+			required sql.NullBool
+		)
+
+		err = rows.Scan(&activityID, &activityName, &isWatering, &isFeeding, &metricID, &required)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan activity")
 			return nil
 		}
-		activities = append(activities, activity)
+
+		idx, exists := activityIdx[activityID]
+		if !exists {
+			activities = append(activities, types.Activity{
+				ID:         activityID,
+				Name:       activityName,
+				IsWatering: isWatering,
+				IsFeeding:  isFeeding,
+				Metrics:    []types.ActivityMetricLink{},
+			})
+			idx = len(activities) - 1
+			activityIdx[activityID] = idx
+		}
+
+		if metricID.Valid && required.Valid {
+			activities[idx].Metrics = append(activities[idx].Metrics, types.ActivityMetricLink{
+				MetricID: int(metricID.Int64),
+				Required: required.Bool,
+			})
+		}
 	}
 
 	return activities
@@ -535,7 +575,13 @@ func loadPlantSensors(db *sql.DB, plantID uint, zoneID int) []types.SensorDataRe
 func loadPlantMeasurements(db *sql.DB, plantID uint) []types.Measurement {
 	fieldLogger := logger.Log.WithField("func", "loadPlantMeasurements")
 
-	rows, err := db.Query(fmt.Sprintf("SELECT m.id, me.name, m.value, m.date FROM plant_measurements m LEFT OUTER JOIN metric me ON me.id = m.metric_id WHERE m.plant_id = $1 ORDER BY date DESC LIMIT %d", PlantHistoryLimit), plantID)
+	rows, err := db.Query(fmt.Sprintf(`
+		SELECT m.id, m.metric_id, me.name, m.value, m.date
+		FROM plant_measurements m
+		LEFT OUTER JOIN metric me ON me.id = m.metric_id
+		WHERE m.plant_id = $1
+		ORDER BY date DESC
+		LIMIT %d`, PlantHistoryLimit), plantID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query measurements")
 		return nil
@@ -545,14 +591,15 @@ func loadPlantMeasurements(db *sql.DB, plantID uint) []types.Measurement {
 	var measurements []types.Measurement
 	for rows.Next() {
 		var id uint
+		var metricID int
 		var name string
 		var value float64
 		var date time.Time
-		if err := rows.Scan(&id, &name, &value, &date); err != nil {
+		if err := rows.Scan(&id, &metricID, &name, &value, &date); err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan measurement")
 			continue
 		}
-		measurements = append(measurements, types.Measurement{ID: id, Name: name, Value: value, Date: utils.AsLocal(date)})
+		measurements = append(measurements, types.Measurement{ID: id, MetricID: metricID, Name: name, Value: value, Date: utils.AsLocal(date)})
 	}
 	return measurements
 }
@@ -561,14 +608,38 @@ func loadPlantMeasurements(db *sql.DB, plantID uint) []types.Measurement {
 func loadPlantActivities(db *sql.DB, plantID uint) []types.PlantActivity {
 	fieldLogger := logger.Log.WithField("func", "loadPlantActivities")
 
+	// Use a CTE here to be able to limit the results to PlantHistoryLimit
 	rows, err := db.Query(fmt.Sprintf(`
-		SELECT pa.id, a.id AS activity_id, a.name, pa.note, pa.date,
-		       a.is_watering, a.is_feeding
-		FROM plant_activity pa
-		LEFT OUTER JOIN activity a ON a.id = pa.activity_id
-		WHERE pa.plant_id = $1
-		ORDER BY date DESC
-		LIMIT %d`, PlantHistoryLimit), plantID)
+		WITH recent_activities AS (
+			SELECT pa.id,
+			       COALESCE(a.id, 0) AS activity_id,
+			       COALESCE(a.name, '') AS name,
+			       pa.note,
+			       pa.date,
+			       COALESCE(a.is_watering, false) AS is_watering,
+			       COALESCE(a.is_feeding, false) AS is_feeding
+			FROM plant_activity pa
+			LEFT OUTER JOIN activity a ON a.id = pa.activity_id
+			WHERE pa.plant_id = $1
+			ORDER BY pa.date DESC
+			LIMIT %d
+		)
+		SELECT ra.id,
+		       ra.activity_id,
+		       ra.name,
+		       ra.note,
+		       ra.date,
+		       ra.is_watering,
+		       ra.is_feeding,
+		       pm.id,
+		       pm.metric_id,
+		       me.name,
+		       pm.value,
+		       pm.date
+		FROM recent_activities ra
+		LEFT OUTER JOIN plant_measurements pm ON pm.plant_activity_id = ra.id
+		LEFT OUTER JOIN metric me ON me.id = pm.metric_id
+		ORDER BY ra.date DESC, ra.id DESC, me.name`, PlantHistoryLimit), plantID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query activities")
 		return nil
@@ -576,18 +647,47 @@ func loadPlantActivities(db *sql.DB, plantID uint) []types.PlantActivity {
 	defer rows.Close()
 
 	var activities []types.PlantActivity
+	activityIdx := make(map[uint]int)
 	for rows.Next() {
 		var id uint
 		var activityID int
 		var name, note string
 		var date time.Time
 		var isWatering, isFeeding bool
-		if err := rows.Scan(&id, &activityID, &name, &note, &date, &isWatering, &isFeeding); err != nil {
+		var measurementID sql.NullInt64
+		var metricID sql.NullInt64
+		var measurementName sql.NullString
+		var measurementValue sql.NullFloat64
+		var measurementDate sql.NullTime
+
+		if err := rows.Scan(&id, &activityID, &name, &note, &date, &isWatering, &isFeeding, &measurementID, &metricID, &measurementName, &measurementValue, &measurementDate); err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan activity")
 			continue
 		}
-		activities = append(activities, types.PlantActivity{ID: id, Name: name, Note: note, Date: utils.AsLocal(date), ActivityId: activityID, IsWatering: isWatering, IsFeeding: isFeeding})
+
+		i, exists := activityIdx[id]
+		if !exists {
+			activities = append(activities, types.PlantActivity{ID: id, Name: name, Note: note, Date: utils.AsLocal(date), ActivityId: activityID, IsWatering: isWatering, IsFeeding: isFeeding})
+			i = len(activities) - 1
+			activityIdx[id] = i
+		}
+
+		if measurementID.Valid {
+			measurement := types.Measurement{
+				ID:    uint(measurementID.Int64),
+				Name:  measurementName.String,
+				Value: measurementValue.Float64,
+			}
+			if metricID.Valid {
+				measurement.MetricID = int(metricID.Int64)
+			}
+			if measurementDate.Valid {
+				measurement.Date = utils.AsLocal(measurementDate.Time)
+			}
+			activities[i].Measurements = append(activities[i].Measurements, measurement)
+		}
 	}
+
 	return activities
 }
 

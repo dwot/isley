@@ -367,6 +367,10 @@ func AddZoneHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"id": id})
 }
 
+func GetMetricsHandler(c *gin.Context) {
+	c.JSON(http.StatusOK, config.Metrics)
+}
+
 func AddMetricHandler(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "AddMetricHandler")
 	var metric struct {
@@ -411,12 +415,69 @@ func AddMetricHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"id": id})
 }
 
+type activityMetricInput struct {
+	MetricID int  `json:"metric_id"`
+	Required bool `json:"required"`
+}
+
+// normalizeActivityMetrics takes a list of activityMetricInput and returns a normalized list where each metric ID appears only once with the required flag set to true if any of the inputs for that metric ID had required set to true
+func normalizeActivityMetrics(metrics []activityMetricInput) []activityMetricInput {
+	normalizedMetrics := make(map[int]bool)
+	for _, metric := range metrics {
+		if metric.MetricID <= 0 {
+			continue
+		}
+		if metric.Required {
+			normalizedMetrics[metric.MetricID] = true
+		} else if _, exists := normalizedMetrics[metric.MetricID]; !exists {
+			normalizedMetrics[metric.MetricID] = false
+		}
+	}
+
+	output := make([]activityMetricInput, 0, len(normalizedMetrics))
+	for metricID, required := range normalizedMetrics {
+		output = append(output, activityMetricInput{
+			MetricID: metricID,
+			Required: required,
+		})
+	}
+
+	return output
+}
+
+func saveActivityMetricLinks(tx *sql.Tx, activityID int, metrics []activityMetricInput) error {
+	// Delete existing links for this activity
+	if _, err := tx.Exec("DELETE FROM activity_metric WHERE activity_id = $1", activityID); err != nil {
+		return err
+	}
+
+	normalizedMetrics := normalizeActivityMetrics(metrics)
+	if len(normalizedMetrics) == 0 {
+		return nil
+	}
+
+	// Bulk insert all links in a single statement
+	valueClauses := make([]string, len(normalizedMetrics))
+	insertArgs := make([]any, 0, len(normalizedMetrics)*3)
+	for i, m := range normalizedMetrics {
+		base := i * 3
+		valueClauses[i] = fmt.Sprintf("($%d, $%d, $%d)", base+1, base+2, base+3)
+		insertArgs = append(insertArgs, activityID, m.MetricID, m.Required)
+	}
+	_, err := tx.Exec(
+		fmt.Sprintf("INSERT INTO activity_metric (activity_id, metric_id, required) VALUES %s", strings.Join(valueClauses, ",")),
+		insertArgs...,
+	)
+	return err
+}
+
 func AddActivityHandler(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "AddActivityHandler")
 	var activity struct {
-		Name       string `json:"activity_name"`
-		IsWatering bool   `json:"is_watering"`
-		IsFeeding  bool   `json:"is_feeding"`
+		Name       string                `json:"activity_name"`
+		IsWatering bool                  `json:"is_watering"`
+		IsFeeding  bool                  `json:"is_feeding"`
+		Metrics    []activityMetricInput `json:"activity_metrics"`
 	}
 	if err := c.ShouldBindJSON(&activity); err != nil {
 		fieldLogger.WithError(err).Error("Failed to add activity")
@@ -437,10 +498,17 @@ func AddActivityHandler(c *gin.Context) {
 
 	// Add activity to database
 	db := DBFromContext(c)
+	tx, err := db.Begin()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to start activity create transaction")
+		apiInternalError(c, "api_failed_to_start_tx")
+		return
+	}
+	defer tx.Rollback()
 
 	// Insert new activity and return new id
 	var id int
-	err := db.QueryRow(`
+	err = tx.QueryRow(`
 		INSERT INTO activity (name, is_watering, is_feeding)
 		VALUES ($1, $2, $3)
 		RETURNING id`, activity.Name, activity.IsWatering, activity.IsFeeding).Scan(&id)
@@ -449,7 +517,20 @@ func AddActivityHandler(c *gin.Context) {
 		apiInternalError(c, "api_failed_to_add_activity")
 		return
 	}
-	config.Activities = append(config.Activities, types.Activity{ID: id, Name: activity.Name, IsWatering: activity.IsWatering, IsFeeding: activity.IsFeeding})
+
+	if err := saveActivityMetricLinks(tx, id, activity.Metrics); err != nil {
+		fieldLogger.WithError(err).Error("Failed to save activity metrics")
+		apiInternalError(c, "api_failed_to_add_activity")
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		fieldLogger.WithError(err).Error("Failed to commit activity create transaction")
+		apiInternalError(c, "api_failed_to_add_activity")
+		return
+	}
+
+	config.Activities = GetActivities(db)
 
 	c.JSON(http.StatusCreated, gin.H{"id": id})
 }
@@ -540,10 +621,16 @@ func UpdateMetricHandler(c *gin.Context) {
 func UpdateActivityHandler(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "UpdateActivityHandler")
 	id := c.Param("id")
+	activityID, err := strconv.Atoi(id)
+	if err != nil || activityID <= 0 {
+		apiBadRequest(c, "api_invalid_payload")
+		return
+	}
 	var activity struct {
-		Name       string `json:"activity_name"`
-		IsWatering bool   `json:"is_watering"`
-		IsFeeding  bool   `json:"is_feeding"`
+		Name       string                `json:"activity_name"`
+		IsWatering bool                  `json:"is_watering"`
+		IsFeeding  bool                  `json:"is_feeding"`
+		Metrics    []activityMetricInput `json:"activity_metrics"`
 	}
 	if err := c.ShouldBindJSON(&activity); err != nil {
 		fieldLogger.WithError(err).Error("Failed to update activity")
@@ -557,11 +644,17 @@ func UpdateActivityHandler(c *gin.Context) {
 
 	// Update activity in database
 	db := DBFromContext(c)
+	tx, err := db.Begin()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to start activity update transaction")
+		apiInternalError(c, "api_failed_to_start_tx")
+		return
+	}
+	defer tx.Rollback()
 
 	// Check lock but do not block updates; log a warning if locked
 	var lock bool
-	var err error
-	err = db.QueryRow("SELECT lock FROM activity WHERE id = $1", id).Scan(&lock)
+	err = tx.QueryRow("SELECT lock FROM activity WHERE id = $1", id).Scan(&lock)
 	if err != nil {
 		fieldLogger.WithError(err).Warn("Failed to check activity lock; proceeding with update")
 	} else if lock {
@@ -569,13 +662,25 @@ func UpdateActivityHandler(c *gin.Context) {
 	}
 
 	// Perform the update
-	_, err = db.Exec(`
+	_, err = tx.Exec(`
 		UPDATE activity
 		SET name = $1, is_watering = $2, is_feeding = $3
 		WHERE id = $4`, activity.Name, activity.IsWatering, activity.IsFeeding, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update activity")
 		apiInternalError(c, "api_failed_to_update_activity")
+		return
+	}
+
+	if err := saveActivityMetricLinks(tx, activityID, activity.Metrics); err != nil {
+		fieldLogger.WithError(err).Error("Failed to update activity metrics")
+		apiBadRequest(c, "api_invalid_payload")
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		fieldLogger.WithError(err).Error("Failed to commit activity update transaction")
+		apiInternalError(c, "api_failed_to_commit_tx")
 		return
 	}
 
@@ -680,24 +785,38 @@ func DeleteMetricHandler(c *gin.Context) {
 
 	// Delete metric from database
 	db := DBFromContext(c)
+	tx, err := db.Begin()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to start metric delete transaction")
+		apiInternalError(c, "api_failed_to_start_tx")
+		return
+	}
+	defer tx.Rollback()
 
 	// Check if metric exists and lock = TRUE
 	var lock bool
-	var err error
-	err = db.QueryRow("SELECT lock FROM metric WHERE id = $1", id).Scan(&lock)
+	err = tx.QueryRow("SELECT lock FROM metric WHERE id = $1", id).Scan(&lock)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete metric")
 		apiInternalError(c, "api_failed_to_delete_metric")
 		return
 	}
 	if lock {
-		fieldLogger.Error("Failed to delete metric")
+		fieldLogger.Error("Unable to delete a locked metric")
 		apiBadRequest(c, "api_metric_cannot_delete")
 		return
 	}
 
+	// Delete any links to activities
+	_, err = tx.Exec("DELETE FROM activity_metric WHERE metric_id = $1", id)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to delete activity metric links")
+		apiInternalError(c, "api_failed_to_delete_metric")
+		return
+	}
+
 	// Delete any measurements associated with this metric
-	_, err = db.Exec("DELETE FROM plant_measurements WHERE metric_id = $1", id)
+	_, err = tx.Exec("DELETE FROM plant_measurements WHERE metric_id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete measurements")
 		apiInternalError(c, "api_failed_to_delete_measurements")
@@ -705,10 +824,16 @@ func DeleteMetricHandler(c *gin.Context) {
 	}
 
 	// Delete metric from database
-	_, err = db.Exec("DELETE FROM metric WHERE id = $1", id)
+	_, err = tx.Exec("DELETE FROM metric WHERE id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete metric")
 		apiInternalError(c, "api_failed_to_delete_metric")
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		fieldLogger.WithError(err).Error("Failed to commit metric delete transaction")
+		apiInternalError(c, "api_failed_to_commit_tx")
 		return
 	}
 
@@ -724,11 +849,17 @@ func DeleteActivityHandler(c *gin.Context) {
 
 	// Delete activity from database
 	db := DBFromContext(c)
+	tx, err := db.Begin()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to start activity delete transaction")
+		apiInternalError(c, "api_failed_to_start_tx")
+		return
+	}
+	defer tx.Rollback()
 
 	// Check lock but do not block deletion; log a warning if locked
 	var lock bool
-	var err error
-	err = db.QueryRow("SELECT lock FROM activity WHERE id = $1", id).Scan(&lock)
+	err = tx.QueryRow("SELECT lock FROM activity WHERE id = $1", id).Scan(&lock)
 	if err != nil {
 		fieldLogger.WithError(err).Warn("Failed to check activity lock; proceeding with deletion")
 	} else if lock {
@@ -736,18 +867,31 @@ func DeleteActivityHandler(c *gin.Context) {
 	}
 
 	// Delete any plant_activities associated with this activity
-	_, err = db.Exec("DELETE FROM plant_activity WHERE activity_id = $1", id)
+	_, err = tx.Exec("DELETE FROM plant_activity WHERE activity_id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete plant_activities")
 		apiInternalError(c, "api_failed_to_delete_plant_activities")
 		return
 	}
 
+	_, err = tx.Exec("DELETE FROM activity_metric WHERE activity_id = $1", id)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to delete activity metric links")
+		apiInternalError(c, "api_failed_to_delete_plant_activities")
+		return
+	}
+
 	// Delete activity from database
-	_, err = db.Exec("DELETE FROM activity WHERE id = $1", id)
+	_, err = tx.Exec("DELETE FROM activity WHERE id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete activity")
 		apiInternalError(c, "api_failed_to_delete_activity")
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		fieldLogger.WithError(err).Error("Failed to commit activity delete transaction")
+		apiInternalError(c, "api_failed_to_commit_tx")
 		return
 	}
 

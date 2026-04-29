@@ -2,10 +2,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const form = document.getElementById("addActivityForm");
     const addActivityModal = document.getElementById("addActivityModal");
     const activityDateInput = document.getElementById("activityDate");
+    const activitySelect = document.getElementById("activityName");
+    const measurementsContainer = document.getElementById("addActivityMeasurements");
+
+    async function updateMeasurementInputs() {
+        const links = activityMetrics.getLinksFromSelect(activitySelect);
+        await activityMetrics.renderInputs(measurementsContainer, links);
+    }
+
+    activitySelect.addEventListener("change", updateMeasurementInputs);
 
     // Set default date/time when the modal is shown
     addActivityModal.addEventListener("show.bs.modal", () => {
         formHelpers.setDateTimeNow("activityDate");
+        updateMeasurementInputs();
     });
 
     form.addEventListener("submit", (e) => {
@@ -23,6 +33,7 @@ document.addEventListener("DOMContentLoaded", () => {
             activity_id: parseInt(activityId, 10),
             note: activityNote,
             date: date,
+            measurements: activityMetrics.collectValues(measurementsContainer),
         };
 
         // Send POST request to /plantActivity
