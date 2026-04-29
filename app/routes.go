@@ -1,12 +1,15 @@
 package app
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 
 	"isley/handlers"
+	"isley/logger"
 	"isley/routes"
 	"isley/utils"
 )
@@ -88,6 +91,24 @@ func registerAPIRoutes(r *gin.Engine) {
 	routes.AddExternalApiRoutes(apiProtected)
 }
 
+// handleHealth answers the Dockerfile HEALTHCHECK and any external probe.
+// It pings the database with a short timeout so an offline DB surfaces as
+// 503, rather than the container being reported healthy with no backend.
 func handleHealth(c *gin.Context) {
+	db := handlers.DBFromContext(c)
+	if db == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unavailable", "error": "db not configured"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+	defer cancel()
+
+	if err := db.PingContext(ctx); err != nil {
+		logger.Log.WithError(err).Warn("Health check: database ping failed")
+		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unavailable", "error": "db unreachable"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }

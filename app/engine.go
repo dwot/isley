@@ -67,8 +67,8 @@ func NewEngine(cfg Config) (*gin.Engine, error) {
 	if cfg.Assets == nil {
 		return nil, fmt.Errorf("app.NewEngine: cfg.Assets is required")
 	}
-	if len(cfg.SessionSecret) == 0 {
-		return nil, fmt.Errorf("app.NewEngine: cfg.SessionSecret is required")
+	if len(cfg.SessionSecret) < 32 {
+		return nil, fmt.Errorf("app.NewEngine: cfg.SessionSecret must be at least 32 bytes (got %d)", len(cfg.SessionSecret))
 	}
 
 	cfg = ResolvePathDefaults(cfg)
@@ -156,7 +156,11 @@ func securityHeadersMiddleware(store *config.Store) gin.HandlerFunc {
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 
 		nonceBytes := make([]byte, 16)
-		_, _ = rand.Read(nonceBytes)
+		if _, err := rand.Read(nonceBytes); err != nil {
+			logger.Log.WithError(err).Error("Failed to generate CSP nonce")
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
 		nonce := fmt.Sprintf("%x", nonceBytes)
 		c.Set("cspNonce", nonce)
 
@@ -385,12 +389,6 @@ func buildFuncMap(store *config.Store) template.FuncMap {
 			}
 			return t.Format(utils.LayoutDateTime)
 		},
-		"formatDateISO": func(t time.Time) string {
-			if loc := configuredLocation(); loc != nil {
-				return t.In(loc).Format(utils.LayoutDate)
-			}
-			return t.Format(utils.LayoutDate)
-		},
 		"isZeroDate": func(t time.Time) bool {
 			return utils.IsZeroDate(t)
 		},
@@ -436,14 +434,6 @@ func buildFuncMap(store *config.Store) template.FuncMap {
 			unsafe := blackfriday.Run([]byte(t))
 			safe := bluemonday.UGCPolicy().SanitizeBytes(unsafe)
 			return template.HTML(safe)
-		},
-		"jsonify": func(v interface{}) template.HTML {
-			a, err := json.Marshal(v)
-			if err != nil {
-				logger.Log.WithError(err).Error("Error marshalling JSON")
-				return ""
-			}
-			return template.HTML(a)
 		},
 		"csrfToken": func() string {
 			// Placeholder — overridden per-request by middleware via c.Set.

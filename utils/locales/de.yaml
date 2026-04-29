@@ -629,6 +629,8 @@ api_zone_updated: "Zone aktualisiert"
 api_error_creating_request: "Fehler beim Erstellen der Anfrage"
 api_error_reading_response: "Fehler beim Lesen der Antwort"
 api_error_sending_request_aci: "Fehler beim Senden der Anfrage an AC Infinity"
+api_error_sending_request_ecowitt: "Fehler beim Senden der Anfrage an EcoWitt"
+api_error_invalid_response: "Ungültige Antwort vom Upstream-Dienst"
 api_sensor_dates_required: "Entweder Minuten oder Start- und Enddatum müssen angegeben werden"
 
 # Activity log / notebook / export (issue #148) - NEEDS_TRANSLATION

@@ -627,6 +627,8 @@ api_zone_updated: "Zone mise à jour"
 api_error_creating_request: "Erreur lors de la création de la requête"
 api_error_reading_response: "Erreur lors de la lecture du corps de la réponse"
 api_error_sending_request_aci: "Erreur lors de l'envoi de la requête à AC Infinity"
+api_error_sending_request_ecowitt: "Erreur lors de l'envoi de la requête à EcoWitt"
+api_error_invalid_response: "Réponse invalide du service externe"
 api_sensor_dates_required: "Des minutes ou des dates de début et de fin doivent être fournies"
 
 # Activity log / notebook / export (issue #148) - NEEDS_TRANSLATION

@@ -859,13 +859,6 @@ func UpdatePlant(c *gin.Context) {
 
 func getPlantsByStatus(db *sql.DB, statuses []int) ([]types.PlantListResponse, error) {
 	fieldLogger := logger.Log.WithField("func", "getPlantsByStatus")
-	// Generate placeholders for the number of statuses
-	placeholders := make([]string, len(statuses))
-	args := make([]interface{}, len(statuses))
-	for i, status := range statuses {
-		placeholders[i] = "?"
-		args[i] = status
-	}
 
 	driver := model.GetDriver()
 	statusVals := make([]interface{}, len(statuses))

@@ -18,6 +18,17 @@ var (
 	// httpClientShort is a client with a shorter timeout for quick probes
 	// like EcoWitt device scanning where slow responses likely mean failure.
 	httpClientShort = &http.Client{Timeout: HTTPTimeoutShort}
+
+	// httpClientNoRedirect mirrors httpClientShort but refuses to follow
+	// redirects — used by EcoWitt LAN scans where a redirect to a
+	// non-LAN host would defeat the SSRF guards on the user-supplied
+	// server address.
+	httpClientNoRedirect = &http.Client{
+		Timeout: HTTPTimeoutShort,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 )
 
 // ---------------------------------------------------------------------------
@@ -151,4 +162,10 @@ const (
 	// DefaultStreamGrabIntervalMs is the default stream grab interval in
 	// milliseconds, used when the stored setting is unparseable.
 	DefaultStreamGrabIntervalMs = 3000
+	// MaxSensorScanResponseBytes caps the size of an inbound sensor-API
+	// response body (AC Infinity, EcoWitt). The HTTPTimeout values bound
+	// the wall clock, but a slow-drip server (notably user-supplied
+	// EcoWitt LAN addresses) could otherwise stream hundreds of MB inside
+	// that window.
+	MaxSensorScanResponseBytes = 4 * 1024 * 1024
 )

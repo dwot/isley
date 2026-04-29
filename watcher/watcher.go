@@ -34,6 +34,11 @@ const (
 	pruneInterval = 24 * time.Hour
 	// rollupInterval is how often hourly rollups are refreshed inside Run.
 	rollupInterval = 10 * time.Minute
+	// maxSensorResponseBytes caps the size of a single sensor API response
+	// body. The wall-clock timeout already bounds the request, but a
+	// slow-drip server (notably user-supplied EcoWitt LAN addresses)
+	// could otherwise stream hundreds of MB inside that window.
+	maxSensorResponseBytes = 4 * 1024 * 1024
 
 	// defaultACIBaseURL is the production AC Infinity API host. Tests
 	// override this on the Watcher struct to point at httptest fakes.
@@ -181,7 +186,7 @@ func (w *Watcher) PollEcoWitt(ctx context.Context, server string) {
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxSensorResponseBytes))
 	if err != nil {
 		w.Logger.WithError(err).Error("Error reading EcoWitt response body")
 		return
@@ -235,7 +240,7 @@ func (w *Watcher) PollACI(ctx context.Context, token string) {
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxSensorResponseBytes))
 	if err != nil {
 		w.Logger.WithError(err).Error("Error reading ACI response body")
 		return

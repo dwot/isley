@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   isley:
-    image: dwot/isley:latest
+    image: dwot/isley:${ISLEY_VERSION:-latest}
     ports:
       - "8080:8080"
     environment:

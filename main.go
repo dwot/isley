@@ -27,15 +27,17 @@ import (
 //go:embed model/migrations/sqlite/*.sql model/migrations/postgres/*.sql web/templates/**/*.html web/static/**/* utils/fonts/* VERSION
 var embeddedFiles embed.FS
 
-// trustedProxies trusts loopback and RFC-1918 private ranges so that
-// c.ClientIP() returns the real client IP behind a reverse proxy. Users
-// running without a proxy are unaffected.
+// trustedProxies trusts loopback, RFC-1918 private ranges, and the IPv6
+// unique-local block (fc00::/7) so that c.ClientIP() returns the real
+// client IP behind a reverse proxy. Users running without a proxy are
+// unaffected.
 var trustedProxies = []string{
 	"127.0.0.1",
 	"10.0.0.0/8",
 	"172.16.0.0/12",
 	"192.168.0.0/16",
 	"::1",
+	"fc00::/7",
 }
 
 func main() {

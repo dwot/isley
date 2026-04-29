@@ -115,6 +115,7 @@ func ScanACInfinitySensors(c *gin.Context) {
 	req, err := http.NewRequest("POST", url, reqBody)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error creating request")
+		apiInternalError(c, "api_error_creating_request")
 		return
 	}
 
@@ -126,13 +127,15 @@ func ScanACInfinitySensors(c *gin.Context) {
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error sending request")
+		apiError(c, http.StatusBadGateway, "api_error_sending_request_aci")
 		return
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, MaxSensorScanResponseBytes))
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error reading response body")
+		apiError(c, http.StatusBadGateway, "api_error_reading_response")
 		return
 	}
 
@@ -140,6 +143,7 @@ func ScanACInfinitySensors(c *gin.Context) {
 	err = json.Unmarshal(respBody, &jsonResponse)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error unmarshalling JSON response")
+		apiError(c, http.StatusBadGateway, "api_error_invalid_response")
 		return
 	}
 
@@ -370,7 +374,7 @@ func DumpACInfinityJSON(c *gin.Context) {
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, MaxSensorScanResponseBytes))
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error reading response body")
 		apiInternalError(c, "api_error_reading_response")
@@ -489,6 +493,7 @@ func ScanEcoWittSensors(c *gin.Context) {
 	// Validate the input server address before constructing the request URL
 	if !ValidateServerAddress(input.ServerAddress) {
 		fieldLogger.Error("Invalid server address")
+		apiBadRequest(c, "api_invalid_input")
 		return
 	}
 
@@ -498,27 +503,22 @@ func ScanEcoWittSensors(c *gin.Context) {
 	req, err := http.NewRequest("GET", url, reqBody)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error creating request")
+		apiInternalError(c, "api_error_creating_request")
 		return
 	}
 
-	// Create a restricted HTTP client
-	client := &http.Client{
-		Timeout: HTTPTimeoutShort,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
-	resp, err := client.Do(req)
+	resp, err := httpClientNoRedirect.Do(req)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error sending request")
+		apiError(c, http.StatusBadGateway, "api_error_sending_request_ecowitt")
 		return
 	}
 
 	defer resp.Body.Close()
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, MaxSensorScanResponseBytes))
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error reading response body")
+		apiError(c, http.StatusBadGateway, "api_error_reading_response")
 		return
 	}
 
@@ -527,6 +527,7 @@ func ScanEcoWittSensors(c *gin.Context) {
 	err = json.Unmarshal(respBody, &apiResponse)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error unmarshalling JSON response")
+		apiError(c, http.StatusBadGateway, "api_error_invalid_response")
 		return
 	}
 

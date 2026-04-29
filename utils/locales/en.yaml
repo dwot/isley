@@ -634,6 +634,8 @@ api_zone_updated: "Zone updated"
 api_error_creating_request: "Error creating request"
 api_error_reading_response: "Error reading response body"
 api_error_sending_request_aci: "Error sending request to AC Infinity"
+api_error_sending_request_ecowitt: "Error sending request to EcoWitt"
+api_error_invalid_response: "Invalid response from upstream service"
 api_sensor_dates_required: "Either minutes or start and end dates must be provided"
 
 # Activity log / notebook / export (issue #148)

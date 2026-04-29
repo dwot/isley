@@ -166,7 +166,7 @@ build-dev:
 
 sign-dev:
   stage: sign
-  image: alpine:3.20
+  image: alpine:3.23
   rules:
     - if: '$CI_COMMIT_BRANCH == "dev"'
   before_script:
@@ -181,7 +181,7 @@ sign-dev:
 
 publish_dev_to_github:
   stage: sync-public
-  image: alpine:3.20
+  image: alpine:3.23
   before_script:
     - apk add git
   script:

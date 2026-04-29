@@ -36,7 +36,7 @@ func GenerateAPIKey() string {
 // bcrypt is preferred over fast hashes like SHA-256 for secret storage
 // because its adaptive cost factor resists brute-force attacks.
 func HashAPIKey(plaintext string) string {
-	hash, err := bcrypt.GenerateFromPassword([]byte(plaintext), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(plaintext), utils.BcryptCost)
 	if err != nil {
 		logger.Log.WithError(err).Error("Failed to hash API key")
 		return ""

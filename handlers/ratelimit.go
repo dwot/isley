@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"sync"
 	"time"
@@ -83,15 +85,17 @@ func IngestRateLimitMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		rl := RateLimiterServiceFromContext(c).Ingest()
 
-		key := c.GetHeader("X-API-KEY")
-		if key == "" {
-			key = "ip:" + c.ClientIP()
+		var key, logKey string
+		if apiKey := c.GetHeader("X-API-KEY"); apiKey != "" {
+			key = "key:" + apiKey
+			logKey = "key:" + redactAPIKey(apiKey)
 		} else {
-			key = "key:" + key
+			key = "ip:" + c.ClientIP()
+			logKey = key
 		}
 
 		if !rl.Allow(key) {
-			logger.Log.WithField("key", key).Warn("Rate limit exceeded")
+			logger.Log.WithField("key", logKey).Warn("Rate limit exceeded")
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
 				"error": T(c, "api_rate_limit_exceeded"),
 			})
@@ -100,4 +104,12 @@ func IngestRateLimitMiddleware() gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+// redactAPIKey returns a stable, non-reversible identifier for an API key
+// so rate-limit logs can correlate offending callers without leaking the
+// raw secret. Returns the first 12 hex chars of SHA-256(key).
+func redactAPIKey(key string) string {
+	sum := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(sum[:])[:12]
 }
