@@ -1,3 +1,23 @@
+function selectedMetricIds(selectId) {
+    const select = document.getElementById(selectId);
+    if (!select) return [];
+
+    return Array.from(select.selectedOptions)
+        .map(opt => parseInt(opt.value, 10))
+        .filter(id => Number.isInteger(id) && id > 0);
+}
+
+function buildActivityMetricsPayload(requiredSelectId, optionalSelectId) {
+    const requiredIDs = selectedMetricIds(requiredSelectId);
+    const requiredSet = new Set(requiredIDs);
+    const optionalIDs = selectedMetricIds(optionalSelectId).filter(id => !requiredSet.has(id));
+    const metrics = [];
+
+    requiredIDs.forEach(metricID => metrics.push({ metric_id: metricID, required: true }));
+    optionalIDs.forEach(metricID => metrics.push({ metric_id: metricID, required: false }));
+    return metrics;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     const pollingSlider = document.getElementById("pollingInterval");
     const pollingValue = document.getElementById("pollingValue");
@@ -30,7 +50,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
 document.addEventListener("DOMContentLoaded", () => {
     const addStreamForm = document.getElementById("addStreamForm");
-    const addStreamModal = document.getElementById("addStreamModal");
 
     addStreamForm.addEventListener("submit", (e) => {
         e.preventDefault();
@@ -79,13 +98,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
 document.addEventListener("DOMContentLoaded", () => {
     const form = document.getElementById("addZoneForm");
-    const addZoneModal = document.getElementById("addZoneModal");
 
     form.addEventListener("submit", (e) => {
         e.preventDefault();
 
         // Gather form data
-        const zoneId = document.getElementById("zoneId").value;
         const zoneName = document.getElementById("zoneName").value;
 
         // Construct the payload
@@ -293,30 +310,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
 document.addEventListener("DOMContentLoaded", () => {
     const form = document.getElementById("addActivityForm");
-    const addActivityModal = document.getElementById("addActivityModal");
-
-    function selectedMetricIds(selectId) {
-        return Array.from(document.getElementById(selectId).selectedOptions)
-            .map(opt => parseInt(opt.value, 10))
-            .filter(id => Number.isInteger(id) && id > 0);
-    }
-
-    function buildActivityMetricsPayload(requiredSelectId, optionalSelectId) {
-        const requiredIDs = selectedMetricIds(requiredSelectId);
-        const requiredSet = new Set(requiredIDs);
-        const optionalIDs = selectedMetricIds(optionalSelectId).filter(id => !requiredSet.has(id));
-        const metrics = [];
-
-        requiredIDs.forEach(metricID => metrics.push({ metric_id: metricID, required: true }));
-        optionalIDs.forEach(metricID => metrics.push({ metric_id: metricID, required: false }));
-        return metrics;
-    }
 
     form.addEventListener("submit", (e) => {
         e.preventDefault();
 
         // Gather form data
-        const activityId = document.getElementById("activityId").value;
         const activityName = document.getElementById("activityName").value;
         const isWatering = document.getElementById("activityIsWatering").checked;
         const isFeeding = document.getElementById("activityIsFeeding").checked;
@@ -366,23 +364,6 @@ document.addEventListener("DOMContentLoaded", () => {
         Array.from(document.getElementById(selectId).options).forEach(opt => {
             opt.selected = valueSet.has(opt.value);
         });
-    }
-
-    function selectedMetricIds(selectId) {
-        return Array.from(document.getElementById(selectId).selectedOptions)
-            .map(opt => parseInt(opt.value, 10))
-            .filter(id => Number.isInteger(id) && id > 0);
-    }
-
-    function buildActivityMetricsPayload(requiredSelectId, optionalSelectId) {
-        const requiredIDs = selectedMetricIds(requiredSelectId);
-        const requiredSet = new Set(requiredIDs);
-        const optionalIDs = selectedMetricIds(optionalSelectId).filter(id => !requiredSet.has(id));
-        const metrics = [];
-
-        requiredIDs.forEach(metricID => metrics.push({ metric_id: metricID, required: true }));
-        optionalIDs.forEach(metricID => metrics.push({ metric_id: metricID, required: false }));
-        return metrics;
     }
 
     document.querySelectorAll(".activity-row").forEach(row => {
@@ -490,13 +471,11 @@ document.addEventListener("DOMContentLoaded", ()=> {
 
 document.addEventListener("DOMContentLoaded", () => {
     const form = document.getElementById("addMetricForm");
-    const addMetricModal = document.getElementById("addMetricModal");
 
     form.addEventListener("submit", (e) => {
         e.preventDefault();
 
         // Gather form data
-        const metricId = document.getElementById("metricId").value;
         const metricName = document.getElementById("metricName").value;
         const metricUnit = document.getElementById("metricUnit").value;
 
@@ -583,13 +562,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
 document.addEventListener("DOMContentLoaded", () => {
     const form = document.getElementById("addBreederForm");
-    const addBreederModal = document.getElementById("addBreederModal");
 
     form.addEventListener("submit", (e) => {
         e.preventDefault();
 
         // Gather form data
-        const breederId = document.getElementById("breederId").value;
         const breederName = document.getElementById("breederName").value;
 
         // Construct the payload
