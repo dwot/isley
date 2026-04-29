@@ -155,8 +155,15 @@ const (
 // ---------------------------------------------------------------------------
 
 const (
-	// MaxMultipartFormSize is the size limit for multipart form uploads (10 MB).
+	// MaxMultipartFormSize is the in-memory threshold for multipart form parsing
+	// (10 MB). Larger requests spill to disk during parse — use MaxBytesReader
+	// on the request body for an actual upload cap.
 	MaxMultipartFormSize = 10 << 20
+	// MaxPlantImageFileSize bounds a single uploaded plant image (50 MB).
+	MaxPlantImageFileSize = 50 << 20
+	// MaxPlantImageRequestSize bounds the total multi-image upload request body
+	// (250 MB), enough for several large photos in one go.
+	MaxPlantImageRequestSize = 250 << 20
 	// MinBackupSizeMB is the minimum allowed value for the max backup size setting.
 	MinBackupSizeMB = 100
 	// DefaultStreamGrabIntervalMs is the default stream grab interval in

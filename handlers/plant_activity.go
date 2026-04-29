@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"isley/logger"
+	"isley/utils"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -23,6 +24,15 @@ func CreatePlantActivity(c *gin.Context) {
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Failed to bind JSON")
 		apiBadRequest(c, "api_invalid_input")
+		return
+	}
+
+	if err := utils.ValidateStringLength("note", input.Note, utils.MaxNotesLength); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+	if err := utils.ValidateDate("date", input.Date); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
 
@@ -61,6 +71,15 @@ func EditActivity(c *gin.Context) {
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Failed to bind JSON")
 		apiBadRequest(c, "api_invalid_input")
+		return
+	}
+
+	if err := utils.ValidateStringLength("note", input.Note, utils.MaxNotesLength); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+	if err := utils.ValidateDate("date", input.Date); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
 
@@ -131,6 +150,15 @@ func RecordMultiPlantActivity(c *gin.Context) {
 		return
 	}
 
+	if err := utils.ValidateStringLength("note", request.Note, utils.MaxNotesLength); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+	if err := utils.ValidateDate("date", request.Date); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+
 	fieldLogger.WithFields(logrus.Fields{
 		"activity_id": request.ActivityID,
 		"note":        request.Note,
@@ -140,14 +168,34 @@ func RecordMultiPlantActivity(c *gin.Context) {
 
 	db := DBFromContext(c)
 
+	tx, err := db.Begin()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to begin transaction")
+		apiInternalError(c, "api_failed_to_save_activity")
+		return
+	}
+	defer tx.Rollback() // no-op once Commit succeeds
+
+	stmt, err := tx.Prepare(`INSERT INTO plant_activity (plant_id, activity_id, note, date) VALUES ($1, $2, $3, $4)`)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to prepare activity insert")
+		apiInternalError(c, "api_failed_to_save_activity")
+		return
+	}
+	defer stmt.Close()
+
 	for _, plantID := range request.PlantIDs {
-		_, err := db.Exec(`INSERT INTO plant_activity (plant_id, activity_id, note, date) VALUES ($1, $2, $3, $4)`,
-			plantID, request.ActivityID, request.Note, request.Date)
-		if err != nil {
+		if _, err := stmt.Exec(plantID, request.ActivityID, request.Note, request.Date); err != nil {
 			fieldLogger.WithError(err).WithField("plant_id", plantID).Error("Failed to insert activity for plant")
 			apiInternalError(c, "api_failed_to_save_activity")
 			return
 		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		fieldLogger.WithError(err).Error("Failed to commit activity inserts")
+		apiInternalError(c, "api_failed_to_save_activity")
+		return
 	}
 
 	fieldLogger.Info("Activities recorded successfully for multiple plants")

@@ -33,6 +33,7 @@ var conflictKeys = map[string]string{
 	"breeder":            "id",
 	"sensor_data":        "id",
 	"streams":            "id",
+	"strain_lineage":     "id",
 }
 
 var boolToIntFields = map[string][]string{
@@ -44,6 +45,7 @@ var orderedTables = []string{
 	"zones",
 	"breeder", // Must come before strain
 	"strain",
+	"strain_lineage", // After strain — references strain(id)
 	"sensors",
 	"sensor_data",
 	// rolling_averages is excluded — it's a trigger-maintained cache (one row per sensor)
@@ -247,6 +249,7 @@ func hasSerialID(table string) bool {
 		"plant_images":       true,
 		"breeder":            true,
 		"streams":            true,
+		"strain_lineage":     true,
 	}
 
 	return serialTables[table]

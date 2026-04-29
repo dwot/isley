@@ -741,6 +741,33 @@ func LinkSensorsToPlant(c *gin.Context) {
 		return
 	}
 
+	// Initialize the database
+	db := DBFromContext(c)
+
+	// Validate that every supplied sensor ID actually exists. Without this
+	// check the JSON column happily accepts dangling references that later
+	// surface as silent NULL joins on the plant detail page.
+	if len(input.SensorIDs) > 0 {
+		placeholders := make([]string, len(input.SensorIDs))
+		args := make([]interface{}, len(input.SensorIDs))
+		for i, id := range input.SensorIDs {
+			placeholders[i] = fmt.Sprintf("$%d", i+1)
+			args[i] = id
+		}
+		var found int
+		query := fmt.Sprintf("SELECT COUNT(*) FROM sensors WHERE id IN (%s)", strings.Join(placeholders, ","))
+		if err := db.QueryRow(query, args...).Scan(&found); err != nil {
+			fieldLogger.WithError(err).Error("Failed to validate sensor IDs")
+			apiInternalError(c, "api_database_query_error")
+			return
+		}
+		if found != len(input.SensorIDs) {
+			fieldLogger.WithField("requested", len(input.SensorIDs)).WithField("found", found).Warn("Rejected link with unknown sensor IDs")
+			apiBadRequest(c, "api_invalid_sensor_ids")
+			return
+		}
+	}
+
 	// Serialize SensorIDs to JSON
 	sensorIDsJSON, err := json.Marshal(input.SensorIDs)
 	if err != nil {
@@ -748,9 +775,6 @@ func LinkSensorsToPlant(c *gin.Context) {
 		apiInternalError(c, "api_failed_to_process_sensor_ids")
 		return
 	}
-
-	// Initialize the database
-	db := DBFromContext(c)
 
 	// Update the plant with the serialized sensor IDs
 	_, err = db.Exec("UPDATE plant SET sensors = $1 WHERE id = $2", sensorIDsJSON, input.PlantID)

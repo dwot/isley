@@ -597,24 +597,15 @@ func findOrCreateSensor(db *sql.DB, name, source, device, sensorType string, zon
 	return id, err
 }
 
+// checkInsertSensor is a fire-and-forget wrapper around findOrCreateSensor
+// used by the AC Infinity / EcoWitt scan handlers, which discover many
+// sensors per call and don't need the resolved id. Routing through
+// findOrCreateSensor keeps the locked SELECT-then-INSERT path the only way
+// to register a new sensor row, closing the same TOCTOU window the ingest
+// path already addressed.
 func checkInsertSensor(db *sql.DB, source string, device string, sensorType string, name string, zoneId *int, unit string) {
-	fieldLogger := logger.Log.WithField("func", "checkInsertSensor")
-	sensorid := 0
-	err := db.QueryRow("SELECT id FROM sensors WHERE source = $1 and device = $2 and type = $3", source, device, sensorType).Scan(&sensorid)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			// Sensor not registered; skip silently
-		} else {
-			fieldLogger.WithError(err).Error("Error querying for sensor")
-			return
-		}
-	}
-	if sensorid == 0 {
-		_, err := db.Exec("INSERT INTO sensors (name, source, device, type, zone_id, unit) VALUES ($1, $2, $3, $4, $5, $6)", name, source, device, sensorType, zoneId, unit)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Error inserting sensor")
-			return
-		}
+	if _, err := findOrCreateSensor(db, name, source, device, sensorType, zoneId, unit); err != nil {
+		logger.Log.WithField("func", "checkInsertSensor").WithError(err).Error("Error registering sensor")
 	}
 }
 

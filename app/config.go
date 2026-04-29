@@ -40,6 +40,23 @@ type Config struct {
 	// reads ISLEY_SECURE_COOKIES; tests default to false.
 	SecureCookies bool
 
+	// HSTSMaxAge enables the Strict-Transport-Security response header
+	// when > 0. Production reads ISLEY_HSTS_MAX_AGE (seconds); tests
+	// leave it 0. Only enable when Isley is fronted by HTTPS — sending
+	// HSTS over plain HTTP poisons clients that previously connected
+	// over TLS.
+	HSTSMaxAge int
+
+	// HSTSIncludeSubdomains adds `; includeSubDomains` to the HSTS header
+	// when HSTSMaxAge > 0. Production reads ISLEY_HSTS_INCLUDE_SUBDOMAINS.
+	HSTSIncludeSubdomains bool
+
+	// HSTSPreload adds `; preload` to the HSTS header when HSTSMaxAge > 0
+	// and HSTSIncludeSubdomains is true. Production reads ISLEY_HSTS_PRELOAD.
+	// Operators should only opt in if they intend to submit the host to
+	// the HSTS preload list (https://hstspreload.org).
+	HSTSPreload bool
+
 	// GuestMode mirrors the Store's GuestMode == 1: when true, Basic
 	// routes are added to the public group instead of the protected
 	// group. Production reads it from the Store after LoadSettings runs;

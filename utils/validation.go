@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // Maximum string lengths for text inputs across the application.
@@ -38,6 +39,21 @@ func ValidateRequiredString(field, value string, maxLen int) error {
 	return ValidateStringLength(field, value, maxLen)
 }
 
+// ValidateDate parses a date string emitted by the UI's <input type=date> or
+// <input type=datetime-local> controls. Empty input is allowed; pair with
+// ValidateRequiredString when the field is required.
+func ValidateDate(field, value string) error {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	for _, layout := range []string{LayoutDate, LayoutDateTimeLocal, LayoutDB, time.RFC3339} {
+		if _, err := time.Parse(layout, value); err == nil {
+			return nil
+		}
+	}
+	return fmt.Errorf("%s is not a valid date", field)
+}
+
 // ValidateFiniteFloat64 checks that a float64 value is finite (not NaN or Inf).
 func ValidateFiniteFloat64(field string, value float64) error {
 	if math.IsNaN(value) {
@@ -45,6 +61,31 @@ func ValidateFiniteFloat64(field string, value float64) error {
 	}
 	if math.IsInf(value, 0) {
 		return fmt.Errorf("%s must be a finite number (Infinity is not allowed)", field)
+	}
+	return nil
+}
+
+// ValidateWebURL checks that a URL string is well-formed and uses http or
+// https. Empty input is allowed (returns nil) — wrap with ValidateRequiredString
+// if the field is required.
+func ValidateWebURL(field, rawURL string) error {
+	if strings.TrimSpace(rawURL) == "" {
+		return nil
+	}
+	if len(rawURL) > MaxURLLength {
+		return fmt.Errorf("%s exceeds maximum length of %d characters", field, MaxURLLength)
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("%s is not a valid URL", field)
+	}
+	switch strings.ToLower(parsed.Scheme) {
+	case "http", "https":
+	default:
+		return fmt.Errorf("%s must use http or https", field)
+	}
+	if parsed.Host == "" {
+		return fmt.Errorf("%s must include a host", field)
 	}
 	return nil
 }

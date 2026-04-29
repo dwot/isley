@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"isley/logger"
+	"isley/utils"
 	"net/http"
 )
 
@@ -24,6 +25,15 @@ func CreatePlantMeasurement(c *gin.Context) {
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Invalid input")
 		apiBadRequest(c, "api_invalid_input")
+		return
+	}
+
+	if err := utils.ValidateFiniteFloat64("value", input.Value); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+	if err := utils.ValidateDate("date", input.Date); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
 
@@ -63,6 +73,15 @@ func EditMeasurement(c *gin.Context) {
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fieldLogger.WithError(err).Error("Invalid input")
 		apiBadRequest(c, "api_invalid_input")
+		return
+	}
+
+	if err := utils.ValidateFiniteFloat64("value", input.Value); err != nil {
+		apiBadRequest(c, err.Error())
+		return
+	}
+	if err := utils.ValidateDate("date", input.Date); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
 

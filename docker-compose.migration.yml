@@ -14,7 +14,6 @@ services:
       - ISLEY_DB_PASSWORD=${ISLEY_DB_PASSWORD:?Set ISLEY_DB_PASSWORD in .env}
       - ISLEY_DB_NAME=${ISLEY_DB_NAME:-isleydb}
       - ISLEY_SESSION_SECRET=${ISLEY_SESSION_SECRET:-}
-      - ISLEY_MIGRATE_SQLITE=/app/data/isley.db
     depends_on:
       postgres:
         condition: service_healthy

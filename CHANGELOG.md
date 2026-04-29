@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extensive Testing overhaul, dramatically improved test coverage
 - New `ISLEY_SECURE_COOKIES` documented in the README env-var table — set to `true` when fronting Isley with a TLS reverse proxy.
 - `dependabot.yml` now also tracks `docker` and `github-actions` ecosystems so base-image and action bumps surface as PRs instead of stale pins.
+- New `ISLEY_HSTS_MAX_AGE`, `ISLEY_HSTS_INCLUDE_SUBDOMAINS`, and `ISLEY_HSTS_PRELOAD` environment variables documented in the README — opt-in `Strict-Transport-Security` for HTTPS-only deployments.
+- `strain_lineage` now travels through the SQLite→PostgreSQL bootstrap migration tool (`model/sqlite_to_postgres.go`), so users migrating an existing SQLite install with lineage data no longer silently lose it on the Postgres side.
 
 ### Changed
 - The activities page now matches the look and feel of the plants, strains, and sensors pages: in-page search, filter dropdowns, sortable column headers, and a result count, with no full-page reload between filter changes. CSV and XLSX export honor the active filters. Behind the scenes, the `/activities/list` JSON endpoint now accepts a larger `page_size` so the page can render the full activity log client-side. Shared CSS for the controls bar and table styling across the four list views was deduplicated. (PR #159)
@@ -38,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `/api/overlay` endpoint now shares the ingest rate limiter (60 req/min/key) so an unauthenticated misconfiguration can no longer hammer it unbounded.
 - Bumped Linux release-binary Go toolchain in `.github/workflows/release.yml` from `1.25.0` to `1.25.8`, matching the test jobs.
 - GitLab CI `sign-dev` and `publish_dev_to_github` jobs upgraded from `alpine:3.20` to `alpine:3.23` to match the Dockerfile runtime base.
+- `RecordMultiPlantActivity` now wraps its N inserts in a single transaction with a prepared statement — partial failures no longer leave the activity log inconsistent and SQLite pays one WAL fsync instead of N.
+- AC Infinity / EcoWitt scan handlers now route their sensor registration through the locked `findOrCreateSensor` helper, eliminating an unprotected SELECT-then-INSERT path that could create duplicate rows under concurrent scans.
 
 ### Deprecated
 
@@ -50,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `${ISLEY_PORT:-8080}`) is now the single source of truth.
 - Deleted the unused `jsonify` template helper (returned unescaped JSON; previous audits flagged it as a footgun) and the duplicate `formatDateISO` template func — `formatDate` already produced an identical ISO date.
 - Removed two redundant placeholder/args slice loops in `getPlantsByStatus` whose results were immediately discarded by a re-declaration on the next line.
+- Dropped the unused `ISLEY_MIGRATE_SQLITE` line from `docker-compose.migration.yml` — the variable was never read by Go code (the migration scan uses `ISLEY_DB_FILE`).
 
 ### Fixed
 - Reopened #146: shipped Compose files were overriding the Dockerfile
@@ -61,6 +66,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sensor ingest endpoint no longer creates duplicate sensor rows under concurrent ingest of the same (source, device, type). Existing duplicates are merged on upgrade.
 
 ### Security
+- Plant image uploads are now bounded with `http.MaxBytesReader` (250 MB per request, 50 MB per file) and rejected with `413 Request Entity Too Large` when exceeded — previously, files above the in-memory threshold spilled to disk unbounded.
+- `LinkSensorsToPlant` now verifies every supplied sensor ID exists before persisting the JSON column, rejecting dangling references with `400` instead of silently storing them.
+- Strain create/update endpoints now length-validate `name`, `description`, `short_desc`, and `new_breeder`, and reject `url` values that are not http/https — closes a long-standing input-validation gap on the strain form.
+- Plant activity, measurement, and status edit endpoints now cap `note` at `MaxNotesLength` (5000) and reject malformed `date` values via the new `utils.ValidateDate` helper.
 - Rate-limit logs no longer record raw `X-API-KEY` values; offending callers are now identified by a non-reversible 12-char SHA-256 prefix, preserving correlation while removing the credential from logs.
 - `app.NewEngine` now requires `SessionSecret` to be at least 32 bytes (was: any non-empty length), preventing weak session keys.
 - Trusted-proxy list now includes the IPv6 unique-local block (`fc00::/7`), so deployments that front Isley with an IPv6 reverse proxy see accurate `c.ClientIP()` values for rate limiting and audit logs.

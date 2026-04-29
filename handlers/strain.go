@@ -162,6 +162,22 @@ func DeleteBreederHandler(c *gin.Context) {
 // Strain helpers & handlers
 // ---------------------------------------------------------------------------
 
+func validateStrainFields(name, description, shortDesc, newBreeder, strainURL string) error {
+	if err := utils.ValidateRequiredString("name", name, utils.MaxNameLength); err != nil {
+		return err
+	}
+	if err := utils.ValidateStringLength("description", description, utils.MaxDescriptionLength); err != nil {
+		return err
+	}
+	if err := utils.ValidateStringLength("short_desc", shortDesc, utils.MaxNameLength); err != nil {
+		return err
+	}
+	if err := utils.ValidateStringLength("new_breeder", newBreeder, utils.MaxNameLength); err != nil {
+		return err
+	}
+	return utils.ValidateWebURL("url", strainURL)
+}
+
 func GetStrains(db *sql.DB) []types.Strain {
 	fieldLogger := logger.Log.WithField("func", "GetStrains")
 
@@ -229,6 +245,11 @@ func AddStrainHandler(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		fieldLogger.WithError(err).Error("Failed to bind JSON")
 		apiBadRequest(c, "api_invalid_request_payload")
+		return
+	}
+
+	if err := validateStrainFields(req.Name, req.Description, req.ShortDescription, req.NewBreeder, req.Url); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
 
@@ -355,6 +376,11 @@ func UpdateStrainHandler(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		fieldLogger.WithError(err).Error("Failed to bind JSON")
 		apiBadRequest(c, "api_invalid_request_body")
+		return
+	}
+
+	if err := validateStrainFields(req.Name, req.Description, req.ShortDescription, req.NewBreeder, req.Url); err != nil {
+		apiBadRequest(c, err.Error())
 		return
 	}
 

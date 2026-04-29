@@ -92,7 +92,7 @@ func NewEngine(cfg Config) (*gin.Engine, error) {
 
 	r.Use(gin.Recovery())
 	r.Use(gin.LoggerWithWriter(logger.AccessWriter))
-	r.Use(securityHeadersMiddleware(configStore))
+	r.Use(securityHeadersMiddleware(configStore, hstsHeaderValue(cfg)))
 	r.Use(currentPathMiddleware())
 
 	templ, err := parseTemplates(cfg.Assets, configStore)
@@ -148,12 +148,31 @@ func NewEngine(cfg Config) (*gin.Engine, error) {
 // Middleware
 // ---------------------------------------------------------------------------
 
-func securityHeadersMiddleware(store *config.Store) gin.HandlerFunc {
+// hstsHeaderValue assembles the Strict-Transport-Security header value
+// from the engine Config, or returns "" when HSTS is disabled.
+func hstsHeaderValue(cfg Config) string {
+	if cfg.HSTSMaxAge <= 0 {
+		return ""
+	}
+	v := fmt.Sprintf("max-age=%d", cfg.HSTSMaxAge)
+	if cfg.HSTSIncludeSubdomains {
+		v += "; includeSubDomains"
+		if cfg.HSTSPreload {
+			v += "; preload"
+		}
+	}
+	return v
+}
+
+func securityHeadersMiddleware(store *config.Store, hsts string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("X-Frame-Options", "DENY")
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("X-XSS-Protection", "1; mode=block")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+		if hsts != "" {
+			c.Header("Strict-Transport-Security", hsts)
+		}
 
 		nonceBytes := make([]byte, 16)
 		if _, err := rand.Read(nonceBytes); err != nil {

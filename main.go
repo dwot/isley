@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -132,16 +133,29 @@ func main() {
 	// HTTP handlers see exactly the same on-disk directories. NewEngine
 	// applies the same rules internally; we apply them here too so we
 	// can read the resolved FrameDir before constructing the engine.
+	hstsMaxAge := 0
+	if v := os.Getenv("ISLEY_HSTS_MAX_AGE"); v != "" {
+		parsed, err := strconv.Atoi(v)
+		if err != nil || parsed < 0 {
+			logger.Log.WithField("ISLEY_HSTS_MAX_AGE", v).Warn("Ignoring invalid ISLEY_HSTS_MAX_AGE; expected non-negative integer (seconds)")
+		} else {
+			hstsMaxAge = parsed
+		}
+	}
+
 	engineCfg := app.ResolvePathDefaults(app.Config{
-		DB:             db,
-		Assets:         embeddedFiles,
-		Version:        version,
-		SessionSecret:  sessionSecret,
-		SecureCookies:  handlers.SecureCookies,
-		GuestMode:      configStore.GuestMode() == 1,
-		TrustedProxies: trustedProxies,
-		DataDir:        "data",
-		ConfigStore:    configStore,
+		DB:                    db,
+		Assets:                embeddedFiles,
+		Version:               version,
+		SessionSecret:         sessionSecret,
+		SecureCookies:         handlers.SecureCookies,
+		HSTSMaxAge:            hstsMaxAge,
+		HSTSIncludeSubdomains: strings.EqualFold(os.Getenv("ISLEY_HSTS_INCLUDE_SUBDOMAINS"), "true"),
+		HSTSPreload:           strings.EqualFold(os.Getenv("ISLEY_HSTS_PRELOAD"), "true"),
+		GuestMode:             configStore.GuestMode() == 1,
+		TrustedProxies:        trustedProxies,
+		DataDir:               "data",
+		ConfigStore:           configStore,
 	})
 	engine, err := app.NewEngine(engineCfg)
 	if err != nil {
