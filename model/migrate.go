@@ -19,6 +19,11 @@ import (
 //go:embed migrations/sqlite/*.sql migrations/postgres/*.sql
 var migrationsFS embed.FS
 
+// MigrationsFS exposes the embedded migration files so that test harnesses
+// (tests/testutil) can apply them to ad-hoc *sql.DB instances without
+// duplicating the embed directive.
+var MigrationsFS = migrationsFS
+
 var db *sql.DB
 var dbDriver string
 
@@ -109,6 +114,15 @@ func CloseDB() error {
 
 func GetDriver() string {
 	return dbDriver
+}
+
+// SetDriverForTesting overrides the package-level driver so that
+// dialect-aware helpers (IsSQLite/IsPostgres and SQL builders that
+// branch on the driver) work in test contexts that open a DB directly
+// via sql.Open instead of going through InitDB. Production code MUST
+// NOT call this — InitDB owns the assignment in the normal lifecycle.
+func SetDriverForTesting(driver string) {
+	dbDriver = driver
 }
 
 func IsPostgres() bool {

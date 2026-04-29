@@ -6,7 +6,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB — matches server ParseMultipartForm limit
 
-    let imagesToUpload = [];
+    // Map preview-card element -> File, so DOM order is the source of truth on submit.
+    const cardFiles = new WeakMap();
 
     // Handle drag-and-drop events
     ["dragenter", "dragover"].forEach(eventType => {
@@ -80,12 +81,11 @@ document.addEventListener("DOMContentLoaded", () => {
                         if (parsedDate) imageDate = parsedDate;
                     }
 
-                    addImagePreview(fileData, file, imageDate);
+                    addImagePreview(file, fileData, imageDate);
                 });
             };
 
             reader.readAsDataURL(file);
-            imagesToUpload.push(file);
         });
     }
 
@@ -103,7 +103,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
 // Add image preview with default or EXIF date
-    function addImagePreview(src, file, imageDate) {
+    function addImagePreview(file, src, imageDate) {
         const col = document.createElement("div");
         col.className = "col-12 col-md-6 col-lg-4";
 
@@ -124,6 +124,8 @@ document.addEventListener("DOMContentLoaded", () => {
     `;
 
         col.innerHTML = card;
+        const cardEl = col.querySelector(".card");
+        cardFiles.set(cardEl, file);
         imagePreviewContainer.appendChild(col);
     }
 
@@ -166,7 +168,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Handle upload with XMLHttpRequest for progress tracking
     uploadImagesButton.addEventListener("click", () => {
-        if (imagesToUpload.length === 0) {
+        const cards = document.querySelectorAll("#imagePreviewContainer .card");
+        if (cards.length === 0) {
             uiMessages.showToast(uiMessages.t('no_images_selected') || 'No images selected', 'warning');
             return;
         }
@@ -174,12 +177,14 @@ document.addEventListener("DOMContentLoaded", () => {
         const formData = new FormData();
 
         // Collect data for each image
-        document.querySelectorAll("#imagePreviewContainer .card").forEach((card, index) => {
+        cards.forEach((card) => {
+            const file = cardFiles.get(card);
+            if (!file) return; // defensive — should never happen
             const description = card.querySelector(".description").value;
             const date = card.querySelector(".image-date").value;
 
             // Append the file with a simple key
-            formData.append("images[]", imagesToUpload[index]);
+            formData.append("images[]", file);
             formData.append(`descriptions[]`, description);
             formData.append(`dates[]`, date);
         });

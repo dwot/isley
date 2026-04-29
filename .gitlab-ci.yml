@@ -1,7 +1,146 @@
 stages:
+  - test
   - build
   - sign
   - sync-public
+
+# ---------------------------------------------------------------------------
+# Test stage
+# ---------------------------------------------------------------------------
+# Per docs/TEST_PLAN.md Phases 0 and 5: `go test ./...` runs ahead of the
+# image build so regressions surface before anything reaches the registry.
+# The legacy subprocess suite was retired in Phase 5, so this job now runs
+# fully in-process via tests/testutil + httptest — no port 8080, no
+# pre-built binary required.
+test:
+  stage: test
+  # Pinned to match the GitHub Actions test job and the go directive in
+  # go.mod. Bump in lockstep with that file when the toolchain upgrades.
+  image: golang:1.25.8
+  rules:
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  variables:
+    # Pin Go's caches inside CI_PROJECT_DIR so the cache: directive below
+    # can persist them between pipelines.
+    GOPATH: $CI_PROJECT_DIR/.go
+    GOCACHE: $CI_PROJECT_DIR/.gocache
+  cache:
+    key:
+      files:
+        - go.sum
+    paths:
+      - .go/pkg/mod
+      - .gocache
+    policy: pull-push
+  script:
+    - go version
+    - go mod verify
+    - go vet ./...
+    # docs/TEST_PLAN_2.md Phase 4: fail before `go test` if any
+    # top-level Test function in a non-annotated file omits
+    # t.Parallel(). Cheap pre-test gate; the alternative is finding
+    # out via a flaky -race failure once enough state accumulates.
+    - bash scripts/check-parallel.sh
+    # Phase 6c: -coverpkg=./... credits cross-package coverage so that
+    # integration tests boot via app.NewEngine — and the handler/model
+    # code they exercise — count toward the totals.
+    # -timeout=20m: race detector + full-tree instrumentation slows each
+    # package ~2.5-3x; handlers/ and tests/integration/ no longer fit in
+    # Go's default 10m per-package timeout.
+    - go test -race -coverpkg=./... -coverprofile=coverage.out -timeout=20m ./...
+    - go tool cover -func=coverage.out | tail -1
+    # docs/TEST_PLAN_2.md Phase 1: gate on a documented coverage floor so
+    # PRs that drop the bar fail review at CI time, not in a follow-up
+    # audit. Floor is floor(total - 1.0) where total is the honest
+    # `-coverpkg=./...` reading from this same job on the dev branch
+    # — see audits/TESTING.md "Phase 6c recalibration" for why the
+    # honest cross-tree number (~12%) is the right denominator and not
+    # the per-package number (~55%) `go test -cover` reports without
+    # `-coverpkg=./...`. Bump the floor in PRs that earn it; never
+    # lower it (see CONTRIBUTING.md "Coverage floor"). Mirrors the
+    # GitHub job in `.github/workflows/release.yml`.
+    - |
+      total=$(go tool cover -func=coverage.out | awk '/^total:/ {gsub("%","",$3); print $3}')
+      floor=11.0
+      awk -v t="$total" -v f="$floor" 'BEGIN { exit !(t+0 >= f+0) }' \
+        || { echo "coverage $total% < floor $floor%" >&2; exit 1; }
+      echo "coverage $total% >= floor $floor%"
+  # Standard regex `go tool cover` emits, e.g.:
+  #   total:                                                  (statements)    42.5%
+  coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
+  artifacts:
+    paths:
+      - coverage.out
+    expire_in: 1 week
+    when: always
+
+# docs/TEST_PLAN.md Phase 5: every dialect-branching path runs against
+# real PostgreSQL on every PR. Without this matrix the project's second
+# supported backend has only ever been exercised against a SetDriverForTesting
+# flag, not a real server. Lives in the same `test` stage as the SQLite
+# job so the `build` stage gates on both automatically.
+test-postgres:
+  stage: test
+  image: golang:1.25.8
+  rules:
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  services:
+    - name: postgres:16
+      alias: postgres
+  variables:
+    POSTGRES_PASSWORD: test
+    POSTGRES_DB: postgres
+    GOPATH: $CI_PROJECT_DIR/.go
+    GOCACHE: $CI_PROJECT_DIR/.gocache
+    ISLEY_TEST_DB_HOST: postgres
+    ISLEY_TEST_DB_PORT: '5432'
+    ISLEY_TEST_DB_USER: postgres
+    ISLEY_TEST_DB_PASSWORD: test
+  cache:
+    key:
+      files:
+        - go.sum
+    paths:
+      - .go/pkg/mod
+      - .gocache
+    policy: pull-push
+  script:
+    - go version
+    # docs/TEST_PLAN_2.md Phase 4: same parallelism lint as the
+    # SQLite test job — keeps the postgres job from passing while a
+    # non-annotated test slips through.
+    - bash scripts/check-parallel.sh
+    # `-run Postgres` keeps the SQLite-only tests in tests/integration,
+    # handlers, and watcher out of the test binary's run set: under
+    # the integration_postgres tag both kinds of tests compile in,
+    # but they share the model.dbDriver global via SetDriverForTesting.
+    # Filtering by name is the contract that lets them coexist in
+    # one package — every Postgres test in the watcher and handlers
+    # packages added by docs/TEST_PLAN_2.md Phase 7 carries "Postgres"
+    # in its function name so this filter still picks them up.
+    - go test -race -tags=integration_postgres -coverpkg=./... -coverprofile=coverage-postgres.out -run Postgres -timeout=20m ./tests/integration/... ./model/... ./handlers/... ./watcher/...
+    - go tool cover -func=coverage-postgres.out | tail -1
+    # docs/TEST_PLAN_2.md Phase 1: this floor was originally set when
+    # `test-postgres` only exercised smoke + migrations +
+    # sqlite_to_postgres (a small fraction of the codebase). Phase 7
+    # added dialect-branched handler/watcher tests to this job; once
+    # the first dev-branch run reports the post-Phase-7 number, raise
+    # this floor to floor(total - 1.0) per CONTRIBUTING.md "Coverage
+    # floor". Until then the existing 2.0 holds — bumping speculatively
+    # would risk false negatives. Bump on earn, never lower.
+    - |
+      total=$(go tool cover -func=coverage-postgres.out | awk '/^total:/ {gsub("%","",$3); print $3}')
+      floor=2.0
+      awk -v t="$total" -v f="$floor" 'BEGIN { exit !(t+0 >= f+0) }' \
+        || { echo "postgres coverage $total% < floor $floor%" >&2; exit 1; }
+      echo "postgres coverage $total% >= floor $floor%"
+  artifacts:
+    paths:
+      - coverage-postgres.out
+    expire_in: 1 week
+    when: always
 
 build-dev:
   stage: build
@@ -27,7 +166,7 @@ build-dev:
 
 sign-dev:
   stage: sign
-  image: alpine:3.20
+  image: alpine:3.23
   rules:
     - if: '$CI_COMMIT_BRANCH == "dev"'
   before_script:
@@ -42,27 +181,25 @@ sign-dev:
 
 publish_dev_to_github:
   stage: sync-public
-  image: alpine:3.20
+  image: alpine:3.23
   before_script:
-    - apk add git gnupg
-    - gpg --batch --import "$GPG_PRIVATE_KEY"
-    # SANITY CHECK: This MUST show 'sec' in the job logs
-    - gpg --list-secret-keys
-    - git config --global user.email "68145+dwot@users.noreply.github.com"
-    - git config --global user.name "isley-ci-sync"
-    - git config --global user.signingkey "$GPG_KEY_ID"
-    - git config --global commit.gpgsign true
+    - apk add git
   script:
+    # Push-through sync: GitHub `dev` is a 1:1 mirror of GitLab `dev`.
+    # Each commit arrives on GitHub with its original author, message,
+    # and signature intact, so contributor attribution, PR cross-refs
+    # (`Fixes #142`, `Closes #133`), and per-commit GPG signatures all
+    # flow through naturally — no synthesized squash commit, no
+    # `Co-authored-by:` machinery, no force-push.
+    #
+    # If GitHub `dev` has commits we don't have locally (typically a
+    # Dependabot PR or external PR merged via the GitHub UI between
+    # syncs), this push fails non-fast-forward. Recovery is ordinary
+    # multi-remote git: pull those commits into the local checkout,
+    # push them to GitLab `dev`, re-trigger this job. That round-trip
+    # keeps GitLab as the source of truth — see docs/SDLC.md Stage 3.
     - git remote add github https://x-access-token:${GITHUB_TOKEN}@github.com/dwot/isley.git
-    - git fetch github dev
-    - git checkout -B sync-branch github/dev
-    - git merge --squash $CI_COMMIT_SHA
-    # Signed squash-sync. Embed the originating GitLab short SHA so published
-    # Docker Hub images (which are tagged with the post-squash GitHub SHA)
-    # can be traced back to the internal commit that triggered them.
-    - git commit -S -m "Dev Update $(date -u +'%Y-%m-%d') [Signed Sync] from gitlab@${CI_COMMIT_SHORT_SHA}"
-    # Explicitly push the local sync-branch to the remote dev branch
-    - git push github sync-branch:dev --force
+    - git push github HEAD:dev
   rules:
     - if: '$CI_COMMIT_BRANCH == "dev"'
       when: manual

@@ -9,44 +9,15 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
 
-// ---------------------------------------------------------------------------
-// Login rate limiting
-// ---------------------------------------------------------------------------
-
-var (
-	loginAttempts   = make(map[string][]time.Time)
-	loginAttemptsMu sync.Mutex
-
-	// SecureCookies controls the Secure flag on session cookies.
-	// Set via the ISLEY_SECURE_COOKIES environment variable.
-	SecureCookies = strings.EqualFold(os.Getenv("ISLEY_SECURE_COOKIES"), "true")
-)
-
-// IsLoginRateLimited returns true if the given IP has exceeded 5 login
-// attempts within the last minute.
-func IsLoginRateLimited(ip string) bool {
-	loginAttemptsMu.Lock()
-	defer loginAttemptsMu.Unlock()
-	now := time.Now()
-	cutoff := now.Add(-time.Minute)
-	attempts := loginAttempts[ip]
-	var recent []time.Time
-	for _, t := range attempts {
-		if t.After(cutoff) {
-			recent = append(recent, t)
-		}
-	}
-	recent = append(recent, now)
-	loginAttempts[ip] = recent
-	return len(recent) > MaxLoginAttempts
-}
+// SecureCookies controls the Secure flag on session cookies.
+// Set via the ISLEY_SECURE_COOKIES environment variable.
+var SecureCookies = strings.EqualFold(os.Getenv("ISLEY_SECURE_COOKIES"), "true")
 
 // ---------------------------------------------------------------------------
 // CSRF token generation
@@ -191,14 +162,15 @@ func HandleChangePassword(c *gin.Context) {
 	hashedPassword, _ := utils.HashPassword(newPassword)
 
 	db := DBFromContext(c)
+	store := ConfigStoreFromContext(c)
 
-	UpdateSetting(db, "auth_password", hashedPassword)
-	UpdateSetting(db, "force_password_change", "false")
+	UpdateSetting(db, store, "auth_password", hashedPassword)
+	UpdateSetting(db, store, "force_password_change", "false")
 
 	// SECURITY: Bump session version to invalidate all other sessions.
 	// Only the current session gets the new version, so all others become stale.
 	newVersion := fmt.Sprintf("%d", time.Now().UnixNano())
-	UpdateSetting(db, "session_version", newVersion)
+	UpdateSetting(db, store, "session_version", newVersion)
 
 	session := sessions.Default(c)
 	session.Set("force_password_change", false)
@@ -248,7 +220,7 @@ func AuthMiddlewareApi() gin.HandlerFunc {
 			// Auto-upgrade legacy keys (SHA-256 or plaintext) to bcrypt.
 			if legacy {
 				if newHash := HashAPIKey(apiKey); newHash != "" {
-					UpdateSetting(db, "api_key", newHash)
+					UpdateSetting(db, ConfigStoreFromContext(c), "api_key", newHash)
 					logger.Log.Info("Auto-upgraded legacy API key to bcrypt")
 				}
 			}

@@ -904,11 +904,17 @@ header .nav-link.active::after {
     padding: 0.5rem 0;
 }
 
-/* ===== Strains List Page ===== */
-.strains-controls {
+/* ===== Shared List View Base (Strains, Sensors, Plants, Activities) ===== */
+.strains-controls,
+.sensors-controls,
+.plants-controls,
+.activities-controls {
     margin-bottom: 1.5rem;
 }
-.strains-controls-row {
+.strains-controls-row,
+.sensors-controls-row,
+.plants-controls-row,
+.activities-controls-row {
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -916,7 +922,10 @@ header .nav-link.active::after {
     margin-bottom: 0.75rem;
 }
 .strains-controls-row .btn-group .view-button,
-.strains-controls-row .btn-group .layout-toggle {
+.strains-controls-row .btn-group .layout-toggle,
+.plants-controls-row .btn-group .view-button,
+.plants-controls-row .btn-group .layout-toggle,
+.activities-controls-row .btn-group .layout-toggle {
     border: 1px solid var(--color-view-btn-border);
     background: transparent;
     color: var(--color-fg);
@@ -925,27 +934,41 @@ header .nav-link.active::after {
     padding: 0.35rem 0.9rem;
     transition: all 0.15s;
 }
-.strains-controls-row .btn-group .layout-toggle {
+.strains-controls-row .btn-group .layout-toggle,
+.plants-controls-row .btn-group .layout-toggle,
+.activities-controls-row .btn-group .layout-toggle {
     padding: 0.35rem 0.65rem;
 }
 .strains-controls-row .btn-group .view-button:hover,
-.strains-controls-row .btn-group .layout-toggle:hover {
+.strains-controls-row .btn-group .layout-toggle:hover,
+.plants-controls-row .btn-group .view-button:hover,
+.plants-controls-row .btn-group .layout-toggle:hover,
+.activities-controls-row .btn-group .layout-toggle:hover {
     background: var(--color-view-btn-hover-bg);
     color: var(--color-view-btn-hover-fg);
 }
 .strains-controls-row .btn-group .view-button.active,
-.strains-controls-row .btn-group .layout-toggle.active {
+.strains-controls-row .btn-group .layout-toggle.active,
+.plants-controls-row .btn-group .view-button.active,
+.plants-controls-row .btn-group .layout-toggle.active,
+.activities-controls-row .btn-group .layout-toggle.active {
     background: var(--color-view-btn-active-bg);
     color: var(--color-view-btn-active-fg);
     border-color: var(--color-view-btn-active-border);
 }
-.strains-search-wrap {
+.strains-search-wrap,
+.sensors-search-wrap,
+.plants-search-wrap,
+.activities-search-wrap {
     position: relative;
     flex: 1;
     min-width: 180px;
     max-width: 320px;
 }
-.strains-search-icon {
+.strains-search-icon,
+.sensors-search-icon,
+.plants-search-icon,
+.activities-search-icon {
     position: absolute;
     left: 0.65rem;
     top: 50%;
@@ -954,24 +977,36 @@ header .nav-link.active::after {
     font-size: 0.8rem;
     pointer-events: none;
 }
-.strains-search-wrap .form-control {
+.strains-search-wrap .form-control,
+.sensors-search-wrap .form-control,
+.plants-search-wrap .form-control,
+.activities-search-wrap .form-control {
     padding-left: 2rem;
     background: var(--color-input-bg);
     color: var(--color-input-fg);
     border-color: var(--color-input-border);
 }
-.strains-filters-row {
+.strains-filters-row,
+.sensors-filters-row,
+.plants-filters-row,
+.activities-filters-row {
     display: flex;
     align-items: center;
     gap: 0.75rem;
     flex-wrap: wrap;
 }
-.strains-filter-group {
+.strains-filter-group,
+.sensors-filter-group,
+.plants-filter-group,
+.activities-filter-group {
     display: flex;
     align-items: center;
     gap: 0.35rem;
 }
-.strains-filter-label {
+.strains-filter-label,
+.sensors-filter-label,
+.plants-filter-label,
+.activities-filter-label {
     font-size: 0.78rem;
     font-weight: 600;
     color: var(--color-muted);
@@ -979,16 +1014,92 @@ header .nav-link.active::after {
     letter-spacing: 0.04em;
     white-space: nowrap;
 }
-.strains-filter-group .form-select {
+.strains-filter-group .form-select,
+.sensors-filter-group .form-select,
+.plants-filter-group .form-select,
+.activities-filter-group .form-select,
+.activities-filter-group .form-control {
     min-width: 120px;
     font-size: 0.85rem;
     background: var(--color-input-bg);
     color: var(--color-input-fg);
     border-color: var(--color-input-border);
 }
-.strains-result-count {
+.strains-result-count,
+.sensors-result-count,
+.plants-result-count,
+.activities-result-count {
     font-size: 0.82rem;
 }
+
+.strains-table-wrap,
+.sensors-table-wrap,
+.plants-table-wrap,
+.activities-table-wrap {
+    border-radius: 8px;
+    overflow: hidden;
+    overflow-x: auto;
+}
+.strains-table,
+.sensors-table,
+.plants-table,
+.activities-table {
+    font-size: 0.9rem;
+    margin-bottom: 0;
+}
+.strains-table,
+.sensors-table,
+.plants-table {
+    background: var(--color-table-bg);
+}
+.strains-table thead th,
+.sensors-table thead th,
+.plants-table thead th,
+.activities-table thead th {
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-muted);
+    white-space: nowrap;
+    padding: 0.6rem 0.75rem;
+}
+.strains-table td,
+.sensors-table td,
+.plants-table td,
+.activities-table td {
+    padding: 0.6rem 0.75rem;
+    vertical-align: middle;
+    border-color: var(--color-card-border);
+}
+.strains-table thead th,
+.sensors-table thead th,
+.plants-table thead th {
+    background: var(--color-table-th);
+    border-bottom: 2px solid var(--color-card-border);
+}
+.st-row:hover,
+.sn-row:hover,
+.pt-row:hover {
+    background: var(--color-row-hover);
+}
+
+.st-sortable,
+.sn-sortable,
+.pt-sortable,
+.al-sortable {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+.st-sortable:hover,
+.sn-sortable:hover,
+.pt-sortable:hover,
+.al-sortable:hover {
+    color: var(--bs-primary);
+}
+
+/* ===== Strains List Page ===== */
 
 /* Card grid — flex rows with uniform card height */
 .strains-grid {
@@ -1157,32 +1268,6 @@ header .nav-link.active::after {
 }
 
 /* ===== Strains Table View ===== */
-.strains-table-wrap {
-    overflow-x: auto;
-}
-.strains-table {
-    font-size: 0.9rem;
-    background: var(--color-table-bg);
-}
-.strains-table thead th {
-    background: var(--color-table-th);
-    font-size: 0.78rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--color-muted);
-    white-space: nowrap;
-    padding: 0.6rem 0.75rem;
-    border-bottom: 2px solid var(--color-card-border);
-}
-.strains-table td {
-    padding: 0.6rem 0.75rem;
-    vertical-align: middle;
-    border-color: var(--color-card-border);
-}
-.st-row:hover {
-    background: var(--color-row-hover);
-}
 .st-strain-name {
     font-weight: 600;
     color: var(--color-accent);
@@ -1224,8 +1309,6 @@ header .nav-link.active::after {
 }
 .st-th-name { min-width: 180px; }
 .st-th-lineage { min-width: 150px; }
-.st-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
-.st-sortable:hover { color: var(--bs-primary); }
 
 /* Empty state */
 .strains-empty {
@@ -1237,96 +1320,10 @@ header .nav-link.active::after {
 }
 
 /* ===== Sensors Listing Page ===== */
-.sensors-controls {
-    margin-bottom: 1.5rem;
-}
-.sensors-controls-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-    margin-bottom: 0.75rem;
-}
-.sensors-search-wrap {
-    position: relative;
-    flex: 1;
-    min-width: 180px;
-    max-width: 320px;
-}
-.sensors-search-icon {
-    position: absolute;
-    left: 0.65rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--color-muted);
-    font-size: 0.8rem;
-    pointer-events: none;
-}
-.sensors-search-wrap .form-control {
-    padding-left: 2rem;
-    background: var(--color-input-bg);
-    color: var(--color-input-fg);
-    border-color: var(--color-input-border);
-}
 .sensors-action-buttons {
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
-}
-.sensors-filters-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-}
-.sensors-filter-group {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-}
-.sensors-filter-label {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--color-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    white-space: nowrap;
-}
-.sensors-filter-group .form-select {
-    min-width: 120px;
-    font-size: 0.85rem;
-    background: var(--color-input-bg);
-    color: var(--color-input-fg);
-    border-color: var(--color-input-border);
-}
-.sensors-result-count {
-    font-size: 0.82rem;
-}
-.sensors-table-wrap {
-    overflow-x: auto;
-}
-.sensors-table {
-    font-size: 0.9rem;
-    background: var(--color-table-bg);
-}
-.sensors-table thead th {
-    background: var(--color-table-th);
-    font-size: 0.78rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--color-muted);
-    white-space: nowrap;
-    padding: 0.6rem 0.75rem;
-    border-bottom: 2px solid var(--color-card-border);
-}
-.sensors-table td {
-    padding: 0.6rem 0.75rem;
-    vertical-align: middle;
-    border-color: var(--color-card-border);
-}
-.sn-row:hover {
-    background: var(--color-row-hover);
 }
 .sn-sensor-name {
     font-weight: 600;
@@ -1339,8 +1336,6 @@ header .nav-link.active::after {
 .sn-th-type { min-width: 80px; }
 .sn-th-unit { min-width: 60px; }
 .sn-th-visibility { min-width: 100px; }
-.sn-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
-.sn-sortable:hover { color: var(--bs-primary); }
 .sensors-empty {
     display: flex;
     flex-direction: column;
@@ -1651,90 +1646,6 @@ header .nav-link.active::after {
    ============================================ */
 
 /* Controls bar */
-.plants-controls {
-    margin-bottom: 1.5rem;
-}
-.plants-controls-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-    margin-bottom: 0.75rem;
-}
-.plants-controls-row .btn-group .view-button,
-.plants-controls-row .btn-group .layout-toggle {
-    border: 1px solid var(--color-view-btn-border);
-    background: transparent;
-    color: var(--color-fg);
-    font-weight: 500;
-    font-size: 0.85rem;
-    padding: 0.35rem 0.9rem;
-    transition: all 0.15s;
-}
-.plants-controls-row .btn-group .layout-toggle {
-    padding: 0.35rem 0.65rem;
-}
-.plants-controls-row .btn-group .view-button:hover,
-.plants-controls-row .btn-group .layout-toggle:hover {
-    background: var(--color-view-btn-hover-bg);
-    color: var(--color-view-btn-hover-fg);
-}
-.plants-controls-row .btn-group .view-button.active,
-.plants-controls-row .btn-group .layout-toggle.active {
-    background: var(--color-view-btn-active-bg);
-    color: var(--color-view-btn-active-fg);
-    border-color: var(--color-view-btn-active-border);
-}
-.plants-search-wrap {
-    position: relative;
-    flex: 1;
-    min-width: 180px;
-    max-width: 320px;
-}
-.plants-search-icon {
-    position: absolute;
-    left: 0.65rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--color-muted);
-    font-size: 0.8rem;
-    pointer-events: none;
-}
-.plants-search-wrap .form-control {
-    padding-left: 2rem;
-    background: var(--color-input-bg);
-    color: var(--color-input-fg);
-    border-color: var(--color-input-border);
-}
-.plants-filters-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-}
-.plants-filter-group {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-}
-.plants-filter-label {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--color-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    white-space: nowrap;
-}
-.plants-filter-group .form-select {
-    min-width: 120px;
-    font-size: 0.85rem;
-    background: var(--color-input-bg);
-    color: var(--color-input-fg);
-    border-color: var(--color-input-border);
-}
-.plants-result-count {
-    font-size: 0.82rem;
-}
 
 /* Card grid */
 .plants-grid {
@@ -1981,32 +1892,6 @@ header .nav-link.active::after {
 }
 
 /* ===== Plants Table View ===== */
-.plants-table-wrap {
-    overflow-x: auto;
-}
-.plants-table {
-    font-size: 0.9rem;
-    background: var(--color-table-bg);
-}
-.plants-table thead th {
-    background: var(--color-table-th);
-    font-size: 0.78rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--color-muted);
-    white-space: nowrap;
-    padding: 0.6rem 0.75rem;
-    border-bottom: 2px solid var(--color-card-border);
-}
-.plants-table td {
-    padding: 0.6rem 0.75rem;
-    vertical-align: middle;
-    border-color: var(--color-card-border);
-}
-.pt-row:hover {
-    background: var(--color-row-hover);
-}
 .pt-plant-name {
     font-weight: 600;
     color: var(--color-accent);
@@ -2031,8 +1916,6 @@ header .nav-link.active::after {
 .pt-th-age { min-width: 80px; }
 .pt-th-detail { min-width: 80px; }
 .pt-th-actions { min-width: 100px; text-align: center; }
-.pt-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
-.pt-sortable:hover { color: var(--bs-primary); }
 
 /* Empty state */
 .plants-empty {
@@ -2080,16 +1963,54 @@ header .nav-link.active::after {
     pointer-events: none;
 }
 .plant-hero--no-img .plant-hero-overlay { display: none; }
+/* Hero carousel-style nav arrows */
+.plant-hero-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 3;
+    color: rgba(255,255,255,0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    line-height: 1;
+    text-decoration: none;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.45);
+    transition: color 0.18s, opacity 0.18s, transform 0.18s;
+    opacity: 0.8;
+    cursor: pointer;
+}
+.plant-hero-nav:hover {
+    color: #fff;
+    transform: translateY(-50%) scale(1.05);
+    opacity: 1;
+    text-decoration: none;
+}
+.plant-hero-nav--prev { left: 0.85rem; }
+.plant-hero-nav--next { right: 0.85rem; }
+.plant-hero--no-img .plant-hero-nav {
+    color: rgba(var(--bs-body-color-rgb, 33,37,41), 0.6);
+    text-shadow: none;
+}
+.plant-hero--no-img .plant-hero-nav:hover {
+    color: var(--color-accent);
+}
 .plant-hero-content {
     position: relative;
     z-index: 1;
     width: 100%;
-    padding: 1.25rem 1.5rem;
+    padding: 1.25rem 2.6rem;
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
     gap: 1rem;
     flex-wrap: wrap;
+}
+@media (max-width: 575.98px) {
+    .plant-hero-content {
+        padding: 1rem 2rem;
+    }
 }
 .plant-hero-title {
     font-size: 2rem;
@@ -2490,42 +2411,65 @@ header .nav-link.active::after {
 }
 
 /* ===== Activity Log page ===== */
-.activity-log-filters {
-    background: var(--color-surface, transparent);
-}
-.activity-log-filters .form-label {
-    font-size: 0.78rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--color-muted);
-    margin-bottom: 0.25rem;
-}
-.activity-log-table {
+/* Activity table */
+.activities-table {
     font-size: 0.95rem;
 }
-.activity-log-table thead th {
-    font-size: 0.78rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--color-muted);
+.activities-table thead th {
     background: transparent;
+    border-color: var(--color-border);
 }
-.activity-log-table td.activity-log-date {
+.activities-table tbody tr {
+    transition: background-color 0.15s;
+}
+.activities-table tbody tr:hover {
+    background-color: var(--color-hover-bg);
+}
+.al-th-date {
     width: 12rem;
+}
+.al-th-plant {
+    width: 12%;
+}
+.al-th-strain {
+    width: 12%;
+}
+.al-th-zone {
+    width: 10%;
+}
+.al-th-activity {
+    width: 12%;
+}
+.al-th-note {
+    flex-grow: 1;
+}
+.al-cell-date {
+    white-space: nowrap;
+    font-size: 0.9rem;
+}
+.al-cell-plant {
     white-space: nowrap;
 }
-.activity-log-table td.activity-log-plant {
+.al-cell-strain {
     white-space: nowrap;
 }
-.activity-log-table td.activity-log-note {
+.al-cell-zone {
+    white-space: nowrap;
+}
+.al-cell-activity {
+    white-space: nowrap;
+}
+.al-cell-note {
     white-space: pre-wrap;
     word-break: break-word;
     line-height: 1.45;
+    font-size: 0.9rem;
 }
-.activity-log-empty {
+.activities-empty {
     padding: 3rem 1rem;
     text-align: center;
     color: var(--color-muted);
+    display: none;
 }
 
 @media (max-width: 576px) {

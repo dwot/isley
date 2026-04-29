@@ -1,0 +1,18 @@
+{
+  "data": [
+    {
+      "devCode": "TESTDEV",
+      "deviceInfo": {
+        "temperatureF": 7500,
+        "temperature": 2400,
+        "humidity": 5500,
+        "sensors": [
+          {"sensorType": 1, "accessPort": 0, "sensorData": 1234}
+        ],
+        "ports": [
+          {"port": 0, "speak": 5}
+        ]
+      }
+    }
+  ]
+}

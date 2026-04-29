@@ -14,7 +14,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/xuri/excelize/v2"
 
-	"isley/config"
 	"isley/logger"
 	model "isley/model"
 	"isley/utils"
@@ -94,7 +93,7 @@ func ParseActivityLogFilters(c *gin.Context) (ActivityLogFilters, error) {
 		}
 	}
 
-	loc := appTimeLocation()
+	loc := appTimeLocation(ConfigStoreFromContext(c).Timezone())
 	if v := strings.TrimSpace(c.Query("from")); v != "" {
 		if t, err := time.ParseInLocation(utils.LayoutDate, v, loc); err == nil {
 			f.From = &t
@@ -314,7 +313,7 @@ func ListAllActivities(c *gin.Context) {
 	}
 	pageSize := activityLogPageSize
 	if v := strings.TrimSpace(c.Query("page_size")); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 1000 {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 100000 {
 			pageSize = n
 		}
 	}
@@ -336,23 +335,24 @@ func ListAllActivities(c *gin.Context) {
 	})
 }
 
-// appTimeLocation returns the configured server timezone, falling back to
-// time.Local when none is set or the configured value doesn't parse.  Mirrors
-// the defensive pattern used by the "formatDateTime" template helper in
-// main.go.
-func appTimeLocation() *time.Location {
-	if config.Timezone != "" {
-		if loc, err := time.LoadLocation(config.Timezone); err == nil {
+// appTimeLocation returns the supplied timezone identifier resolved to
+// a *time.Location, falling back to time.Local when the input is empty
+// or unparseable. Mirrors the defensive pattern used by the
+// "formatDateTime" template helper.
+func appTimeLocation(tz string) *time.Location {
+	if tz != "" {
+		if loc, err := time.LoadLocation(tz); err == nil {
 			return loc
 		}
 	}
 	return time.Local
 }
 
-// formatActivityDate renders the export-side human-readable date for a row.
-// Uses the configured timezone, matching the "formatDateTime" template helper.
-func formatActivityDate(t time.Time) string {
-	return t.In(appTimeLocation()).Format(utils.LayoutDateTime)
+// formatActivityDate renders the export-side human-readable date for a
+// row in the supplied timezone, matching the "formatDateTime" template
+// helper. Pass the empty string to render in time.Local.
+func formatActivityDate(t time.Time, tz string) string {
+	return t.In(appTimeLocation(tz)).Format(utils.LayoutDateTime)
 }
 
 // exportFilenameSuffix returns a short descriptor appended to export filenames
@@ -411,6 +411,7 @@ func ExportActivitiesCSV(c *gin.Context) {
 	}
 
 	db := DBFromContext(c)
+	tz := ConfigStoreFromContext(c).Timezone()
 	entries, err := scanActivityLog(db, filters, activityLogMaxExport, 0)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query activities for CSV export")
@@ -430,7 +431,7 @@ func ExportActivitiesCSV(c *gin.Context) {
 	}
 	for _, e := range entries {
 		row := []string{
-			formatActivityDate(e.Date),
+			formatActivityDate(e.Date, tz),
 			e.PlantName,
 			e.StrainName,
 			e.ZoneName,
@@ -465,6 +466,7 @@ func ExportActivitiesXLSX(c *gin.Context) {
 	}
 
 	db := DBFromContext(c)
+	tz := ConfigStoreFromContext(c).Timezone()
 	entries, err := scanActivityLog(db, filters, activityLogMaxExport, 0)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query activities for XLSX export")
@@ -521,7 +523,7 @@ func ExportActivitiesXLSX(c *gin.Context) {
 
 	for i, e := range entries {
 		row := i + 2
-		_ = f.SetCellValue(sheet, cellRef("A", row), formatActivityDate(e.Date))
+		_ = f.SetCellValue(sheet, cellRef("A", row), formatActivityDate(e.Date, tz))
 		_ = f.SetCellValue(sheet, cellRef("B", row), e.PlantName)
 		_ = f.SetCellValue(sheet, cellRef("C", row), e.StrainName)
 		_ = f.SetCellValue(sheet, cellRef("D", row), e.ZoneName)

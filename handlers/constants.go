@@ -18,6 +18,17 @@ var (
 	// httpClientShort is a client with a shorter timeout for quick probes
 	// like EcoWitt device scanning where slow responses likely mean failure.
 	httpClientShort = &http.Client{Timeout: HTTPTimeoutShort}
+
+	// httpClientNoRedirect mirrors httpClientShort but refuses to follow
+	// redirects — used by EcoWitt LAN scans where a redirect to a
+	// non-LAN host would defeat the SSRF guards on the user-supplied
+	// server address.
+	httpClientNoRedirect = &http.Client{
+		Timeout: HTTPTimeoutShort,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 )
 
 // ---------------------------------------------------------------------------
@@ -52,17 +63,6 @@ func isHumiditySensor(sensorType int) bool {
 }
 
 // ---------------------------------------------------------------------------
-// Activity type IDs — built-in activity identifiers
-// ---------------------------------------------------------------------------
-
-const (
-	// ActivityWater is the built-in "Water" activity.
-	ActivityWater = 1
-	// ActivityFeed is the built-in "Feed" activity.
-	ActivityFeed = 2
-)
-
-// ---------------------------------------------------------------------------
 // HTTP client timeouts
 // ---------------------------------------------------------------------------
 
@@ -89,6 +89,11 @@ const (
 	// DefaultStreamGrabInterval is the fallback interval (in seconds)
 	// between stream image captures when no config value is set.
 	DefaultStreamGrabInterval = 60
+	// DefaultPollingIntervalSeconds is the fallback polling-interval value
+	// the cache TTL helpers fall back to when no Store is supplied.
+	// Mirrors config.NewStore's default; a duplicated literal is cheaper
+	// than a circular import.
+	DefaultPollingIntervalSeconds = 60
 )
 
 // ---------------------------------------------------------------------------
@@ -150,11 +155,24 @@ const (
 // ---------------------------------------------------------------------------
 
 const (
-	// MaxMultipartFormSize is the size limit for multipart form uploads (10 MB).
+	// MaxMultipartFormSize is the in-memory threshold for multipart form parsing
+	// (10 MB). Larger requests spill to disk during parse — use MaxBytesReader
+	// on the request body for an actual upload cap.
 	MaxMultipartFormSize = 10 << 20
+	// MaxPlantImageFileSize bounds a single uploaded plant image (50 MB).
+	MaxPlantImageFileSize = 50 << 20
+	// MaxPlantImageRequestSize bounds the total multi-image upload request body
+	// (250 MB), enough for several large photos in one go.
+	MaxPlantImageRequestSize = 250 << 20
 	// MinBackupSizeMB is the minimum allowed value for the max backup size setting.
 	MinBackupSizeMB = 100
 	// DefaultStreamGrabIntervalMs is the default stream grab interval in
 	// milliseconds, used when the stored setting is unparseable.
 	DefaultStreamGrabIntervalMs = 3000
+	// MaxSensorScanResponseBytes caps the size of an inbound sensor-API
+	// response body (AC Infinity, EcoWitt). The HTTPTimeout values bound
+	// the wall clock, but a slow-drip server (notably user-supplied
+	// EcoWitt LAN addresses) could otherwise stream hundreds of MB inside
+	// that window.
+	MaxSensorScanResponseBytes = 4 * 1024 * 1024
 )

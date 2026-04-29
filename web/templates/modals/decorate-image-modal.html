@@ -16,7 +16,7 @@
                 </div>
                 <input type="hidden" id="imageId" >
                 <input type="hidden" id="modalDate" >
-                <input type="hidden" id="modalStartDate" value="{{ .plant.StartDT | formatDateISO }}" >
+                <input type="hidden" id="modalStartDate" value="{{ .plant.StartDT | formatDate }}" >
                 <input type="hidden" id="modalPlantName" value="{{ .plant.Name }}" >
                 <input type="hidden" id="strainName" value="{{ .plant.StrainName }}" >
                 <input type="hidden" id="breederName" value="{{ .plant.BreederName }}" >

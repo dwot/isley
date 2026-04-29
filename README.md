@@ -210,7 +210,11 @@ For environment-level configuration, the full reference is below:
 | Variable | Default | Description |
 |---|---|---|
 | `ISLEY_PORT` | `8080` | Port Isley listens on |
-| `ISLEY_SESSION_SECRET` | *(random)* | Session encryption key — **set this in production** |
+| `ISLEY_SESSION_SECRET` | *(random)* | Session encryption key (must be ≥32 bytes) — **set this in production** |
+| `ISLEY_SECURE_COOKIES` | `false` | Set to `true` to mark session cookies as `Secure` (cookies only sent over HTTPS). Enable when Isley is fronted by a TLS reverse proxy. |
+| `ISLEY_HSTS_MAX_AGE` | `0` | When > 0, emits a `Strict-Transport-Security: max-age=<seconds>` header on every response. **Only enable when Isley is reachable solely over HTTPS** — sending HSTS over plain HTTP poisons clients that previously connected over TLS. A common production value is `31536000` (one year). |
+| `ISLEY_HSTS_INCLUDE_SUBDOMAINS` | `false` | When `ISLEY_HSTS_MAX_AGE > 0`, append `; includeSubDomains` to the HSTS header. |
+| `ISLEY_HSTS_PRELOAD` | `false` | When `ISLEY_HSTS_INCLUDE_SUBDOMAINS=true`, append `; preload` to the HSTS header. Only opt in if you intend to submit the host to https://hstspreload.org. |
 | `GIN_MODE` | `release` | Set to `debug` for verbose request logging and error details during development |
 
 ### Database
@@ -224,7 +228,7 @@ For environment-level configuration, the full reference is below:
 | `ISLEY_DB_USER` | — | PostgreSQL username |
 | `ISLEY_DB_PASSWORD` | — | PostgreSQL password |
 | `ISLEY_DB_NAME` | — | PostgreSQL database name |
-| `ISLEY_DB_SSLMODE` | `require` | PostgreSQL SSL mode (`require`, `disable`, `verify-full`, etc.) |
+| `ISLEY_DB_SSLMODE` | `disable` | PostgreSQL SSL mode — set to `require` (or `verify-full`) when connecting to a TLS-enforcing Postgres host |
 
 ---
 

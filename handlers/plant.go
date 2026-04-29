@@ -53,10 +53,11 @@ func AddPlant(c *gin.Context) {
 	}
 
 	db := DBFromContext(c)
+	store := ConfigStoreFromContext(c)
 
 	if input.ZoneID == nil && input.NewZone != "" {
 		// Insert new zone into the database
-		zoneID, err := CreateNewZone(db, input.NewZone)
+		zoneID, err := CreateNewZone(db, store, input.NewZone)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
 			apiInternalError(c, "api_failed_to_create_new_zone")
@@ -68,7 +69,7 @@ func AddPlant(c *gin.Context) {
 	// Handle new strain creation
 	if input.StrainID == nil && input.NewStrain != nil {
 		// Insert new strain into the database
-		strainID, err := CreateNewStrain(db, input.NewStrain)
+		strainID, err := CreateNewStrain(db, store, input.NewStrain)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new strain")
 			apiInternalError(c, "api_failed_to_create_new_strain")
@@ -131,21 +132,61 @@ func AddPlant(c *gin.Context) {
 func GetActivities(db *sql.DB) []types.Activity {
 	fieldLogger := logger.Log.WithField("func", "GetActivities")
 
-	rows, err := db.Query("SELECT id, name FROM activity")
+	rows, err := db.Query(`
+		SELECT
+			a.id,
+			a.name,
+			a.is_watering,
+			a.is_feeding,
+			am.metric_id,
+			am.required
+		FROM activity a
+		LEFT JOIN activity_metric am ON am.activity_id = a.id
+		ORDER BY a.name`)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query activities")
 		return nil
 	}
+	defer rows.Close()
 
 	var activities []types.Activity
+	activityIdx := make(map[int]int)
 	for rows.Next() {
-		var activity types.Activity
-		err = rows.Scan(&activity.ID, &activity.Name)
+		var (
+			activityID   int
+			activityName string
+			isWatering   bool
+			isFeeding    bool
+			// Use Null types for optional metric fields
+			metricID sql.NullInt64
+			required sql.NullBool
+		)
+
+		err = rows.Scan(&activityID, &activityName, &isWatering, &isFeeding, &metricID, &required)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan activity")
 			return nil
 		}
-		activities = append(activities, activity)
+
+		idx, exists := activityIdx[activityID]
+		if !exists {
+			activities = append(activities, types.Activity{
+				ID:         activityID,
+				Name:       activityName,
+				IsWatering: isWatering,
+				IsFeeding:  isFeeding,
+				Metrics:    []types.ActivityMetricLink{},
+			})
+			idx = len(activities) - 1
+			activityIdx[activityID] = idx
+		}
+
+		if metricID.Valid && required.Valid {
+			activities[idx].Metrics = append(activities[idx].Metrics, types.ActivityMetricLink{
+				MetricID: int(metricID.Int64),
+				Required: required.Bool,
+			})
+		}
 	}
 
 	return activities
@@ -198,7 +239,11 @@ func GetStatuses(db *sql.DB) []types.Status {
 
 }
 
-func CreateNewStrain(db *sql.DB, newStrain *struct {
+// CreateNewStrain inserts a new strain (and optionally a new breeder)
+// and returns the new strain id. If store is non-nil it is refreshed
+// from the DB so subsequent reads observe the new rows; tests that
+// don't care about the in-memory side-effect may pass nil.
+func CreateNewStrain(db *sql.DB, store *config.Store, newStrain *struct {
 	Name       string `json:"name"`
 	BreederId  int    `json:"breeder_id"`
 	NewBreeder string `json:"new_breeder"`
@@ -215,7 +260,9 @@ func CreateNewStrain(db *sql.DB, newStrain *struct {
 			return 0, fmt.Errorf("failed to insert new breeder: %w", err)
 		}
 
-		config.Breeders = GetBreeders(db)
+		if store != nil {
+			store.SetBreeders(GetBreeders(db))
+		}
 	} else {
 		// Use the existing breeder ID
 		breederId = newStrain.BreederId
@@ -234,7 +281,9 @@ func CreateNewStrain(db *sql.DB, newStrain *struct {
 		return 0, fmt.Errorf("failed to insert new strain: %w", err)
 	}
 
-	config.Strains = GetStrains(db)
+	if store != nil {
+		store.SetStrains(GetStrains(db))
+	}
 
 	return id, nil
 }
@@ -535,7 +584,13 @@ func loadPlantSensors(db *sql.DB, plantID uint, zoneID int) []types.SensorDataRe
 func loadPlantMeasurements(db *sql.DB, plantID uint) []types.Measurement {
 	fieldLogger := logger.Log.WithField("func", "loadPlantMeasurements")
 
-	rows, err := db.Query(fmt.Sprintf("SELECT m.id, me.name, m.value, m.date FROM plant_measurements m LEFT OUTER JOIN metric me ON me.id = m.metric_id WHERE m.plant_id = $1 ORDER BY date DESC LIMIT %d", PlantHistoryLimit), plantID)
+	rows, err := db.Query(fmt.Sprintf(`
+		SELECT m.id, m.metric_id, me.name, m.value, m.date
+		FROM plant_measurements m
+		LEFT OUTER JOIN metric me ON me.id = m.metric_id
+		WHERE m.plant_id = $1
+		ORDER BY date DESC
+		LIMIT %d`, PlantHistoryLimit), plantID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query measurements")
 		return nil
@@ -545,14 +600,15 @@ func loadPlantMeasurements(db *sql.DB, plantID uint) []types.Measurement {
 	var measurements []types.Measurement
 	for rows.Next() {
 		var id uint
+		var metricID int
 		var name string
 		var value float64
 		var date time.Time
-		if err := rows.Scan(&id, &name, &value, &date); err != nil {
+		if err := rows.Scan(&id, &metricID, &name, &value, &date); err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan measurement")
 			continue
 		}
-		measurements = append(measurements, types.Measurement{ID: id, Name: name, Value: value, Date: utils.AsLocal(date)})
+		measurements = append(measurements, types.Measurement{ID: id, MetricID: metricID, Name: name, Value: value, Date: utils.AsLocal(date)})
 	}
 	return measurements
 }
@@ -561,7 +617,38 @@ func loadPlantMeasurements(db *sql.DB, plantID uint) []types.Measurement {
 func loadPlantActivities(db *sql.DB, plantID uint) []types.PlantActivity {
 	fieldLogger := logger.Log.WithField("func", "loadPlantActivities")
 
-	rows, err := db.Query(fmt.Sprintf("SELECT pa.id, a.id AS activity_id, a.name, pa.note, pa.date FROM plant_activity pa LEFT OUTER JOIN activity a ON a.id = pa.activity_id WHERE pa.plant_id = $1 ORDER BY date DESC LIMIT %d", PlantHistoryLimit), plantID)
+	// Use a CTE here to be able to limit the results to PlantHistoryLimit
+	rows, err := db.Query(fmt.Sprintf(`
+		WITH recent_activities AS (
+			SELECT pa.id,
+			       COALESCE(a.id, 0) AS activity_id,
+			       COALESCE(a.name, '') AS name,
+			       pa.note,
+			       pa.date,
+			       COALESCE(a.is_watering, false) AS is_watering,
+			       COALESCE(a.is_feeding, false) AS is_feeding
+			FROM plant_activity pa
+			LEFT OUTER JOIN activity a ON a.id = pa.activity_id
+			WHERE pa.plant_id = $1
+			ORDER BY pa.date DESC
+			LIMIT %d
+		)
+		SELECT ra.id,
+		       ra.activity_id,
+		       ra.name,
+		       ra.note,
+		       ra.date,
+		       ra.is_watering,
+		       ra.is_feeding,
+		       pm.id,
+		       pm.metric_id,
+		       me.name,
+		       pm.value,
+		       pm.date
+		FROM recent_activities ra
+		LEFT OUTER JOIN plant_measurements pm ON pm.plant_activity_id = ra.id
+		LEFT OUTER JOIN metric me ON me.id = pm.metric_id
+		ORDER BY ra.date DESC, ra.id DESC, me.name`, PlantHistoryLimit), plantID)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query activities")
 		return nil
@@ -569,17 +656,47 @@ func loadPlantActivities(db *sql.DB, plantID uint) []types.PlantActivity {
 	defer rows.Close()
 
 	var activities []types.PlantActivity
+	activityIdx := make(map[uint]int)
 	for rows.Next() {
 		var id uint
 		var activityID int
 		var name, note string
 		var date time.Time
-		if err := rows.Scan(&id, &activityID, &name, &note, &date); err != nil {
+		var isWatering, isFeeding bool
+		var measurementID sql.NullInt64
+		var metricID sql.NullInt64
+		var measurementName sql.NullString
+		var measurementValue sql.NullFloat64
+		var measurementDate sql.NullTime
+
+		if err := rows.Scan(&id, &activityID, &name, &note, &date, &isWatering, &isFeeding, &measurementID, &metricID, &measurementName, &measurementValue, &measurementDate); err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan activity")
 			continue
 		}
-		activities = append(activities, types.PlantActivity{ID: id, Name: name, Note: note, Date: utils.AsLocal(date), ActivityId: activityID})
+
+		i, exists := activityIdx[id]
+		if !exists {
+			activities = append(activities, types.PlantActivity{ID: id, Name: name, Note: note, Date: utils.AsLocal(date), ActivityId: activityID, IsWatering: isWatering, IsFeeding: isFeeding})
+			i = len(activities) - 1
+			activityIdx[id] = i
+		}
+
+		if measurementID.Valid {
+			measurement := types.Measurement{
+				ID:    uint(measurementID.Int64),
+				Name:  measurementName.String,
+				Value: measurementValue.Float64,
+			}
+			if metricID.Valid {
+				measurement.MetricID = int(metricID.Int64)
+			}
+			if measurementDate.Valid {
+				measurement.Date = utils.AsLocal(measurementDate.Time)
+			}
+			activities[i].Measurements = append(activities[i].Measurements, measurement)
+		}
 	}
+
 	return activities
 }
 
@@ -661,10 +778,10 @@ func loadPlantImages(db *sql.DB, plantID uint) (types.PlantImage, []types.PlantI
 // deriveActivityDates scans activities to find the most recent water and feed dates.
 func deriveActivityDates(activities []types.PlantActivity) (lastWater, lastFeed time.Time) {
 	for _, a := range activities {
-		if a.ActivityId == ActivityWater && a.Date.After(lastWater) {
+		if a.IsWatering && a.Date.After(lastWater) {
 			lastWater = a.Date
 		}
-		if a.ActivityId == ActivityFeed && a.Date.After(lastFeed) {
+		if a.IsFeeding && a.Date.After(lastFeed) {
 			lastFeed = a.Date
 		}
 	}
@@ -724,6 +841,33 @@ func LinkSensorsToPlant(c *gin.Context) {
 		return
 	}
 
+	// Initialize the database
+	db := DBFromContext(c)
+
+	// Validate that every supplied sensor ID actually exists. Without this
+	// check the JSON column happily accepts dangling references that later
+	// surface as silent NULL joins on the plant detail page.
+	if len(input.SensorIDs) > 0 {
+		placeholders := make([]string, len(input.SensorIDs))
+		args := make([]interface{}, len(input.SensorIDs))
+		for i, id := range input.SensorIDs {
+			placeholders[i] = fmt.Sprintf("$%d", i+1)
+			args[i] = id
+		}
+		var found int
+		query := fmt.Sprintf("SELECT COUNT(*) FROM sensors WHERE id IN (%s)", strings.Join(placeholders, ","))
+		if err := db.QueryRow(query, args...).Scan(&found); err != nil {
+			fieldLogger.WithError(err).Error("Failed to validate sensor IDs")
+			apiInternalError(c, "api_database_query_error")
+			return
+		}
+		if found != len(input.SensorIDs) {
+			fieldLogger.WithField("requested", len(input.SensorIDs)).WithField("found", found).Warn("Rejected link with unknown sensor IDs")
+			apiBadRequest(c, "api_invalid_sensor_ids")
+			return
+		}
+	}
+
 	// Serialize SensorIDs to JSON
 	sensorIDsJSON, err := json.Marshal(input.SensorIDs)
 	if err != nil {
@@ -731,9 +875,6 @@ func LinkSensorsToPlant(c *gin.Context) {
 		apiInternalError(c, "api_failed_to_process_sensor_ids")
 		return
 	}
-
-	// Initialize the database
-	db := DBFromContext(c)
 
 	// Update the plant with the serialized sensor IDs
 	_, err = db.Exec("UPDATE plant SET sensors = $1 WHERE id = $2", sensorIDsJSON, input.PlantID)
@@ -789,10 +930,11 @@ func UpdatePlant(c *gin.Context) {
 
 	// Init the db
 	db := DBFromContext(c)
+	store := ConfigStoreFromContext(c)
 
 	if input.ZoneID == nil && input.NewZone != "" {
 		// Insert new zone into the database
-		zoneID, err := CreateNewZone(db, input.NewZone)
+		zoneID, err := CreateNewZone(db, store, input.NewZone)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
 			apiInternalError(c, "api_failed_to_create_new_zone")
@@ -804,7 +946,7 @@ func UpdatePlant(c *gin.Context) {
 	// Handle new strain creation
 	if input.StrainID == nil && input.NewStrain != nil {
 		// Insert new strain into the database
-		strainID, err := CreateNewStrain(db, input.NewStrain)
+		strainID, err := CreateNewStrain(db, store, input.NewStrain)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new strain")
 			apiInternalError(c, "api_failed_to_create_new_strain")
@@ -841,13 +983,6 @@ func UpdatePlant(c *gin.Context) {
 
 func getPlantsByStatus(db *sql.DB, statuses []int) ([]types.PlantListResponse, error) {
 	fieldLogger := logger.Log.WithField("func", "getPlantsByStatus")
-	// Generate placeholders for the number of statuses
-	placeholders := make([]string, len(statuses))
-	args := make([]interface{}, len(statuses))
-	for i, status := range statuses {
-		placeholders[i] = "?"
-		args[i] = status
-	}
 
 	driver := model.GetDriver()
 	statusVals := make([]interface{}, len(statuses))
@@ -871,13 +1006,13 @@ SELECT
 		SELECT (CURRENT_DATE - MAX(pa.date)::date)
 		FROM plant_activity pa
 		JOIN activity a ON pa.activity_id = a.id
-		WHERE pa.plant_id = p.id AND a.name = 'Water'
+		WHERE pa.plant_id = p.id AND a.is_watering = TRUE
 	), 0) AS days_since_last_watering,
 	COALESCE((
 		SELECT (CURRENT_DATE - MAX(pa.date)::date)
 		FROM plant_activity pa
 		JOIN activity a ON pa.activity_id = a.id
-		WHERE pa.plant_id = p.id AND a.name = 'Feed'
+		WHERE pa.plant_id = p.id AND a.is_feeding = TRUE
 	), 0) AS days_since_last_feeding,
 	COALESCE((
 		SELECT (
@@ -928,15 +1063,15 @@ SELECT
     CAST((julianday('now', 'localtime') - julianday(p.start_dt)) + 1 AS INT) AS current_day,
     COALESCE((
         SELECT CAST(julianday('now', 'localtime') - julianday(MAX(pa.date)) AS INT)
-        FROM plant_activity pa 
-        JOIN activity a ON pa.activity_id = a.id
-        WHERE pa.plant_id = p.id AND a.name = 'Water'
+        FROM plant_activity pa
+		JOIN activity a ON pa.activity_id = a.id
+		WHERE pa.plant_id = p.id AND a.is_watering = TRUE
     ), 0) AS days_since_last_watering,
     COALESCE((
         SELECT CAST(julianday('now', 'localtime') - julianday(MAX(pa.date)) AS INT)
-        FROM plant_activity pa 
-        JOIN activity a ON pa.activity_id = a.id
-        WHERE pa.plant_id = p.id AND a.name = 'Feed'
+        FROM plant_activity pa
+		JOIN activity a ON pa.activity_id = a.id
+		WHERE pa.plant_id = p.id AND a.is_feeding = TRUE
     ), 0) AS days_since_last_feeding,
     COALESCE((
         SELECT CAST(
@@ -1118,6 +1253,38 @@ func DeadPlantsHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, plants)
+}
+
+// GetAdjacentPlantIDs returns the prev and next plant IDs within the same status group,
+// ordered by start_dt then name. Returns 0, 0 when there is no adjacent plant.
+func GetAdjacentPlantIDs(db *sql.DB, currentID int) (prevID, nextID int) {
+	fieldLogger := logger.Log.WithField("func", "GetAdjacentPlantIDs")
+
+	// Partition plants into status groups (active/not active),
+	// then use LAG/LEAD to get the neighbors of the requested plant.
+	const query = `
+		WITH ranked AS (
+			SELECT
+				p.id,
+				LAG(p.id)  OVER (PARTITION BY ps.active ORDER BY p.start_dt, p.name) AS prev_id,
+				LEAD(p.id) OVER (PARTITION BY ps.active ORDER BY p.start_dt, p.name) AS next_id
+			FROM plant p
+			JOIN plant_status_log psl ON p.id = psl.plant_id
+			JOIN plant_status ps      ON psl.status_id = ps.id
+			WHERE psl.date = (SELECT MAX(date) FROM plant_status_log WHERE plant_id = p.id)
+		)
+		SELECT COALESCE(prev_id, 0), COALESCE(next_id, 0)
+		FROM   ranked
+		WHERE  id = $1
+	`
+
+	if err := db.QueryRow(query, currentID).Scan(&prevID, &nextID); err != nil {
+		if err != sql.ErrNoRows {
+			fieldLogger.WithError(err).Error("Failed to query adjacent plant IDs")
+		}
+		return 0, 0
+	}
+	return prevID, nextID
 }
 
 // Strain and breeder handlers have been moved to strain.go

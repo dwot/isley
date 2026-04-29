@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -29,11 +30,20 @@ func UploadPlantImages(c *gin.Context) {
 	}
 	fileLogger = logger.Log.WithField("plantID", plantID)
 
+	// Cap the request body before ParseMultipartForm — without this large
+	// files spill to disk unbounded once they exceed the in-memory threshold.
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, MaxPlantImageRequestSize)
+
 	// Parse the multipart form data
-	err = c.Request.ParseMultipartForm(MaxMultipartFormSize) // Limit to 10 MB
+	err = c.Request.ParseMultipartForm(MaxMultipartFormSize)
 	if err != nil {
 		fileLogger.WithError(err).Error("Failed to parse multipart form data")
-		apiBadRequest(c, "api_failed_to_parse_form")
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			apiError(c, http.StatusRequestEntityTooLarge, "api_image_too_large")
+		} else {
+			apiBadRequest(c, "api_failed_to_parse_form")
+		}
 		return
 	}
 
@@ -48,6 +58,12 @@ func UploadPlantImages(c *gin.Context) {
 	// Process each uploaded file
 	for index, fileHeader := range files {
 		fileLogger := logger.Log.WithField("fileIndex", index)
+
+		if fileHeader.Size > MaxPlantImageFileSize {
+			fileLogger.WithField("size", fileHeader.Size).Warn("Rejected upload exceeding per-file size limit")
+			apiError(c, http.StatusRequestEntityTooLarge, "api_image_too_large")
+			return
+		}
 
 		// Open the uploaded file
 		file, err := fileHeader.Open()
@@ -73,10 +89,10 @@ func UploadPlantImages(c *gin.Context) {
 			return
 		}
 
-		// Generate a unique file path
+		// Generate a unique file path under the per-engine upload root.
 		timestamp := time.Now().UnixNano()
 		fileName := fmt.Sprintf("plant_%d_image_%d_%d%s", plantID, index, timestamp, filepath.Ext(fileHeader.Filename))
-		savePath := filepath.Join("uploads", "plants", fileName)
+		savePath := filepath.Join(UploadDirFromContext(c), "plants", fileName)
 		fileLogger = fileLogger.WithField("savePath", savePath)
 
 		// Create the uploads directory if it doesn't exist

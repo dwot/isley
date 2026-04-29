@@ -5,16 +5,27 @@ import (
 )
 
 type PlantActivity struct {
-	ID         uint      `json:"id"`
-	Name       string    `json:"name"`
-	Note       string    `json:"note"`
-	Date       time.Time `json:"date"`
-	ActivityId int       `json:"activity_id"`
+	ID           uint          `json:"id"`
+	Name         string        `json:"name"`
+	Note         string        `json:"note"`
+	Date         time.Time     `json:"date"`
+	ActivityId   int           `json:"activity_id"`
+	IsWatering   bool          `json:"is_watering"`
+	IsFeeding    bool          `json:"is_feeding"`
+	Measurements []Measurement `json:"measurements"`
 }
 
 type Activity struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+	ID         int                  `json:"id"`
+	Name       string               `json:"name"`
+	IsWatering bool                 `json:"is_watering"`
+	IsFeeding  bool                 `json:"is_feeding"`
+	Metrics    []ActivityMetricLink `json:"metrics"`
+}
+
+type ActivityMetricLink struct {
+	MetricID int  `json:"metric_id"`
+	Required bool `json:"required"`
 }
 
 type Breeder struct {
@@ -23,10 +34,11 @@ type Breeder struct {
 }
 
 type Measurement struct {
-	ID    uint      `json:"id"`
-	Name  string    `json:"name"`
-	Value float64   `json:"value"`
-	Date  time.Time `json:"date"`
+	ID       uint      `json:"id"`
+	MetricID int       `json:"metric_id"`
+	Name     string    `json:"name"`
+	Value    float64   `json:"value"`
+	Date     time.Time `json:"date"`
 }
 
 type Metric struct {

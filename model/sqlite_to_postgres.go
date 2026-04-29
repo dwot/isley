@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	_ "github.com/lib/pq"
 	"isley/logger"
+
+	_ "github.com/lib/pq"
 	_ "modernc.org/sqlite"
 )
 
@@ -28,11 +29,13 @@ var conflictKeys = map[string]string{
 	"metric":             "id",
 	"plant_measurements": "id",
 	"activity":           "id",
+	"activity_metric":    "id",
 	"plant_activity":     "id",
 	"plant_images":       "id",
 	"breeder":            "id",
 	"sensor_data":        "id",
 	"streams":            "id",
+	"strain_lineage":     "id",
 }
 
 var boolToIntFields = map[string][]string{
@@ -44,6 +47,7 @@ var orderedTables = []string{
 	"zones",
 	"breeder", // Must come before strain
 	"strain",
+	"strain_lineage", // After strain — references strain(id)
 	"sensors",
 	"sensor_data",
 	// rolling_averages is excluded — it's a trigger-maintained cache (one row per sensor)
@@ -54,6 +58,7 @@ var orderedTables = []string{
 	"metric",
 	"plant_measurements",
 	"activity",
+	"activity_metric",
 	"plant_activity",
 	"plant_images",
 	"streams",
@@ -243,10 +248,12 @@ func hasSerialID(table string) bool {
 		"metric":             true,
 		"plant_measurements": true,
 		"activity":           true,
+		"activity_metric":    true,
 		"plant_activity":     true,
 		"plant_images":       true,
 		"breeder":            true,
 		"streams":            true,
+		"strain_lineage":     true,
 	}
 
 	return serialTables[table]

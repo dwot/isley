@@ -73,6 +73,98 @@ go test ./tests/integration/ -v
 
 The integration test suite handles its own database setup and teardown.
 
+### Test helpers
+
+Shared test fixtures live under `tests/testutil/` (and `tests/testutil/fakes/`),
+with response-body and archive fixtures under `tests/fixtures/`. Helpers used
+in more than one test file MUST live in `tests/testutil` (or a sub-package).
+File-local helpers may exist for one-off needs but should not be copied
+between files. Reviewers enforce this in PRs.
+
+When a fixture composes existing testutil primitives, prefer that over raw
+SQL — even when the raw SQL is shorter. The point of the primitives is that
+one place owns the column ordering and default values; bypassing them in a
+fixture function silently re-introduces the drift the consolidation was
+meant to prevent.
+
+#### Authenticating mutating requests in tests
+
+Two patterns coexist, and they exercise different production code paths:
+
+- **`X-API-KEY` (`Client.APIPostJSON`, `Client.APIDelete`).** Use this for
+  the ingest contract (sensor data, operator scripts, external
+  integrations). Setting `X-API-KEY` causes `csrfMiddleware` to skip
+  validation entirely, which is correct for that contract but means
+  these tests do **not** cover the CSRF round-trip.
+- **Session cookie + CSRF (`TestServer.LoginAndFetchCSRF` →
+  `Client.SessionPostJSON`).** Use this for any handler whose real
+  user-facing contract is the dashboard — i.e. the same path browser JS
+  takes. `LoginAndFetchCSRF` logs in via `LoginAsAdmin` and then GETs
+  the supplied edit page to extract the CSRF token from
+  `<meta name="csrf-token">`; `SessionPostJSON` forwards the token in
+  `X-CSRF-Token`. This is the standard for new session-path tests.
+
+`tests/integration/session_csrf_test.go` keeps the cookie + CSRF
+round-trip covered for the major resources (plant, strain, settings,
+sensor edit, zone). When you add a new dashboard-only mutating
+endpoint, add a single round-trip test next to those.
+
+### Test parallelism
+
+Every test calls `t.Parallel()` unless its file is annotated
+`// +parallel:serial` at the top. Files that exercise singleton state
+(rate-limiters, driver flips, anything behind a `*ForTesting` setter)
+carry the annotation with a one-line reason naming the cause; everything
+else parallelizes. `scripts/check-parallel.sh` runs in CI before
+`go test` and fails the build if a top-level `Test` function in a
+non-annotated file forgets `t.Parallel()` — the lint exists because
+parallelism is the project's smell-detector for shared mutable state in
+tests, and it only works when someone is checking. See `docs/TEST_PLAN_2.md`
+Phase 4 for the catalogue of acceptable serial causes and which later
+phase removes which annotation.
+
+### Coverage floor
+
+CI gates every PR on a documented coverage floor — one per build tag. The
+SQLite floor lives in `.github/workflows/release.yml` and `.gitlab-ci.yml`
+as `floor=11.0`; the `integration_postgres` floor lives in the same files
+as `floor=2.0`. A PR that drops total statement coverage below either
+floor fails the pipeline.
+
+The numbers are intentionally low: CI runs `go test -coverpkg=./...`,
+which credits coverage across the whole tree (untested packages
+drag the total down) rather than the per-package average `go test
+-cover` reports by default. The two are not comparable — the
+per-package number for this codebase is roughly 5× larger. See
+`audits/TESTING.md`'s "Phase 6c recalibration" note for why the
+cross-tree number is the honest one. If you check coverage locally,
+run with `-coverpkg=./...` so your reading matches CI's:
+
+```bash
+go test -race -coverpkg=./... -coverprofile=coverage.out -timeout=20m ./...
+go tool cover -func=coverage.out | tail -1
+```
+
+Bumping rules:
+
+- **PRs that increase coverage MAY bump the floor accordingly.** If your
+  change ratchets the SQLite total from 12.4% to 14.0%, you may bump
+  `floor=11.0` → `floor=13.0` in the same PR. Use `floor(total - 1.0)`
+  rounded down — a 1.0-point slack absorbs harmless churn from later
+  refactors that don't touch the test surface.
+- **PRs that don't change coverage MUST NOT bump the floor down.** The
+  floor is a ratchet. If a refactor moves coverage from 12.4% to 11.4%
+  without removing any tests, fix the test (or the refactor) — don't
+  loosen the gate.
+- **Raising the floor is a deliberate choice.** The default is to let
+  coverage rise without raising the floor. Raise it only when you want
+  the new number to become the contract.
+
+The Phase 7 (`docs/TEST_PLAN_2.md`) work that lifts dialect-branched
+handler tests into the `integration_postgres` job will produce a real
+Postgres coverage number; that's the right time to recalibrate the
+Postgres floor from its current placeholder of 2.0%.
+
 ## Project Structure
 
 ```

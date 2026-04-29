@@ -1,7 +1,11 @@
 package handlers
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -75,23 +79,25 @@ func (rl *RateLimiter) Allow(key string) bool {
 	return entry.count <= rl.limit
 }
 
-// IngestRateLimiter is the default rate limiter for the sensor ingest API.
-// Allows 60 requests per minute per key/IP.
-var IngestRateLimiter = NewRateLimiter(60, 1*time.Minute)
-
-// RateLimitMiddleware returns a Gin middleware that rate-limits requests.
-// It keys on X-API-KEY if present, otherwise on the client IP.
-func RateLimitMiddleware(rl *RateLimiter) gin.HandlerFunc {
+// IngestRateLimitMiddleware returns a Gin middleware that rate-limits
+// inbound ingest requests. It reads the per-engine ingest limiter from
+// the RateLimiterService on the request context and keys on X-API-KEY
+// if present, otherwise on the client IP.
+func IngestRateLimitMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		key := c.GetHeader("X-API-KEY")
-		if key == "" {
-			key = "ip:" + c.ClientIP()
+		rl := RateLimiterServiceFromContext(c).Ingest()
+
+		var key, logKey string
+		if apiKey := c.GetHeader("X-API-KEY"); apiKey != "" {
+			key = "key:" + apiKey
+			logKey = "key:" + redactAPIKey(apiKey)
 		} else {
-			key = "key:" + key
+			key = "ip:" + c.ClientIP()
+			logKey = key
 		}
 
 		if !rl.Allow(key) {
-			logger.Log.WithField("key", key).Warn("Rate limit exceeded")
+			logger.Log.WithField("key", logKey).Warn("Rate limit exceeded")
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
 				"error": T(c, "api_rate_limit_exceeded"),
 			})
@@ -100,4 +106,21 @@ func RateLimitMiddleware(rl *RateLimiter) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+var rateLimitRedactionKey = []byte(func() string {
+	if v := os.Getenv("RATE_LIMIT_REDACTION_KEY"); v != "" {
+		return v
+	}
+	return "default-rate-limit-redaction-key"
+}())
+
+// redactAPIKey returns a stable, non-reversible identifier for an API key
+// so rate-limit logs can correlate offending callers without leaking the
+// raw secret. Returns the first 12 hex chars of HMAC-SHA-256(key).
+func redactAPIKey(key string) string {
+	mac := hmac.New(sha256.New, rateLimitRedactionKey)
+	mac.Write([]byte(key))
+	sum := mac.Sum(nil)
+	return hex.EncodeToString(sum)[:12]
 }
