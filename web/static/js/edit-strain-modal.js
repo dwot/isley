@@ -3,11 +3,59 @@ document.addEventListener("DOMContentLoaded", () => {
     const deleteStrainButton = document.getElementById("deleteStrainButton");
     const editBreederSelect = document.getElementById("editBreederSelect");
     const editNewBreederInput = document.getElementById("editNewBreederInput");
-    const editIndicaSativaSlider = document.getElementById("editIndicaSativaSlider");
+    const editIndicaInput = document.getElementById("editIndicaInput");
+    const editSativaInput = document.getElementById("editSativaInput");
+    const editRuderalisInput = document.getElementById("editRuderalisInput");
+    const editGeneticsLower = document.getElementById("editGeneticsLower");
+    const editGeneticsUpper = document.getElementById("editGeneticsUpper");
     const editIndicaLabel = document.getElementById("editIndicaLabel");
     const editSativaLabel = document.getElementById("editSativaLabel");
+    const editRuderalisLabel = document.getElementById("editRuderalisLabel");
+    const editRatioFillIndica = document.getElementById("editRatioFillIndica");
+    const editRatioFillSativa = document.getElementById("editRatioFillSativa");
+    const editRatioFillRuderalis = document.getElementById("editRatioFillRuderalis");
     const editCycleTime = document.getElementById("editCycleTime");
     const editUrl = document.getElementById("editUrl");
+
+    function updateEditRatio(activeThumb) {
+        if (!editGeneticsLower || !editGeneticsUpper) return;
+
+        let lower = parseInt(editGeneticsLower.value, 10);
+        let upper = parseInt(editGeneticsUpper.value, 10);
+        lower = Number.isFinite(lower) ? Math.min(100, Math.max(0, lower)) : 0;
+        upper = Number.isFinite(upper) ? Math.min(100, Math.max(0, upper)) : 100;
+
+        if (lower > upper) {
+            if (activeThumb === "lower") {
+                upper = lower;
+            } else {
+                lower = upper;
+            }
+        }
+
+        const indica = lower;
+        const sativa = upper - lower;
+        const ruderalis = 100 - upper;
+
+        editGeneticsLower.value = String(lower);
+        editGeneticsUpper.value = String(upper);
+        if (editIndicaInput) editIndicaInput.value = String(indica);
+        if (editSativaInput) editSativaInput.value = String(sativa);
+        if (editRuderalisInput) editRuderalisInput.value = String(ruderalis);
+        if (editIndicaLabel) editIndicaLabel.textContent = `Indica: ${indica}%`;
+        if (editSativaLabel) editSativaLabel.textContent = `Sativa: ${sativa}%`;
+        if (editRuderalisLabel) editRuderalisLabel.textContent = `Ruderalis: ${ruderalis}%`;
+        if (editRatioFillIndica) editRatioFillIndica.style.width = `${indica}%`;
+        if (editRatioFillSativa) editRatioFillSativa.style.width = `${sativa}%`;
+        if (editRatioFillRuderalis) editRatioFillRuderalis.style.width = `${ruderalis}%`;
+
+        const ratioError = document.getElementById("editRatioError");
+        if (indica + sativa + ruderalis !== 100) {
+            if (ratioError) ratioError.classList.remove("d-none");
+        } else {
+            if (ratioError) ratioError.classList.add("d-none");
+        }
+    }
 
     // Helper to populate modal fields from a strain object
     function populateFields(strainData) {
@@ -17,6 +65,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const breeder_id = strainData.breeder_id || strainData.breederId || strainData.BreederID || strainData.Breeder || null;
         const new_breeder = strainData.new_breeder || strainData.NewBreeder || "";
         const indica = (typeof strainData.indica !== 'undefined') ? strainData.indica : (strainData.Indica || 50);
+        const ruderalis = (typeof strainData.ruderalis !== 'undefined') ? strainData.ruderalis : (strainData.Ruderalis || 0);
         const autoflower = (typeof strainData.autoflower !== 'undefined') ? strainData.autoflower : (strainData.Autoflower || false);
         const seed_count = strainData.seed_count || strainData.SeedCount || 0;
         const description = strainData.description || strainData.Description || "";
@@ -47,11 +96,12 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
-        if (editIndicaSativaSlider) {
-            editIndicaSativaSlider.value = indica;
-            if (editIndicaLabel) editIndicaLabel.textContent = `Indica: ${indica}%`;
-            if (editSativaLabel) editSativaLabel.textContent = `Sativa: ${100 - indica}%`;
-        }
+        if (editIndicaInput) editIndicaInput.value = indica;
+        if (editSativaInput) editSativaInput.value = 100 - indica - ruderalis;
+        if (editRuderalisInput) editRuderalisInput.value = ruderalis;
+        if (editGeneticsLower) editGeneticsLower.value = String(indica);
+        if (editGeneticsUpper) editGeneticsUpper.value = String(100 - ruderalis);
+        updateEditRatio("upper");
 
         if (document.getElementById("editAutoflower")) {
             // Support boolean true/false or 1/0 or string
@@ -75,13 +125,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // Update Indica/Sativa labels dynamically
-    editIndicaSativaSlider.addEventListener("input", () => {
-        const indica = editIndicaSativaSlider.value;
-        const sativa = 100 - indica;
-        editIndicaLabel.textContent = `Indica: ${indica}%`;
-        editSativaLabel.textContent = `Sativa: ${sativa}%`;
-    });
+    if (editGeneticsLower) editGeneticsLower.addEventListener("input", () => updateEditRatio("lower"));
+    if (editGeneticsUpper) editGeneticsUpper.addEventListener("input", () => updateEditRatio("upper"));
+    if (editGeneticsLower) editGeneticsLower.value = editGeneticsLower.value || "50";
+    if (editGeneticsUpper) editGeneticsUpper.value = editGeneticsUpper.value || "100";
+    updateEditRatio("upper");
 
     // Populate modal when it's shown (supports triggers from strain list & details)
     const modalEl = document.getElementById("editStrainModal");
@@ -130,8 +178,9 @@ document.addEventListener("DOMContentLoaded", () => {
             name: document.getElementById("editStrainName").value,
             breeder_id: editBreederSelect.value === "new" ? null : parseInt(editBreederSelect.value, 10),
             new_breeder: editBreederSelect.value === "new" ? document.getElementById("editNewBreederName").value : null,
-            indica: parseInt(editIndicaSativaSlider.value, 10),
-            sativa: 100 - parseInt(editIndicaSativaSlider.value, 10),
+            indica: parseInt(editIndicaInput.value, 10) || 0,
+            sativa: parseInt(editSativaInput.value, 10) || 0,
+            ruderalis: parseInt(editRuderalisInput.value, 10) || 0,
             autoflower: document.getElementById("editAutoflower").value === "true",
             seed_count: parseInt(document.getElementById("editSeedCount").value, 10),
             description: document.getElementById("editStrainDescription").value,

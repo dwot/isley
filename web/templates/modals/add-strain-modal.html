@@ -38,14 +38,29 @@
                         <input type="text" class="form-control" id="newBreederName" placeholder="{{ .lcl.new_breeder_placeholder }}">
                     </div>
 
-                    <!-- Indica / Sativa Ratio -->
+                    <!-- Indica / Sativa / Ruderalis Multi-Thumb Slider -->
                     <div class="mb-3">
-                        <label for="indicaSativaSlider" class="form-label">{{ .lcl.i_s_ratio }}</label>
-                        <input type="range" class="form-range" id="indicaSativaSlider" min="0" max="100" value="50">
-                        <div class="d-flex justify-content-between">
-                            <small class="text-primary" id="indicaLabel">Indica: 50%</small>
-                            <small class="text-success" id="sativaLabel">Sativa: 50%</small>
+                        <label class="form-label">{{ .lcl.i_s_ratio }}</label>
+                        <input type="hidden" id="indicaInput" value="50">
+                        <input type="hidden" id="sativaInput" value="50">
+                        <input type="hidden" id="ruderalisInput" value="0">
+
+                        <div class="strain-genetics-slider mb-2" id="geneticsSlider">
+                            <div class="strain-ratio-bar-tri" role="img" aria-label="Genetics ratio">
+                                <div class="strain-ratio-indica" id="ratioFillIndica" style="width: 50%"></div>
+                                <div class="strain-ratio-sativa" id="ratioFillSativa" style="width: 50%"></div>
+                                <div class="strain-ratio-ruderalis" id="ratioFillRuderalis" style="width: 0%"></div>
+                            </div>
+                            <input type="range" class="strain-genetics-thumb strain-genetics-thumb-lower" id="geneticsLower" min="0" max="100" value="50" step="1" aria-label="Indica boundary">
+                            <input type="range" class="strain-genetics-thumb strain-genetics-thumb-upper" id="geneticsUpper" min="0" max="100" value="100" step="1" aria-label="Sativa boundary">
                         </div>
+
+                        <div class="d-flex justify-content-between">
+                            <small class="fw-semibold strain-indica-text" id="indicaLabel">Indica: 50%</small>
+                            <small class="fw-semibold strain-sativa-text" id="sativaLabel">Sativa: 50%</small>
+                            <small class="fw-semibold strain-ruderalis-text" id="ruderalisLabel">Ruderalis: 0%</small>
+                        </div>
+                        <small class="text-danger d-none" id="ratioError">{{ .lcl.genetics_must_sum_100 }}</small>
                     </div>
 
                     <!-- Autoflower -->

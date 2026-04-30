@@ -2,9 +2,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const addStrainForm = document.getElementById("addStrainForm");
     const breederSelect = document.getElementById("breederSelect");
     const newBreederInput = document.getElementById("newBreederInput");
-    const indicaSativaSlider = document.getElementById("indicaSativaSlider");
+    const indicaInput = document.getElementById("indicaInput");
+    const sativaInput = document.getElementById("sativaInput");
+    const ruderalisInput = document.getElementById("ruderalisInput");
+    const geneticsLower = document.getElementById("geneticsLower");
+    const geneticsUpper = document.getElementById("geneticsUpper");
     const indicaLabel = document.getElementById("indicaLabel");
     const sativaLabel = document.getElementById("sativaLabel");
+    const ruderalisLabel = document.getElementById("ruderalisLabel");
+    const ratioFillIndica = document.getElementById("ratioFillIndica");
+    const ratioFillSativa = document.getElementById("ratioFillSativa");
+    const ratioFillRuderalis = document.getElementById("ratioFillRuderalis");
     const cycleTime = document.getElementById("cycleTime");
     const url = document.getElementById("url");
 
@@ -17,13 +25,51 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // Update labels dynamically as the slider changes
-    indicaSativaSlider.addEventListener("input", (e) => {
-        const indica = e.target.value;
-        const sativa = 100 - indica;
-        indicaLabel.textContent = `Indica: ${indica}%`;
-        sativaLabel.textContent = `Sativa: ${sativa}%`;
-    });
+    function updateRatio(activeThumb) {
+        if (!geneticsLower || !geneticsUpper) return;
+
+        let lower = parseInt(geneticsLower.value, 10);
+        let upper = parseInt(geneticsUpper.value, 10);
+        lower = Number.isFinite(lower) ? Math.min(100, Math.max(0, lower)) : 0;
+        upper = Number.isFinite(upper) ? Math.min(100, Math.max(0, upper)) : 100;
+
+        if (lower > upper) {
+            if (activeThumb === "lower") {
+                upper = lower;
+            } else {
+                lower = upper;
+            }
+        }
+
+        const indica = lower;
+        const sativa = upper - lower;
+        const ruderalis = 100 - upper;
+
+        geneticsLower.value = String(lower);
+        geneticsUpper.value = String(upper);
+        if (indicaInput) indicaInput.value = String(indica);
+        if (sativaInput) sativaInput.value = String(sativa);
+        if (ruderalisInput) ruderalisInput.value = String(ruderalis);
+        if (indicaLabel) indicaLabel.textContent = `Indica: ${indica}%`;
+        if (sativaLabel) sativaLabel.textContent = `Sativa: ${sativa}%`;
+        if (ruderalisLabel) ruderalisLabel.textContent = `Ruderalis: ${ruderalis}%`;
+        if (ratioFillIndica) ratioFillIndica.style.width = `${indica}%`;
+        if (ratioFillSativa) ratioFillSativa.style.width = `${sativa}%`;
+        if (ratioFillRuderalis) ratioFillRuderalis.style.width = `${ruderalis}%`;
+
+        const ratioError = document.getElementById("ratioError");
+        if (indica + sativa + ruderalis !== 100) {
+            if (ratioError) ratioError.classList.remove("d-none");
+            return false;
+        }
+        if (ratioError) ratioError.classList.add("d-none");
+        return true;
+    }
+    if (geneticsLower) geneticsLower.addEventListener("input", () => updateRatio("lower"));
+    if (geneticsUpper) geneticsUpper.addEventListener("input", () => updateRatio("upper"));
+    if (geneticsLower) geneticsLower.value = "50";
+    if (geneticsUpper) geneticsUpper.value = "100";
+    updateRatio("upper");
 
     // If no breeders exist, show the new breeder input by default
     if (document.getElementById("breederSelect").length === 1) {
@@ -38,8 +84,9 @@ document.addEventListener("DOMContentLoaded", () => {
             name: document.getElementById("strainName").value,
             breeder_id: breederSelect.value === "new" ? null : parseInt(breederSelect.value, 10),
             new_breeder: breederSelect.value === "new" ? document.getElementById("newBreederName").value : null,
-            indica: parseInt(indicaSativaSlider.value, 10),
-            sativa: 100 - parseInt(indicaSativaSlider.value, 10),
+            indica: parseInt(indicaInput.value, 10) || 0,
+            sativa: parseInt(sativaInput.value, 10) || 0,
+            ruderalis: parseInt(ruderalisInput.value, 10) || 0,
             autoflower: document.getElementById("autoflower").value === "true",
             seed_count: parseInt(document.getElementById("seedCount").value, 10),
             description: document.getElementById("strainDescription").value,
@@ -67,12 +114,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 try {
                     addStrainForm.reset();
 
-                    // Reset slider and labels
-                    if (indicaSativaSlider) {
-                        indicaSativaSlider.value = 50;
-                        if (indicaLabel) indicaLabel.textContent = `Indica: 50%`;
-                        if (sativaLabel) sativaLabel.textContent = `Sativa: 50%`;
-                    }
+                    // Reset ratio inputs
+                    if (geneticsLower) geneticsLower.value = "50";
+                    if (geneticsUpper) geneticsUpper.value = "100";
+                    updateRatio("upper");
 
                     // Reset breeder select and new breeder input
                     if (breederSelect) {

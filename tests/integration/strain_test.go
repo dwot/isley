@@ -93,6 +93,7 @@ func TestStrain_AddCreatesNewBreeder(t *testing.T) {
 		"new_breeder": "Brand New Breeder",
 		"indica":      50,
 		"sativa":      50,
+		"ruderalis":   0,
 		"autoflower":  true,
 		"seed_count":  0,
 		"description": "",
@@ -141,6 +142,7 @@ func TestStrain_AddRejectsMissingBreeder(t *testing.T) {
 		"name":       "Orphan",
 		"indica":     50,
 		"sativa":     50,
+		"ruderalis":  0,
 		"autoflower": false,
 		"seed_count": 0,
 	})

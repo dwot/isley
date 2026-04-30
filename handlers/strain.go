@@ -17,6 +17,14 @@ import (
 // Breeder helpers & handlers
 // ---------------------------------------------------------------------------
 
+// createBreeder inserts a new breeder into the database and returns the new ID.
+// The transaction is expected to be managed by the caller
+func createBreeder(tx *sql.Tx, name string) (int, error) {
+	var id int
+	err := tx.QueryRow("INSERT INTO breeder (name) VALUES ($1) RETURNING id", name).Scan(&id)
+	return id, err
+}
+
 func GetBreeders(db *sql.DB) []types.Breeder {
 	fieldLogger := logger.Log.WithField("func", "GetBreeders")
 
@@ -57,18 +65,30 @@ func AddBreederHandler(c *gin.Context) {
 
 	// Add breeder to database
 	db := DBFromContext(c)
+	tx, err := db.Begin()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to start breeder add transaction")
+		apiInternalError(c, "api_failed_to_start_tx")
+		return
+	}
+	defer tx.Rollback()
 
 	// Insert new breeder and return new id
-	var id int
-	err := db.QueryRow("INSERT INTO breeder (name) VALUES ($1) RETURNING id", breeder.Name).Scan(&id)
+	var breederID int
+	breederID, err = createBreeder(tx, strainInput.NewBreeder)
 	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to add breeder")
+		fieldLogger.WithError(err).Error("Failed to create new breeder")
 		apiInternalError(c, "api_failed_to_add_breeder")
 		return
 	}
-	ConfigStoreFromContext(c).AppendBreeder(types.Breeder{ID: id, Name: breeder.Name})
+	if err := tx.Commit(); err != nil {
+		fieldLogger.WithError(err).Error("Failed to commit strain add transaction")
+		apiInternalError(c, "api_failed_to_commit_tx")
+		return
+	}
+	ConfigStoreFromContext(c).AppendBreeder(types.Breeder{ID: breederID, Name: breeder.Name})
 
-	c.JSON(http.StatusCreated, gin.H{"id": id})
+	c.JSON(http.StatusCreated, gin.H{"id": breederID})
 }
 func UpdateBreederHandler(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "UpdateBreederHandler")
@@ -109,18 +129,22 @@ func DeleteBreederHandler(c *gin.Context) {
 
 	// Delete breeder from database
 	db := DBFromContext(c)
-
-	// Delete any plants associated with this breeder
-	rows, err := db.Query("SELECT p.id FROM plant p LEFT OUTER JOIN strain s on s.id = p.strain_id WHERE s.breeder_id = $1", id)
+	tx, err := db.Begin()
 	if err != nil {
-		if err.Error() != "sql: no rows in result set" {
-
-		} else {
-			fieldLogger.WithError(err).Error("Failed to delete plants")
-			return
-		}
+		fieldLogger.WithError(err).Error("Failed to start breeder delete transaction")
+		apiInternalError(c, "api_failed_to_start_tx")
+		return
 	}
-	defer rows.Close()
+	defer tx.Rollback()
+
+	// Query plants associated with this breeder to be deleted
+	// This is two step to be able to reuse the deletePlantByID helper which will ensure cleanup of related records
+	rows, err := tx.Query("SELECT p.id FROM plant p LEFT OUTER JOIN strain s on s.id = p.strain_id WHERE s.breeder_id = $1", id)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to load breeder plants")
+		apiInternalError(c, "api_failed_to_delete_plant")
+		return
+	}
 
 	plantList := []int{}
 	for rows.Next() {
@@ -132,28 +156,47 @@ func DeleteBreederHandler(c *gin.Context) {
 		}
 		plantList = append(plantList, plantId)
 	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		fieldLogger.WithError(err).Error("Failed to iterate breeder plants")
+		apiInternalError(c, "api_failed_to_delete_plant")
+		return
+	}
 
 	for _, plantId := range plantList {
-		DeletePlantById(db, strconv.Itoa(plantId))
+		if err := deletePlantByIDTx(tx, strconv.Itoa(plantId)); err != nil {
+			fieldLogger.WithError(err).WithField("plantID", plantId).Error("Failed to delete plant")
+			apiInternalError(c, "api_failed_to_delete_plant")
+			return
+		}
 	}
 
 	// Delete any strains associated with this breeder
-	_, err = db.Exec("DELETE FROM strain WHERE breeder_id = $1", id)
+	_, err = tx.Exec("DELETE FROM strain WHERE breeder_id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete strains")
 		apiInternalError(c, "api_failed_to_delete_strains")
+		return
 	}
 
 	// Delete breeder from database
-	_, err = db.Exec("DELETE FROM breeder WHERE id = $1", id)
+	_, err = tx.Exec("DELETE FROM breeder WHERE id = $1", id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to delete breeder")
 		apiInternalError(c, "api_failed_to_delete_breeder")
 		return
 	}
 
+	if err := tx.Commit(); err != nil {
+		fieldLogger.WithError(err).Error("Failed to commit breeder delete transaction")
+		apiInternalError(c, "api_failed_to_commit_tx")
+		return
+	}
+
 	//Reload Config
-	ConfigStoreFromContext(c).SetBreeders(GetBreeders(db))
+	store := ConfigStoreFromContext(c)
+	store.SetBreeders(GetBreeders(db))
+	store.SetStrains(GetStrains(db))
 
 	apiOK(c, "api_breeder_deleted")
 }
@@ -161,6 +204,20 @@ func DeleteBreederHandler(c *gin.Context) {
 // ---------------------------------------------------------------------------
 // Strain helpers & handlers
 // ---------------------------------------------------------------------------
+var strainInput struct {
+	Name             string `json:"name"`
+	BreederID        *int   `json:"breeder_id"` // Nullable for new breeders
+	NewBreeder       string `json:"new_breeder"`
+	Indica           int    `json:"indica"`
+	Sativa           int    `json:"sativa"`
+	Ruderalis        int    `json:"ruderalis"`
+	Autoflower       bool   `json:"autoflower"`
+	SeedCount        int    `json:"seed_count"`
+	Description      string `json:"description"`
+	ShortDescription string `json:"short_desc"`
+	CycleTime        int    `json:"cycle_time"`
+	Url              string `json:"url"`
+}
 
 func validateStrainFields(name, description, shortDesc, newBreeder, strainURL string) error {
 	if err := utils.ValidateRequiredString("name", name, utils.MaxNameLength); err != nil {
@@ -181,7 +238,13 @@ func validateStrainFields(name, description, shortDesc, newBreeder, strainURL st
 func GetStrains(db *sql.DB) []types.Strain {
 	fieldLogger := logger.Log.WithField("func", "GetStrains")
 
-	rows, err := db.Query("SELECT s.id, s.name, b.id as breeder_id, b.name as breeder, s.indica, s.sativa, s.autoflower, s.description, coalesce(s.short_desc, ''), s.seed_count FROM strain s left outer join breeder b on s.breeder_id = b.id ORDER BY s.name ASC")
+	rows, err := db.Query(`
+		SELECT s.id, s.name, b.id AS breeder_id, b.name AS breeder,
+		       s.indica, s.sativa, s.ruderalis, s.autoflower,
+		       s.description, COALESCE(s.short_desc, ''), s.seed_count
+		FROM strain s
+		LEFT OUTER JOIN breeder b ON s.breeder_id = b.id
+		ORDER BY s.name ASC`)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query strains")
 		return nil
@@ -190,7 +253,7 @@ func GetStrains(db *sql.DB) []types.Strain {
 	var strains []types.Strain
 	for rows.Next() {
 		var strain types.Strain
-		err = rows.Scan(&strain.ID, &strain.Name, &strain.BreederID, &strain.Breeder, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.Description, &strain.ShortDescription, &strain.SeedCount)
+		err = rows.Scan(&strain.ID, &strain.Name, &strain.BreederID, &strain.Breeder, &strain.Indica, &strain.Sativa, &strain.Ruderalis, &strain.Autoflower, &strain.Description, &strain.ShortDescription, &strain.SeedCount)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan strain")
 			return nil
@@ -207,11 +270,19 @@ func GetStrain(db *sql.DB, id string) types.Strain {
 	var strain types.Strain
 	//join in breeder name
 	err := db.QueryRow(`
-		SELECT s.id, s.name, coalesce(s.short_desc, ''), b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count, s.description, coalesce(s.cycle_time, 0), coalesce(s.url, '')
+		SELECT s.id, s.name, COALESCE(s.short_desc, ''),
+		       b.name AS breeder, b.id AS breeder_id,
+		       s.indica, s.sativa, s.ruderalis, s.autoflower,
+		       s.seed_count, s.description,
+		       COALESCE(s.cycle_time, 0), COALESCE(s.url, '')
 		FROM strain s
 		JOIN breeder b ON s.breeder_id = b.id
 		WHERE s.id = $1`, id).Scan(
-		&strain.ID, &strain.Name, &strain.ShortDescription, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount, &strain.Description, &strain.CycleTime, &strain.Url)
+		&strain.ID, &strain.Name, &strain.ShortDescription,
+		&strain.Breeder, &strain.BreederID,
+		&strain.Indica, &strain.Sativa, &strain.Ruderalis, &strain.Autoflower,
+		&strain.SeedCount, &strain.Description,
+		&strain.CycleTime, &strain.Url)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			fieldLogger.Error("Strain not found")
@@ -228,35 +299,21 @@ func GetStrain(db *sql.DB, id string) types.Strain {
 func AddStrainHandler(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "AddStrainHandler")
 	// Parse the incoming JSON request
-	var req struct {
-		Name             string `json:"name"`
-		BreederID        *int   `json:"breeder_id"` // Nullable for new breeders
-		NewBreeder       string `json:"new_breeder"`
-		Indica           int    `json:"indica"`
-		Sativa           int    `json:"sativa"`
-		Autoflower       bool   `json:"autoflower"`
-		SeedCount        int    `json:"seed_count"`
-		Description      string `json:"description"`
-		ShortDescription string `json:"short_desc"`
-		CycleTime        int    `json:"cycle_time"`
-		Url              string `json:"url"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindJSON(&strainInput); err != nil {
 		fieldLogger.WithError(err).Error("Failed to bind JSON")
 		apiBadRequest(c, "api_invalid_request_payload")
 		return
 	}
 
-	if err := validateStrainFields(req.Name, req.Description, req.ShortDescription, req.NewBreeder, req.Url); err != nil {
+	if err := validateStrainFields(strainInput.Name, strainInput.Description, strainInput.ShortDescription, strainInput.NewBreeder, strainInput.Url); err != nil {
 		apiBadRequest(c, err.Error())
 		return
 	}
 
-	// Validate Indica and Sativa sum
-	if req.Indica+req.Sativa != 100 {
-		fieldLogger.Error("Indica and Sativa must sum to 100")
-		apiBadRequest(c, "api_indica_sativa_must_sum_100")
+	// Validate Indica, Sativa, and Ruderalis sum
+	if strainInput.Indica+strainInput.Sativa+strainInput.Ruderalis != 100 {
+		fieldLogger.Error("Indica, Sativa, and Ruderalis must sum to 100")
+		apiBadRequest(c, "api_genetics_must_sum_100")
 		return
 	}
 
@@ -264,53 +321,64 @@ func AddStrainHandler(c *gin.Context) {
 	db := DBFromContext(c)
 	store := ConfigStoreFromContext(c)
 
+	tx, err := db.Begin()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to start strain add transaction")
+		apiInternalError(c, "api_failed_to_start_tx")
+		return
+	}
+	defer tx.Rollback()
+
 	// Check for new breeder and insert if needed
 	var breederID int
-	if req.BreederID == nil {
-		if req.NewBreeder == "" {
+	if strainInput.BreederID == nil {
+		if strainInput.NewBreeder == "" {
 			fieldLogger.Error("New breeder name is required")
 			apiBadRequest(c, "api_new_breeder_name_required")
 			return
 		}
-
-		// Insert new breeder
-		insertBreederStmt := `
-			INSERT INTO breeder (name)
-			VALUES ($1)
-		 RETURNING id`
-		err := db.QueryRow(insertBreederStmt, req.NewBreeder).Scan(&breederID)
+		breederID, err = createBreeder(tx, strainInput.NewBreeder)
 		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to insert new breeder")
-			apiInternalError(c, "api_failed_to_add_new_breeder")
+			fieldLogger.WithError(err).Error("Failed to create new breeder")
+			apiInternalError(c, "api_failed_to_add_breeder")
 			return
 		}
-
 		store.SetBreeders(GetBreeders(db))
 	} else {
 		// Use existing breeder ID
-		breederID = *req.BreederID
+		breederID = *strainInput.BreederID
 	}
 
 	// Insert the new strain into the database
 	stmt := `
-		INSERT INTO strain (name, breeder_id, indica, sativa, autoflower, seed_count, description, cycle_time, url, short_desc)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id
+		INSERT INTO strain (
+			name, breeder_id, indica, sativa, ruderalis,
+			autoflower, seed_count, description, cycle_time, url, short_desc
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		RETURNING id
 	`
 	//convert autoflower to int
 	var autoflowerInt int
-	if req.Autoflower {
+	if strainInput.Autoflower {
 		autoflowerInt = 1
 	} else {
 		autoflowerInt = 0
 	}
 	var id int
-	err := db.QueryRow(stmt, req.Name, breederID, req.Indica, req.Sativa, autoflowerInt, req.SeedCount, req.Description, req.CycleTime, req.Url, req.ShortDescription).Scan(&id)
-	if err != nil {
+	if err := tx.QueryRow(stmt, strainInput.Name, breederID, strainInput.Indica, strainInput.Sativa, strainInput.Ruderalis, autoflowerInt, strainInput.SeedCount, strainInput.Description, strainInput.CycleTime, strainInput.Url, strainInput.ShortDescription).Scan(&id); err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert strain")
 		apiInternalError(c, "api_failed_to_add_strain")
 		return
 	}
 
+	if err := tx.Commit(); err != nil {
+		fieldLogger.WithError(err).Error("Failed to commit strain add transaction")
+		apiInternalError(c, "api_failed_to_commit_tx")
+		return
+	}
+
+	store.SetBreeders(GetBreeders(db))
 	store.SetStrains(GetStrains(db))
 
 	// Respond with success
@@ -332,11 +400,19 @@ func GetStrainHandler(c *gin.Context) {
 	var strain types.Strain
 
 	err = db.QueryRow(`
-        SELECT s.id, s.name, b.name as breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.description, coalesce(s.short_desc, ''), s.seed_count, coalesce(s.cycle_time, 0), coalesce(s.url, '')
-        FROM strain s LEFT OUTER JOIN breeder b on s.breeder_id = b.id
-        WHERE s.id = $1`, id).Scan(
-		&strain.ID, &strain.Name, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa,
-		&strain.Autoflower, &strain.Description, &strain.ShortDescription, &strain.SeedCount, &strain.CycleTime, &strain.Url)
+		SELECT s.id, s.name,
+		       b.name AS breeder, b.id AS breeder_id,
+		       s.indica, s.sativa, s.ruderalis, s.autoflower,
+		       s.description, COALESCE(s.short_desc, ''), s.seed_count,
+		       COALESCE(s.cycle_time, 0), COALESCE(s.url, '')
+		FROM strain s
+		LEFT OUTER JOIN breeder b ON s.breeder_id = b.id
+		WHERE s.id = $1`, id).Scan(
+		&strain.ID, &strain.Name,
+		&strain.Breeder, &strain.BreederID,
+		&strain.Indica, &strain.Sativa, &strain.Ruderalis, &strain.Autoflower,
+		&strain.Description, &strain.ShortDescription, &strain.SeedCount,
+		&strain.CycleTime, &strain.Url)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			apiNotFound(c, "api_strain_not_found")
@@ -359,86 +435,90 @@ func UpdateStrainHandler(c *gin.Context) {
 		return
 	}
 
-	var req struct {
-		Name             string `json:"name"`
-		BreederID        *int   `json:"breeder_id"` // Nullable for new breeders
-		NewBreeder       string `json:"new_breeder"`
-		Indica           int    `json:"indica"`
-		Sativa           int    `json:"sativa"`
-		Autoflower       bool   `json:"autoflower"`
-		Description      string `json:"description"`
-		ShortDescription string `json:"short_desc"`
-		SeedCount        int    `json:"seed_count"`
-		CycleTime        int    `json:"cycle_time"`
-		Url              string `json:"url"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindJSON(&strainInput); err != nil {
 		fieldLogger.WithError(err).Error("Failed to bind JSON")
 		apiBadRequest(c, "api_invalid_request_body")
 		return
 	}
 
-	if err := validateStrainFields(req.Name, req.Description, req.ShortDescription, req.NewBreeder, req.Url); err != nil {
+	if err := validateStrainFields(strainInput.Name, strainInput.Description, strainInput.ShortDescription, strainInput.NewBreeder, strainInput.Url); err != nil {
 		apiBadRequest(c, err.Error())
 		return
 	}
 
-	// Validate Indica and Sativa sum
-	if req.Indica+req.Sativa != 100 {
-		fieldLogger.Error("Indica and Sativa must sum to 100")
-		apiBadRequest(c, "api_indica_sativa_must_sum_100")
+	// Validate Indica, Sativa, and Ruderalis sum
+	if strainInput.Indica+strainInput.Sativa+strainInput.Ruderalis != 100 {
+		fieldLogger.Error("Indica, Sativa, and Ruderalis must sum to 100")
+		apiBadRequest(c, "api_genetics_must_sum_100")
 		return
 	}
 
 	// Open the database
 	db := DBFromContext(c)
 
+	tx, err := db.Begin()
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to start strain update transaction")
+		apiInternalError(c, "api_failed_to_start_tx")
+		return
+	}
+	defer tx.Rollback()
+
 	// Determine the breeder ID
 	var breederID int
-	if req.BreederID == nil {
-		if req.NewBreeder == "" {
+	if strainInput.BreederID == nil {
+		if strainInput.NewBreeder == "" {
 			fieldLogger.Error("New breeder name is required")
 			apiBadRequest(c, "api_new_breeder_name_required")
 			return
 		}
 
-		// Insert the new breeder into the database
-		insertBreederStmt := `
-			INSERT INTO breeder (name)
-			VALUES ($1)
-			RETURNING id
-		`
-		err := db.QueryRow(insertBreederStmt, req.NewBreeder).Scan(&breederID)
+		breederID, err = createBreeder(tx, strainInput.NewBreeder)
 		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to insert new breeder")
-			apiInternalError(c, "api_failed_to_add_new_breeder")
+			fieldLogger.WithError(err).Error("Failed to create new breeder")
+			apiInternalError(c, "api_failed_to_add_breeder")
 			return
 		}
 
 		ConfigStoreFromContext(c).SetBreeders(GetBreeders(db))
 	} else {
-		breederID = *req.BreederID
+		breederID = *strainInput.BreederID
 	}
 
 	// Update the strain in the database
 	updateStmt := `
-        UPDATE strain
-        SET name = $1, breeder_id = $2, indica = $3, sativa = $4, autoflower = $5, description = $6, seed_count = $7, cycle_time = $8, url = $9, short_desc = $10
-        WHERE id = $11
-    `
+		UPDATE strain
+		SET name = $1,
+		    breeder_id = $2,
+		    indica = $3,
+		    sativa = $4,
+		    ruderalis = $5,
+		    autoflower = $6,
+		    description = $7,
+		    seed_count = $8,
+		    cycle_time = $9,
+		    url = $10,
+		    short_desc = $11
+		WHERE id = $12
+	`
 	//Convert autoflower to int
 	var autoflowerInt int
-	if req.Autoflower {
+	if strainInput.Autoflower {
 		autoflowerInt = 1
 	} else {
 		autoflowerInt = 0
 	}
-	_, err = db.Exec(updateStmt, req.Name, breederID, req.Indica, req.Sativa,
-		autoflowerInt, req.Description, req.SeedCount, req.CycleTime, req.Url, req.ShortDescription, id)
+	_, err = tx.Exec(updateStmt, strainInput.Name, breederID, strainInput.Indica, strainInput.Sativa, strainInput.Ruderalis,
+		autoflowerInt, strainInput.Description, strainInput.SeedCount, strainInput.CycleTime, strainInput.Url, strainInput.ShortDescription, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update strain")
 		apiInternalError(c, "api_failed_to_update_strain")
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		fieldLogger.WithError(err).Error("Failed to commit strain update transaction")
+		apiInternalError(c, "api_failed_to_commit_tx")
 		return
 	}
 
@@ -505,16 +585,22 @@ func getStrainsBySeedCount(db *sql.DB, inStock bool) ([]types.Strain, error) {
 	}
 
 	query := `
-		SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id,
-		       s.indica, s.sativa, s.autoflower, s.seed_count, s.description,
-		       coalesce(s.short_desc, ''), coalesce(s.cycle_time, 0), coalesce(s.url, ''),
+		SELECT s.id, s.name,
+		       b.name AS breeder, b.id AS breeder_id,
+		       s.indica, s.sativa, s.ruderalis, s.autoflower,
+		       s.seed_count, s.description,
+		       COALESCE(s.short_desc, ''),
+		       COALESCE(s.cycle_time, 0),
+		       COALESCE(s.url, ''),
 		       ` + aggExpr + `
 		FROM strain s
 		JOIN breeder b ON s.breeder_id = b.id
 		LEFT JOIN strain_lineage sl ON sl.strain_id = s.id
 		WHERE s.seed_count ` + op + ` 0
-		GROUP BY s.id, s.name, b.name, b.id, s.indica, s.sativa, s.autoflower,
-		         s.seed_count, s.description, s.short_desc, s.cycle_time, s.url
+		GROUP BY s.id, s.name, b.name, b.id,
+		         s.indica, s.sativa, s.ruderalis, s.autoflower,
+		         s.seed_count, s.description, s.short_desc,
+		         s.cycle_time, s.url
 		ORDER BY s.name ASC
 	`
 
@@ -529,7 +615,7 @@ func getStrainsBySeedCount(db *sql.DB, inStock bool) ([]types.Strain, error) {
 	for rows.Next() {
 		var strain types.Strain
 		if err := rows.Scan(&strain.ID, &strain.Name, &strain.Breeder, &strain.BreederID,
-			&strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount,
+			&strain.Indica, &strain.Sativa, &strain.Ruderalis, &strain.Autoflower, &strain.SeedCount,
 			&strain.Description, &strain.ShortDescription, &strain.CycleTime, &strain.Url,
 			&strain.Lineage); err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan strain")

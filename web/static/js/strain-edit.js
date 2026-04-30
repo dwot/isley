@@ -3,10 +3,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const deleteStrainButton = document.getElementById("deleteStrainButton");
     const editBreederSelect = document.getElementById("editBreederSelect");
     const editNewBreederInput = document.getElementById("editNewBreederInput");
-    const editIndicaSativaSlider = document.getElementById("editIndicaSativaSlider");
+    const editIndicaInput = document.getElementById("editIndicaInput");
+    const editSativaInput = document.getElementById("editSativaInput");
+    const editRuderalisInput = document.getElementById("editRuderalisInput");
+    const editGeneticsLower = document.getElementById("editGeneticsLower");
+    const editGeneticsUpper = document.getElementById("editGeneticsUpper");
     const editIndicaLabel = document.getElementById("editIndicaLabel");
     const editSativaLabel = document.getElementById("editSativaLabel");
-    const editRatioFill = document.getElementById("editRatioFill");
+    const editRuderalisLabel = document.getElementById("editRuderalisLabel");
+    const editRatioFillIndica = document.getElementById("editRatioFillIndica");
+    const editRatioFillSativa = document.getElementById("editRatioFillSativa");
+    const editRatioFillRuderalis = document.getElementById("editRatioFillRuderalis");
     const descriptionTextarea = document.getElementById("editStrainDescription");
     const markdownPreview = document.getElementById("markdownPreview");
 
@@ -21,16 +28,71 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // --- Indica/Sativa slider with live ratio bar preview ---
-    if (editIndicaSativaSlider) {
-        editIndicaSativaSlider.addEventListener("input", () => {
-            const indica = editIndicaSativaSlider.value;
-            const sativa = 100 - indica;
-            if (editIndicaLabel) editIndicaLabel.textContent = `Indica: ${indica}%`;
-            if (editSativaLabel) editSativaLabel.textContent = `Sativa: ${sativa}%`;
-            if (editRatioFill) editRatioFill.style.width = `${indica}%`;
-        });
+    // --- Indica/Sativa/Ruderalis dual-thumb slider ---
+    function updateRatioPreview(activeThumb) {
+        if (!editGeneticsLower || !editGeneticsUpper) return;
+
+        let lower = parseInt(editGeneticsLower.value, 10);
+        let upper = parseInt(editGeneticsUpper.value, 10);
+        lower = Number.isFinite(lower) ? Math.min(100, Math.max(0, lower)) : 0;
+        upper = Number.isFinite(upper) ? Math.min(100, Math.max(0, upper)) : 100;
+
+        if (lower > upper) {
+            if (activeThumb === "lower") {
+                upper = lower;
+            } else {
+                lower = upper;
+            }
+        }
+
+        const indica = lower;
+        const sativa = upper - lower;
+        const ruderalis = 100 - upper;
+
+        editGeneticsLower.value = String(lower);
+        editGeneticsUpper.value = String(upper);
+        if (editIndicaInput) editIndicaInput.value = String(indica);
+        if (editSativaInput) editSativaInput.value = String(sativa);
+        if (editRuderalisInput) editRuderalisInput.value = String(ruderalis);
+
+        if (editIndicaLabel) editIndicaLabel.textContent = `Indica: ${indica}%`;
+        if (editSativaLabel) editSativaLabel.textContent = `Sativa: ${sativa}%`;
+        if (editRuderalisLabel) editRuderalisLabel.textContent = `Ruderalis: ${ruderalis}%`;
+        if (editRatioFillIndica) editRatioFillIndica.style.width = `${indica}%`;
+        if (editRatioFillSativa) editRatioFillSativa.style.width = `${sativa}%`;
+        if (editRatioFillRuderalis) editRatioFillRuderalis.style.width = `${ruderalis}%`;
+        const ratioError = document.getElementById("editRatioError");
+        if (indica + sativa + ruderalis !== 100) {
+            if (ratioError) ratioError.classList.remove("d-none");
+        } else {
+            if (ratioError) ratioError.classList.add("d-none");
+        }
     }
+
+    function initRatioSlider() {
+        if (!editGeneticsLower || !editGeneticsUpper) return;
+        const indica = parseInt(editIndicaInput?.value, 10);
+        const sativa = parseInt(editSativaInput?.value, 10);
+        const ruderalis = parseInt(editRuderalisInput?.value, 10);
+
+        if (
+            Number.isFinite(indica) && Number.isFinite(sativa) && Number.isFinite(ruderalis) &&
+            indica >= 0 && sativa >= 0 && ruderalis >= 0 &&
+            indica + sativa + ruderalis === 100
+        ) {
+            editGeneticsLower.value = String(indica);
+            editGeneticsUpper.value = String(indica + sativa);
+        } else {
+            editGeneticsLower.value = "50";
+            editGeneticsUpper.value = "100";
+        }
+
+        updateRatioPreview("upper");
+    }
+
+    if (editGeneticsLower) editGeneticsLower.addEventListener("input", () => updateRatioPreview("lower"));
+    if (editGeneticsUpper) editGeneticsUpper.addEventListener("input", () => updateRatioPreview("upper"));
+    initRatioSlider();
 
     // --- Markdown live preview (debounced) ---
     let previewTimeout = null;
@@ -107,8 +169,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 name: document.getElementById("editStrainName").value,
                 breeder_id: editBreederSelect.value === "new" ? null : parseInt(editBreederSelect.value, 10),
                 new_breeder: editBreederSelect.value === "new" ? document.getElementById("editNewBreederName").value : null,
-                indica: parseInt(editIndicaSativaSlider.value, 10),
-                sativa: 100 - parseInt(editIndicaSativaSlider.value, 10),
+                indica: parseInt(editIndicaInput.value, 10) || 0,
+                sativa: parseInt(editSativaInput.value, 10) || 0,
+                ruderalis: parseInt(editRuderalisInput.value, 10) || 0,
                 autoflower: document.getElementById("editAutoflower").value === "true",
                 seed_count: parseInt(document.getElementById("editSeedCount").value, 10),
                 description: descriptionTextarea.value,
@@ -122,8 +185,19 @@ document.addEventListener("DOMContentLoaded", () => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             })
-                .then(response => {
-                    if (!response.ok) throw new Error("Failed to update strain");
+                .then(async response => {
+                    if (!response.ok) {
+                        let errorMessage = "Failed to update strain";
+                        try {
+                            const errorBody = await response.json();
+                            if (errorBody && typeof errorBody.error === "string" && errorBody.error.trim()) {
+                                errorMessage = errorBody.error;
+                            }
+                        } catch (_err) {
+                            // Ignore JSON parsing errors and keep default message.
+                        }
+                        throw new Error(errorMessage);
+                    }
                     // Save lineage if the editor is present
                     if (typeof window.saveLineage === "function") {
                         return window.saveLineage().then(() => strainId);
@@ -139,7 +213,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 .catch(error => {
                     console.error("Error updating strain:", error);
                     if (typeof uiMessages !== 'undefined') {
-                        uiMessages.showToast(uiMessages.t('update_error') || 'Update failed', 'danger');
+                        uiMessages.showToast(uiMessages.t('strain_update_fail') || 'Update failed', 'danger');
                     }
                 });
         });

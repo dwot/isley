@@ -234,9 +234,10 @@ func TestStrainHTTP_AddStrain_RejectsMissingBreederWhenNoNewBreeder(t *testing.T
 	c := server.NewClient(t)
 	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/strains", apiKey,
 		testutil.JSONBody(t, map[string]interface{}{
-			"name":   "Nameless",
-			"indica": 50,
-			"sativa": 50,
+			"name":      "Nameless",
+			"indica":    50,
+			"sativa":    50,
+			"ruderalis": 0,
 			// breeder_id == nil and new_breeder == "" → should be 400
 		}), "application/json"))
 	require.NoError(t, err)

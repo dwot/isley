@@ -63,23 +63,28 @@
                         {{ end }}
                     </div>
 
-                    <!-- Indica / Sativa ratio bar -->
+                    <!-- Indica / Sativa / Ruderalis ratio bar -->
                     <div class="strain-ratio-section mb-3">
                         <div class="d-flex justify-content-between mb-1">
                             <small class="fw-semibold strain-indica-text">Indica {{ .strain.Indica }}%</small>
                             <small class="fw-semibold strain-sativa-text">Sativa {{ .strain.Sativa }}%</small>
+                            <small class="fw-semibold strain-ruderalis-text">Ruderalis {{ .strain.Ruderalis }}%</small>
                         </div>
-                        <div class="strain-ratio-bar" role="img" aria-label="Indica {{ .strain.Indica }}% / Sativa {{ .strain.Sativa }}%">
-                            <div class="strain-ratio-fill" style="width: {{ .strain.Indica }}%"></div>
+                        <div class="strain-ratio-bar-tri" role="img" aria-label="Indica {{ .strain.Indica }}% / Sativa {{ .strain.Sativa }}% / Ruderalis {{ .strain.Ruderalis }}%">
+                            <div class="strain-ratio-indica" style="width: {{ .strain.Indica }}%"></div>
+                            <div class="strain-ratio-sativa" style="width: {{ .strain.Sativa }}%"></div>
+                            <div class="strain-ratio-ruderalis" style="width: {{ .strain.Ruderalis }}%"></div>
                         </div>
                         <div class="text-center mt-1">
                             <small class="text-muted">
-                                {{ if gt .strain.Indica .strain.Sativa }}
+                                {{ if and (gt .strain.Indica .strain.Sativa) (gt .strain.Indica .strain.Ruderalis) }}
                                     Indica Dominant
-                                {{ else if gt .strain.Sativa .strain.Indica }}
+                                {{ else if and (gt .strain.Sativa .strain.Indica) (gt .strain.Sativa .strain.Ruderalis) }}
                                     Sativa Dominant
+                                {{ else if and (gt .strain.Ruderalis .strain.Indica) (gt .strain.Ruderalis .strain.Sativa) }}
+                                    Ruderalis Dominant
                                 {{ else }}
-                                    Hybrid 50/50
+                                    Hybrid
                                 {{ end }}
                             </small>
                         </div>
