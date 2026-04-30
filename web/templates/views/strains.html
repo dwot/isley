@@ -94,7 +94,7 @@
                     <th class="st-th-breeder st-sortable" data-sort="breeder">{{ .lcl.breeder }} <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
                     <th class="st-th-lineage">Lineage</th>
                     <th class="st-th-type">Type</th>
-                    <th class="st-th-ratio st-sortable" data-sort="indica">Indica/Sativa <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
+                    <th class="st-th-ratio st-sortable" data-sort="indica">I/S/R <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
                     <th class="st-th-seeds st-sortable" data-sort="seeds">Seeds <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
                 </tr>
             </thead>
@@ -248,7 +248,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 ? `<span class="strain-badge-auto"><i class="fa-solid fa-bolt me-1"></i>Auto</span>`
                 : `<span class="strain-badge-photo"><i class="fa-solid fa-sun me-1"></i>Photo</span>`;
 
-            const dominance = s.indica > s.sativa ? "Indica" : s.sativa > s.indica ? "Sativa" : "Hybrid";
+            const dominance = s.indica > s.sativa && s.indica > s.ruderalis ? "Indica"
+                : s.sativa > s.indica && s.sativa > s.ruderalis ? "Sativa"
+                : s.ruderalis > s.indica && s.ruderalis > s.sativa ? "Ruderalis"
+                : "Hybrid";
 
             const seedBadge = s.seed_count > 0
                 ? `<span class="badge bg-success">${s.seed_count}</span>`
@@ -283,10 +286,12 @@ document.addEventListener("DOMContentLoaded", () => {
                     <div class="sc-card-footer">
                         <div class="sc-meta-left">
                             ${typeBadge}
-                            <span class="sc-dominance">${dominance} ${s.indica}/${s.sativa}</span>
+                            <span class="sc-dominance">${dominance} ${s.indica}/${s.sativa}/${s.ruderalis || 0}</span>
                         </div>
-                        <div class="sc-ratio-mini">
-                            <div class="sc-ratio-mini-fill" style="width:${s.indica}%"></div>
+                        <div class="sc-ratio-mini sc-ratio-mini-tri">
+                            <div class="sc-ratio-mini-indica" style="width:${s.indica}%"></div>
+                            <div class="sc-ratio-mini-sativa" style="width:${s.sativa}%"></div>
+                            <div class="sc-ratio-mini-ruderalis" style="width:${s.ruderalis || 0}%"></div>
                         </div>
                         <div class="sc-meta-right">
                             <i class="fa-solid fa-seedling me-1"></i>${seedBadge}
@@ -322,10 +327,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td class="text-center">${typeBadge}</td>
                 <td>
                     <div class="st-ratio-wrap">
-                        <div class="sc-ratio-mini" style="width:60px">
-                            <div class="sc-ratio-mini-fill" style="width:${s.indica}%"></div>
+                        <div class="sc-ratio-mini sc-ratio-mini-tri" style="width:60px">
+                            <div class="sc-ratio-mini-indica" style="width:${s.indica}%"></div>
+                            <div class="sc-ratio-mini-sativa" style="width:${s.sativa}%"></div>
+                            <div class="sc-ratio-mini-ruderalis" style="width:${s.ruderalis || 0}%"></div>
                         </div>
-                        <span class="st-ratio-label">${s.indica}/${s.sativa}</span>
+                        <span class="st-ratio-label">${s.indica}/${s.sativa}/${s.ruderalis || 0}</span>
                     </div>
                 </td>
                 <td class="text-center">${seedBadge}</td>

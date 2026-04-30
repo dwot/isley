@@ -86,18 +86,29 @@
                         </h2>
 
                         <div class="row g-3">
-                            <!-- Indica/Sativa Slider -->
+                            <!-- Indica/Sativa/Ruderalis Multi-Thumb Slider -->
                             <div class="col-12">
-                                <label for="editIndicaSativaSlider" class="form-label">{{ .lcl.i_s_ratio }}</label>
-                                <input type="range" class="form-range" id="editIndicaSativaSlider" min="0" max="100" value="{{ .strain.Indica }}">
+                                <label class="form-label">{{ .lcl.i_s_ratio }}</label>
+                                <input type="hidden" id="editIndicaInput" value="{{ .strain.Indica }}">
+                                <input type="hidden" id="editSativaInput" value="{{ .strain.Sativa }}">
+                                <input type="hidden" id="editRuderalisInput" value="{{ .strain.Ruderalis }}">
+
+                                <div class="strain-genetics-slider mb-2" id="editGeneticsSlider">
+                                    <div class="strain-ratio-bar-tri" id="editRatioPreview" role="img" aria-label="Genetics ratio">
+                                        <div class="strain-ratio-indica" id="editRatioFillIndica" style="width: {{ .strain.Indica }}%"></div>
+                                        <div class="strain-ratio-sativa" id="editRatioFillSativa" style="width: {{ .strain.Sativa }}%"></div>
+                                        <div class="strain-ratio-ruderalis" id="editRatioFillRuderalis" style="width: {{ .strain.Ruderalis }}%"></div>
+                                    </div>
+                                    <input type="range" class="strain-genetics-thumb strain-genetics-thumb-lower" id="editGeneticsLower" min="0" max="100" value="{{ .strain.Indica }}" step="1" aria-label="Indica boundary">
+                                    <input type="range" class="strain-genetics-thumb strain-genetics-thumb-upper" id="editGeneticsUpper" min="0" max="100" value="100" step="1" aria-label="Sativa boundary">
+                                </div>
+
                                 <div class="d-flex justify-content-between">
                                     <small class="fw-semibold strain-indica-text" id="editIndicaLabel">Indica: {{ .strain.Indica }}%</small>
                                     <small class="fw-semibold strain-sativa-text" id="editSativaLabel">Sativa: {{ .strain.Sativa }}%</small>
+                                    <small class="fw-semibold strain-ruderalis-text" id="editRuderalisLabel">Ruderalis: {{ .strain.Ruderalis }}%</small>
                                 </div>
-                                <!-- Live preview bar -->
-                                <div class="strain-ratio-bar mt-2" id="editRatioPreview">
-                                    <div class="strain-ratio-fill" id="editRatioFill" style="width: {{ .strain.Indica }}%"></div>
-                                </div>
+                                <small class="text-danger d-none" id="editRatioError">{{ .lcl.genetics_must_sum_100 }}</small>
                             </div>
 
                             <!-- Autoflower -->

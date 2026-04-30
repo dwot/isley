@@ -865,17 +865,129 @@ header .nav-link.active::after {
     background: linear-gradient(90deg, #7c3aed, #a855f7);
     transition: width 0.3s ease;
 }
+/* Tri-color ratio bar (Indica / Sativa / Ruderalis) */
+.strain-ratio-bar-tri {
+    height: 10px;
+    border-radius: 999px;
+    overflow: hidden;
+    display: flex;
+    background: #e5e7eb;
+}
+.strain-ratio-indica {
+    height: 100%;
+    background: linear-gradient(90deg, #7c3aed, #a855f7);
+    transition: width 0.3s ease;
+}
+.strain-ratio-sativa {
+    height: 100%;
+    background: linear-gradient(90deg, #16a34a, #22c55e);
+    transition: width 0.3s ease;
+}
+.strain-ratio-ruderalis {
+    height: 100%;
+    background: linear-gradient(90deg, #d97706, #f59e0b);
+    transition: width 0.3s ease;
+}
+/* Mini tri-color ratio bar for cards/tables */
+.sc-ratio-mini-tri {
+    display: flex;
+    overflow: hidden;
+}
+.sc-ratio-mini-indica {
+    height: 100%;
+    background: #a855f7;
+}
+.sc-ratio-mini-sativa {
+    height: 100%;
+    background: #22c55e;
+}
+.sc-ratio-mini-ruderalis {
+    height: 100%;
+    background: #f59e0b;
+}
 .strain-indica-text {
     color: #a855f7;
 }
 .strain-sativa-text {
     color: #22c55e;
 }
+.strain-ruderalis-text {
+    color: #d97706;
+}
+
+.strain-genetics-slider {
+    position: relative;
+    height: 24px;
+}
+
+.strain-genetics-slider .strain-ratio-bar-tri {
+    position: absolute;
+    inset: 7px 0;
+    height: 10px;
+}
+
+.strain-genetics-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    margin: 0;
+    background: transparent;
+    pointer-events: none;
+}
+
+.strain-genetics-thumb::-webkit-slider-runnable-track {
+    height: 24px;
+    background: transparent;
+}
+
+.strain-genetics-thumb::-moz-range-track {
+    height: 24px;
+    background: transparent;
+}
+
+.strain-genetics-thumb::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background: #334155;
+    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.3);
+    margin-top: 4px;
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.strain-genetics-thumb::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background: #334155;
+    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.3);
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.strain-genetics-thumb-lower {
+    z-index: 3;
+}
+
+.strain-genetics-thumb-upper {
+    z-index: 4;
+}
+
 [data-bs-theme="dark"] .strain-indica-text {
     color: #c4b5fd;
 }
 [data-bs-theme="dark"] .strain-sativa-text {
     color: #6ee7b7;
+}
+[data-bs-theme="dark"] .strain-ruderalis-text {
+    color: #fbbf24;
 }
 
 /* Strain info list */

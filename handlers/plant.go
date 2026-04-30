@@ -313,6 +313,21 @@ func DeletePlantById(db *sql.DB, id string) error {
 	}
 	defer tx.Rollback() // no-op after Commit
 
+	if err := deletePlantByIDTx(tx, id); err != nil {
+		fieldLogger.WithError(err).Error("Failed to delete plant")
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		fieldLogger.WithError(err).Error("Failed to commit delete transaction")
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	return nil
+}
+
+func deletePlantByIDTx(tx *sql.Tx, id string) error {
+	fieldLogger := logger.Log.WithField("func", "deletePlantByIDTx")
+
 	// Delete child records first, then the plant itself.
 	deletes := []struct {
 		table string
@@ -329,11 +344,6 @@ func DeletePlantById(db *sql.DB, id string) error {
 			fieldLogger.WithError(err).WithField("table", d.table).Error("Failed to delete records")
 			return fmt.Errorf("failed to delete from %s: %w", d.table, err)
 		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		fieldLogger.WithError(err).Error("Failed to commit delete transaction")
-		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 	return nil
 }
