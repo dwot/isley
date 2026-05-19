@@ -1,0 +1,10 @@
+{
+  "wh25": [{"intemp": "72.5", "unit": "F", "inhumi": "35%", "abs": "29.85 inHg", "rel": "29.85 inHg"}],
+  "common_list": [
+    {"id": "0x02", "val": "79.2", "unit": "F"},
+    {"id": "0x07", "val": "65%"},
+    {"id": "0x0B", "val": "0.00mph"},
+    {"id": "0x17", "val": "3"},
+    {"id": "3",    "val": "66.4", "unit": "F"}
+  ]
+}

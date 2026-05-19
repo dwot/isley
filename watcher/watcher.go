@@ -211,6 +211,21 @@ func (w *Watcher) PollEcoWitt(ctx context.Context, server string) {
 		dataMap["Soil."+ch.Channel] = trimTrailingPercent(ch.Humidity)
 	}
 
+	for _, ch := range apiResponse.CHAisle {
+		dataMap["Aisle."+ch.Channel+".Temp"] = ch.Temp
+		dataMap["Aisle."+ch.Channel+".Humi"] = trimTrailingPercent(ch.Humidity)
+	}
+
+	for _, item := range apiResponse.CommonList {
+		meta, ok := types.ECWCommonSensors[types.NormalizeECWID(item.ID)]
+		if !ok {
+			continue
+		}
+		if v := trimCommonVal(item.Val); v != "" {
+			dataMap[meta.TypeKey] = v
+		}
+	}
+
 	for key, value := range dataMap {
 		w.addSensorData(source, device, key, value)
 	}
@@ -365,4 +380,26 @@ func trimTrailingPercent(v string) string {
 		return v[:n-1]
 	}
 	return v
+}
+
+// trimCommonVal extracts the leading numeric portion from an EcoWitt
+// common_list val string. Returns "" for dash-placeholder values
+// ("--", "--.-") that indicate no sensor is connected. Handles the
+// range of embedded-unit formats the firmware emits: "65%", "0.00mph",
+// "29.85 inHg", "43.65 W/m2".
+func trimCommonVal(v string) string {
+	if len(v) == 0 {
+		return ""
+	}
+	if len(v) >= 2 && v[0] == '-' && v[1] == '-' {
+		return ""
+	}
+	i := 0
+	if i < len(v) && (v[i] == '-' || v[i] == '+') {
+		i++
+	}
+	for i < len(v) && ((v[i] >= '0' && v[i] <= '9') || v[i] == '.') {
+		i++
+	}
+	return v[:i]
 }
