@@ -422,6 +422,8 @@ func insertReadingAt(t *testing.T, db *sql.DB, sensorID int, value float64, ts t
 // ---------------------------------------------------------------------------
 
 func TestRun_StopsOnContextCancel(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 
 	synctest.Test(t, func(t *testing.T) {
@@ -451,6 +453,8 @@ func TestRun_StopsOnContextCancel(t *testing.T) {
 }
 
 func TestRun_RespectsRestoreInProgress(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	body := testutil.MustReadFixture(t, "aci/happy.json")
 
@@ -487,6 +491,8 @@ func TestRun_RespectsRestoreInProgress(t *testing.T) {
 }
 
 func TestRun_PollsACIWhenEnabled(t *testing.T) {
+	t.Parallel()
+
 	db := testutil.NewTestDB(t)
 	seedSensor(t, db, "acinfinity", "TESTDEV", "ACI.tempC")
 	body := testutil.MustReadFixture(t, "aci/happy.json")
