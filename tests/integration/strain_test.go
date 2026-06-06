@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -193,6 +194,137 @@ func TestStrain_UpdateHappyPath(t *testing.T) {
 	assert.Equal(t, 40, sativa)
 	assert.Equal(t, 1, autoflower, "autoflower=true should persist as 1")
 	assert.Equal(t, 10, seedCount)
+}
+
+// ---------------------------------------------------------------------------
+// #146 regression: legacy/schemeless URL handling + relaxed text caps
+// ---------------------------------------------------------------------------
+
+// Adding a strain with a schemeless URL (the natural thing users type) must
+// succeed and persist a normalized https:// value.
+func TestStrain_AddNormalizesSchemelessURL(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db)
+	apiKey := seedBreederWithKey(t, db)
+
+	c := server.NewClient(t)
+	resp := c.APIPostJSON(t, "/strains", apiKey, map[string]interface{}{
+		"name":       "Schemeless Add",
+		"breeder_id": 1,
+		"indica":     50,
+		"sativa":     50,
+		"seed_count": 1,
+		"url":        "www.seedfinder.eu/en/strain/x",
+	})
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	var got struct {
+		ID int `json:"id"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
+
+	var url string
+	require.NoError(t, db.QueryRow(`SELECT url FROM strain WHERE id = $1`, got.ID).Scan(&url))
+	assert.Equal(t, "https://www.seedfinder.eu/en/strain/x", url)
+}
+
+// This is the exact #146 symptom: a strain saved before v0.2.0 has a schemeless
+// URL; the edit modal sends it back verbatim while changing another field
+// (seed_count). Pre-fix this 400'd on every field; now it must 200, bump the
+// seed count, and persist the normalized URL.
+func TestStrain_UpdateSchemelessURLSucceeds(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db)
+	apiKey := seedBreederWithKey(t, db)
+
+	res, err := db.Exec(
+		`INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count, url)
+		 VALUES ('Legacy Strain', 1, 50, 50, 0, '', 5, 'www.seedfinder.eu/en/strain/x')`,
+	)
+	require.NoError(t, err)
+	strainID, _ := res.LastInsertId()
+
+	c := server.NewClient(t)
+	resp := apiPutJSON(t, c, "/strains/"+strconv.FormatInt(strainID, 10), apiKey, map[string]interface{}{
+		"name":       "Legacy Strain",
+		"breeder_id": 1,
+		"indica":     50,
+		"sativa":     50,
+		"seed_count": 6, // the only change the user intended
+		"url":        "www.seedfinder.eu/en/strain/x",
+	})
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var url string
+	var seedCount int
+	require.NoError(t, db.QueryRow(
+		`SELECT url, seed_count FROM strain WHERE id = $1`, strainID,
+	).Scan(&url, &seedCount))
+	assert.Equal(t, "https://www.seedfinder.eu/en/strain/x", url)
+	assert.Equal(t, 6, seedCount)
+}
+
+// Normalization must NOT rescue dangerous schemes — javascript: is still
+// rejected so the v0.2.0 security intent is preserved.
+func TestStrain_AddRejectsDangerousURLScheme(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db)
+	apiKey := seedBreederWithKey(t, db)
+
+	c := server.NewClient(t)
+	resp := c.APIPostJSON(t, "/strains", apiKey, map[string]interface{}{
+		"name":       "XSS Attempt",
+		"breeder_id": 1,
+		"indica":     50,
+		"sativa":     50,
+		"seed_count": 0,
+		"url":        "javascript:alert(1)",
+	})
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+// A legacy strain with a long free-text description (the column is unbounded
+// TEXT) must still be updatable — the v0.2.0 2000-char cap regressed this.
+func TestStrain_UpdateAllowsLongDescription(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db)
+	apiKey := seedBreederWithKey(t, db)
+
+	res, err := db.Exec(
+		`INSERT INTO strain (name, breeder_id, sativa, indica, autoflower, description, seed_count)
+		 VALUES ('Wordy', 1, 50, 50, 0, '', 1)`,
+	)
+	require.NoError(t, err)
+	strainID, _ := res.LastInsertId()
+
+	longDesc := strings.Repeat("x", 3000) // > old MaxDescriptionLength (2000)
+
+	c := server.NewClient(t)
+	resp := apiPutJSON(t, c, "/strains/"+strconv.FormatInt(strainID, 10), apiKey, map[string]interface{}{
+		"name":        "Wordy",
+		"breeder_id":  1,
+		"indica":      50,
+		"sativa":      50,
+		"description": longDesc,
+		"seed_count":  2,
+	})
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var got string
+	require.NoError(t, db.QueryRow(`SELECT description FROM strain WHERE id = $1`, strainID).Scan(&got))
+	assert.Len(t, got, 3000)
 }
 
 // ---------------------------------------------------------------------------

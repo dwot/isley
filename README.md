@@ -199,6 +199,28 @@ After migration completes, switch back to `docker-compose.postgres.yml` for your
 
 ---
 
+### 🔁 Upgrading (important if you customized `ISLEY_PORT`)
+
+Older shipped compose files included a hardcoded
+`healthcheck: wget http://localhost:8080/health` block on the `isley` service.
+A Compose-level healthcheck **fully overrides** the Dockerfile one, so it
+always probed port `8080` and ignored your `ISLEY_PORT` — a container running
+on a custom port was reported **unhealthy** ("connection refused").
+
+As of **v0.2.0** the healthcheck lives only in the Dockerfile and honors
+`${ISLEY_PORT:-8080}`. To pick this up on an existing deployment:
+
+1. Pull the latest `docker-compose.*.yml` **or** delete the `healthcheck:`
+   block from the `isley` service in your existing file.
+2. Recreate the container so the change takes effect:
+   ```bash
+   docker compose up -d --force-recreate
+   ```
+3. If Isley itself listens on a custom port, set `ISLEY_PORT` in the container
+   environment (not just a host port remap like `"420:8080"`).
+
+---
+
 ## ⚙️ Configuration
 
 Most settings are managed through the **Settings** panel in the app — enable integrations, set device IPs, scan for sensors, and more.
