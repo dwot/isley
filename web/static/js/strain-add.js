@@ -95,8 +95,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             })
-                .then(response => {
-                    if (!response.ok) throw new Error("Failed to add strain");
+                .then(async response => {
+                    if (!response.ok) {
+                        let serverMsg = "";
+                        try { const data = await response.json(); serverMsg = (data && data.error) || ""; } catch (e) {}
+                        const err = new Error(serverMsg || "Failed to add strain");
+                        err.serverMessage = serverMsg;
+                        throw err;
+                    }
                     return response.json();
                 })
                 .then(data => {
@@ -106,7 +112,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 .catch(error => {
                     console.error("Error adding strain:", error);
                     if (typeof uiMessages !== 'undefined') {
-                        uiMessages.showToast(uiMessages.t('strain_add_fail') || 'Failed to add strain', 'danger');
+                        const msg = (error && error.serverMessage) || uiMessages.t('strain_add_fail') || 'Failed to add strain';
+                        uiMessages.showToast(msg, 'danger');
                     }
                 });
         });

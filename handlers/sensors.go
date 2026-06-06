@@ -552,6 +552,38 @@ func ScanEcoWittSensors(c *gin.Context) {
 		unit := "%"
 		checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
 	}
+
+	for _, ch := range apiResponse.CHAisle {
+		sensorType := "Aisle." + ch.Channel + ".Temp"
+		unit := "°F"
+		if ch.Unit == "C" {
+			unit = "°C"
+		}
+		checkInsertSensor(db, source, device, sensorType,
+			"EC ("+device+") Ch"+ch.Channel+" Temp", input.ZoneID, unit)
+		sensorType = "Aisle." + ch.Channel + ".Humi"
+		checkInsertSensor(db, source, device, sensorType,
+			"EC ("+device+") Ch"+ch.Channel+" Humi", input.ZoneID, "%")
+	}
+
+	for _, item := range apiResponse.CommonList {
+		meta, ok := types.ECWCommonSensors[types.NormalizeECWID(item.ID)]
+		if !ok {
+			continue
+		}
+		if strings.HasPrefix(item.Val, "--") {
+			continue
+		}
+		unit := meta.Unit
+		if item.Unit == "F" {
+			unit = "°F"
+		} else if item.Unit == "C" {
+			unit = "°C"
+		}
+		checkInsertSensor(db, source, device, meta.TypeKey,
+			fmt.Sprintf(meta.Name, device), input.ZoneID, unit)
+	}
+
 	//Update ECOWitt sensors
 	//Set ECDevices
 	strECDevices, err := LoadEcDevices(db)

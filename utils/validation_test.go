@@ -132,3 +132,54 @@ func TestValidateStreamURL(t *testing.T) {
 		})
 	}
 }
+
+func TestNormalizeWebURL(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"empty unchanged", "", ""},
+		{"whitespace collapses to empty", "   ", ""},
+		{"schemeless host gets https", "www.seedfinder.eu", "https://www.seedfinder.eu"},
+		{"schemeless host+path gets https", "seedfinder.eu/en/strain/x", "https://seedfinder.eu/en/strain/x"},
+		{"surrounding whitespace trimmed then prefixed", "  www.seedbank.com/strain  ", "https://www.seedbank.com/strain"},
+		{"existing https unchanged", "https://example.com/x", "https://example.com/x"},
+		{"existing http unchanged", "http://example.com/x", "http://example.com/x"},
+		{"uppercase scheme unchanged", "HTTPS://example.com", "HTTPS://example.com"},
+		{"ftp scheme left for validator to reject", "ftp://example.com", "ftp://example.com"},
+		{"javascript scheme left for validator to reject", "javascript:alert(1)", "javascript:alert(1)"},
+		{"rtsp scheme unchanged", "rtsp://example.com/s", "rtsp://example.com/s"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, NormalizeWebURL(tc.in))
+		})
+	}
+}
+
+// TestNormalizeWebURL_FeedsValidateWebURL proves the backward-compat contract:
+// legacy schemeless URLs pass ValidateWebURL after normalization, while
+// dangerous/non-http schemes are still rejected (normalization must not rescue
+// them).
+func TestNormalizeWebURL_FeedsValidateWebURL(t *testing.T) {
+	t.Parallel()
+	t.Run("schemeless legacy url becomes valid", func(t *testing.T) {
+		t.Parallel()
+		assert.NoError(t, ValidateWebURL("url", NormalizeWebURL("www.seedfinder.eu/en/strain/x")))
+	})
+	t.Run("javascript scheme still rejected", func(t *testing.T) {
+		t.Parallel()
+		assert.Error(t, ValidateWebURL("url", NormalizeWebURL("javascript:alert(1)")))
+	})
+	t.Run("ftp scheme still rejected", func(t *testing.T) {
+		t.Parallel()
+		assert.Error(t, ValidateWebURL("url", NormalizeWebURL("ftp://example.com")))
+	})
+	t.Run("empty stays allowed", func(t *testing.T) {
+		t.Parallel()
+		assert.NoError(t, ValidateWebURL("url", NormalizeWebURL("")))
+	})
+}

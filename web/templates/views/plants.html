@@ -274,12 +274,23 @@ document.addEventListener("DOMContentLoaded", () => {
     syncLayoutVisibility();
 
     // ----- Fetch plants -----
-    async function fetchPlants(view) {
+    async function fetchPlants(view, checkIfEmpty = false) {
         cardsContainer.innerHTML = `<div class="text-center py-5" style="flex-basis:100%"><div class="spinner-border text-primary" role="status"></div></div>`;
         tableBody.innerHTML = `<tr><td colspan="7" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>`;
         try {
             const res = await fetch(`/plants/${view}`);
             allPlants = await res.json() || [];
+
+            // If this is the initial load and there are no living plants, switch to harvested
+            if (checkIfEmpty && allPlants.length === 0 && view === "living") {
+                currentView = "harvested";
+                viewButtons.forEach(b => b.classList.remove("active"));
+                viewButtons.forEach(b => {
+                    if (b.dataset.view === "harvested") b.classList.add("active");
+                });
+                return fetchPlants("harvested", false);
+            }
+
             updateHeaders(view);
             populateFilters();
             applyFilters();
@@ -867,7 +878,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // ----- Initial load -----
-    fetchPlants(currentView);
+    fetchPlants(currentView, true);
 });
 </script>
 

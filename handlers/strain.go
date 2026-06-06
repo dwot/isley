@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"database/sql"
-	"html"
 	"isley/logger"
 	model "isley/model"
 	"isley/model/types"
@@ -166,10 +165,13 @@ func validateStrainFields(name, description, shortDesc, newBreeder, strainURL st
 	if err := utils.ValidateRequiredString("name", name, utils.MaxNameLength); err != nil {
 		return err
 	}
-	if err := utils.ValidateStringLength("description", description, utils.MaxDescriptionLength); err != nil {
+	// description / short_desc are unbounded TEXT columns and were never
+	// length-checked before v0.2.0. Use generous caps so legacy strains with
+	// long free text still save (only pathological input is rejected).
+	if err := utils.ValidateStringLength("description", description, utils.MaxNotesLength); err != nil {
 		return err
 	}
-	if err := utils.ValidateStringLength("short_desc", shortDesc, utils.MaxNameLength); err != nil {
+	if err := utils.ValidateStringLength("short_desc", shortDesc, utils.MaxDescriptionLength); err != nil {
 		return err
 	}
 	if err := utils.ValidateStringLength("new_breeder", newBreeder, utils.MaxNameLength); err != nil {
@@ -220,7 +222,6 @@ func GetStrain(db *sql.DB, id string) types.Strain {
 		}
 		return types.Strain{}
 	}
-	//strain.Description = html.EscapeString(strain.Description)
 
 	return strain
 }
@@ -247,6 +248,10 @@ func AddStrainHandler(c *gin.Context) {
 		apiBadRequest(c, "api_invalid_request_payload")
 		return
 	}
+
+	// Rescue legacy/typed schemeless URLs (e.g. "www.seedfinder.eu/x") by
+	// prepending https:// so they pass validation and persist normalized.
+	req.Url = utils.NormalizeWebURL(req.Url)
 
 	if err := validateStrainFields(req.Name, req.Description, req.ShortDescription, req.NewBreeder, req.Url); err != nil {
 		apiBadRequest(c, err.Error())
@@ -379,6 +384,11 @@ func UpdateStrainHandler(c *gin.Context) {
 		return
 	}
 
+	// Rescue legacy schemeless URLs sent back verbatim by the edit modal
+	// (pre-v0.2.0 strains stored URLs without http(s)://) so any field can be
+	// updated and the value persists normalized.
+	req.Url = utils.NormalizeWebURL(req.Url)
+
 	if err := validateStrainFields(req.Name, req.Description, req.ShortDescription, req.NewBreeder, req.Url); err != nil {
 		apiBadRequest(c, err.Error())
 		return
@@ -441,6 +451,11 @@ func UpdateStrainHandler(c *gin.Context) {
 		apiInternalError(c, "api_failed_to_update_strain")
 		return
 	}
+
+	// Refresh the in-memory strain cache so the UI reflects the update without
+	// a restart (AddStrainHandler already does this; Update regressed in the
+	// v0.2.0 ConfigStore refactor).
+	ConfigStoreFromContext(c).SetStrains(GetStrains(db))
 
 	apiOK(c, "api_strain_updated")
 }
@@ -535,7 +550,6 @@ func getStrainsBySeedCount(db *sql.DB, inStock bool) ([]types.Strain, error) {
 			fieldLogger.WithError(err).Error("Failed to scan strain")
 			return nil, err
 		}
-		strain.Description = html.EscapeString(strain.Description)
 		strains = append(strains, strain)
 	}
 

@@ -235,6 +235,112 @@ func TestPollEcoWitt_HappyPath(t *testing.T) {
 	assert.InDelta(t, 47.0, soil, 0.0001)
 }
 
+func TestPollEcoWitt_CHAisle(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := fakes.FakeEcoWitt(t, "ch_aisle")
+
+	u, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	tempID := seedSensor(t, db, "ecowitt", u.Host, "Aisle.1.Temp")
+	humiID := seedSensor(t, db, "ecowitt", u.Host, "Aisle.1.Humi")
+
+	w := newTestWatcher(t, db)
+	w.PollEcoWitt(context.Background(), u.Host)
+
+	assert.Equal(t, 1, countSensorData(t, db, tempID))
+	assert.Equal(t, 1, countSensorData(t, db, humiID))
+
+	var temp, humi float64
+	require.NoError(t, db.QueryRow(`SELECT value FROM sensor_data WHERE sensor_id = $1`, tempID).Scan(&temp))
+	assert.InDelta(t, 72.5, temp, 0.0001)
+	require.NoError(t, db.QueryRow(`SELECT value FROM sensor_data WHERE sensor_id = $1`, humiID).Scan(&humi))
+	assert.InDelta(t, 42.0, humi, 0.0001, "percent suffix must be trimmed")
+}
+
+func TestPollEcoWitt_CommonList(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := fakes.FakeEcoWitt(t, "common_list")
+
+	u, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	outTempID := seedSensor(t, db, "ecowitt", u.Host, "Common.0x02")
+	outHumiID := seedSensor(t, db, "ecowitt", u.Host, "Common.0x07")
+	windID    := seedSensor(t, db, "ecowitt", u.Host, "Common.0x0b")
+	uviID     := seedSensor(t, db, "ecowitt", u.Host, "Common.0x17")
+	dewID     := seedSensor(t, db, "ecowitt", u.Host, "Common.0x03") // decimal id "3" in fixture
+
+	w := newTestWatcher(t, db)
+	w.PollEcoWitt(context.Background(), u.Host)
+
+	for _, id := range []int{outTempID, outHumiID, windID, uviID, dewID} {
+		assert.Equalf(t, 1, countSensorData(t, db, id), "sensor %d should have one row", id)
+	}
+
+	cases := []struct {
+		id   int
+		want float64
+		name string
+	}{
+		{outTempID, 79.2, "outdoor temp"},
+		{outHumiID, 65.0, "outdoor humidity (percent stripped)"},
+		{windID, 0.0, "wind speed (mph suffix stripped)"},
+		{uviID, 3.0, "UVI (plain integer)"},
+		{dewID, 66.4, "dew point via decimal id \"3\""},
+	}
+	for _, tc := range cases {
+		var v float64
+		require.NoError(t, db.QueryRow(`SELECT value FROM sensor_data WHERE sensor_id = $1`, tc.id).Scan(&v))
+		assert.InDeltaf(t, tc.want, v, 0.0001, tc.name)
+	}
+}
+
+func TestPollEcoWitt_CommonList_SkipsDashes(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := fakes.FakeEcoWitt(t, "common_list_dashes")
+
+	u, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	outTempID := seedSensor(t, db, "ecowitt", u.Host, "Common.0x02")
+	outHumiID := seedSensor(t, db, "ecowitt", u.Host, "Common.0x07")
+
+	w := newTestWatcher(t, db)
+	w.PollEcoWitt(context.Background(), u.Host)
+
+	assert.Zero(t, countSensorData(t, db, outTempID), "dash-placeholder must not write sensor data")
+	assert.Zero(t, countSensorData(t, db, outHumiID), "dash-placeholder must not write sensor data")
+}
+
+func TestTrimCommonVal(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		in, want string
+	}{
+		{"79.2", "79.2"},        // clean float (temperature, separate unit field)
+		{"65%", "65"},           // percent embedded
+		{"0.00mph", "0.00"},     // unit string embedded
+		{"29.85 inHg", "29.85"}, // unit with leading space
+		{"43.65 W/m2", "43.65"}, // multi-char unit
+		{"-5.2", "-5.2"},        // negative temperature
+		{"3", "3"},              // integer (UVI)
+		{"--", ""},              // short dash placeholder
+		{"--.-", ""},            // long dash placeholder
+		{"", ""},                // empty string
+	}
+	for _, tc := range cases {
+		assert.Equalf(t, tc.want, trimCommonVal(tc.in), "trimCommonVal(%q)", tc.in)
+	}
+}
+
 func TestTrimTrailingPercent(t *testing.T) {
 	t.Parallel()
 

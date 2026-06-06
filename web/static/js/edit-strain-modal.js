@@ -146,13 +146,20 @@ document.addEventListener("DOMContentLoaded", () => {
             },
             body: JSON.stringify(payload),
         })
-            .then(response => {
-                if (!response.ok) throw new Error("{{ .lcl.strain_update_fail }}");
+            .then(async response => {
+                if (!response.ok) {
+                    let serverMsg = "";
+                    try { const data = await response.json(); serverMsg = (data && data.error) || ""; } catch (e) {}
+                    const err = new Error(serverMsg || "{{ .lcl.strain_update_fail }}");
+                    err.serverMessage = serverMsg;
+                    throw err;
+                }
                 location.reload();
             })
             .catch(error => {
                 console.error("{{ .lcl.strain_update_error }}", error);
-                uiMessages.showToast(uiMessages.t('update_error') || 'Update failed', 'danger');
+                const msg = (error && error.serverMessage) || uiMessages.t('update_error') || 'Update failed';
+                uiMessages.showToast(msg, 'danger');
             });
     });
 

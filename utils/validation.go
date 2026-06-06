@@ -4,9 +4,15 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
+
+// schemePrefix matches a leading "scheme:" per RFC 3986
+// (ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ) ":"). Used to decide whether a
+// URL already carries a scheme before NormalizeWebURL prepends one.
+var schemePrefix = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9+.\-]*:`)
 
 // Maximum string lengths for text inputs across the application.
 const (
@@ -88,6 +94,27 @@ func ValidateWebURL(field, rawURL string) error {
 		return fmt.Errorf("%s must include a host", field)
 	}
 	return nil
+}
+
+// NormalizeWebURL trims rawURL and, when it is non-empty and carries no scheme,
+// prepends "https://". This keeps legacy schemeless values (e.g.
+// "www.seedfinder.eu/x", saved before URL validation existed) usable instead of
+// failing every strain add/update. Values that already start with a scheme —
+// including non-http ones like "javascript:" or "ftp://" — are returned
+// untouched so ValidateWebURL still rejects them (security intent preserved).
+//
+// Edge case: a bare "host:port/path" with no scheme is left as-is (the leading
+// "host:" looks like a scheme), so it is not rescued; this is rare for the
+// stored seed-bank URLs this targets and keeps the rule simple and safe.
+func NormalizeWebURL(rawURL string) string {
+	trimmed := strings.TrimSpace(rawURL)
+	if trimmed == "" {
+		return trimmed
+	}
+	if schemePrefix.MatchString(trimmed) {
+		return trimmed
+	}
+	return "https://" + trimmed
 }
 
 // ValidateStreamURL checks that a URL string is well-formed and uses an
