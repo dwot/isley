@@ -388,7 +388,12 @@ jobs:
           
           # Sign binary with Cosign (Shared Trust). --yes auto-accepts the
           # Rekor transparency-log upload prompt, which has no TTY in CI.
-          cosign sign-blob --yes --key env://COSIGN_PRIVATE_KEY isley-linux > isley-linux.sig
+          # cosign v3 (installed via cosign-installer@v4) defaults to the new
+          # Sigstore bundle format: --output-signature/--output-certificate are
+          # gone and --bundle (cert + signature + tlog entry in one
+          # .sigstore.json) is required. Verify with:
+          #   cosign verify-blob --bundle isley-linux.bundle --key cosign.pub isley-linux
+          cosign sign-blob --yes --key env://COSIGN_PRIVATE_KEY --bundle isley-linux.bundle isley-linux
           sha256sum isley-linux > isley-linux.sha256
           
           # Use our release identity
@@ -410,5 +415,5 @@ jobs:
           body_path: release_notes.md
           files: |
             isley-linux
-            isley-linux.sig
+            isley-linux.bundle
             isley-linux.sha256
