@@ -21,11 +21,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- EcoWitt sensor support now covers `ch_aisle` (WH31/WN31 multi-channel
+  temperature & humidity) and `common_list` outdoor weather-station sensors
+  (WH32/WN32, WS80, WH65, WS90 — outdoor T&H, wind, rain, UV, barometric
+  pressure, light). These keys appeared in the gateway's `/get_livedata_info`
+  response but were previously dropped on scan, so users running outdoor or
+  greenhouse stations saw nothing register. Includes defensive handling for
+  mixed hex/decimal sensor-ID formats across firmware versions and for
+  embedded-unit / dash-placeholder values. (PR #176, contributed by
+  @evelinwa)
+- The Plants view auto-switches to the Harvested tab on initial load when the
+  Living tab is empty — handy after wrapping up a run and inventorying
+  harvested plants only. (PR #170, contributed by @anon11215)
 
 ### Changed
 - The add/edit strain forms now surface the server's validation message in the
   failure toast instead of a generic "update failed" / "Failed to add strain",
   so the offending field is actionable.
+- Removed an inconsistent `html.EscapeString` on the `description` field
+  returned by `/strains/in-stock` and `/strains/out-of-stock`. The list pages
+  don't render the description, but the pre-escape would have seeded a
+  double-escape spiral for any consumer that round-tripped the value back
+  through a save.
+- GitHub Actions release pipeline bumps:
+  - `actions/upload-artifact` 4 → 7
+  - `sigstore/cosign-installer` 3.5.0 → 4.1.1
+  - `softprops/action-gh-release` 2 → 3
+  - `docker/setup-qemu-action` 3 → 4
+  - `docker/build-push-action` 6 → 7
 
 ### Deprecated
 
@@ -45,8 +68,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `UpdateStrainHandler` now refreshes the in-memory strain cache after a
   successful update — it regressed in the v0.2.0 ConfigStore refactor and the
   UI showed stale strain data until the next restart.
+- Follow-up to #146 (strain debugging): the dedicated edit page at
+  `/strain/:id/edit` was still showing a generic "Update failed" toast even
+  after the previous round of validation work, because `strain-edit.js` was
+  missed when `strain-add.js` and the (unused) edit modal were updated to
+  parse the server's JSON `error` body. The live editor now surfaces the
+  actual validation message the same way.
 
 ### Security
+- Bump golang Docker base to 1.26.4-alpine3.23
+- Bump golang.org/x/crypto to 0.52.0
+- Bump golang.org/x/text to 0.37.0
+- Bump golang.org/x/image to 0.41.0
+- Bump github.com/quic-go/quic-go to 0.59.1
+- Bump modernc.org/sqlite to 1.50.1
 
 ## [0.2.0] - 2026-04-29
 
