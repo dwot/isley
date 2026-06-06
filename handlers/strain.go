@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"database/sql"
-	"html"
 	"isley/logger"
 	model "isley/model"
 	"isley/model/types"
@@ -223,7 +222,6 @@ func GetStrain(db *sql.DB, id string) types.Strain {
 		}
 		return types.Strain{}
 	}
-	//strain.Description = html.EscapeString(strain.Description)
 
 	return strain
 }
@@ -552,7 +550,6 @@ func getStrainsBySeedCount(db *sql.DB, inStock bool) ([]types.Strain, error) {
 			fieldLogger.WithError(err).Error("Failed to scan strain")
 			return nil, err
 		}
-		strain.Description = html.EscapeString(strain.Description)
 		strains = append(strains, strain)
 	}
 

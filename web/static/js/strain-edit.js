@@ -122,8 +122,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             })
-                .then(response => {
-                    if (!response.ok) throw new Error("Failed to update strain");
+                .then(async response => {
+                    if (!response.ok) {
+                        let serverMsg = "";
+                        try { const data = await response.json(); serverMsg = (data && data.error) || ""; } catch (e) {}
+                        const err = new Error(serverMsg || "Failed to update strain");
+                        err.serverMessage = serverMsg;
+                        throw err;
+                    }
                     // Save lineage if the editor is present
                     if (typeof window.saveLineage === "function") {
                         return window.saveLineage().then(() => strainId);
@@ -139,7 +145,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 .catch(error => {
                     console.error("Error updating strain:", error);
                     if (typeof uiMessages !== 'undefined') {
-                        uiMessages.showToast(uiMessages.t('update_error') || 'Update failed', 'danger');
+                        const msg = (error && error.serverMessage) || uiMessages.t('update_error') || 'Update failed';
+                        uiMessages.showToast(msg, 'danger');
                     }
                 });
         });
