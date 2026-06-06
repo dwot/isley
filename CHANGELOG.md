@@ -21,6 +21,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [2.1.0] - 2026-06-06
+
+### Added
 - EcoWitt sensor support now covers `ch_aisle` (WH31/WN31 multi-channel
   temperature & humidity) and `common_list` outdoor weather-station sensors
   (WH32/WN32, WS80, WH65, WS90 — outdoor T&H, wind, rain, UV, barometric
