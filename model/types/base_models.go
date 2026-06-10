@@ -141,12 +141,16 @@ type SensorData struct {
 }
 
 type SensorDataResponse struct {
-	ID        uint      `json:"id"`
-	Name      string    `json:"name"`
-	Unit      string    `json:"unit"`
-	Value     float64   `json:"value"`
-	Date      time.Time `json:"date"`
-	Inherited bool      `json:"inherited"` // true if sensor is inherited from the plant's zone rather than directly linked
+	ID         uint      `json:"id"`
+	Name       string    `json:"name"`
+	Unit       string    `json:"unit"`
+	Value      float64   `json:"value"`
+	Date       time.Time `json:"date"`
+	Inherited  bool      `json:"inherited"` // true if sensor is inherited from the plant's zone rather than directly linked
+	IdealLow   *float64  `json:"ideal_low,omitempty"`
+	IdealHigh  *float64  `json:"ideal_high,omitempty"`
+	RangeState string    `json:"range_state,omitempty"` // "", "ideal", "low", "high"
+	IsVPD      bool      `json:"is_vpd,omitempty"`
 }
 
 type Settings struct {
@@ -200,6 +204,8 @@ type Status struct {
 	Status   string    `json:"status"`
 	Date     time.Time `json:"date"`
 	StatusID int       `json:"status_id"`
+	VPDLow   *float64  `json:"vpd_low"`
+	VPDHigh  *float64  `json:"vpd_high"`
 }
 
 type Strain struct {
@@ -227,8 +233,11 @@ type StrainLineage struct {
 }
 
 type Zone struct {
-	ID   uint   `json:"id"`
-	Name string `json:"name"`
+	ID                  uint     `json:"id"`
+	Name                string   `json:"name"`
+	LeafTempOffset      *float64 `json:"leaf_temp_offset"`
+	VPDTempSensorID     *uint    `json:"vpd_temp_sensor_id"`
+	VPDHumiditySensorID *uint    `json:"vpd_humidity_sensor_id"`
 }
 
 type Stream struct {

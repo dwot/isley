@@ -645,7 +645,7 @@ func GetZones(db *sql.DB) []types.Zone {
 	fieldLogger := logger.Log.WithField("func", "GetZones")
 
 	var zones []types.Zone
-	rows, err := db.Query("SELECT id, name FROM zones")
+	rows, err := db.Query("SELECT id, name, leaf_temp_offset, vpd_temp_sensor_id, vpd_humidity_sensor_id FROM zones")
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error querying zones")
 		return nil
@@ -654,9 +654,23 @@ func GetZones(db *sql.DB) []types.Zone {
 
 	for rows.Next() {
 		var zone types.Zone
-		if err := rows.Scan(&zone.ID, &zone.Name); err != nil {
+		var leafTempOffset sql.NullFloat64
+		var vpdTempSensorID sql.NullInt64
+		var vpdHumiditySensorID sql.NullInt64
+		if err := rows.Scan(&zone.ID, &zone.Name, &leafTempOffset, &vpdTempSensorID, &vpdHumiditySensorID); err != nil {
 			fieldLogger.WithError(err).Error("Error scanning row")
 			continue
+		}
+		if leafTempOffset.Valid {
+			zone.LeafTempOffset = &leafTempOffset.Float64
+		}
+		if vpdTempSensorID.Valid {
+			v := uint(vpdTempSensorID.Int64)
+			zone.VPDTempSensorID = &v
+		}
+		if vpdHumiditySensorID.Valid {
+			v := uint(vpdHumiditySensorID.Int64)
+			zone.VPDHumiditySensorID = &v
 		}
 		zones = append(zones, zone)
 	}

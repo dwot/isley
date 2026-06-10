@@ -333,6 +333,8 @@ func AddProtectedApiRoutes(r *gin.RouterGroup) {
 	r.PUT("/zones/:id", handlers.UpdateZoneHandler)
 	r.DELETE("/zones/:id", handlers.DeleteZoneHandler)
 
+	r.POST("/statuses/:id/vpd", handlers.UpdateStatusVPDHandler)
+
 	r.POST("/metrics", handlers.AddMetricHandler)
 	r.GET("/metrics", handlers.GetMetricsHandler)
 	r.PUT("/metrics/:id", handlers.UpdateMetricHandler)
@@ -426,17 +428,20 @@ func AddProtectedRoutes(r *gin.RouterGroup, version string) {
 		translations := utils.TranslationService.GetTranslations(lang)
 		currentPath, _ := c.Get("currentPath")
 		store := handlers.ConfigStoreFromContext(c)
+		db := handlers.DBFromContext(c)
 		c.HTML(http.StatusOK, "views/settings.html", gin.H{
 			"title":           "Settings",
 			"currentPath":     currentPath,
 			"version":         version,
-			"settings":        handlers.GetSettings(handlers.DBFromContext(c)),
+			"settings":        handlers.GetSettings(db),
 			"zones":           store.Zones(),
+			"statuses":        store.Statuses(),
+			"sensors":         handlers.GetSensors(db),
 			"metrics":         store.Metrics(),
-			"plants":          handlers.GetLivingPlants(handlers.DBFromContext(c)),
+			"plants":          handlers.GetLivingPlants(db),
 			"activities":      store.Activities(),
 			"breeders":        store.Breeders(),
-			"streams":         handlers.GetStreams(handlers.DBFromContext(c)),
+			"streams":         handlers.GetStreams(db),
 			"loggedIn":        sessions.Default(c).Get("logged_in"),
 			"lcl":             translations,
 			"languages":       utils.AvailableLanguages,
