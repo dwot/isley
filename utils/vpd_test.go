@@ -6,6 +6,7 @@ import (
 )
 
 func TestFahrenheitToCelsius(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		f, want float64
 	}{
@@ -22,6 +23,7 @@ func TestFahrenheitToCelsius(t *testing.T) {
 }
 
 func TestVPD(t *testing.T) {
+	t.Parallel()
 	// All expected values computed from the Tetens formula by hand:
 	//   es(T) = 0.6107 * 10^(7.5*T / (237.3+T))
 	//   VPD   = es(airT + offset) - es(airT)*rh/100
@@ -54,6 +56,7 @@ func TestVPD(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			got := VPD(tc.airTempC, tc.rhPct, tc.leafOffset)
 			if math.Abs(got-tc.wantApprox) > tc.tolerance {
 				t.Errorf("VPD(%v, %v, %v) = %.4f, want %.4f ± %.4f",
