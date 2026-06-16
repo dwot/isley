@@ -21,6 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Per-zone derived Vapor Pressure Deficit (VPD). When a zone is configured with
+  a leaf-temp offset (°F) plus temperature and humidity source sensors, Isley
+  computes canopy VPD each poll cycle (Tetens formula) and stores it as a
+  regular `derived` sensor reading, so it both displays on the plant page and
+  graphs over time. The plant-page VPD chip is colored by the plant's current
+  growth stage's ideal range — green (in range), blue + up-arrow (too low),
+  red + down-arrow (too high). New per-stage ideal-range editor under
+  Settings > Customization (seeded Seedling 0.4–0.8, Veg 0.8–1.2,
+  Flower 1.2–1.5 kPa) and new per-zone VPD inputs in the zone edit modal.
+  Adds migration 019. (PR #187, contributed by @evelinwa)
 
 ### Changed
 - CI/build dependency bumps:
@@ -36,6 +46,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 ### Fixed
+- The activity log's empty-state message now centers correctly, matching the
+  plants/strains/sensors empty states (the `.activities-empty` block was
+  missing the flex centering rules). (PR #185, contributed by @ababoude)
+- Completed the French (`fr`) translations for the activity log / notebook /
+  export strings (issue #148), which were still placeholder `NEEDS_TRANSLATION`
+  values. (PR #184, contributed by @ababoude)
 
 ### Security
 - Bump golang.org/x/crypto to 0.53.0
