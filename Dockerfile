@@ -14,7 +14,7 @@ ARG TARGETARCH
 RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-w -s" -o /app/isley
 
 # IMAGE PHASE
-FROM alpine:3.23
+FROM alpine:3.24
 WORKDIR /app
 
 # Install tzdata for timezone support and su-exec for lightweight privilege
