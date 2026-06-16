@@ -23,6 +23,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+- CI/build dependency bumps:
+  - `actions/checkout` 4 → 6
+  - `actions/setup-go` 5 → 6
+  - `actions/github-script` 7 → 9
+  - `docker/setup-buildx-action` 3 → 4
+  - `crazy-max/ghaction-import-gpg` 6 → 7
+  - Docker runtime base `alpine` 3.23 → 3.24
 
 ### Deprecated
 
@@ -31,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Security
+- Bump golang.org/x/crypto to 0.53.0
+- Bump golang.org/x/text to 0.38.0
+- Bump golang.org/x/image to 0.42.0
+- Bump modernc.org/sqlite to 1.52.0
 
 ## [2.1.0] - 2026-06-06
 
