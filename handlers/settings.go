@@ -551,7 +551,10 @@ func UpdateZoneHandler(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "UpdateZoneHandler")
 	id := c.Param("id")
 	var zone struct {
-		Name string `json:"zone_name"`
+		Name                string   `json:"zone_name"`
+		LeafTempOffset      *float64 `json:"leaf_temp_offset"`
+		VPDTempSensorID     *uint    `json:"vpd_temp_sensor_id"`
+		VPDHumiditySensorID *uint    `json:"vpd_humidity_sensor_id"`
 	}
 	if err := c.ShouldBindJSON(&zone); err != nil {
 		fieldLogger.WithError(err).Error("Failed to update zone")
@@ -566,17 +569,89 @@ func UpdateZoneHandler(c *gin.Context) {
 	// Update zone in database
 	db := DBFromContext(c)
 
-	// Update zone in database
-	_, err := db.Exec("UPDATE zones SET name = $1 WHERE id = $2", zone.Name, id)
+	// Convert pointer fields to sql.Null types for nullable columns
+	var leafTempOffset sql.NullFloat64
+	if zone.LeafTempOffset != nil {
+		leafTempOffset = sql.NullFloat64{Float64: *zone.LeafTempOffset, Valid: true}
+	}
+	var vpdTempSensorID sql.NullInt64
+	if zone.VPDTempSensorID != nil {
+		vpdTempSensorID = sql.NullInt64{Int64: int64(*zone.VPDTempSensorID), Valid: true}
+	}
+	var vpdHumiditySensorID sql.NullInt64
+	if zone.VPDHumiditySensorID != nil {
+		vpdHumiditySensorID = sql.NullInt64{Int64: int64(*zone.VPDHumiditySensorID), Valid: true}
+	}
+
+	_, err := db.Exec(
+		"UPDATE zones SET name = $1, leaf_temp_offset = $2, vpd_temp_sensor_id = $3, vpd_humidity_sensor_id = $4 WHERE id = $5",
+		zone.Name, leafTempOffset, vpdTempSensorID, vpdHumiditySensorID, id,
+	)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update zone")
 		apiInternalError(c, "api_failed_to_update_zone")
 		return
 	}
+
+	// If VPD is enabled (leaf_temp_offset is set), ensure a derived VPD sensor row exists
+	if zone.LeafTempOffset != nil {
+		zoneIDInt, convErr := strconv.Atoi(id)
+		if convErr == nil {
+			vpdSensorName := "VPD (Zone " + id + ")"
+			if _, sErr := findOrCreateSensor(db, vpdSensorName, "derived", id, "VPD", &zoneIDInt, "kPa"); sErr != nil {
+				fieldLogger.WithError(sErr).Warn("Failed to ensure derived VPD sensor for zone")
+			}
+		}
+	}
+
 	//Reload Config
 	ConfigStoreFromContext(c).SetZones(GetZones(db))
 
 	apiOK(c, "api_zone_updated")
+}
+
+// UpdateStatusVPDHandler updates the vpd_low and vpd_high columns for a
+// single plant_status row, then refreshes the in-memory statuses store.
+// Route: POST /statuses/:id/vpd
+func UpdateStatusVPDHandler(c *gin.Context) {
+	fieldLogger := logger.Log.WithField("func", "UpdateStatusVPDHandler")
+	id := c.Param("id")
+
+	var payload struct {
+		VPDLow  *float64 `json:"vpd_low"`
+		VPDHigh *float64 `json:"vpd_high"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		fieldLogger.WithError(err).Error("Failed to bind JSON")
+		apiBadRequest(c, "api_invalid_payload")
+		return
+	}
+
+	db := DBFromContext(c)
+
+	var vpdLow sql.NullFloat64
+	if payload.VPDLow != nil {
+		vpdLow = sql.NullFloat64{Float64: *payload.VPDLow, Valid: true}
+	}
+	var vpdHigh sql.NullFloat64
+	if payload.VPDHigh != nil {
+		vpdHigh = sql.NullFloat64{Float64: *payload.VPDHigh, Valid: true}
+	}
+
+	_, err := db.Exec(
+		"UPDATE plant_status SET vpd_low = $1, vpd_high = $2 WHERE id = $3",
+		vpdLow, vpdHigh, id,
+	)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to update status VPD range")
+		apiInternalError(c, "api_failed_to_update_status_vpd")
+		return
+	}
+
+	// Reload statuses in the store
+	ConfigStoreFromContext(c).SetStatuses(GetStatuses(db))
+
+	apiOK(c, "api_status_vpd_updated")
 }
 
 func UpdateMetricHandler(c *gin.Context) {

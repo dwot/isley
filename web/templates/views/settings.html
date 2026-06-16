@@ -364,6 +364,20 @@ color: #0d6efd; /* Primary color */
                     </table>
                 </div>
             </div>
+
+            <!-- VPD Stage Ranges -->
+            <div class="card mb-4 shadow-sm card-table">
+                <div class="card-header bg-themed">
+                    <h2 class="h5 mb-0">&#127807; VPD Stage Ranges</h2>
+                    <small class="text-muted">Set the ideal VPD range (kPa) for each growth stage. Leave blank to disable the indicator.</small>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm mb-0" id="vpdStageTable">
+                        <thead class="bg-themed"><tr><th>Stage</th><th>Low (kPa)</th><th>High (kPa)</th><th></th></tr></thead>
+                        <tbody id="vpdStageTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
 
         <!-- Appearance Tab -->
@@ -833,6 +847,24 @@ color: #0d6efd; /* Primary color */
                         <label for="editZoneName" class="form-label">{{ .lcl.zone_name }}</label>
                         <input type="text" class="form-control" id="editZoneName" step="any" required>
                     </div>
+                    <hr>
+                    <p class="text-muted small mb-2">VPD — leave offset blank to disable VPD for this zone.</p>
+                    <div class="mb-3">
+                        <label for="editZoneLeafOffset" class="form-label">Leaf temp offset (°F)</label>
+                        <input type="number" class="form-control" id="editZoneLeafOffset" step="0.1" placeholder="e.g. -2 (leave blank to disable)">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editZoneVpdTempSensor" class="form-label">VPD temperature sensor</label>
+                        <select class="form-select" id="editZoneVpdTempSensor">
+                            <option value="">— none —</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editZoneVpdHumSensor" class="form-label">VPD humidity sensor</label>
+                        <select class="form-select" id="editZoneVpdHumSensor">
+                            <option value="">— none —</option>
+                        </select>
+                    </div>
                     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
                     <button type="button" class="btn btn-danger" id="deleteZone"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_zone }}</button>
                 </form>
@@ -840,6 +872,51 @@ color: #0d6efd; /* Primary color */
         </div>
     </div>
 </div>
+
+<script nonce="{{ .cspNonce }}">
+(function() {
+    const statusesRaw = {{ json .statuses }};
+    const statuses = typeof statusesRaw === "string" ? JSON.parse(statusesRaw || "[]") : (statusesRaw || []);
+    const sensorsRaw = {{ json .sensors }};
+    const sensors = typeof sensorsRaw === "string" ? JSON.parse(sensorsRaw || "[]") : (sensorsRaw || []);
+    const tbody = document.getElementById('vpdStageTableBody');
+    if (tbody && statuses) {
+        statuses.forEach(function(st) {
+            const tr = document.createElement('tr');
+            tr.dataset.statusId = st.id;
+            tr.innerHTML =
+                '<td>' + st.status + '</td>' +
+                '<td><input type="number" class="form-control form-control-sm vpd-low" step="0.01" value="' + (st.vpd_low != null ? st.vpd_low.toFixed(2) : '') + '" placeholder="—"></td>' +
+                '<td><input type="number" class="form-control form-control-sm vpd-high" step="0.01" value="' + (st.vpd_high != null ? st.vpd_high.toFixed(2) : '') + '" placeholder="—"></td>' +
+                '<td><button type="button" class="btn btn-sm btn-primary vpd-save-btn">Save</button></td>';
+            tbody.appendChild(tr);
+        });
+        tbody.querySelectorAll('.vpd-save-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const row = btn.closest('tr');
+                const statusId = row.dataset.statusId;
+                const lowVal = row.querySelector('.vpd-low').value;
+                const highVal = row.querySelector('.vpd-high').value;
+                const payload = {
+                    vpd_low:  lowVal  !== '' ? parseFloat(lowVal)  : null,
+                    vpd_high: highVal !== '' ? parseFloat(highVal) : null,
+                };
+                fetch('/statuses/' + statusId + '/vpd', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                }).then(function(r) { return r.json(); })
+                  .then(function() { uiMessages.showToast('VPD range saved', 'success'); })
+                  .catch(function() { uiMessages.showToast('Failed to save VPD range', 'danger'); });
+            });
+        });
+    }
+
+    // Populate VPD sensor selects when the zone edit modal opens.
+    // This runs after the modal JS below, so we use a custom event approach.
+    window._vpdSensors = sensors || [];
+})();
+</script>
 
 <!-- Activity Edit Modal -->
 <div class="modal fade" id="editActivityModal" tabindex="-1" aria-labelledby="editActivityModalLabel" aria-hidden="true">
@@ -1159,12 +1236,35 @@ color: #0d6efd; /* Primary color */
         const zoneForm = document.getElementById("editZoneForm");
         const deleteZoneButton = document.getElementById("deleteZone");
 
+        function populateVpdSensorSelect(selectEl, zoneId, selectedId) {
+            const sensors = window._vpdSensors || [];
+            selectEl.innerHTML = '<option value="">— none —</option>';
+            sensors.forEach(function(s) {
+                if (s.source === 'derived') return; // skip derived sensors as VPD inputs
+                if (s.zone_id === zoneId) {
+                    const opt = document.createElement('option');
+                    opt.value = s.id;
+                    opt.textContent = s.name + ' (' + s.unit + ')';
+                    if (selectedId && s.id === selectedId) opt.selected = true;
+                    selectEl.appendChild(opt);
+                }
+            });
+        }
+
         document.querySelectorAll(".zone-row").forEach(row => {
             row.addEventListener("click", () => {
                 const zoneData = JSON.parse(row.getAttribute("data-zone"));
 
                 document.getElementById("zoneId").value = zoneData.id;
                 document.getElementById("editZoneName").value = zoneData.name;
+
+                const offsetInput = document.getElementById("editZoneLeafOffset");
+                offsetInput.value = (zoneData.leaf_temp_offset != null) ? zoneData.leaf_temp_offset : '';
+
+                const tempSelect = document.getElementById("editZoneVpdTempSensor");
+                const humSelect  = document.getElementById("editZoneVpdHumSensor");
+                populateVpdSensorSelect(tempSelect, zoneData.id, zoneData.vpd_temp_sensor_id);
+                populateVpdSensorSelect(humSelect,  zoneData.id, zoneData.vpd_humidity_sensor_id);
 
                 editZoneModal.show();
             });
@@ -1173,8 +1273,15 @@ color: #0d6efd; /* Primary color */
         zoneForm.addEventListener("submit", (e) => {
             e.preventDefault();
             const zoneId = document.getElementById("zoneId").value;
+            const offsetRaw = document.getElementById("editZoneLeafOffset").value;
+            const tempSensor = document.getElementById("editZoneVpdTempSensor").value;
+            const humSensor  = document.getElementById("editZoneVpdHumSensor").value;
+
             const payload = {
-                zone_name: document.getElementById("editZoneName").value,
+                zone_name:              document.getElementById("editZoneName").value,
+                leaf_temp_offset:       offsetRaw !== '' ? parseFloat(offsetRaw) : null,
+                vpd_temp_sensor_id:     tempSensor  !== '' ? parseInt(tempSensor,  10) : null,
+                vpd_humidity_sensor_id: humSensor   !== '' ? parseInt(humSensor,   10) : null,
             };
 
             fetch(`/zones/${zoneId}`, {
