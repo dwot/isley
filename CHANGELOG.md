@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- EcoWitt `ch_ec` support: WH52 soil sensor reporting soil moisture, soil
+  temperature, and electrical conductivity (converted to mS/cm), registered
+  per channel.
 
 ### Changed
 

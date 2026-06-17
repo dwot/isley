@@ -30,6 +30,24 @@ type ECWCHAisle struct {
 	Humidity string `json:"humidity"`
 }
 
+// ECWCHEc holds one channel of a WH52 soil sensor, reported by the gateway
+// in the ch_ec array (added in EcoWitt local API v1.0.6). Unlike the
+// moisture-only WH51 (ch_soil), the WH52 also reports soil temperature and
+// electrical conductivity. The Humidity field is soil moisture (named
+// "humidity" in the payload, matching ch_soil/ch_aisle). EC carries its unit
+// inline (e.g. "470 uS/cm"). Battery/Voltage are parsed but not registered as
+// sensors, matching how ch_soil/ch_aisle are handled.
+type ECWCHEc struct {
+	Channel  string `json:"channel"`
+	Name     string `json:"name"`
+	Battery  string `json:"battery"`
+	Voltage  string `json:"voltage"`
+	Humidity string `json:"humidity"`
+	Temp     string `json:"temp"`
+	Unit     string `json:"unit"`
+	EC       string `json:"ec"`
+}
+
 type ECWCommonItem struct {
 	ID      string `json:"id"`
 	Val     string `json:"val"`
@@ -90,5 +108,6 @@ type ECWAPIResponse struct {
 	WH25       []ECWWH25       `json:"wh25"`
 	CHSoil     []ECWCHSoil     `json:"ch_soil"`
 	CHAisle    []ECWCHAisle    `json:"ch_aisle"`
+	CHEc       []ECWCHEc       `json:"ch_ec"`
 	CommonList []ECWCommonItem `json:"common_list"`
 }

@@ -566,6 +566,19 @@ func ScanEcoWittSensors(c *gin.Context) {
 			"EC ("+device+") Ch"+ch.Channel+" Humi", input.ZoneID, "%")
 	}
 
+	for _, ch := range apiResponse.CHEc {
+		tempUnit := "°F"
+		if ch.Unit == "C" {
+			tempUnit = "°C"
+		}
+		checkInsertSensor(db, source, device, "SoilEC."+ch.Channel+".Moisture",
+			"EC ("+device+") Ch"+ch.Channel+" Soil Moisture", input.ZoneID, "%")
+		checkInsertSensor(db, source, device, "SoilEC."+ch.Channel+".Temp",
+			"EC ("+device+") Ch"+ch.Channel+" Soil Temp", input.ZoneID, tempUnit)
+		checkInsertSensor(db, source, device, "SoilEC."+ch.Channel+".EC",
+			"EC ("+device+") Ch"+ch.Channel+" Soil EC", input.ZoneID, "mS/cm")
+	}
+
 	for _, item := range apiResponse.CommonList {
 		meta, ok := types.ECWCommonSensors[types.NormalizeECWID(item.ID)]
 		if !ok {
