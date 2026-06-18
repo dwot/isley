@@ -668,3 +668,74 @@ activity_filter_reset: "NEEDS_TRANSLATION"
 activity_filter_any: "NEEDS_TRANSLATION"
 activity_required_metrics: "Métricas obligatorias"
 activity_optional_metrics: "Métricas opcionales"
+
+# --- MISSING TRANSLATIONS ADDED BY i18n_sync.go ---
+# English: CannaDB import is disabled. Enable it in Settings.
+api_cannadb_disabled: "NEEDS_TRANSLATION"
+
+# English: Failed to import strain from CannaDB.
+api_cannadb_import_failed: "NEEDS_TRANSLATION"
+
+# English: Strain imported from CannaDB
+api_cannadb_imported: "NEEDS_TRANSLATION"
+
+# English: Invalid CannaDB record identifier.
+api_cannadb_invalid_uri: "NEEDS_TRANSLATION"
+
+# English: That strain could not be found on CannaDB.
+api_cannadb_not_found: "NEEDS_TRANSLATION"
+
+# English: Please enter a strain name to search.
+api_cannadb_query_required: "NEEDS_TRANSLATION"
+
+# English: CannaDB is rate limiting requests. Please try again shortly.
+api_cannadb_rate_limited: "NEEDS_TRANSLATION"
+
+# English: Failed to search CannaDB.
+api_cannadb_search_failed: "NEEDS_TRANSLATION"
+
+# English: Override the CannaDB API endpoint. Leave blank to use the default public API.
+cannadb_base_url_desc: "NEEDS_TRANSLATION"
+
+# English: CannaDB API URL (optional)
+cannadb_base_url_label: "NEEDS_TRANSLATION"
+
+# English: Allow importing strain details from the public CannaDB database (cannadb.org) directly into your strain library.
+cannadb_enabled_desc: "NEEDS_TRANSLATION"
+
+# English: Enable CannaDB strain import
+cannadb_enabled_info: "NEEDS_TRANSLATION"
+
+# English: Import
+cannadb_import_action: "NEEDS_TRANSLATION"
+
+# English: Import from CannaDB
+cannadb_import_button: "NEEDS_TRANSLATION"
+
+# English: Import strain from CannaDB
+cannadb_import_title: "NEEDS_TRANSLATION"
+
+# English: Importing...
+cannadb_importing: "NEEDS_TRANSLATION"
+
+# English: Match
+cannadb_match: "NEEDS_TRANSLATION"
+
+# English: No matching strains found.
+cannadb_no_results: "NEEDS_TRANSLATION"
+
+# English: Search
+cannadb_search_button: "NEEDS_TRANSLATION"
+
+# English: Search strains by name...
+cannadb_search_placeholder: "NEEDS_TRANSLATION"
+
+# English: Searching CannaDB...
+cannadb_searching: "NEEDS_TRANSLATION"
+
+# English: CannaDB Strain Import
+settings_cannadb: "NEEDS_TRANSLATION"
+
+# English: View on CannaDB
+view_on_cannadb: "NEEDS_TRANSLATION"
+
