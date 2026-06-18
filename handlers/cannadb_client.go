@@ -205,7 +205,7 @@ func cannadbGet(baseURL, method string, params url.Values, out interface{}) erro
 		if err != nil {
 			lastErr = err
 			if attempt < cannadbMaxRetries {
-				cannadbSleep(cannadbBackoff(attempt))
+				time.Sleep(cannadbBackoff(attempt))
 				continue
 			}
 			return err
@@ -216,7 +216,7 @@ func cannadbGet(baseURL, method string, params url.Values, out interface{}) erro
 		if readErr != nil {
 			lastErr = readErr
 			if attempt < cannadbMaxRetries {
-				cannadbSleep(cannadbBackoff(attempt))
+				time.Sleep(cannadbBackoff(attempt))
 				continue
 			}
 			return readErr
@@ -233,13 +233,10 @@ func cannadbGet(baseURL, method string, params url.Values, out interface{}) erro
 			apiErr := decodeCannadbError(resp.StatusCode, body)
 			lastErr = apiErr
 			if attempt < cannadbMaxRetries {
-				wait := cannadbBackoff(attempt)
-				if ra := retryAfterDelay(resp.Header.Get("Retry-After"), apiErr.RetryAfterSeconds); ra > 0 {
-					wait = ra
-				}
+				wait := cannadbRetryWait(attempt, resp.Header.Get("Retry-After"), apiErr.RetryAfterSeconds)
 				fieldLogger.WithField("status", resp.StatusCode).WithField("wait", wait).
 					Debug("CannaDB backpressure, backing off")
-				cannadbSleep(wait)
+				time.Sleep(wait)
 				continue
 			}
 			return apiErr
@@ -273,9 +270,12 @@ func cannadbBackoff(attempt int) time.Duration {
 	return half + time.Duration(rand.Int63n(int64(half)+1))
 }
 
-// retryAfterDelay parses a Retry-After header (seconds form) or the envelope's
-// retry_after_seconds, returning 0 when neither is usable.
-func retryAfterDelay(header string, envelopeSeconds int) time.Duration {
+// cannadbRetryWait decides how long to wait before the next retry. A server's
+// explicit Retry-After header wins and is honored exactly — including "0",
+// which means "retry immediately" — so a cooperative server can keep retries
+// tight. The envelope's retry_after_seconds is the next fallback, and absent
+// both we use jittered exponential backoff.
+func cannadbRetryWait(attempt int, header string, envelopeSeconds int) time.Duration {
 	if header = strings.TrimSpace(header); header != "" {
 		if secs, err := strconv.Atoi(header); err == nil && secs >= 0 {
 			return time.Duration(secs) * time.Second
@@ -284,11 +284,8 @@ func retryAfterDelay(header string, envelopeSeconds int) time.Duration {
 	if envelopeSeconds > 0 {
 		return time.Duration(envelopeSeconds) * time.Second
 	}
-	return 0
+	return cannadbBackoff(attempt)
 }
-
-// cannadbSleep is a seam for tests to avoid real sleeping.
-var cannadbSleep = time.Sleep
 
 // ---------------------------------------------------------------------------
 // High-level calls

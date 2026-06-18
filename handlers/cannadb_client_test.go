@@ -11,10 +11,10 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
-	"time"
 )
 
 func TestCannadbWebURL(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		uri  string
@@ -46,6 +46,7 @@ func TestCannadbWebURL(t *testing.T) {
 func intPtr(v int) *int { return &v }
 
 func TestMapCannadbStrain(t *testing.T) {
+	t.Parallel()
 	rec := &cannadbRecord{URI: "at://did/org.cannadb.strain/x", IndexedAt: "2026-04-30T20:00:40Z"}
 
 	t.Run("indicaSativa lean and cycleTime max", func(t *testing.T) {
@@ -97,17 +98,11 @@ func TestMapCannadbStrain(t *testing.T) {
 	})
 }
 
-// withNoSleep swaps the backoff sleep for a no-op so retry tests run fast.
-func withNoSleep(t *testing.T) {
-	t.Helper()
-	orig := cannadbSleep
-	cannadbSleep = func(time.Duration) {}
-	t.Cleanup(func() { cannadbSleep = orig })
-}
-
 func TestCannadbGet_RetriesThenSucceeds(t *testing.T) {
-	withNoSleep(t)
+	t.Parallel()
 
+	// Each 429 carries Retry-After: 0, so the client retries immediately with
+	// no real sleep — keeping the test fast and parallel-safe (no shared state).
 	var calls int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n := atomic.AddInt32(&calls, 1)
@@ -135,7 +130,7 @@ func TestCannadbGet_RetriesThenSucceeds(t *testing.T) {
 }
 
 func TestCannadbGet_NonRetryableError(t *testing.T) {
-	withNoSleep(t)
+	t.Parallel()
 
 	var calls int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -163,7 +158,7 @@ func TestCannadbGet_NonRetryableError(t *testing.T) {
 }
 
 func TestCannadbGet_EncodesATURI(t *testing.T) {
-	withNoSleep(t)
+	t.Parallel()
 
 	var gotRaw string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
