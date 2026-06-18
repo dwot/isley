@@ -671,71 +671,71 @@ activity_optional_metrics: "Métriques optionnelles"
 
 # --- MISSING TRANSLATIONS ADDED BY i18n_sync.go ---
 # English: CannaDB import is disabled. Enable it in Settings.
-api_cannadb_disabled: "NEEDS_TRANSLATION"
+api_cannadb_disabled: "L'import CannaDB est désactivé. Activez-le dans les Paramètres."
 
 # English: Failed to import strain from CannaDB.
-api_cannadb_import_failed: "NEEDS_TRANSLATION"
+api_cannadb_import_failed: "Échec de l'import de la variété depuis CannaDB."
 
 # English: Strain imported from CannaDB
-api_cannadb_imported: "NEEDS_TRANSLATION"
+api_cannadb_imported: "Variété importée depuis CannaDB"
 
 # English: Invalid CannaDB record identifier.
-api_cannadb_invalid_uri: "NEEDS_TRANSLATION"
+api_cannadb_invalid_uri: "Identifiant d'enregistrement CannaDB invalide."
 
 # English: That strain could not be found on CannaDB.
-api_cannadb_not_found: "NEEDS_TRANSLATION"
+api_cannadb_not_found: "Cette variété est introuvable sur CannaDB."
 
 # English: Please enter a strain name to search.
-api_cannadb_query_required: "NEEDS_TRANSLATION"
+api_cannadb_query_required: "Veuillez saisir un nom de variété à rechercher."
 
 # English: CannaDB is rate limiting requests. Please try again shortly.
-api_cannadb_rate_limited: "NEEDS_TRANSLATION"
+api_cannadb_rate_limited: "CannaDB limite le nombre de requêtes. Veuillez réessayer sous peu."
 
 # English: Failed to search CannaDB.
-api_cannadb_search_failed: "NEEDS_TRANSLATION"
+api_cannadb_search_failed: "Échec de la recherche sur CannaDB."
 
 # English: Override the CannaDB API endpoint. Leave blank to use the default public API.
-cannadb_base_url_desc: "NEEDS_TRANSLATION"
+cannadb_base_url_desc: "Remplacez le point de terminaison de l'API CannaDB. Laissez vide pour utiliser l'API publique par défaut."
 
 # English: CannaDB API URL (optional)
-cannadb_base_url_label: "NEEDS_TRANSLATION"
+cannadb_base_url_label: "URL de l'API CannaDB (facultatif)"
 
 # English: Allow importing strain details from the public CannaDB database (cannadb.org) directly into your strain library.
-cannadb_enabled_desc: "NEEDS_TRANSLATION"
+cannadb_enabled_desc: "Autorise l'import des détails de variétés depuis la base de données publique CannaDB (cannadb.org) directement dans votre bibliothèque de variétés."
 
 # English: Enable CannaDB strain import
-cannadb_enabled_info: "NEEDS_TRANSLATION"
+cannadb_enabled_info: "Activer l'import de variétés CannaDB"
 
 # English: Import
-cannadb_import_action: "NEEDS_TRANSLATION"
+cannadb_import_action: "Importer"
 
 # English: Import from CannaDB
-cannadb_import_button: "NEEDS_TRANSLATION"
+cannadb_import_button: "Importer depuis CannaDB"
 
 # English: Import strain from CannaDB
-cannadb_import_title: "NEEDS_TRANSLATION"
+cannadb_import_title: "Importer une variété depuis CannaDB"
 
 # English: Importing...
-cannadb_importing: "NEEDS_TRANSLATION"
+cannadb_importing: "Import en cours..."
 
 # English: Match
-cannadb_match: "NEEDS_TRANSLATION"
+cannadb_match: "Correspondance"
 
 # English: No matching strains found.
-cannadb_no_results: "NEEDS_TRANSLATION"
+cannadb_no_results: "Aucune variété correspondante trouvée."
 
 # English: Search
-cannadb_search_button: "NEEDS_TRANSLATION"
+cannadb_search_button: "Rechercher"
 
 # English: Search strains by name...
-cannadb_search_placeholder: "NEEDS_TRANSLATION"
+cannadb_search_placeholder: "Rechercher des variétés par nom..."
 
 # English: Searching CannaDB...
-cannadb_searching: "NEEDS_TRANSLATION"
+cannadb_searching: "Recherche sur CannaDB..."
 
 # English: CannaDB Strain Import
-settings_cannadb: "NEEDS_TRANSLATION"
+settings_cannadb: "Import de variétés CannaDB"
 
 # English: View on CannaDB
-view_on_cannadb: "NEEDS_TRANSLATION"
+view_on_cannadb: "Voir sur CannaDB"
 
