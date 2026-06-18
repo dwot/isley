@@ -21,6 +21,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [2.2.0] - 2026-06-18
+
+### Added
 - CannaDB strain import. When enabled under Settings → "CannaDB Strain Import",
   the strain library gains an "Import from CannaDB" button that searches the
   public CannaDB database (cannadb.org) by name and one-click imports a chosen
