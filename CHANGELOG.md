@@ -21,6 +21,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- CannaDB strain import. When enabled under Settings → "CannaDB Strain Import",
+  the strain library gains an "Import from CannaDB" button that searches the
+  public CannaDB database (cannadb.org) by name and one-click imports a chosen
+  strain — name, breeder, indica/sativa lean, autoflower, descriptions, cycle
+  time, source URL and parent lineage — into the local library. Records are
+  keyed on the CannaDB AT-URI so re-importing updates in place instead of
+  duplicating, and imported strains show a "View on CannaDB" link to the full
+  record (THC/CBD, yield, terpenes, effects and other fields Isley doesn't
+  store locally). The integration is read-only, unauthenticated, and honors
+  CannaDB's rate limits with backoff. Disabled by default. An optional API-URL
+  override is available for self-hosted CannaDB endpoints.
 - Per-zone derived Vapor Pressure Deficit (VPD). When a zone is configured with
   a leaf-temp offset (°F) plus temperature and humidity source sensors, Isley
   computes canopy VPD each poll cycle (Tetens formula) and stores it as a

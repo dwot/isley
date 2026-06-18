@@ -104,6 +104,30 @@ color: #0d6efd; /* Primary color */
                     </div>
                 </div>
 
+                <!-- CannaDB Section -->
+                <div class="card mb-4 shadow-sm border-start border-4 border-secondary">
+                    <div class="card-header bg-themed">
+                        <h2 class="h5 card-title mb-0"><i class="fa fa-database me-2"></i>{{ .lcl.settings_cannadb }}</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="cannadbEnabled" {{ if .settings.Cannadb.Enabled }}checked{{ end }}>
+                            <label class="form-check-label" for="cannadbEnabled">{{ .lcl.cannadb_enabled_info }}</label>
+                        </div>
+                        <small class="text-muted d-block mt-2">
+                            {{ .lcl.cannadb_enabled_desc }}
+                        </small>
+
+                        <hr class="my-3">
+                        <label for="cannadbBaseUrl" class="form-label">{{ .lcl.cannadb_base_url_label }}</label>
+                        <input type="text" class="form-control" id="cannadbBaseUrl" style="max-width:420px"
+                               placeholder="https://api.cannadb.net/xrpc/" value="{{ .settings.Cannadb.BaseURL }}">
+                        <small class="text-muted d-block mt-2">
+                            {{ .lcl.cannadb_base_url_desc }}
+                        </small>
+                    </div>
+                </div>
+
                 <!-- General Settings -->
                 <div class="card mb-4 shadow-sm border-start border-4 border-info">
                     <div class="card-header bg-themed">
@@ -1398,6 +1422,10 @@ color: #0d6efd; /* Primary color */
                 },
                 ec: {
                     enabled: document.getElementById("ecEnabled").checked,
+                },
+                cannadb: {
+                    enabled: document.getElementById("cannadbEnabled").checked,
+                    base_url: document.getElementById("cannadbBaseUrl").value.trim(),
                 },
                 polling_interval: document.getElementById("pollingInterval").value,
                 guest_mode: document.getElementById("guestMode").checked,

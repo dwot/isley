@@ -47,6 +47,10 @@ func main() {
 	version := fmt.Sprintf("Isley %s", getVersion())
 	logger.Log.Info("Starting application version:", version)
 
+	// Expose the bare version to handlers for outbound User-Agent strings
+	// (e.g. the CannaDB import client).
+	handlers.Version = getVersion()
+
 	port := os.Getenv("ISLEY_PORT")
 	if port == "" {
 		port = "8080"

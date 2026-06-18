@@ -29,8 +29,10 @@ type ActivityMetricLink struct {
 }
 
 type Breeder struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+	ID               int    `json:"id"`
+	Name             string `json:"name"`
+	CannadbURI       string `json:"cannadb_uri,omitempty"`
+	CannadbIndexedAt string `json:"cannadb_indexed_at,omitempty"`
 }
 
 type Measurement struct {
@@ -161,6 +163,10 @@ type Settings struct {
 		Enabled bool   `json:"enabled"`
 		Server  string `json:"server"`
 	} `json:"ec"`
+	Cannadb struct {
+		Enabled bool   `json:"enabled"`
+		BaseURL string `json:"base_url"`
+	} `json:"cannadb"`
 	PollingInterval    string `json:"polling_interval"`
 	GuestMode          bool   `json:"guest_mode"`
 	StreamGrabEnabled  bool   `json:"stream_grab_enabled"`
@@ -183,9 +189,15 @@ type EcoWittSettings struct {
 	Enabled bool `json:"enabled"`
 }
 
+type CannadbSettings struct {
+	Enabled bool   `json:"enabled"`
+	BaseURL string `json:"base_url"`
+}
+
 type SettingsData struct {
 	ACI                ACInfinitySettings `json:"aci"`
 	EC                 EcoWittSettings    `json:"ec"`
+	Cannadb            CannadbSettings    `json:"cannadb"`
 	PollingInterval    int                `json:"polling_interval"`
 	GuestMode          bool               `json:"guest_mode"`
 	StreamGrabEnabled  bool               `json:"stream_grab_enabled"`
@@ -222,6 +234,11 @@ type Strain struct {
 	Url              string `json:"url"`
 	ShortDescription string `json:"short_desc"`
 	Lineage          string `json:"lineage,omitempty"`
+	// CannadbURI is the AT-URI of the source CannaDB record when this strain was
+	// imported (empty for manually-created strains). CannadbIndexedAt is that
+	// record's indexedAt, kept for future refresh logic.
+	CannadbURI       string `json:"cannadb_uri,omitempty"`
+	CannadbIndexedAt string `json:"cannadb_indexed_at,omitempty"`
 }
 
 type StrainLineage struct {

@@ -36,6 +36,11 @@
             </div>
 
             {{ if .loggedIn }}
+            {{ if .cannadbEnabled }}
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#cannadbImportModal" title="{{ .lcl.cannadb_import_title }}">
+                <i class="fa-solid fa-cloud-arrow-down me-1"></i> {{ .lcl.cannadb_import_button }}
+            </button>
+            {{ end }}
             <a href="/strain/new" class="btn btn-sm btn-success" title="Add new strain">
                 <i class="fa-solid fa-plus me-1"></i> {{ .lcl.add_new_strain }}
             </a>
@@ -458,6 +463,129 @@ document.addEventListener("DOMContentLoaded", () => {
     fetchStrains(currentView);
 });
 </script>
+
+{{ if and .loggedIn .cannadbEnabled }}
+<!-- CannaDB import modal: search by name, one-click import -->
+<div class="modal fade" id="cannadbImportModal" tabindex="-1" aria-labelledby="cannadbImportModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cannadbImportModalLabel">
+                    <i class="fa-solid fa-cloud-arrow-down me-2"></i>{{ .lcl.cannadb_import_title }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="cannadbSearchForm" class="d-flex gap-2 mb-3">
+                    <input type="text" class="form-control" id="cannadbSearchInput"
+                           placeholder="{{ .lcl.cannadb_search_placeholder }}" autocomplete="off">
+                    <button type="submit" class="btn btn-primary" id="cannadbSearchBtn">
+                        <i class="fa-solid fa-search me-1"></i> {{ .lcl.cannadb_search_button }}
+                    </button>
+                </form>
+                <div id="cannadbSearchStatus" class="text-muted small mb-2"></div>
+                <div id="cannadbResults" class="list-group"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script nonce="{{ .cspNonce }}">
+    (function () {
+        const form = document.getElementById("cannadbSearchForm");
+        const input = document.getElementById("cannadbSearchInput");
+        const results = document.getElementById("cannadbResults");
+        const status = document.getElementById("cannadbSearchStatus");
+        if (!form) return;
+
+        const lcl = {
+            searching: "{{ .lcl.cannadb_searching }}",
+            noResults: "{{ .lcl.cannadb_no_results }}",
+            searchFailed: "{{ .lcl.api_cannadb_search_failed }}",
+            importBtn: "{{ .lcl.cannadb_import_action }}",
+            importing: "{{ .lcl.cannadb_importing }}",
+            imported: "{{ .lcl.api_cannadb_imported }}",
+            importFailed: "{{ .lcl.api_cannadb_import_failed }}",
+            match: "{{ .lcl.cannadb_match }}",
+        };
+
+        function esc(s) {
+            const d = document.createElement("div");
+            d.textContent = s == null ? "" : String(s);
+            return d.innerHTML;
+        }
+
+        function renderResults(rows) {
+            results.innerHTML = "";
+            if (!rows || rows.length === 0) {
+                status.textContent = lcl.noResults;
+                return;
+            }
+            status.textContent = "";
+            rows.forEach((r) => {
+                const item = document.createElement("div");
+                item.className = "list-group-item";
+                const pct = Math.round((r.similarity || 0) * 100);
+                item.innerHTML =
+                    '<div class="d-flex justify-content-between align-items-start gap-3">' +
+                        '<div class="flex-grow-1">' +
+                            '<div class="fw-semibold">' + esc(r.name) +
+                                (r.breeder_name ? ' <span class="text-muted fw-normal">— ' + esc(r.breeder_name) + '</span>' : '') +
+                            '</div>' +
+                            (r.description ? '<div class="small text-muted">' + esc(r.description) + '</div>' : '') +
+                            '<div class="small text-secondary mt-1">' + lcl.match + ': ' + pct + '%</div>' +
+                        '</div>' +
+                        '<button type="button" class="btn btn-sm btn-success flex-shrink-0">' + esc(lcl.importBtn) + '</button>' +
+                    '</div>';
+                const btn = item.querySelector("button");
+                btn.addEventListener("click", () => importStrain(r.uri, btn));
+                results.appendChild(item);
+            });
+        }
+
+        function importStrain(uri, btn) {
+            btn.disabled = true;
+            btn.textContent = lcl.importing;
+            fetch("/strains/cannadb/import", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ uri: uri }),
+            })
+                .then((resp) => resp.json().then((data) => ({ ok: resp.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) throw new Error((data && (data.message || data.error)) || lcl.importFailed);
+                    if (window.uiMessages) uiMessages.showToast((data && data.message) || lcl.imported, "success");
+                    btn.classList.remove("btn-success");
+                    btn.classList.add("btn-outline-secondary");
+                    btn.innerHTML = '<i class="fa-solid fa-check me-1"></i>' + esc(lcl.imported);
+                    if (typeof fetchStrains === "function") fetchStrains(typeof currentView !== "undefined" ? currentView : "in-stock");
+                })
+                .catch((err) => {
+                    if (window.uiMessages) uiMessages.showToast(err.message || lcl.importFailed, "danger");
+                    btn.disabled = false;
+                    btn.textContent = lcl.importBtn;
+                });
+        }
+
+        form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const q = input.value.trim();
+            if (!q) return;
+            results.innerHTML = "";
+            status.textContent = lcl.searching;
+            fetch("/strains/cannadb/search?q=" + encodeURIComponent(q) + "&limit=10")
+                .then((resp) => resp.json().then((data) => ({ ok: resp.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) throw new Error((data && (data.message || data.error)) || lcl.searchFailed);
+                    renderResults(data.results || []);
+                })
+                .catch((err) => {
+                    status.textContent = err.message || lcl.searchFailed;
+                });
+        });
+    })();
+</script>
+{{ end }}
 
 {{ template "common/footer.html" .}}
 

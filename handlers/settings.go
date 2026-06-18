@@ -128,6 +128,7 @@ func SaveSettings(c *gin.Context) {
 	}{
 		{"aci.enabled", settings.ACI.Enabled, store.SetACIEnabled},
 		{"ec.enabled", settings.EC.Enabled, store.SetECEnabled},
+		{"cannadb.enabled", settings.Cannadb.Enabled, store.SetCannadbEnabled},
 		{"guest_mode", settings.GuestMode, store.SetGuestMode},
 		{"stream_grab_enabled", settings.StreamGrabEnabled, store.SetStreamGrabEnabled},
 		{"api_ingest_enabled", !settings.DisableAPIIngest, store.SetAPIIngestEnabled},
@@ -210,6 +211,16 @@ func SaveSettings(c *gin.Context) {
 			store.SetMaxBackupSize(int64(mb) * 1024 * 1024)
 		}
 	}
+
+	// CannaDB base-URL override — always persist (empty = use the default
+	// api.cannadb.net endpoint baked into the client).
+	err = UpdateSetting(db, store, "cannadb.base_url", settings.Cannadb.BaseURL)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to save CannaDB base URL setting")
+		apiInternalError(c, "api_failed_to_save_settings")
+		return
+	}
+	store.SetCannadbBaseURL(settings.Cannadb.BaseURL)
 
 	// Timezone setting — always persist (empty = system default)
 	err = UpdateSetting(db, store, "timezone", settings.Timezone)
@@ -310,6 +321,10 @@ func GetSettings(db *sql.DB) types.SettingsData {
 			settingsData.ACI.Enabled = value == "1"
 		case "ec.enabled":
 			settingsData.EC.Enabled = value == "1"
+		case "cannadb.enabled":
+			settingsData.Cannadb.Enabled = value == "1"
+		case "cannadb.base_url":
+			settingsData.Cannadb.BaseURL = value
 		case "aci.token":
 			if value != "" {
 				settingsData.ACI.TokenSet = true
@@ -1304,6 +1319,18 @@ func LoadSettings(db *sql.DB, store *config.Store) {
 	strTimezone, err := GetSetting(db, "timezone")
 	if err == nil && strTimezone != "" {
 		store.SetTimezone(strTimezone)
+	}
+
+	strCannadbEnabled, err := GetSetting(db, "cannadb.enabled")
+	if err == nil {
+		if iCannadbEnabled, err := strconv.Atoi(strCannadbEnabled); err == nil {
+			store.SetCannadbEnabled(iCannadbEnabled)
+		}
+	}
+
+	strCannadbBaseURL, err := GetSetting(db, "cannadb.base_url")
+	if err == nil {
+		store.SetCannadbBaseURL(strCannadbBaseURL)
 	}
 
 	// On first boot after the timezone migration, capture a baseline snapshot
