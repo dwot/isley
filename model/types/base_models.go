@@ -29,8 +29,10 @@ type ActivityMetricLink struct {
 }
 
 type Breeder struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+	ID               int    `json:"id"`
+	Name             string `json:"name"`
+	CannadbURI       string `json:"cannadb_uri,omitempty"`
+	CannadbIndexedAt string `json:"cannadb_indexed_at,omitempty"`
 }
 
 type Measurement struct {
@@ -141,12 +143,16 @@ type SensorData struct {
 }
 
 type SensorDataResponse struct {
-	ID        uint      `json:"id"`
-	Name      string    `json:"name"`
-	Unit      string    `json:"unit"`
-	Value     float64   `json:"value"`
-	Date      time.Time `json:"date"`
-	Inherited bool      `json:"inherited"` // true if sensor is inherited from the plant's zone rather than directly linked
+	ID         uint      `json:"id"`
+	Name       string    `json:"name"`
+	Unit       string    `json:"unit"`
+	Value      float64   `json:"value"`
+	Date       time.Time `json:"date"`
+	Inherited  bool      `json:"inherited"` // true if sensor is inherited from the plant's zone rather than directly linked
+	IdealLow   *float64  `json:"ideal_low,omitempty"`
+	IdealHigh  *float64  `json:"ideal_high,omitempty"`
+	RangeState string    `json:"range_state,omitempty"` // "", "ideal", "low", "high"
+	IsVPD      bool      `json:"is_vpd,omitempty"`
 }
 
 type Settings struct {
@@ -157,6 +163,10 @@ type Settings struct {
 		Enabled bool   `json:"enabled"`
 		Server  string `json:"server"`
 	} `json:"ec"`
+	Cannadb struct {
+		Enabled bool   `json:"enabled"`
+		BaseURL string `json:"base_url"`
+	} `json:"cannadb"`
 	PollingInterval    string `json:"polling_interval"`
 	GuestMode          bool   `json:"guest_mode"`
 	StreamGrabEnabled  bool   `json:"stream_grab_enabled"`
@@ -179,9 +189,15 @@ type EcoWittSettings struct {
 	Enabled bool `json:"enabled"`
 }
 
+type CannadbSettings struct {
+	Enabled bool   `json:"enabled"`
+	BaseURL string `json:"base_url"`
+}
+
 type SettingsData struct {
 	ACI                ACInfinitySettings `json:"aci"`
 	EC                 EcoWittSettings    `json:"ec"`
+	Cannadb            CannadbSettings    `json:"cannadb"`
 	PollingInterval    int                `json:"polling_interval"`
 	GuestMode          bool               `json:"guest_mode"`
 	StreamGrabEnabled  bool               `json:"stream_grab_enabled"`
@@ -200,6 +216,8 @@ type Status struct {
 	Status   string    `json:"status"`
 	Date     time.Time `json:"date"`
 	StatusID int       `json:"status_id"`
+	VPDLow   *float64  `json:"vpd_low"`
+	VPDHigh  *float64  `json:"vpd_high"`
 }
 
 type Strain struct {
@@ -216,6 +234,11 @@ type Strain struct {
 	Url              string `json:"url"`
 	ShortDescription string `json:"short_desc"`
 	Lineage          string `json:"lineage,omitempty"`
+	// CannadbURI is the AT-URI of the source CannaDB record when this strain was
+	// imported (empty for manually-created strains). CannadbIndexedAt is that
+	// record's indexedAt, kept for future refresh logic.
+	CannadbURI       string `json:"cannadb_uri,omitempty"`
+	CannadbIndexedAt string `json:"cannadb_indexed_at,omitempty"`
 }
 
 type StrainLineage struct {
@@ -227,8 +250,11 @@ type StrainLineage struct {
 }
 
 type Zone struct {
-	ID   uint   `json:"id"`
-	Name string `json:"name"`
+	ID                  uint     `json:"id"`
+	Name                string   `json:"name"`
+	LeafTempOffset      *float64 `json:"leaf_temp_offset"`
+	VPDTempSensorID     *uint    `json:"vpd_temp_sensor_id"`
+	VPDHumiditySensorID *uint    `json:"vpd_humidity_sensor_id"`
 }
 
 type Stream struct {

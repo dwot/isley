@@ -17,6 +17,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -25,6 +26,7 @@ import (
 	"isley/logger"
 	"isley/model"
 	"isley/model/types"
+	"isley/utils"
 )
 
 const (
@@ -136,6 +138,8 @@ func (w *Watcher) Run(ctx context.Context) {
 					w.PollEcoWitt(ctx, ecServer)
 				}
 			}
+
+			w.computeZoneVPD(ctx)
 
 			select {
 			case <-pruneTicker.C:
@@ -402,4 +406,117 @@ func trimCommonVal(v string) string {
 		i++
 	}
 	return v[:i]
+}
+
+// computeZoneVPD calculates and stores derived VPD sensor readings for every
+// zone that has VPD enabled (leaf_temp_offset IS NOT NULL) and both source
+// sensor IDs configured. It is called once per poll cycle, after device polling.
+func (w *Watcher) computeZoneVPD(_ context.Context) {
+	fieldLogger := w.Logger.WithField("func", "computeZoneVPD")
+
+	// Load all zones that have VPD configured
+	rows, err := w.DB.Query(`
+		SELECT id, leaf_temp_offset, vpd_temp_sensor_id, vpd_humidity_sensor_id
+		FROM zones
+		WHERE leaf_temp_offset IS NOT NULL
+		  AND vpd_temp_sensor_id IS NOT NULL
+		  AND vpd_humidity_sensor_id IS NOT NULL`)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to query VPD-enabled zones")
+		return
+	}
+	defer rows.Close()
+
+	type vpdZone struct {
+		ID                  int
+		LeafTempOffset      float64
+		VPDTempSensorID     int
+		VPDHumiditySensorID int
+	}
+
+	var zones []vpdZone
+	for rows.Next() {
+		var z vpdZone
+		if err := rows.Scan(&z.ID, &z.LeafTempOffset, &z.VPDTempSensorID, &z.VPDHumiditySensorID); err != nil {
+			fieldLogger.WithError(err).Error("Failed to scan VPD zone row")
+			continue
+		}
+		zones = append(zones, z)
+	}
+	rows.Close()
+
+	for _, z := range zones {
+		// Read the latest value and unit for the temperature sensor
+		var tempValue float64
+		var tempUnit string
+		err := w.DB.QueryRow(`
+			SELECT sd.value, s.unit
+			FROM sensor_data sd
+			JOIN sensors s ON s.id = sd.sensor_id
+			WHERE sd.sensor_id = $1
+			ORDER BY sd.id DESC LIMIT 1`, z.VPDTempSensorID).Scan(&tempValue, &tempUnit)
+		if err != nil {
+			fieldLogger.WithFields(logrus.Fields{"zone_id": z.ID, "sensor_id": z.VPDTempSensorID}).
+				Debug("No temperature reading for VPD zone, skipping")
+			continue
+		}
+
+		// Read the latest humidity value
+		var humValue float64
+		err = w.DB.QueryRow(`
+			SELECT value FROM sensor_data
+			WHERE sensor_id = $1
+			ORDER BY id DESC LIMIT 1`, z.VPDHumiditySensorID).Scan(&humValue)
+		if err != nil {
+			fieldLogger.WithFields(logrus.Fields{"zone_id": z.ID, "sensor_id": z.VPDHumiditySensorID}).
+				Debug("No humidity reading for VPD zone, skipping")
+			continue
+		}
+
+		// The offset is stored in °F as a temperature *delta*, so it always
+		// converts to a °C delta by *5/9 (no -32 — it is a difference, not an
+		// absolute temperature). The air temperature is converted to °C only
+		// when the source sensor reports Fahrenheit (unit lacks "C").
+		airTempC := tempValue
+		if !strings.Contains(tempUnit, "C") {
+			airTempC = utils.FahrenheitToCelsius(tempValue)
+		}
+		leafOffsetC := z.LeafTempOffset * 5.0 / 9.0
+
+		vpd := utils.VPD(airTempC, humValue, leafOffsetC)
+
+		// Ensure the derived VPD sensor row exists for this zone
+		zoneIDStr := strconv.Itoa(z.ID)
+		sensorName := "VPD (Zone " + zoneIDStr + ")"
+		var vpdSensorID int
+		err = w.DB.QueryRow(
+			`SELECT id FROM sensors WHERE source = $1 AND device = $2 AND type = $3`,
+			"derived", zoneIDStr, "VPD",
+		).Scan(&vpdSensorID)
+		if err == sql.ErrNoRows {
+			// Create the derived VPD sensor
+			err = w.DB.QueryRow(
+				`INSERT INTO sensors (name, source, device, type, zone_id, unit, visibility)
+                 VALUES ($1, $2, $3, $4, $5, $6, 'zone_plant')
+                 RETURNING id`,
+				sensorName, "derived", zoneIDStr, "VPD", z.ID, "kPa",
+			).Scan(&vpdSensorID)
+			if err != nil {
+				fieldLogger.WithError(err).WithField("zone_id", z.ID).Error("Failed to create derived VPD sensor")
+				continue
+			}
+			fieldLogger.WithField("zone_id", z.ID).Info("Created derived VPD sensor")
+		} else if err != nil {
+			fieldLogger.WithError(err).WithField("zone_id", z.ID).Error("Failed to look up derived VPD sensor")
+			continue
+		}
+
+		// Insert the computed VPD reading
+		if _, err := w.DB.Exec(
+			"INSERT INTO sensor_data (sensor_id, value) VALUES ($1, $2)",
+			vpdSensorID, vpd,
+		); err != nil {
+			fieldLogger.WithError(err).WithField("zone_id", z.ID).Error("Failed to insert VPD sensor data")
+		}
+	}
 }

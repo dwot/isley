@@ -218,7 +218,7 @@ func GetMetrics(db *sql.DB) []types.Metric {
 func GetStatuses(db *sql.DB) []types.Status {
 	fieldLogger := logger.Log.WithField("func", "GetStatuses")
 
-	rows, err := db.Query("SELECT id, status FROM plant_status ORDER BY status_order")
+	rows, err := db.Query("SELECT id, status, vpd_low, vpd_high FROM plant_status ORDER BY status_order")
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query statuses")
 		return nil
@@ -227,10 +227,17 @@ func GetStatuses(db *sql.DB) []types.Status {
 	var statuses []types.Status
 	for rows.Next() {
 		var status types.Status
-		err = rows.Scan(&status.ID, &status.Status)
+		var vpdLow, vpdHigh sql.NullFloat64
+		err = rows.Scan(&status.ID, &status.Status, &vpdLow, &vpdHigh)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan status")
 			return nil
+		}
+		if vpdLow.Valid {
+			status.VPDLow = &vpdLow.Float64
+		}
+		if vpdHigh.Valid {
+			status.VPDHigh = &vpdHigh.Float64
 		}
 		statuses = append(statuses, status)
 	}
@@ -402,7 +409,8 @@ func GetPlant(db *sql.DB, id string) types.Plant {
 	currentWeek := int((diff.Hours() / 24 / 7) + 1)
 
 	// --- Load related data via focused sub-functions ---
-	sensorList := loadPlantSensors(db, plantID, zoneID)
+	statuses := GetStatuses(db)
+	sensorList := loadPlantSensors(db, plantID, zoneID, status, statuses)
 	measurements := loadPlantMeasurements(db, plantID)
 	activities := loadPlantActivities(db, plantID)
 	statusHistory := loadPlantStatusHistory(db, plantID)
@@ -436,7 +444,9 @@ func GetPlant(db *sql.DB, id string) types.Plant {
 // and returns each sensor's details with its latest reading.
 // Directly-linked sensors take priority over zone-inherited ones (no duplicates).
 // Uses batch queries to avoid per-sensor N+1 query overhead.
-func loadPlantSensors(db *sql.DB, plantID uint, zoneID int) []types.SensorDataResponse {
+// currentStatus is the plant's current status string (e.g. "Veg"); statuses is the
+// full list used to look up the ideal VPD range for that stage.
+func loadPlantSensors(db *sql.DB, plantID uint, zoneID int, currentStatus string, statuses []types.Status) []types.SensorDataResponse {
 	fieldLogger := logger.Log.WithField("func", "loadPlantSensors")
 
 	// 1. Load directly-linked sensor IDs from the plant's JSON column
@@ -499,7 +509,7 @@ func loadPlantSensors(db *sql.DB, plantID uint, zoneID int) []types.SensorDataRe
 	inClause, inArgs := model.BuildInClause(driver, uniqueIDs)
 
 	query := `
-		SELECT s.id, s.name, s.unit, sd.value, sd.create_dt
+		SELECT s.id, s.name, s.unit, s.source, s.type, sd.value, sd.create_dt
 		FROM sensors s
 		LEFT JOIN sensor_data sd ON s.id = sd.sensor_id
 			AND sd.id = (SELECT MAX(id) FROM sensor_data WHERE sensor_id = s.id)
@@ -513,22 +523,65 @@ func loadPlantSensors(db *sql.DB, plantID uint, zoneID int) []types.SensorDataRe
 	defer rows.Close()
 
 	type sensorInfo struct {
-		ID   uint
-		Name string
-		Unit string
-		Val  sql.NullFloat64
-		Date sql.NullTime
+		ID     uint
+		Name   string
+		Unit   string
+		Source string
+		Type   string
+		Val    sql.NullFloat64
+		Date   sql.NullTime
 	}
 	sensorMap := make(map[int]sensorInfo)
 	for rows.Next() {
 		var sid int
 		var s sensorInfo
-		if err := rows.Scan(&sid, &s.Name, &s.Unit, &s.Val, &s.Date); err != nil {
+		if err := rows.Scan(&sid, &s.Name, &s.Unit, &s.Source, &s.Type, &s.Val, &s.Date); err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan batch sensor row")
 			continue
 		}
 		s.ID = uint(sid)
 		sensorMap[sid] = s
+	}
+
+	// Find the ideal VPD range for the current status
+	var stageVPDLow, stageVPDHigh *float64
+	for _, st := range statuses {
+		if st.Status == currentStatus {
+			stageVPDLow = st.VPDLow
+			stageVPDHigh = st.VPDHigh
+			break
+		}
+	}
+
+	buildResp := func(s sensorInfo, inherited bool) types.SensorDataResponse {
+		resp := types.SensorDataResponse{
+			ID:        s.ID,
+			Name:      s.Name,
+			Unit:      s.Unit,
+			Inherited: inherited,
+		}
+		if s.Val.Valid {
+			resp.Value = s.Val.Float64
+		}
+		if s.Date.Valid {
+			resp.Date = s.Date.Time.Local()
+		}
+		if s.Source == "derived" && s.Type == "VPD" {
+			resp.IsVPD = true
+			if stageVPDLow != nil && stageVPDHigh != nil {
+				resp.IdealLow = stageVPDLow
+				resp.IdealHigh = stageVPDHigh
+				switch {
+				case resp.Value < *stageVPDLow:
+					resp.RangeState = "low"
+				case resp.Value > *stageVPDHigh:
+					resp.RangeState = "high"
+				default:
+					resp.RangeState = "ideal"
+				}
+			}
+		}
+		return resp
 	}
 
 	// 5. Assemble the result: directly-linked first (preserving order), then zone-inherited
@@ -539,19 +592,7 @@ func loadPlantSensors(db *sql.DB, plantID uint, zoneID int) []types.SensorDataRe
 		if !ok {
 			continue
 		}
-		resp := types.SensorDataResponse{
-			ID:        s.ID,
-			Name:      s.Name,
-			Unit:      s.Unit,
-			Inherited: false,
-		}
-		if s.Val.Valid {
-			resp.Value = s.Val.Float64
-		}
-		if s.Date.Valid {
-			resp.Date = s.Date.Time.Local()
-		}
-		sensorList = append(sensorList, resp)
+		sensorList = append(sensorList, buildResp(s, false))
 	}
 
 	for _, sensorID := range zoneIDs {
@@ -562,19 +603,7 @@ func loadPlantSensors(db *sql.DB, plantID uint, zoneID int) []types.SensorDataRe
 		if !ok {
 			continue
 		}
-		resp := types.SensorDataResponse{
-			ID:        s.ID,
-			Name:      s.Name,
-			Unit:      s.Unit,
-			Inherited: true,
-		}
-		if s.Val.Valid {
-			resp.Value = s.Val.Float64
-		}
-		if s.Date.Valid {
-			resp.Date = s.Date.Time.Local()
-		}
-		sensorList = append(sensorList, resp)
+		sensorList = append(sensorList, buildResp(s, true))
 	}
 
 	return sensorList

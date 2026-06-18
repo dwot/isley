@@ -636,35 +636,106 @@ api_error_sending_request_ecowitt: "Erreur lors de l'envoi de la requête à Eco
 api_error_invalid_response: "Réponse invalide du service externe"
 api_sensor_dates_required: "Des minutes ou des dates de début et de fin doivent être fournies"
 
-# Activity log / notebook / export (issue #148) - NEEDS_TRANSLATION
-activity_notebook_title: "NEEDS_TRANSLATION"
-activity_notebook_open: "NEEDS_TRANSLATION"
-activity_log_title: "NEEDS_TRANSLATION"
-activity_log_view_all: "NEEDS_TRANSLATION"
-activity_log_empty: "NEEDS_TRANSLATION"
-activity_log_pagination: "NEEDS_TRANSLATION"
-activity_log_page_prev: "NEEDS_TRANSLATION"
-activity_log_page_next: "NEEDS_TRANSLATION"
-activity_log_col_plant: "NEEDS_TRANSLATION"
-activity_log_col_strain: "NEEDS_TRANSLATION"
-activity_log_col_zone: "NEEDS_TRANSLATION"
-activity_export: "NEEDS_TRANSLATION"
-activity_export_csv: "NEEDS_TRANSLATION"
-activity_export_xlsx: "NEEDS_TRANSLATION"
-activity_filter_plant: "NEEDS_TRANSLATION"
-activity_filter_type: "NEEDS_TRANSLATION"
-activity_filter_zone: "NEEDS_TRANSLATION"
-activity_filter_from: "NEEDS_TRANSLATION"
-activity_filter_to: "NEEDS_TRANSLATION"
-activity_filter_search: "NEEDS_TRANSLATION"
-activity_filter_search_hint: "NEEDS_TRANSLATION"
-activity_filter_order: "NEEDS_TRANSLATION"
-activity_filter_order_newest: "NEEDS_TRANSLATION"
-activity_filter_order_oldest: "NEEDS_TRANSLATION"
-activity_filter_order_plant: "NEEDS_TRANSLATION"
-activity_filter_order_activity: "NEEDS_TRANSLATION"
-activity_filter_apply: "NEEDS_TRANSLATION"
-activity_filter_reset: "NEEDS_TRANSLATION"
-activity_filter_any: "NEEDS_TRANSLATION"
+# Activity log / notebook / export (issue #148)
+activity_notebook_title: "Carnet d'activité"
+activity_notebook_open: "Ouvrir le carnet"
+activity_log_title: "Journal d'activité"
+activity_log_view_all: "Voir toutes les activités"
+activity_log_empty: "Aucune activité ne correspond à ces filtres."
+activity_log_pagination: "Pagination du journal d'activité"
+activity_log_page_prev: "Précédent"
+activity_log_page_next: "Suivant"
+activity_log_col_plant: "Plante"
+activity_log_col_strain: "Variété"
+activity_log_col_zone: "Zone"
+activity_export: "Exporter"
+activity_export_csv: "CSV"
+activity_export_xlsx: "Excel"
+activity_filter_plant: "Plante"
+activity_filter_type: "Activité"
+activity_filter_zone: "Zone"
+activity_filter_from: "Du"
+activity_filter_to: "Au"
+activity_filter_search: "Rechercher dans les notes"
+activity_filter_search_hint: "mot-clé"
+activity_filter_order: "Trier"
+activity_filter_order_newest: "Plus récentes d'abord"
+activity_filter_order_oldest: "Plus anciennes d'abord"
+activity_filter_order_plant: "Par plante"
+activity_filter_order_activity: "Par type d'activité"
+activity_filter_apply: "Appliquer"
+activity_filter_reset: "Réinitialiser"
+activity_filter_any: "Tous"
 activity_required_metrics: "Métriques requises"
 activity_optional_metrics: "Métriques optionnelles"
+
+# --- MISSING TRANSLATIONS ADDED BY i18n_sync.go ---
+# English: CannaDB import is disabled. Enable it in Settings.
+api_cannadb_disabled: "L'import CannaDB est désactivé. Activez-le dans les Paramètres."
+
+# English: Failed to import strain from CannaDB.
+api_cannadb_import_failed: "Échec de l'import de la variété depuis CannaDB."
+
+# English: Strain imported from CannaDB
+api_cannadb_imported: "Variété importée depuis CannaDB"
+
+# English: Invalid CannaDB record identifier.
+api_cannadb_invalid_uri: "Identifiant d'enregistrement CannaDB invalide."
+
+# English: That strain could not be found on CannaDB.
+api_cannadb_not_found: "Cette variété est introuvable sur CannaDB."
+
+# English: Please enter a strain name to search.
+api_cannadb_query_required: "Veuillez saisir un nom de variété à rechercher."
+
+# English: CannaDB is rate limiting requests. Please try again shortly.
+api_cannadb_rate_limited: "CannaDB limite le nombre de requêtes. Veuillez réessayer sous peu."
+
+# English: Failed to search CannaDB.
+api_cannadb_search_failed: "Échec de la recherche sur CannaDB."
+
+# English: Override the CannaDB API endpoint. Leave blank to use the default public API.
+cannadb_base_url_desc: "Remplacez le point de terminaison de l'API CannaDB. Laissez vide pour utiliser l'API publique par défaut."
+
+# English: CannaDB API URL (optional)
+cannadb_base_url_label: "URL de l'API CannaDB (facultatif)"
+
+# English: Allow importing strain details from the public CannaDB database (cannadb.org) directly into your strain library.
+cannadb_enabled_desc: "Autorise l'import des détails de variétés depuis la base de données publique CannaDB (cannadb.org) directement dans votre bibliothèque de variétés."
+
+# English: Enable CannaDB strain import
+cannadb_enabled_info: "Activer l'import de variétés CannaDB"
+
+# English: Import
+cannadb_import_action: "Importer"
+
+# English: Import from CannaDB
+cannadb_import_button: "Importer depuis CannaDB"
+
+# English: Import strain from CannaDB
+cannadb_import_title: "Importer une variété depuis CannaDB"
+
+# English: Importing...
+cannadb_importing: "Import en cours..."
+
+# English: Match
+cannadb_match: "Correspondance"
+
+# English: No matching strains found.
+cannadb_no_results: "Aucune variété correspondante trouvée."
+
+# English: Search
+cannadb_search_button: "Rechercher"
+
+# English: Search strains by name...
+cannadb_search_placeholder: "Rechercher des variétés par nom..."
+
+# English: Searching CannaDB...
+cannadb_searching: "Recherche sur CannaDB..."
+
+# English: CannaDB Strain Import
+settings_cannadb: "Import de variétés CannaDB"
+
+# English: View on CannaDB
+view_on_cannadb: "Voir sur CannaDB"
+

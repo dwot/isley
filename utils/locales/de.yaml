@@ -638,35 +638,106 @@ api_error_sending_request_ecowitt: "Fehler beim Senden der Anfrage an EcoWitt"
 api_error_invalid_response: "Ungültige Antwort vom Upstream-Dienst"
 api_sensor_dates_required: "Entweder Minuten oder Start- und Enddatum müssen angegeben werden"
 
-# Activity log / notebook / export (issue #148) - NEEDS_TRANSLATION
-activity_notebook_title: "NEEDS_TRANSLATION"
-activity_notebook_open: "NEEDS_TRANSLATION"
-activity_log_title: "NEEDS_TRANSLATION"
-activity_log_view_all: "NEEDS_TRANSLATION"
-activity_log_empty: "NEEDS_TRANSLATION"
-activity_log_pagination: "NEEDS_TRANSLATION"
-activity_log_page_prev: "NEEDS_TRANSLATION"
-activity_log_page_next: "NEEDS_TRANSLATION"
-activity_log_col_plant: "NEEDS_TRANSLATION"
-activity_log_col_strain: "NEEDS_TRANSLATION"
-activity_log_col_zone: "NEEDS_TRANSLATION"
-activity_export: "NEEDS_TRANSLATION"
-activity_export_csv: "NEEDS_TRANSLATION"
-activity_export_xlsx: "NEEDS_TRANSLATION"
-activity_filter_plant: "NEEDS_TRANSLATION"
-activity_filter_type: "NEEDS_TRANSLATION"
-activity_filter_zone: "NEEDS_TRANSLATION"
-activity_filter_from: "NEEDS_TRANSLATION"
-activity_filter_to: "NEEDS_TRANSLATION"
-activity_filter_search: "NEEDS_TRANSLATION"
-activity_filter_search_hint: "NEEDS_TRANSLATION"
-activity_filter_order: "NEEDS_TRANSLATION"
-activity_filter_order_newest: "NEEDS_TRANSLATION"
-activity_filter_order_oldest: "NEEDS_TRANSLATION"
-activity_filter_order_plant: "NEEDS_TRANSLATION"
-activity_filter_order_activity: "NEEDS_TRANSLATION"
-activity_filter_apply: "NEEDS_TRANSLATION"
-activity_filter_reset: "NEEDS_TRANSLATION"
-activity_filter_any: "NEEDS_TRANSLATION"
+# Activity log / notebook / export (issue #148)
+activity_notebook_title: "Aktivitätsnotizbuch"
+activity_notebook_open: "Notizbuch öffnen"
+activity_log_title: "Aktivitätsprotokoll"
+activity_log_view_all: "Alle Aktivitäten anzeigen"
+activity_log_empty: "Keine Aktivitäten entsprechen diesen Filtern."
+activity_log_pagination: "Seitennavigation des Aktivitätsprotokolls"
+activity_log_page_prev: "Zurück"
+activity_log_page_next: "Weiter"
+activity_log_col_plant: "Pflanze"
+activity_log_col_strain: "Sorte"
+activity_log_col_zone: "Zone"
+activity_export: "Exportieren"
+activity_export_csv: "CSV"
+activity_export_xlsx: "Excel"
+activity_filter_plant: "Pflanze"
+activity_filter_type: "Aktivität"
+activity_filter_zone: "Zone"
+activity_filter_from: "Von"
+activity_filter_to: "Bis"
+activity_filter_search: "Notizen durchsuchen"
+activity_filter_search_hint: "Stichwort"
+activity_filter_order: "Sortieren"
+activity_filter_order_newest: "Neueste zuerst"
+activity_filter_order_oldest: "Älteste zuerst"
+activity_filter_order_plant: "Nach Pflanze"
+activity_filter_order_activity: "Nach Aktivitätstyp"
+activity_filter_apply: "Anwenden"
+activity_filter_reset: "Zurücksetzen"
+activity_filter_any: "Alle"
 activity_required_metrics: "Erforderliche Metriken"
 activity_optional_metrics: "Optionale Metriken"
+
+# --- MISSING TRANSLATIONS ADDED BY i18n_sync.go ---
+# English: CannaDB import is disabled. Enable it in Settings.
+api_cannadb_disabled: "Der CannaDB-Import ist deaktiviert. Aktivieren Sie ihn in den Einstellungen."
+
+# English: Failed to import strain from CannaDB.
+api_cannadb_import_failed: "Sorte konnte nicht aus CannaDB importiert werden."
+
+# English: Strain imported from CannaDB
+api_cannadb_imported: "Sorte aus CannaDB importiert"
+
+# English: Invalid CannaDB record identifier.
+api_cannadb_invalid_uri: "Ungültige CannaDB-Datensatzkennung."
+
+# English: That strain could not be found on CannaDB.
+api_cannadb_not_found: "Diese Sorte konnte auf CannaDB nicht gefunden werden."
+
+# English: Please enter a strain name to search.
+api_cannadb_query_required: "Bitte geben Sie einen Sortennamen zum Suchen ein."
+
+# English: CannaDB is rate limiting requests. Please try again shortly.
+api_cannadb_rate_limited: "CannaDB begrenzt die Anfragerate. Bitte versuchen Sie es in Kürze erneut."
+
+# English: Failed to search CannaDB.
+api_cannadb_search_failed: "Suche auf CannaDB fehlgeschlagen."
+
+# English: Override the CannaDB API endpoint. Leave blank to use the default public API.
+cannadb_base_url_desc: "Überschreiben Sie den CannaDB-API-Endpunkt. Leer lassen, um die standardmäßige öffentliche API zu verwenden."
+
+# English: CannaDB API URL (optional)
+cannadb_base_url_label: "CannaDB-API-URL (optional)"
+
+# English: Allow importing strain details from the public CannaDB database (cannadb.org) directly into your strain library.
+cannadb_enabled_desc: "Ermöglicht den Import von Sortendetails aus der öffentlichen CannaDB-Datenbank (cannadb.org) direkt in Ihre Sortenbibliothek."
+
+# English: Enable CannaDB strain import
+cannadb_enabled_info: "CannaDB-Sortenimport aktivieren"
+
+# English: Import
+cannadb_import_action: "Importieren"
+
+# English: Import from CannaDB
+cannadb_import_button: "Aus CannaDB importieren"
+
+# English: Import strain from CannaDB
+cannadb_import_title: "Sorte aus CannaDB importieren"
+
+# English: Importing...
+cannadb_importing: "Wird importiert..."
+
+# English: Match
+cannadb_match: "Übereinstimmung"
+
+# English: No matching strains found.
+cannadb_no_results: "Keine passenden Sorten gefunden."
+
+# English: Search
+cannadb_search_button: "Suchen"
+
+# English: Search strains by name...
+cannadb_search_placeholder: "Sorten nach Namen suchen..."
+
+# English: Searching CannaDB...
+cannadb_searching: "CannaDB wird durchsucht..."
+
+# English: CannaDB Strain Import
+settings_cannadb: "CannaDB-Sortenimport"
+
+# English: View on CannaDB
+view_on_cannadb: "Auf CannaDB ansehen"
+

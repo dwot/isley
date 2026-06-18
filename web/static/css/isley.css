@@ -2079,6 +2079,24 @@ header .nav-link.active::after {
     border-style: dashed;
     opacity: 0.8;
 }
+.hero-sensor-vpd-ideal {
+    border-color: #22c55e;
+}
+.hero-sensor-vpd-ideal .hero-sensor-val {
+    color: #22c55e;
+}
+.hero-sensor-vpd-low {
+    border-color: #3b82f6;
+}
+.hero-sensor-vpd-low .hero-sensor-val {
+    color: #3b82f6;
+}
+.hero-sensor-vpd-high {
+    border-color: #f87171;
+}
+.hero-sensor-vpd-high .hero-sensor-val {
+    color: #f87171;
+}
 .hero-sensor-name {
     opacity: 0.7;
     font-weight: 500;
@@ -2466,10 +2484,13 @@ header .nav-link.active::after {
     font-size: 0.9rem;
 }
 .activities-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     padding: 3rem 1rem;
     text-align: center;
     color: var(--color-muted);
-    display: none;
 }
 
 @media (max-width: 576px) {

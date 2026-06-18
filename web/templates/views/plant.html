@@ -28,10 +28,18 @@
         {{ if and .plant.Sensors (ne .plant.Status "Dead") (ne .plant.Status "Success") (ne .plant.Status "Drying") (ne .plant.Status "Curing") }}
         <div class="plant-hero-sensors">
             {{ range .plant.Sensors }}
+            {{ if .IsVPD }}
+            <a href="/graph/{{.ID}}" class="hero-sensor-chip{{ if eq .RangeState "ideal" }} hero-sensor-vpd-ideal{{ else if eq .RangeState "low" }} hero-sensor-vpd-low{{ else if eq .RangeState "high" }} hero-sensor-vpd-high{{ end }}">
+                <span class="hero-sensor-name">{{ .Name }}</span>
+                <span class="hero-sensor-val">{{ printf "%.2f" .Value }}<span class="hero-sensor-unit">{{ .Unit }}</span></span>
+                {{ if eq .RangeState "low" }}<i class="fa-solid fa-arrow-up ms-1"></i>{{ else if eq .RangeState "high" }}<i class="fa-solid fa-arrow-down ms-1"></i>{{ end }}
+            </a>
+            {{ else }}
             <a href="/graph/{{.ID}}" class="hero-sensor-chip{{ if .Inherited }} hero-sensor-inherited{{ end }}">
                 <span class="hero-sensor-name">{{ .Name }}</span>
                 <span class="hero-sensor-val">{{ .Value }}<span class="hero-sensor-unit">{{ .Unit }}</span></span>
             </a>
+            {{ end }}
             {{ end }}
         </div>
         {{ end }}

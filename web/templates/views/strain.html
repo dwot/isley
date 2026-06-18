@@ -22,6 +22,11 @@
                     {{ .strain.Breeder }}
                 {{ end }}
             </p>
+            {{ if .cannadbURL }}
+            <a href="{{ .cannadbURL }}" target="_blank" rel="noopener" class="badge bg-secondary text-decoration-none mt-2">
+                <i class="fa-solid fa-database me-1"></i>{{ .lcl.view_on_cannadb }} <i class="fa-solid fa-arrow-up-right-from-square fa-xs"></i>
+            </a>
+            {{ end }}
         </div>
         {{ if .loggedIn }}
         <a href="/strain/{{ .strain.ID }}/edit" class="btn btn-primary">

@@ -39,6 +39,8 @@ type Store struct {
 	logLevel           string
 	maxBackupSize      int64
 	timezone           string
+	cannadbEnabled     int
+	cannadbBaseURL     string
 }
 
 // Defaults mirrors the historical package-global initial values. Tests
@@ -184,6 +186,30 @@ func (s *Store) SetAPIIngestEnabled(v int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.apiIngestEnabled = v
+}
+
+func (s *Store) CannadbEnabled() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.cannadbEnabled
+}
+
+func (s *Store) SetCannadbEnabled(v int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cannadbEnabled = v
+}
+
+func (s *Store) CannadbBaseURL() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.cannadbBaseURL
+}
+
+func (s *Store) SetCannadbBaseURL(v string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cannadbBaseURL = v
 }
 
 func (s *Store) LogLevel() string {
