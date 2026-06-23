@@ -1,0 +1,4 @@
+{
+  "wh25": [{"intemp": "72.5", "unit": "F", "inhumi": "35%", "abs": "29.85 inHg", "rel": "29.85 inHg"}],
+  "ch_ec": [{"channel": "2", "name": "", "battery": "3", "voltage": "1.34", "humidity": "28%", "temp": "78.1", "unit": "F", "ec": "470 uS/cm"}]
+}

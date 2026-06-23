@@ -260,6 +260,35 @@ func TestPollEcoWitt_CHAisle(t *testing.T) {
 	assert.InDelta(t, 42.0, humi, 0.0001, "percent suffix must be trimmed")
 }
 
+func TestPollEcoWitt_CHEc(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := fakes.FakeEcoWitt(t, "ch_ec")
+
+	u, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	moistID := seedSensor(t, db, "ecowitt", u.Host, "SoilEC.2.Moisture")
+	tempID := seedSensor(t, db, "ecowitt", u.Host, "SoilEC.2.Temp")
+	ecID := seedSensor(t, db, "ecowitt", u.Host, "SoilEC.2.EC")
+
+	w := newTestWatcher(t, db)
+	w.PollEcoWitt(context.Background(), u.Host)
+
+	for _, id := range []int{moistID, tempID, ecID} {
+		assert.Equalf(t, 1, countSensorData(t, db, id), "sensor %d should have one row", id)
+	}
+
+	var moist, temp, ec float64
+	require.NoError(t, db.QueryRow(`SELECT value FROM sensor_data WHERE sensor_id = $1`, moistID).Scan(&moist))
+	assert.InDelta(t, 28.0, moist, 0.0001, "soil moisture percent suffix must be trimmed")
+	require.NoError(t, db.QueryRow(`SELECT value FROM sensor_data WHERE sensor_id = $1`, tempID).Scan(&temp))
+	assert.InDelta(t, 78.1, temp, 0.0001)
+	require.NoError(t, db.QueryRow(`SELECT value FROM sensor_data WHERE sensor_id = $1`, ecID).Scan(&ec))
+	assert.InDelta(t, 0.47, ec, 0.0001, "EC must be converted from uS/cm to mS/cm")
+}
+
 func TestPollEcoWitt_CommonList(t *testing.T) {
 	t.Parallel()
 

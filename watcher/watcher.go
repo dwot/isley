@@ -220,6 +220,14 @@ func (w *Watcher) PollEcoWitt(ctx context.Context, server string) {
 		dataMap["Aisle."+ch.Channel+".Humi"] = trimTrailingPercent(ch.Humidity)
 	}
 
+	for _, ch := range apiResponse.CHEc {
+		dataMap["SoilEC."+ch.Channel+".Moisture"] = trimTrailingPercent(ch.Humidity)
+		dataMap["SoilEC."+ch.Channel+".Temp"] = ch.Temp
+		if ec := ecToMilliSiemens(ch.EC); ec != "" {
+			dataMap["SoilEC."+ch.Channel+".EC"] = ec
+		}
+	}
+
 	for _, item := range apiResponse.CommonList {
 		meta, ok := types.ECWCommonSensors[types.NormalizeECWID(item.ID)]
 		if !ok {
@@ -406,6 +414,23 @@ func trimCommonVal(v string) string {
 		i++
 	}
 	return v[:i]
+}
+
+// ecToMilliSiemens converts a WH52 soil-EC reading to milliSiemens/cm. The
+// gateway reports EC in microSiemens/cm with the unit inline (e.g.
+// "470 uS/cm"), but EC is conventionally displayed in mS/cm, so the numeric
+// part is divided by 1000. Returns "" for dash placeholders or unparseable
+// input so the caller can skip storing a row.
+func ecToMilliSiemens(v string) string {
+	n := trimCommonVal(v)
+	if n == "" {
+		return ""
+	}
+	f, err := strconv.ParseFloat(n, 64)
+	if err != nil {
+		return ""
+	}
+	return strconv.FormatFloat(f/1000.0, 'f', -1, 64)
 }
 
 // computeZoneVPD calculates and stores derived VPD sensor readings for every
