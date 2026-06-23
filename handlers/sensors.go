@@ -980,16 +980,37 @@ func DeleteSensor(c *gin.Context) {
 func DeleteSensorByID(db *sql.DB, id string) error {
 	fieldLogger := logger.Log.WithField("func", "DeleteSensorByID")
 
-	// Delete sensor_data for this sensor
-	_, err := db.Exec("DELETE FROM sensor_data WHERE sensor_id = $1", id)
+	// Delete the sensor and everything that references it in a single
+	// transaction. sensor_data_hourly and rolling_averages both carry a
+	// sensor_id referencing sensors(id) (the former with a FK and no
+	// ON DELETE CASCADE), so the final DELETE FROM sensors fails unless
+	// those rows are purged first. Wrapping the deletes in a transaction
+	// keeps the rows consistent if any single statement fails.
+	tx, err := db.Begin()
 	if err != nil {
-		fieldLogger.WithError(err).Error("Error deleting sensor data")
+		fieldLogger.WithError(err).Error("Error beginning delete transaction")
 		return err
 	}
+	defer tx.Rollback() //nolint:errcheck // no-op once the tx is committed
 
-	_, err = db.Exec("DELETE FROM sensors WHERE id = $1", id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error deleting sensor")
+	stmts := []struct {
+		desc  string
+		query string
+	}{
+		{"sensor data", "DELETE FROM sensor_data WHERE sensor_id = $1"},
+		{"sensor hourly rollups", "DELETE FROM sensor_data_hourly WHERE sensor_id = $1"},
+		{"sensor rolling averages", "DELETE FROM rolling_averages WHERE sensor_id = $1"},
+		{"sensor", "DELETE FROM sensors WHERE id = $1"},
+	}
+	for _, s := range stmts {
+		if _, err := tx.Exec(s.query, id); err != nil {
+			fieldLogger.WithError(err).Errorf("Error deleting %s", s.desc)
+			return err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		fieldLogger.WithError(err).Error("Error committing sensor delete")
 		return err
 	}
 	return nil

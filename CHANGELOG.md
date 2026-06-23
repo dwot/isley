@@ -32,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 ### Fixed
+- Deleting a sensor that had hourly-rollup data failed with "Failed to delete
+  sensor". `DeleteSensorByID` now purges `sensor_data_hourly` and
+  `rolling_averages` rows alongside `sensor_data` within a single transaction,
+  so the foreign key on `sensor_data_hourly` no longer blocks the delete
+  (#206).
 
 ### Security
 

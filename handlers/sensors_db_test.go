@@ -89,14 +89,24 @@ func TestDeleteSensorByID_CascadesSensorData(t *testing.T) {
 	testutil.MustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type) VALUES (1, 'Doomed', 1, 'src', 'D', 'temp')`)
 	testutil.MustExec(t, db, `INSERT INTO sensor_data (sensor_id, value) VALUES (1, 1.0)`)
 	testutil.MustExec(t, db, `INSERT INTO sensor_data (sensor_id, value) VALUES (1, 2.0)`)
+	// sensor_data_hourly carries a FK to sensors(id) with no ON DELETE
+	// CASCADE; without purging it first the DELETE FROM sensors fails. This
+	// row is what makes the test exercise the #206 regression.
+	testutil.MustExec(t, db, `INSERT INTO sensor_data_hourly (sensor_id, bucket, min_val, max_val, avg_val, sample_count) VALUES (1, '2026-06-23 00:00:00', 1.0, 2.0, 1.5, 2)`)
+	// rolling_averages is populated automatically by the update_rolling_avg
+	// trigger on the sensor_data inserts above; assert it is purged too.
 
 	require.NoError(t, handlers.DeleteSensorByID(db, "1"))
 
-	var sensorCount, dataCount int
+	var sensorCount, dataCount, hourlyCount, rollingCount int
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM sensors WHERE id = 1`).Scan(&sensorCount))
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM sensor_data WHERE sensor_id = 1`).Scan(&dataCount))
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM sensor_data_hourly WHERE sensor_id = 1`).Scan(&hourlyCount))
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM rolling_averages WHERE sensor_id = 1`).Scan(&rollingCount))
 	assert.Zero(t, sensorCount)
 	assert.Zero(t, dataCount, "DeleteSensorByID must purge sensor_data rows for the sensor")
+	assert.Zero(t, hourlyCount, "DeleteSensorByID must purge sensor_data_hourly rows for the sensor")
+	assert.Zero(t, rollingCount, "DeleteSensorByID must purge rolling_averages rows for the sensor")
 }
 
 // ---------------------------------------------------------------------------
