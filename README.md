@@ -261,8 +261,13 @@ Isley exposes an HTTP API for pushing sensor data from custom devices, IoT hardw
 ### Generating an API Key
 
 1. Log in as an admin and go to **Settings → API Settings**.
-2. Click **Generate New Key** and copy it somewhere safe.
+2. Give the key a name (e.g. the device it's for), click **Add Key**, and copy it
+   somewhere safe — it's shown only once and can't be retrieved later.
 3. Include the key as an `X-API-KEY` header on all API requests.
+
+You can keep several keys at once — add one per device, see when each was last
+used, and **regenerate** or **revoke** any of them individually so rotating one
+device's key doesn't disturb the others.
 
 ### Ingest Endpoint
 

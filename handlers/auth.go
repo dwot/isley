@@ -193,36 +193,24 @@ func AuthMiddlewareApi() gin.HandlerFunc {
 		loggedIn := session.Get("logged_in")
 
 		if apiKey != "" {
-			// Get stored (hashed) API key from settings
+			// Validate the incoming key against the stored hashes. VerifyAPIKey
+			// narrows to candidate rows by prefix, handles bcrypt (preferred),
+			// legacy SHA-256, and plaintext matches, and records last_used.
 			db := DBFromContext(c)
 
-			var storedAPIKey string
-			err := db.QueryRow("SELECT value FROM settings WHERE name = 'api_key'").Scan(&storedAPIKey)
+			valid, err := VerifyAPIKey(db, apiKey)
 			if err != nil {
-				logger.Log.WithError(err).Error("Error retrieving API key from database")
+				logger.Log.WithError(err).Error("Error validating API key")
 				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 					"error": "Could not validate API key",
 				})
 				return
 			}
-
-			// Validate the incoming key against the stored hash.
-			// CheckAPIKey handles bcrypt (preferred), legacy SHA-256, and
-			// plaintext matches for backward compatibility.
-			match, legacy := CheckAPIKey(apiKey, storedAPIKey)
-			if !match {
+			if !valid {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 					"error": "Invalid API key",
 				})
 				return
-			}
-
-			// Auto-upgrade legacy keys (SHA-256 or plaintext) to bcrypt.
-			if legacy {
-				if newHash := HashAPIKey(apiKey); newHash != "" {
-					UpdateSetting(db, ConfigStoreFromContext(c), "api_key", newHash)
-					logger.Log.Info("Auto-upgraded legacy API key to bcrypt")
-				}
 			}
 
 		} else if loggedIn == nil || !loggedIn.(bool) {
