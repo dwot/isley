@@ -23,14 +23,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+- Front-end libraries (Bootstrap, Font Awesome, Video.js, Chart.js with the
+  date-fns adapter and zoom plugin, and exif-js) are now bundled and served
+  from `/static/vendor/` instead of the jsDelivr CDN. Font Awesome now uses
+  the CSS + local webfont build rather than the JS/SVG loader.
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+- UI styles and icons no longer break when the instance has no internet
+  connection; all CSS, JavaScript, and fonts are served locally rather than
+  from a CDN (#219).
 
 ### Security
+- Tightened the Content-Security-Policy to remove the external CDN and Google
+  Fonts origins (`cdn.jsdelivr.net`, `cdnjs.cloudflare.com`,
+  `fonts.googleapis.com`, `fonts.gstatic.com`) from `script-src`,
+  `style-src`, `font-src`, and `connect-src`. The app now loads only
+  same-origin assets.
 
 ## [2.3.0] - 2026-06-23
 

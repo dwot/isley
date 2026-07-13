@@ -185,7 +185,7 @@ func securityHeadersMiddleware(store *config.Store, hsts string) gin.HandlerFunc
 
 		// Build connect-src and media-src dynamically so the HLS player
 		// can reach user-configured stream servers (e.g. Owncast).
-		connectSrc := "'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com"
+		connectSrc := "'self'"
 		mediaSrc := "'self' blob:"
 		for _, s := range store.Streams() {
 			if parsed, err := url.Parse(s.URL); err == nil && parsed.Host != "" {
@@ -201,9 +201,9 @@ func securityHeadersMiddleware(store *config.Store, hsts string) gin.HandlerFunc
 
 		c.Header("Content-Security-Policy",
 			"default-src 'self'; "+
-				"script-src 'self' 'unsafe-eval' 'nonce-"+nonce+"' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "+
-				"style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; "+
-				"font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "+
+				"script-src 'self' 'unsafe-eval' 'nonce-"+nonce+"'; "+
+				"style-src 'self' 'unsafe-inline'; "+
+				"font-src 'self' data:; "+
 				"img-src 'self' data: blob:; "+
 				"worker-src 'self' blob:; "+
 				"media-src "+mediaSrc+"; "+
