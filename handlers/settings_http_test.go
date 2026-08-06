@@ -151,35 +151,6 @@ func TestSettingsHTTP_SaveSettings_RejectsMalformedJSON(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
-func TestSettingsHTTP_SaveSettings_GenerateAPIKeyReturnsPlaintext(t *testing.T) {
-	t.Parallel()
-
-	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
-
-	const apiKey = "save-genkey-key"
-	testutil.SeedAPIKey(t, db, apiKey)
-
-	c := server.NewClient(t)
-	body := testutil.JSONBody(t, map[string]interface{}{"api_key": "generate"})
-	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings", apiKey, body, "application/json"))
-	require.NoError(t, err)
-	defer testutil.DrainAndClose(resp)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	var got struct {
-		Message string `json:"message"`
-		APIKey  string `json:"api_key"`
-	}
-	require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
-	assert.Len(t, got.APIKey, 32, "generated key should be a 32-char hex string")
-
-	// The DB stores a *hashed* form — never the plaintext.
-	var stored string
-	require.NoError(t, db.QueryRow(`SELECT value FROM settings WHERE name = 'api_key'`).Scan(&stored))
-	assert.NotEqual(t, got.APIKey, stored, "DB must store the hash, not plaintext")
-}
-
 // ---------------------------------------------------------------------------
 // AddZoneHandler / UpdateZoneHandler / DeleteZoneHandler
 // ---------------------------------------------------------------------------

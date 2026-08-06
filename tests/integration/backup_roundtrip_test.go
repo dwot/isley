@@ -40,6 +40,10 @@ func TestBackup_RoundTrip(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db, testutil.WithDataDir(dataDir))
 	apiKey := testutil.SeedAPIKey(t, db, "roundtrip-key")
+	// A second key that is NOT used for auth, so the wipe can delete it and the
+	// restore has to bring it back — proving the api_keys table round-trips.
+	testutil.SeedAPIKey(t, db, "extra-roundtrip-key")
+	const extraKeyPrefix = "extra-ro"
 
 	// 1. Seed a representative dataset across the FK chain. Each row
 	//    sits in a distinct table so an over-eager truncate or a missing
@@ -85,18 +89,21 @@ func TestBackup_RoundTrip(t *testing.T) {
 		"downloaded archive size should match the file on disk")
 
 	// 6. Wipe the seeded rows. Order respects FK constraints (children
-	//    first). The settings api_key row is left in place so the next
-	//    request still authenticates; the backup itself contains the
-	//    api_key row so it survives the round-trip too.
+	//    first). The auth key (roundtrip-key) is left in place so the
+	//    follow-up requests still authenticate; the extra key is deleted
+	//    here and must be brought back by the restore.
 	testutil.MustExec(t, db, `DELETE FROM plant`)
 	testutil.MustExec(t, db, `DELETE FROM strain`)
 	testutil.MustExec(t, db, `DELETE FROM breeder`)
 	testutil.MustExec(t, db, `DELETE FROM zones`)
+	testutil.MustExec(t, db, `DELETE FROM api_keys WHERE prefix = $1`, extraKeyPrefix)
 
 	// Sanity: the wipe actually wiped.
 	var n int
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM plant`).Scan(&n))
 	require.Zero(t, n, "wipe failed: plant rows remain")
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM api_keys WHERE prefix = $1`, extraKeyPrefix).Scan(&n))
+	require.Zero(t, n, "wipe failed: extra api key remains")
 
 	// 7. Restore from the captured archive.
 	body, ct := testutil.MultipartBody(t, "backup", backupName, archive)
@@ -126,6 +133,10 @@ func TestBackup_RoundTrip(t *testing.T) {
 
 	require.NoError(t, db.QueryRow(`SELECT name FROM zones WHERE id = $1`, zoneID).Scan(&name))
 	assert.Equal(t, "Roundtrip Zone", name, "zones.name should round-trip")
+
+	// The deleted extra api key must be restored from the archive.
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM api_keys WHERE prefix = $1`, extraKeyPrefix).Scan(&n))
+	assert.Equal(t, 1, n, "the extra api key should be restored from the backup")
 }
 
 // ---------------------------------------------------------------------------

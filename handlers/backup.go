@@ -43,6 +43,7 @@ type BackupManifest struct {
 type BackupPayload struct {
 	Manifest       BackupManifest           `json:"manifest"`
 	Settings       []map[string]interface{} `json:"settings"`
+	APIKeys        []map[string]interface{} `json:"api_keys"`
 	Zones          []map[string]interface{} `json:"zones"`
 	Breeders       []map[string]interface{} `json:"breeder"`
 	Sensors        []map[string]interface{} `json:"sensors"`
@@ -611,6 +612,7 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 		"plant_status",
 		"breeder",
 		"zones",
+		"api_keys",
 		"settings",
 	}
 
@@ -620,6 +622,7 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 		rows []map[string]interface{}
 	}{
 		{"settings", payload.Settings},
+		{"api_keys", payload.APIKeys},
 		{"zones", payload.Zones},
 		{"breeder", payload.Breeders},
 		{"plant_status", payload.PlantStatuses},
@@ -813,7 +816,7 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 	if model.IsPostgres() {
 		svc.UpdateRestoreProgress("sequences", "", 0, 0, 0, totalTablesWithData)
 		seqTables := []string{
-			"settings", "zones", "breeder", "sensors", "sensor_data",
+			"settings", "api_keys", "zones", "breeder", "sensors", "sensor_data",
 			"strain", "strain_lineage", "plant_status", "plant",
 			"plant_status_log", "metric", "plant_measurements",
 			"activity", "activity_metric", "plant_activity", "plant_images", "streams",

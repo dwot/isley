@@ -82,28 +82,6 @@ func SaveSettings(c *gin.Context) {
 	db := DBFromContext(c)
 	store := ConfigStoreFromContext(c)
 
-	// Generate new API key if requested
-	if settings.APIKey == "generate" {
-		plaintextKey := GenerateAPIKey()
-		hashedKey := HashAPIKey(plaintextKey)
-
-		// Store the hashed key in the database
-		err := UpdateSetting(db, store, "api_key", hashedKey)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to save API key")
-			apiInternalError(c, "api_failed_to_save_api_key")
-			return
-		}
-		store.SetAPIKey(hashedKey)
-
-		// Return the plaintext key only once — it cannot be retrieved again
-		c.JSON(http.StatusOK, gin.H{
-			"message": T(c, "api_api_key_generated"),
-			"api_key": plaintextKey,
-		})
-		return
-	}
-
 	// saveBool persists a boolean setting as "1"/"0" and pushes the
 	// matching value into the Store via the supplied setter. Replaces
 	// the prev/cleanup pattern that mutated package globals directly.
@@ -162,24 +140,8 @@ func SaveSettings(c *gin.Context) {
 		store.SetStreamGrabInterval(v)
 	}
 
-	// API key is managed separately via the "generate" flow.
-	// Only update if a non-empty value is explicitly provided (backward compat).
-	if settings.APIKey != "" {
-		apiKeyToStore := settings.APIKey
-		// Hash plaintext keys; skip if already a bcrypt hash or legacy SHA-256 hex digest.
-		isBcrypt := strings.HasPrefix(settings.APIKey, "$2a$") || strings.HasPrefix(settings.APIKey, "$2b$")
-		isSHA256 := len(settings.APIKey) == 64
-		if !isBcrypt && !isSHA256 {
-			apiKeyToStore = HashAPIKey(settings.APIKey)
-		}
-		err = UpdateSetting(db, store, "api_key", apiKeyToStore)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to save API key")
-			apiInternalError(c, "api_failed_to_save_api_key")
-			return
-		}
-		store.SetAPIKey(apiKeyToStore)
-	}
+	// API keys are managed through the dedicated /settings/api-keys endpoints,
+	// not this form.
 
 	err = UpdateSetting(db, store, "sensor_retention_days", settings.SensorRetentionDays)
 	if err != nil {
@@ -341,11 +303,6 @@ func GetSettings(db *sql.DB) types.SettingsData {
 				iValue = DefaultStreamGrabIntervalMs
 			}
 			settingsData.StreamGrabInterval = iValue
-		case "api_key":
-			// Only indicate that a key is set; never reveal the stored hash
-			if value != "" {
-				settingsData.APIKey = "********"
-			}
 		case "api_ingest_enabled":
 			settingsData.APIIngestEnabled = value == "1"
 		case "sensor_retention_days":

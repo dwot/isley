@@ -460,6 +460,13 @@ func AddProtectedRoutes(r *gin.RouterGroup, version string) {
 		})
 	})
 
+	// API key management. Session-only (never X-API-KEY) so a leaked key can't
+	// mint or revoke other keys.
+	r.GET("/settings/api-keys", handlers.GetAPIKeysHandler)
+	r.POST("/settings/api-keys", handlers.CreateAPIKeyHandler)
+	r.POST("/settings/api-keys/:id/regenerate", handlers.RegenerateAPIKeyHandler)
+	r.DELETE("/settings/api-keys/:id", handlers.RevokeAPIKeyHandler)
+
 	r.GET("/sensors", func(c *gin.Context) {
 		lang := utils.GetLanguage(c)
 		translations := utils.TranslationService.GetTranslations(lang)
