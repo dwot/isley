@@ -24,7 +24,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         # docs/TEST_PLAN_2.md Phase 1: fetch full history so the
         # "Compute coverage delta" step can check out the PR's base
         # branch to re-run tests against it.
@@ -157,7 +157,7 @@ jobs:
           - 5432:5432
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -219,7 +219,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # fetch full history and tags so git describe and tag pushes work correctly
           fetch-depth: 0
