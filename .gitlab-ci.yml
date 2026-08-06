@@ -25,6 +25,14 @@ test:
     # can persist them between pipelines.
     GOPATH: $CI_PROJECT_DIR/.go
     GOCACHE: $CI_PROJECT_DIR/.gocache
+    # Drop the bcrypt work factor from the production default of 12 to the
+    # minimum. Under -race, cost-12 bcrypt dominates the suite: it is ~78%
+    # of tests/integration wall time, and handlers/ and tests/integration/
+    # together were overrunning the 20m per-package timeout on a shared
+    # runner. Correctness is unaffected — a bcrypt hash encodes its own
+    # cost, so CompareHashAndPassword still round-trips, and no test
+    # asserts a specific work factor. See utils/authentication.go.
+    ISLEY_BCRYPT_COST: '4'
   cache:
     key:
       files:
@@ -98,6 +106,9 @@ test-postgres:
     ISLEY_TEST_DB_PORT: '5432'
     ISLEY_TEST_DB_USER: postgres
     ISLEY_TEST_DB_PASSWORD: test
+    # Same rationale as the sqlite test job above: keep cost-12 bcrypt from
+    # dominating the -race run.
+    ISLEY_BCRYPT_COST: '4'
   cache:
     key:
       files:

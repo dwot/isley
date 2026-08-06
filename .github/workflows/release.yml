@@ -14,6 +14,16 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    env:
+      # Drop the bcrypt work factor from the production default of 12 to the
+      # minimum. Under -race, cost-12 bcrypt dominates the suite (~78% of
+      # tests/integration wall time), which is what pushes handlers/ and
+      # tests/integration/ toward the 20m per-package timeout noted below.
+      # Correctness is unaffected — a bcrypt hash encodes its own cost, so
+      # CompareHashAndPassword still round-trips, and no test asserts a
+      # specific work factor. Applies to the coverage-delta re-run too.
+      # See utils/authentication.go.
+      ISLEY_BCRYPT_COST: '4'
     # docs/TEST_PLAN_2.md Phase 1: pull-requests: write lets the
     # "Post coverage comment" step post the per-PR delta. The default
     # GITHUB_TOKEN has only read access to PRs on pull_request events
@@ -188,6 +198,9 @@ jobs:
           ISLEY_TEST_DB_PORT: '5432'
           ISLEY_TEST_DB_USER: postgres
           ISLEY_TEST_DB_PASSWORD: test
+          # Same rationale as the sqlite test job: keep cost-12 bcrypt from
+          # dominating the -race run.
+          ISLEY_BCRYPT_COST: '4'
 
       - name: Coverage summary (Postgres)
         if: always()
