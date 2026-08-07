@@ -74,6 +74,7 @@ func BuildBackupArchive(db *sql.DB, opts BuildArchiveOptions) ([]byte, BackupMan
 		dest *[]map[string]interface{}
 	}{
 		{"settings", &payload.Settings},
+		{"api_keys", &payload.APIKeys},
 		{"zones", &payload.Zones},
 		{"breeder", &payload.Breeders},
 		{"sensors", &payload.Sensors},
@@ -254,6 +255,7 @@ func ApplyBackupToDB(ctx context.Context, db *sql.DB, payload BackupPayload) err
 		"plant_status",
 		"breeder",
 		"zones",
+		"api_keys",
 		"settings",
 	}
 
@@ -263,6 +265,7 @@ func ApplyBackupToDB(ctx context.Context, db *sql.DB, payload BackupPayload) err
 		rows []map[string]interface{}
 	}{
 		{"settings", payload.Settings},
+		{"api_keys", payload.APIKeys},
 		{"zones", payload.Zones},
 		{"breeder", payload.Breeders},
 		{"plant_status", payload.PlantStatuses},
@@ -342,7 +345,7 @@ func ApplyBackupToDB(ctx context.Context, db *sql.DB, payload BackupPayload) err
 	// imported ids. Mirrors the production runRestore behavior.
 	if model.IsPostgres() {
 		seqTables := []string{
-			"settings", "zones", "breeder", "sensors", "sensor_data",
+			"settings", "api_keys", "zones", "breeder", "sensors", "sensor_data",
 			"strain", "strain_lineage", "plant_status", "plant",
 			"plant_status_log", "metric", "plant_measurements",
 			"activity", "activity_metric", "plant_activity", "plant_images", "streams",

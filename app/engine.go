@@ -185,7 +185,7 @@ func securityHeadersMiddleware(store *config.Store, hsts string) gin.HandlerFunc
 
 		// Build connect-src and media-src dynamically so the HLS player
 		// can reach user-configured stream servers (e.g. Owncast).
-		connectSrc := "'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com"
+		connectSrc := "'self'"
 		mediaSrc := "'self' blob:"
 		for _, s := range store.Streams() {
 			if parsed, err := url.Parse(s.URL); err == nil && parsed.Host != "" {
@@ -201,9 +201,9 @@ func securityHeadersMiddleware(store *config.Store, hsts string) gin.HandlerFunc
 
 		c.Header("Content-Security-Policy",
 			"default-src 'self'; "+
-				"script-src 'self' 'unsafe-eval' 'nonce-"+nonce+"' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "+
-				"style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; "+
-				"font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "+
+				"script-src 'self' 'unsafe-eval' 'nonce-"+nonce+"'; "+
+				"style-src 'self' 'unsafe-inline'; "+
+				"font-src 'self' data:; "+
 				"img-src 'self' data: blob:; "+
 				"worker-src 'self' blob:; "+
 				"media-src "+mediaSrc+"; "+
@@ -219,8 +219,11 @@ func currentPathMiddleware() gin.HandlerFunc {
 	}
 }
 
-// csrfMiddleware mirrors main.CSRFMiddleware: per-session token, exempts
-// X-API-KEY-authenticated requests, validates POST/PUT/DELETE.
+// csrfMiddleware issues a per-session token and validates it on
+// POST/PUT/DELETE. Pure API-key clients (no browser session) are exempt — they
+// carry no token and can't be driven cross-site. A logged-in session must
+// always present its token, even when an X-API-KEY header is also set, so the
+// session-gated endpoints can't bypass CSRF by attaching a key header.
 func csrfMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		session := sessions.Default(c)
@@ -234,7 +237,8 @@ func csrfMiddleware() gin.HandlerFunc {
 		c.Set("csrf_token", token)
 
 		if c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "DELETE" {
-			if c.GetHeader("X-API-KEY") != "" {
+			loggedIn, _ := session.Get("logged_in").(bool)
+			if !loggedIn && c.GetHeader("X-API-KEY") != "" {
 				c.Next()
 				return
 			}

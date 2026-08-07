@@ -20,6 +20,7 @@ type dbExecutor interface {
 
 var conflictKeys = map[string]string{
 	"settings":           "id",
+	"api_keys":           "id",
 	"zones":              "id",
 	"sensors":            "id",
 	"strain":             "id",
@@ -44,6 +45,7 @@ var boolToIntFields = map[string][]string{
 
 var orderedTables = []string{
 	"settings",
+	"api_keys",
 	"zones",
 	"breeder", // Must come before strain
 	"strain",
@@ -237,6 +239,7 @@ func copyTableData(src *sql.DB, dest dbExecutor, table string) error {
 func hasSerialID(table string) bool {
 	// List of tables where 'id' is a SERIAL/identity column and needs sequence reset
 	serialTables := map[string]bool{
+		"api_keys":           true,
 		"settings":           true,
 		"zones":              true,
 		"sensors":            true,

@@ -296,10 +296,12 @@ func TestAuth_APIKey_RejectsNoCredentials(t *testing.T) {
 // helpers
 // ---------------------------------------------------------------------------
 
-// seedHashedAPIKey writes an already-hashed api_key into settings. Used
-// by the auth tests that exercise plaintext/SHA-256/bcrypt branches and
+// seedHashedAPIKey inserts an already-hashed key into the api_keys table with
+// an empty prefix — the legacy shape carried over from the single-key era.
+// Used by the auth tests that exercise plaintext/SHA-256/bcrypt branches and
 // need full control over what is stored.
 func seedHashedAPIKey(t *testing.T, db *sql.DB, hashed string) {
 	t.Helper()
-	testutil.UpsertSetting(t, db, "api_key", hashed)
+	_, err := db.Exec(`INSERT INTO api_keys (name, key_hash) VALUES ($1, $2)`, "test key", hashed)
+	require.NoError(t, err)
 }

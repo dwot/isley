@@ -61,3 +61,8 @@ Dockerfile              text eol=lf
 *.db        binary
 *.sqlite    binary
 *.sqlite3   binary
+
+# Vendored third-party front-end assets (Bootstrap, Font Awesome, Video.js,
+# Chart.js, exif-js, ...). Upstream minified files, not project source — keep
+# them out of language stats and collapse them in diffs/reviews.
+web/static/vendor/**    linguist-vendored

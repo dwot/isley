@@ -99,12 +99,20 @@ func UpsertSetting(t *testing.T, db *sql.DB, name, value string) {
 	}
 }
 
-// SeedAPIKey hashes plaintext with handlers.HashAPIKey, writes the
-// resulting hash into settings.api_key, and returns plaintext so the
-// caller can pass it back through the X-API-KEY header.
+// SeedAPIKey hashes plaintext with handlers.HashAPIKey, inserts the resulting
+// hash into the api_keys table, and returns plaintext so the caller can pass it
+// back through the X-API-KEY header.
 func SeedAPIKey(t *testing.T, db *sql.DB, plaintext string) string {
 	t.Helper()
-	UpsertSetting(t, db, "api_key", handlers.HashAPIKey(plaintext))
+	prefix := plaintext
+	if len(prefix) > 8 {
+		prefix = prefix[:8]
+	}
+	_, err := db.Exec(
+		`INSERT INTO api_keys (name, key_hash, prefix) VALUES ($1, $2, $3)`,
+		"test key", handlers.HashAPIKey(plaintext), prefix,
+	)
+	require.NoError(t, err)
 	return plaintext
 }
 

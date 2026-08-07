@@ -30,6 +30,11 @@ color: #0d6efd; /* Primary color */
             </button>
         </li>
         <li class="nav-item" role="presentation">
+            <button class="nav-link" id="api-tab" data-bs-toggle="tab" data-bs-target="#api-content" type="button" role="tab" aria-controls="api-content" aria-selected="false">
+                &#128273; {{ .lcl.api }}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
             <button class="nav-link" id="tables-tab" data-bs-toggle="tab" data-bs-target="#tables-content" type="button" role="tab" aria-controls="tables-content" aria-selected="false">
                 &#128203; {{ .lcl.title_tables }}
             </button>
@@ -176,74 +181,6 @@ color: #0d6efd; /* Primary color */
                     </div>
                 </div>
 
-                <!-- API Settings -->
-                <div class="card mb-4 shadow-sm border-start border-4 border-warning">
-                    <div class="card-header bg-themed">
-                        <h2 class="h5 card-title mb-0">
-                            <i class="fa fa-key me-2"></i>{{ .lcl.api }} {{ .lcl.title_settings }}
-                        </h2>
-                    </div>
-                    <div class="card-body">
-                        <label class="form-label">{{ .lcl.api_key_label }}</label>
-
-                        <!-- Status indicator: key configured or not -->
-                        <div id="apiKeyStatus">
-                            {{ if eq .settings.APIKey "********" }}
-                            <div class="d-flex align-items-center mb-2">
-                                <span class="badge bg-success me-2"><i class="fa fa-check"></i></span>
-                                <span class="text-success fw-semibold">API key is configured.</span>
-                            </div>
-                            {{ else }}
-                            <div class="d-flex align-items-center mb-2">
-                                <span class="badge bg-secondary me-2"><i class="fa fa-minus"></i></span>
-                                <span class="text-muted">No API key configured.</span>
-                            </div>
-                            {{ end }}
-                        </div>
-
-                        <!-- Generate / Regenerate button -->
-                        <div id="apiKeyActions">
-                            {{ if eq .settings.APIKey "********" }}
-                            <button class="btn btn-outline-warning btn-sm" type="button" id="btnGenerateAPIKey">
-                                <i class="fa fa-sync me-1"></i> Regenerate API Key
-                            </button>
-                            {{ else }}
-                            <button class="btn btn-primary btn-sm" type="button" id="btnGenerateAPIKey">
-                                <i class="fa fa-key me-1"></i> Generate API Key
-                            </button>
-                            {{ end }}
-                        </div>
-
-                        <!-- One-time key display (hidden by default, shown after generation) -->
-                        <div id="apiKeyReveal" class="d-none mt-3">
-                            <div class="alert alert-warning py-2 mb-2">
-                                <i class="fa fa-exclamation-triangle me-1"></i>
-                                <strong>Copy your key now.</strong> It will not be shown again.
-                            </div>
-                            <div class="input-group">
-                                <input type="text" class="form-control font-monospace" id="apiKeyDisplay" readonly>
-                                <button class="btn btn-outline-secondary" type="button" id="btnCopyAPIKey" aria-label="{{ .lcl.copy }}">
-                                    <i class="fa fa-clipboard me-1"></i> Copy
-                                </button>
-                            </div>
-                            <small class="text-muted d-block mt-1" id="apiKeyCopyStatus"></small>
-                        </div>
-
-                        <small class="text-muted d-block mt-2">
-                            {{ linebreaks .lcl.api_key_desc }}
-                        </small>
-
-                        <!-- Disable API Ingest -->
-                        <div class="form-check form-switch mt-3">
-                            <input class="form-check-input" type="checkbox" id="disableApiIngest" name="disable_api_ingest" {{ if .settings.APIIngestEnabled }}{{ else }}checked{{ end }}>
-                            <label class="form-check-label" for="disableApiIngest">{{ .lcl.disable_api_ingest }}</label>
-                        </div>
-                        <small class="text-muted d-block mt-2">
-                            {{ .lcl.disable_api_ingest_desc }}
-                        </small>
-                    </div>
-                </div>
-
                 <!-- Data Retention -->
                 <div class="card mb-4 shadow-sm border-start border-4 border-warning">
                     <div class="card-header bg-themed">
@@ -264,6 +201,75 @@ color: #0d6efd; /* Primary color */
                     <button type="submit" class="btn btn-primary px-4">{{ .lcl.save_settings }}</button>
                 </div>
             </form>
+        </div>
+
+        <!-- API Tab -->
+        <div class="tab-pane fade" id="api-content" role="tabpanel" aria-labelledby="api-tab">
+            <!-- API Keys -->
+            <div class="card mb-4 shadow-sm border-start border-4 border-warning mt-4">
+                <div class="card-header bg-themed">
+                    <h2 class="h5 card-title mb-0"><i class="fa fa-key me-2"></i>{{ .lcl.api_keys_title }}</h2>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">{{ linebreaks .lcl.api_key_desc }}</p>
+
+                    <!-- Configured keys (populated by JS on load) -->
+                    <div id="apiKeysList" class="mb-4">
+                        <div class="text-muted small">{{ .lcl.settings_no_api_key }}</div>
+                    </div>
+
+                    <!-- Add a new key -->
+                    <label for="newApiKeyName" class="form-label">{{ .lcl.api_key_add }}</label>
+                    <div class="input-group input-group-sm mb-2" style="max-width: 480px;">
+                        <input type="text" class="form-control" id="newApiKeyName"
+                               placeholder="{{ .lcl.api_key_name_placeholder }}" maxlength="255"
+                               aria-label="{{ .lcl.api_key_name_placeholder }}">
+                        <button class="btn btn-primary" type="button" id="btnCreateAPIKey">
+                            <i class="fa fa-plus me-1"></i> {{ .lcl.api_key_add }}
+                        </button>
+                    </div>
+
+                    <!-- One-time key display (hidden until a key is created or regenerated).
+                         The warning and the key share one callout so they read as a unit. -->
+                    <div id="apiKeyReveal" class="d-none mt-3">
+                        <div class="alert alert-warning mb-0" style="max-width: 480px;">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fa fa-exclamation-triangle me-2"></i>
+                                <span><strong>{{ .lcl.api_key_copy_now }}</strong> {{ .lcl.api_key_not_shown_again }}</span>
+                            </div>
+                            <div class="input-group">
+                                <input type="text" class="form-control font-monospace" id="apiKeyDisplay" readonly>
+                                <button class="btn btn-outline-secondary" type="button" id="btnCopyAPIKey" aria-label="{{ .lcl.copy }}">
+                                    <i class="fa fa-clipboard me-1"></i> {{ .lcl.copy }}
+                                </button>
+                            </div>
+                            <small class="d-block mt-1" id="apiKeyCopyStatus"></small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API Access -->
+            <div class="card mb-4 shadow-sm border-start border-4 border-warning">
+                <div class="card-header bg-themed">
+                    <h2 class="h5 card-title mb-0"><i class="fa fa-plug me-2"></i>{{ .lcl.api_access_title }}</h2>
+                </div>
+                <div class="card-body">
+                    <!-- Inputs linked to settingsForm via the form attribute so the
+                         Save button on this tab persists them with the rest of settings. -->
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="disableApiIngest" name="disable_api_ingest" form="settingsForm" {{ if .settings.APIIngestEnabled }}{{ else }}checked{{ end }}>
+                        <label class="form-check-label" for="disableApiIngest">{{ .lcl.disable_api_ingest }}</label>
+                    </div>
+                    <small class="text-muted d-block mt-2">
+                        {{ .lcl.disable_api_ingest_desc }}
+                    </small>
+
+                    <div class="text-end mt-3">
+                        <button type="submit" form="settingsForm" class="btn btn-primary px-4">{{ .lcl.save_settings }}</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
 
@@ -1137,11 +1143,18 @@ color: #0d6efd; /* Primary color */
         const pollingSlider = document.getElementById("pollingInterval");
         const pollingValue = document.getElementById("pollingValue");
 
-        // Attach API key button listeners (replaces inline onclick)
-        const genBtn = document.getElementById("btnGenerateAPIKey");
-        if (genBtn) genBtn.addEventListener("click", generateNewAPIKey);
+        // API key management: load the current list and wire up the controls.
+        loadAPIKeys();
+        const createBtn = document.getElementById("btnCreateAPIKey");
+        if (createBtn) createBtn.addEventListener("click", createAPIKey);
+        const newKeyName = document.getElementById("newApiKeyName");
+        if (newKeyName) newKeyName.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") { e.preventDefault(); createAPIKey(); }
+        });
         const copyBtn = document.getElementById("btnCopyAPIKey");
         if (copyBtn) copyBtn.addEventListener("click", copyAPIKey);
+        const keysList = document.getElementById("apiKeysList");
+        if (keysList) keysList.addEventListener("click", onAPIKeyAction);
 
         // Update display when slider is adjusted
         pollingSlider.addEventListener("input", () => {
@@ -1888,50 +1901,241 @@ color: #0d6efd; /* Primary color */
         });
     });
 
-    // Function to generate a new API key
-    function generateNewAPIKey() {
-        uiMessages.showConfirm(uiMessages.t('generate_new_key_confirm')).then(confirmed => {
-            if (!confirmed) return;
-            fetch('/settings', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ api_key: 'generate' })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.api_key) {
-                    // Show the one-time key display
-                    document.getElementById('apiKeyDisplay').value = data.api_key;
-                    document.getElementById('apiKeyReveal').classList.remove('d-none');
-                    document.getElementById('apiKeyCopyStatus').textContent = '';
-
-                    // Update status to show key is now configured
-                    document.getElementById('apiKeyStatus').innerHTML =
-                        '<div class="d-flex align-items-center mb-2">' +
-                        '<span class="badge bg-success me-2"><i class="fa fa-check"></i></span>' +
-                        '<span class="text-success fw-semibold">API key is configured.</span>' +
-                        '</div>';
-
-                    // Switch button to "Regenerate"
-                    document.getElementById('apiKeyActions').innerHTML =
-                        '<button class="btn btn-outline-warning btn-sm" type="button" id="btnGenerateAPIKey">' +
-                        '<i class="fa fa-sync me-1"></i> Regenerate API Key</button>';
-                    // Re-attach listener to the dynamically inserted button
-                    document.getElementById('btnGenerateAPIKey').addEventListener('click', generateNewAPIKey);
+    // Load the configured API keys and render the list.
+    function loadAPIKeys() {
+        const showError = () => {
+            const list = document.getElementById('apiKeysList');
+            if (list) list.textContent = uiMessages.t('failed_to_load_api_keys') || 'Failed to load API keys.';
+        };
+        fetch('/settings/api-keys')
+            .then(r => r.json().then(data => ({ ok: r.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    showError();
+                    return;
                 }
+                renderAPIKeys(data.keys || []);
             })
-            .catch(error => console.error('Error:', error));
+            .catch(showError);
+    }
+
+    function renderAPIKeys(keys) {
+        const list = document.getElementById('apiKeysList');
+        if (!list) return;
+        list.innerHTML = '';
+
+        if (!keys.length) {
+            const empty = document.createElement('div');
+            empty.className = 'text-muted small';
+            empty.textContent = uiMessages.t('settings_no_api_key') || 'No API key configured.';
+            list.appendChild(empty);
+            return;
+        }
+
+        const table = document.createElement('table');
+        table.className = 'table table-sm align-middle mb-0';
+
+        const thead = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        [
+            uiMessages.t('api_key_col_name') || 'Name',
+            uiMessages.t('api_key_col_key') || 'Key',
+            uiMessages.t('api_key_col_last_used') || 'Last used',
+            ''
+        ].forEach(label => {
+            const th = document.createElement('th');
+            th.scope = 'col';
+            th.textContent = label;
+            headRow.appendChild(th);
         });
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        keys.forEach(key => tbody.appendChild(buildAPIKeyRow(key)));
+        table.appendChild(tbody);
+        list.appendChild(table);
+    }
+
+    function buildAPIKeyRow(key) {
+        const tr = document.createElement('tr');
+
+        const nameTd = document.createElement('td');
+        nameTd.textContent = key.name;
+        tr.appendChild(nameTd);
+
+        const keyTd = document.createElement('td');
+        if (key.prefix) {
+            const code = document.createElement('code');
+            code.textContent = key.prefix + '…';
+            keyTd.appendChild(code);
+        } else {
+            const span = document.createElement('span');
+            span.className = 'text-muted';
+            span.title = uiMessages.t('api_key_legacy_hint') || 'Carried over from a previous version';
+            span.textContent = uiMessages.t('api_key_unknown_prefix') || '—';
+            keyTd.appendChild(span);
+        }
+        tr.appendChild(keyTd);
+
+        const usedTd = document.createElement('td');
+        usedTd.className = 'small text-muted';
+        usedTd.textContent = key.last_used ? formatTimestamp(key.last_used)
+            : (uiMessages.t('api_key_never_used') || 'Never');
+        tr.appendChild(usedTd);
+
+        const actionTd = document.createElement('td');
+        actionTd.className = 'text-end text-nowrap';
+
+        const regenBtn = document.createElement('button');
+        regenBtn.type = 'button';
+        regenBtn.className = 'btn btn-outline-warning btn-sm me-1';
+        regenBtn.dataset.action = 'regenerate';
+        regenBtn.dataset.id = key.id;
+        regenBtn.dataset.name = key.name;
+        regenBtn.title = uiMessages.t('api_key_regenerate') || 'Regenerate';
+        regenBtn.innerHTML = '<i class="fa fa-sync"></i>';
+        actionTd.appendChild(regenBtn);
+
+        const revokeBtn = document.createElement('button');
+        revokeBtn.type = 'button';
+        revokeBtn.className = 'btn btn-outline-danger btn-sm';
+        revokeBtn.dataset.action = 'revoke';
+        revokeBtn.dataset.id = key.id;
+        revokeBtn.dataset.name = key.name;
+        revokeBtn.title = uiMessages.t('api_key_revoke') || 'Revoke';
+        revokeBtn.innerHTML = '<i class="fa fa-trash"></i>';
+        actionTd.appendChild(revokeBtn);
+
+        tr.appendChild(actionTd);
+        return tr;
+    }
+
+    // Delegated handler for the regenerate/revoke buttons in the key list.
+    function onAPIKeyAction(e) {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        const id = btn.dataset.id;
+        const name = btn.dataset.name || '';
+        if (btn.dataset.action === 'regenerate') regenerateAPIKey(id, name);
+        else if (btn.dataset.action === 'revoke') revokeAPIKey(id, name);
+    }
+
+    function createAPIKey() {
+        const input = document.getElementById('newApiKeyName');
+        const name = (input.value || '').trim();
+        if (!name) {
+            uiMessages.showToast(uiMessages.t('api_key_name_required') || 'Enter a name for the key.', 'warning');
+            return;
+        }
+        fetch('/settings/api-keys', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name })
+        })
+            .then(r => r.json().then(data => ({ ok: r.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok || !data.api_key) {
+                    uiMessages.showToast(data.error || uiMessages.t('failed_to_save_api_key') || 'Failed to create key.', 'danger');
+                    return;
+                }
+                input.value = '';
+                showRevealedKey(data.api_key, data.key && data.key.id);
+                loadAPIKeys();
+            })
+            .catch(() => uiMessages.showToast(uiMessages.t('failed_to_save_api_key') || 'Failed to create key.', 'danger'));
+    }
+
+    function regenerateAPIKey(id, name) {
+        const msg = uiMessages.t('api_key_regenerate_confirm') || 'Regenerate this key? The current value will stop working immediately.';
+        uiMessages.showConfirm(name ? (msg + ' (' + name + ')') : msg).then(confirmed => {
+            if (!confirmed) return;
+            fetch('/settings/api-keys/' + encodeURIComponent(id) + '/regenerate', { method: 'POST' })
+                .then(r => r.json().then(data => ({ ok: r.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok || !data.api_key) {
+                        uiMessages.showToast(data.error || uiMessages.t('failed_to_save_api_key') || 'Failed to regenerate key.', 'danger');
+                        return;
+                    }
+                    showRevealedKey(data.api_key, data.key && data.key.id);
+                    loadAPIKeys();
+                })
+                .catch(() => uiMessages.showToast(uiMessages.t('failed_to_save_api_key') || 'Failed to regenerate key.', 'danger'));
+        });
+    }
+
+    function revokeAPIKey(id, name) {
+        const msg = uiMessages.t('api_key_revoke_confirm') || 'Revoke this key? Any system using it will be locked out immediately.';
+        uiMessages.showConfirm(name ? (msg + ' (' + name + ')') : msg).then(confirmed => {
+            if (!confirmed) return;
+            fetch('/settings/api-keys/' + encodeURIComponent(id), { method: 'DELETE' })
+                .then(r => r.json().then(data => ({ ok: r.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        uiMessages.showToast(data.error || uiMessages.t('failed_to_delete_api_key') || 'Failed to revoke key.', 'danger');
+                        return;
+                    }
+                    uiMessages.showToast(data.message || uiMessages.t('api_key_revoked') || 'API key revoked.', 'success');
+                    // If the one-time reveal is showing this key, clear it.
+                    if (document.getElementById('apiKeyReveal').dataset.keyId === String(id)) {
+                        hideRevealedKey();
+                    }
+                    loadAPIKeys();
+                })
+                .catch(() => uiMessages.showToast(uiMessages.t('failed_to_delete_api_key') || 'Failed to revoke key.', 'danger'));
+        });
+    }
+
+    function showRevealedKey(plaintext, keyId) {
+        const reveal = document.getElementById('apiKeyReveal');
+        reveal.dataset.keyId = keyId == null ? '' : String(keyId);
+        document.getElementById('apiKeyDisplay').value = plaintext;
+        reveal.classList.remove('d-none');
+        document.getElementById('apiKeyCopyStatus').textContent = '';
+    }
+
+    // Hide and clear the one-time reveal so a revealed key can't linger (and be
+    // copied) after the key it belongs to has been revoked.
+    function hideRevealedKey() {
+        const reveal = document.getElementById('apiKeyReveal');
+        reveal.classList.add('d-none');
+        reveal.dataset.keyId = '';
+        document.getElementById('apiKeyDisplay').value = '';
+        document.getElementById('apiKeyCopyStatus').textContent = '';
+    }
+
+    // Render a stored timestamp (RFC3339 or "YYYY-MM-DD HH:MM:SS" UTC) in the
+    // viewer's locale, falling back to the raw value if it can't be parsed.
+    function formatTimestamp(value) {
+        const parsed = new Date(value.includes('T') ? value : value.replace(' ', 'T') + 'Z');
+        return isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
     }
 
     function copyAPIKey() {
         const apiKeyInput = document.getElementById('apiKeyDisplay');
-        navigator.clipboard.writeText(apiKeyInput.value).then(() => {
-            document.getElementById('apiKeyCopyStatus').textContent = 'Copied to clipboard.';
-            setTimeout(() => {
-                document.getElementById('apiKeyCopyStatus').textContent = '';
-            }, 3000);
-        });
+        const statusEl = document.getElementById('apiKeyCopyStatus');
+        const done = () => {
+            statusEl.textContent = uiMessages.t('copied_to_clipboard') || 'Copied to clipboard.';
+            setTimeout(() => { statusEl.textContent = ''; }, 3000);
+        };
+        const fail = (err) => {
+            console.error('Copy failed', err);
+            statusEl.textContent = uiMessages.t('copy_failed') || 'Copy failed — select the key and copy it manually.';
+        };
+        // navigator.clipboard is unavailable over plain HTTP (insecure context),
+        // which is a common LAN deployment — fall back to selecting the field.
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(apiKeyInput.value).then(done).catch(fail);
+            } else {
+                apiKeyInput.focus();
+                apiKeyInput.select();
+                document.execCommand('copy');
+                done();
+            }
+        } catch (err) {
+            fail(err);
+        }
     }
 
     document.addEventListener("DOMContentLoaded", function () {
