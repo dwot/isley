@@ -265,3 +265,57 @@ type Stream struct {
 	ZoneName string `json:"zone_name"`
 	Visible  bool   `json:"visible"`
 }
+
+// SmokeReportCriterion is a user-configurable tasting axis (Aroma, Taste…).
+// Criteria are archived via Active rather than deleted when scores already
+// reference them: a tasting impression cannot be re-measured the way a plant
+// height can, so removal must never destroy recorded history.
+type SmokeReportCriterion struct {
+	ID        int    `json:"id"`
+	Name      string `json:"name"`
+	SortOrder int    `json:"sort_order"`
+	Active    bool   `json:"active"`
+}
+
+// SmokeReportScore is one criterion's score inside a report. Name is
+// denormalised on read so the UI can render an archived criterion's label
+// without a second lookup.
+type SmokeReportScore struct {
+	CriterionID int    `json:"criterion_id"`
+	Name        string `json:"name"`
+	Value       int    `json:"value"`
+}
+
+// SmokeReport is a post-harvest tasting note for one plant. CureDays is
+// derived at read time (report_date minus the plant's harvest date) and is
+// nil when the plant has no harvest date or when the report predates it.
+type SmokeReport struct {
+	ID                int                `json:"id"`
+	PlantID           int                `json:"plant_id"`
+	ReportDate        time.Time          `json:"report_date"`
+	ConsumptionMethod string             `json:"consumption_method"`
+	Rating            int                `json:"rating"`
+	Description       string             `json:"description"`
+	CureDays          *int               `json:"cure_days,omitempty"`
+	Scores            []SmokeReportScore `json:"scores"`
+}
+
+// SmokeReportSummaryRow is one harvest's contribution to a strain average:
+// the rating of that plant's most recent report.
+type SmokeReportSummaryRow struct {
+	PlantID    int       `json:"plant_id"`
+	PlantName  string    `json:"plant_name"`
+	Rating     int       `json:"rating"`
+	ReportDate time.Time `json:"report_date"`
+}
+
+// SmokeReportSummary aggregates a strain's tasting notes. Average is the mean
+// of Entries' ratings — one entry per harvested plant, using that plant's most
+// recent report — so the headline figure always equals the mean of the rows
+// displayed beneath it, and a plant tasted ten times does not outweigh a plant
+// tasted once. Count is len(Entries): a number of harvests, not of reports.
+type SmokeReportSummary struct {
+	Average float64                 `json:"average"`
+	Count   int                     `json:"count"`
+	Entries []SmokeReportSummaryRow `json:"entries"`
+}

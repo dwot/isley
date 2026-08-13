@@ -1316,6 +1316,7 @@ func LoadSettings(db *sql.DB, store *config.Store) {
 	store.SetStrains(GetStrains(db))
 	store.SetBreeders(GetBreeders(db))
 	store.SetStreams(GetStreams(db))
+	store.SetSmokeCriteria(GetSmokeCriteria(db, false))
 }
 
 // Breeder CRUD handlers have been moved to strain.go

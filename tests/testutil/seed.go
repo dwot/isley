@@ -173,3 +173,50 @@ func SeedActivity(t *testing.T, db *sql.DB, plantID, activityID int, when time.T
 		plantID, activityID, when.Format("2006-01-02 15:04:05"),
 	)
 }
+
+// SeedSmokeCriterion inserts an active smoke-report criterion and returns
+// its id.
+func SeedSmokeCriterion(t *testing.T, db *sql.DB, name string, sortOrder int) int {
+	t.Helper()
+	return insertReturnID(t, db,
+		`INSERT INTO smoke_report_criterion (name, sort_order, active) VALUES ($1, $2, 1)`,
+		name, sortOrder,
+	)
+}
+
+// SeedSmokeReport inserts a smoke report for plantID with the given overall
+// rating, plus one score row per entry in scores (criterion id → value), and
+// returns the report id. report_date defaults to 2026-06-01; tests that care
+// about ordering should UPDATE the row afterwards rather than branching this
+// helper.
+func SeedSmokeReport(t *testing.T, db *sql.DB, plantID, rating int, scores map[int]int) int {
+	t.Helper()
+	reportID := insertReturnID(t, db,
+		`INSERT INTO smoke_report (plant_id, report_date, consumption_method, rating, description)
+		 VALUES ($1, '2026-06-01 12:00:00', '', $2, '')`,
+		plantID, rating,
+	)
+	for criterionID, value := range scores {
+		MustExec(t, db,
+			`INSERT INTO smoke_report_score (report_id, criterion_id, value) VALUES ($1, $2, $3)`,
+			reportID, criterionID, value)
+	}
+	return reportID
+}
+
+// SeedSmokeReportAt is SeedSmokeReport with an explicit report_date, for
+// tests that assert ordering or "most recent report wins" behaviour.
+func SeedSmokeReportAt(t *testing.T, db *sql.DB, plantID, rating int, when time.Time, scores map[int]int) int {
+	t.Helper()
+	reportID := insertReturnID(t, db,
+		`INSERT INTO smoke_report (plant_id, report_date, consumption_method, rating, description)
+		 VALUES ($1, $2, '', $3, '')`,
+		plantID, when.Format("2006-01-02 15:04:05"), rating,
+	)
+	for criterionID, value := range scores {
+		MustExec(t, db,
+			`INSERT INTO smoke_report_score (report_id, criterion_id, value) VALUES ($1, $2, $3)`,
+			reportID, criterionID, value)
+	}
+	return reportID
+}

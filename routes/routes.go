@@ -195,27 +195,39 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 		idStr := c.Param("id")
 		plant := handlers.GetPlant(db, idStr)
 		prevPlantID, nextPlantID := handlers.GetAdjacentPlantIDs(db, int(plant.ID))
+		// smokeHarvested gates the "+ Add" trigger alone: a new report may
+		// only ever be created on a currently-harvested plant. smokeEligible
+		// (harvested || has reports) gates the card and its modals, so a
+		// plant that leaves its harvested statuses (e.g. a mis-logged Curing
+		// entry gets deleted from the status-history modal) does not orphan
+		// reports it already has — see PlantHasSmokeReportsForTemplate.
+		smokeHarvested := handlers.PlantIsHarvestedForTemplate(db, int(plant.ID))
+		smokeHasReports := handlers.PlantHasSmokeReportsForTemplate(db, int(plant.ID))
 		c.HTML(http.StatusOK, "views/plant.html", gin.H{
-			"title":           "Plant Details",
-			"currentPath":     currentPath,
-			"version":         version,
-			"plant":           plant,
-			"zones":           store.Zones(),
-			"strains":         store.Strains(),
-			"statuses":        store.Statuses(),
-			"breeders":        store.Breeders(),
-			"measurements":    store.Metrics(),
-			"sensors":         handlers.GetSensors(db),
-			"plants":          handlers.GetLivingPlants(db),
-			"activities":      store.Activities(),
-			"loggedIn":        sessions.Default(c).Get("logged_in"),
-			"lcl":             translations,
-			"languages":       utils.AvailableLanguages,
-			"currentLanguage": lang,
-			"csrfToken":       c.GetString("csrf_token"),
-			"cspNonce":        c.GetString("cspNonce"),
-			"prevPlantID":     prevPlantID,
-			"nextPlantID":     nextPlantID,
+			"title":            "Plant Details",
+			"currentPath":      currentPath,
+			"version":          version,
+			"plant":            plant,
+			"zones":            store.Zones(),
+			"strains":          store.Strains(),
+			"statuses":         store.Statuses(),
+			"breeders":         store.Breeders(),
+			"measurements":     store.Metrics(),
+			"sensors":          handlers.GetSensors(db),
+			"plants":           handlers.GetLivingPlants(db),
+			"activities":       store.Activities(),
+			"loggedIn":         sessions.Default(c).Get("logged_in"),
+			"lcl":              translations,
+			"languages":        utils.AvailableLanguages,
+			"currentLanguage":  lang,
+			"csrfToken":        c.GetString("csrf_token"),
+			"cspNonce":         c.GetString("cspNonce"),
+			"prevPlantID":      prevPlantID,
+			"nextPlantID":      nextPlantID,
+			"smokeCriteria":    store.SmokeCriteria(),
+			"smokeRatingScale": handlers.SmokeRatingScale(),
+			"smokeEligible":    smokeHarvested || smokeHasReports,
+			"smokeHarvested":   smokeHarvested,
 		})
 	})
 
@@ -291,6 +303,13 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	r.GET("/strains/:id/lineage", handlers.GetLineageHandler)
 	r.GET("/strains/:id/descendants", handlers.GetDescendantsHandler)
 	r.GET("/strains/lookup", handlers.LookupStrainByName)
+	r.GET("/strains/:id/smoke-summary", handlers.GetStrainSmokeSummaryHandler)
+
+	// Smoke reports (read visibility follows the plant page: public under
+	// guest mode, behind AuthMiddleware otherwise — see AddProtectedApiRoutes
+	// below for the write side, and app/routes.go for which group this
+	// basic-routes block lands in per mode).
+	r.GET("/plant/:id/smoke-reports", handlers.GetSmokeReportsHandler)
 }
 
 func AddProtectedApiRoutes(r *gin.RouterGroup) {
@@ -373,6 +392,20 @@ func AddProtectedApiRoutes(r *gin.RouterGroup) {
 	r.POST("/settings/backup/sqlite/upload", handlers.UploadSQLiteDB)
 	r.POST("/record-multi-activity", handlers.RecordMultiPlantActivity)
 	r.POST("/settings", handlers.SaveSettings)
+
+	// Smoke report criteria (Settings › Customization). Session-gated like the
+	// rest of the settings CRUD.
+	r.GET("/smoke-criteria", handlers.GetSmokeCriteriaHandler)
+	r.POST("/smoke-criteria", handlers.AddSmokeCriterionHandler)
+	r.PUT("/smoke-criteria/:id", handlers.UpdateSmokeCriterionHandler)
+	r.DELETE("/smoke-criteria/:id", handlers.DeleteSmokeCriterionHandler)
+
+	// Smoke reports (protected write). The POST uses :plantID because the
+	// existing POST tree on /plant/ already binds that name; the GET above
+	// uses :id for the same reason. Gin panics on a mismatch within a method.
+	r.POST("/plant/:plantID/smoke-reports", handlers.AddSmokeReportHandler)
+	r.PUT("/smoke-reports/:id", handlers.UpdateSmokeReportHandler)
+	r.DELETE("/smoke-reports/:id", handlers.DeleteSmokeReportHandler)
 }
 
 // AddExternalApiRoutes External API endpoints
@@ -450,6 +483,7 @@ func AddProtectedRoutes(r *gin.RouterGroup, version string) {
 			"activities":      store.Activities(),
 			"breeders":        store.Breeders(),
 			"streams":         handlers.GetStreams(db),
+			"smokeCriteria":   store.SmokeCriteria(),
 			"loggedIn":        sessions.Default(c).Get("logged_in"),
 			"lcl":             translations,
 			"languages":       utils.AvailableLanguages,

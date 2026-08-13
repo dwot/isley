@@ -91,6 +91,9 @@ func BuildBackupArchive(db *sql.DB, opts BuildArchiveOptions) ([]byte, BackupMan
 		{"plant_activity", &payload.PlantActivity},
 		{"plant_images", &payload.PlantImages},
 		{"streams", &payload.Streams},
+		{"smoke_report_criterion", &payload.SmokeCriteria},
+		{"smoke_report", &payload.SmokeReports},
+		{"smoke_report_score", &payload.SmokeScores},
 	}
 
 	tableCount := 0
@@ -238,6 +241,9 @@ func ApplyBackupToDB(ctx context.Context, db *sql.DB, payload BackupPayload) err
 
 	// Tables in deletion order (children first) to satisfy FK constraints.
 	truncateOrder := []string{
+		"smoke_report_score",
+		"smoke_report",
+		"smoke_report_criterion",
 		"plant_activity",
 		"plant_measurements",
 		"plant_status_log",
@@ -291,6 +297,9 @@ func ApplyBackupToDB(ctx context.Context, db *sql.DB, payload BackupPayload) err
 		{"plant_activity", payload.PlantActivity},
 		{"plant_images", payload.PlantImages},
 		{"streams", payload.Streams},
+		{"smoke_report_criterion", payload.SmokeCriteria},
+		{"smoke_report", payload.SmokeReports},
+		{"smoke_report_score", payload.SmokeScores},
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -308,7 +317,7 @@ func ApplyBackupToDB(ctx context.Context, db *sql.DB, payload BackupPayload) err
 		}
 	}
 
-	for _, tbl := range truncateOrder {
+	for _, tbl := range tablesToTruncate(truncateOrder, insertOrder) {
 		var stmt string
 		if model.IsPostgres() {
 			stmt = fmt.Sprintf("TRUNCATE TABLE %s CASCADE", tbl)
@@ -349,6 +358,7 @@ func ApplyBackupToDB(ctx context.Context, db *sql.DB, payload BackupPayload) err
 			"strain", "strain_lineage", "plant_status", "plant",
 			"plant_status_log", "metric", "plant_measurements",
 			"activity", "activity_metric", "plant_activity", "plant_images", "streams",
+			"smoke_report_criterion", "smoke_report", "smoke_report_score",
 		}
 		for _, tbl := range seqTables {
 			q := fmt.Sprintf(

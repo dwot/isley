@@ -45,6 +45,12 @@
     --color-dropdown-menu-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
     --color-thumb-hover: #e9ecef;
     --color-success-bg: #d4edda;
+    /* Smoke-report star ratings. --color-star-preview is the hover/focus
+       shade, deliberately weaker than the committed colour so a preview is
+       never mistaken for a saved score. */
+    --color-star: #e0a80d;
+    --color-star-preview: #f0cf72;
+    --color-star-empty: #c2c7cc;
 }
 
 [data-bs-theme="dark"] {
@@ -83,6 +89,11 @@
     --color-dropdown-menu-shadow: 0px 4px 6px rgba(0,0,0,0.3);
     --color-thumb-hover: #333;
     --color-success-bg: #267f2f;
+    /* Brighter star gold on the dark card, and an empty state that stays
+       visible against #212529 without competing with the lit stars. */
+    --color-star: #ffc93c;
+    --color-star-preview: #8a6d1f;
+    --color-star-empty: #565c62;
 }
 
 /*  GENERAL BODY/TEXT/BACKGROUND */
@@ -3107,4 +3118,104 @@ header .nav-link.active::after {
     .dash-sensor-groups { flex-direction: column; }
     .dash-zone-header { flex-wrap: wrap; }
     .dash-zone-meta { margin-left: 0; margin-top: 0.35rem; width: 100%; }
+}
+/* ---------------------------------------------------------------------------
+   Smoke-report star ratings
+   ---------------------------------------------------------------------------
+   The input is a radio group (see the smoke-report modal templates): the real
+   radios are visually hidden but stay focusable, and each label carries the
+   star glyph. web/static/js/star-rating.js toggles .is-on to fill stars up to
+   the selected — or hovered — value.
+   --------------------------------------------------------------------------- */
+.star-rating {
+    display: inline-flex;
+    flex-direction: row;
+    gap: 0.15rem;
+    line-height: 1;
+}
+
+/* Hidden but focusable: clip rather than display:none, so arrow-key
+   navigation and screen-reader announcement keep working. */
+.star-rating input[type="radio"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.star-rating label {
+    cursor: pointer;
+    margin: 0;
+    padding: 0 0.05rem;
+    color: var(--color-star-empty);
+    transition: color 0.08s ease-in-out;
+}
+
+.star-rating label.is-on {
+    color: var(--color-star);
+}
+
+/* While the pointer is over the group, lit stars use the weaker preview shade
+   so an unsaved hover never reads as a committed score. */
+.star-rating:hover label.is-on {
+    color: var(--color-star-preview);
+}
+
+/* Focus ring on the label standing in for the focused radio. */
+.star-rating input[type="radio"]:focus-visible + label {
+    outline: 2px solid var(--color-input-focus-border);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+.star-clear {
+    color: var(--color-muted);
+    line-height: 1;
+}
+
+.star-clear:hover,
+.star-clear:focus-visible {
+    color: var(--color-danger);
+}
+
+/* One criterion per line in the modal, name left and stars right. */
+.smoke-score-row {
+    gap: 0.75rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Smoke-report card, plant page sidebar
+   ---------------------------------------------------------------------------
+   The criteria used to be concatenated inline, which wrapped mid-criterion in
+   the narrow sidebar — a name on one line and its stars on the next. One grid
+   row per criterion keeps each name glued to its own stars.
+   --------------------------------------------------------------------------- */
+.smoke-score-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+}
+
+.smoke-score-name {
+    color: var(--color-muted);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* Never split a star run across lines. */
+.smoke-score-stars {
+    white-space: nowrap;
+    flex-shrink: 0;
+    color: var(--color-star);
+}
+
+.smoke-report-entry .smoke-report-rating {
+    white-space: nowrap;
+    color: var(--color-star);
 }

@@ -174,6 +174,37 @@ func (c *Client) SessionPostJSON(t *testing.T, path, csrfToken string, body inte
 	return resp
 }
 
+// SessionPutJSON issues a JSON PUT to path using the cookie jar's session
+// cookie plus the supplied CSRF token in the X-CSRF-Token header, mirroring
+// SessionPostJSON for handlers that update rather than create.
+//
+// Caller closes the response body.
+func (c *Client) SessionPutJSON(t *testing.T, path, csrfToken string, body interface{}) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPut, c.BaseURL+path, JSONBody(t, body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	if csrfToken != "" {
+		req.Header.Set("X-CSRF-Token", csrfToken)
+	}
+	resp, err := c.Do(req)
+	require.NoError(t, err)
+	return resp
+}
+
+// SessionDelete issues a DELETE carrying the session cookie and the CSRF
+// token, mirroring what the dashboard JS does. Use this rather than APIDelete
+// for endpoints whose real contract is the browser session.
+func (c *Client) SessionDelete(t *testing.T, path, csrfToken string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodDelete, c.BaseURL+path, nil)
+	require.NoError(t, err)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+	resp, err := c.Do(req)
+	require.NoError(t, err)
+	return resp
+}
+
 // LoginAndFetchCSRF logs in via LoginAsAdmin and then GETs csrfPagePath
 // to extract the CSRF token rendered in <meta name="csrf-token">. The
 // returned client carries the session cookie; callers issue mutating

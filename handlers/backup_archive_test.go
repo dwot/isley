@@ -275,3 +275,85 @@ func TestApplyBackupToDB_NilDB(t *testing.T) {
 	err := handlers.ApplyBackupToDB(context.Background(), nil, handlers.BackupPayload{})
 	assert.Error(t, err)
 }
+
+// TestApplyBackupToDB_PreFeatureBackupPreservesSeededCriteria pins IMPORTANT
+// 2 from the final whole-branch review: smoke_report_criterion was the
+// first migration-seeded table ever added to truncateOrder. A backup
+// produced by any pre-smoke-report Isley version has no
+// smoke_report_criterion key in its JSON at all, so payload.SmokeCriteria
+// decodes to a nil slice — the exact shape a zero-valued BackupPayload has
+// here. Truncating that table unconditionally with nothing in the payload
+// to insert back used to take the five migration-seeded default criteria
+// from 5 to 0, with no way to recover them short of retyping — hit by
+// exactly the user following the documented "back up before upgrading"
+// advice.
+func TestApplyBackupToDB_PreFeatureBackupPreservesSeededCriteria(t *testing.T) {
+	t.Parallel()
+
+	dst := testutil.NewTestDB(t)
+
+	before := rowCount(t, dst, "smoke_report_criterion")
+	require.Equal(t, 5, before, "fresh DB must start with the five migration-seeded criteria")
+
+	// A zero-valued BackupPayload has no rows for any table — exactly what
+	// json.Unmarshal produces from a backup.json that never mentions
+	// smoke-report data at all.
+	require.NoError(t, handlers.ApplyBackupToDB(context.Background(), dst, handlers.BackupPayload{}))
+
+	after := rowCount(t, dst, "smoke_report_criterion")
+	assert.Equal(t, 5, after, "a payload with no smoke-report data must not empty the seeded criteria")
+}
+
+// TestApplyBackupToDB_EmptyPayloadTablesAreCleared is the inverse of
+// TestApplyBackupToDB_PreFeatureBackupPreservesSeededCriteria and pins the
+// narrowing that followed the re-review of that fix: tablesToTruncate's
+// skip-when-empty behavior applies ONLY to the explicit
+// seededTablesSafeToSkip allow-list (currently just
+// smoke_report_criterion), not to every table with zero payload rows. A
+// restore is supposed to replace the destination with exactly what the
+// archive describes — including "the archive's owner had none of this" —
+// so a non-allow-listed table with an empty payload must still be emptied,
+// not left with its old contents.
+//
+// plant exercises the general case the broad version got wrong: an archive
+// with zero plants restored over an install that has one must leave zero
+// plants behind, not silently keep the old one (which, under the broad
+// version, ended up cross-linked against a freshly truncated-and-reinserted
+// strain carrying a different id than the one the surviving plant pointed
+// at before).
+//
+// sensor_data exercises the "skip sensor data import" option specifically
+// (ImportBackup forces payload.SensorData to nil when the user unchecks
+// it): that must still mean "restore with no sensor data", not "keep the
+// destination's existing readings, now attributed to the archive's
+// sensors".
+//
+// This test must fail against the pre-narrowing tablesToTruncate, which
+// skipped truncation for any zero-row table regardless of allow-list
+// membership — verified by temporarily reverting the guard before landing
+// this test.
+func TestApplyBackupToDB_EmptyPayloadTablesAreCleared(t *testing.T) {
+	t.Parallel()
+
+	dst := testutil.NewTestDB(t)
+	breederID := testutil.SeedBreeder(t, dst, "Old Breeder")
+	strainID := testutil.SeedStrain(t, dst, breederID, "Old Strain")
+	zoneID := testutil.SeedZone(t, dst, "Old Zone")
+	testutil.SeedPlant(t, dst, "Old Plant", strainID, zoneID)
+
+	sensorID := testutil.SeedSensor(t, dst, "acinfinity", "DEV1", "ACI.tempC")
+	testutil.MustExec(t, dst, `INSERT INTO sensor_data (sensor_id, value) VALUES ($1, $2)`, sensorID, 21.0)
+
+	require.Equal(t, 1, rowCount(t, dst, "plant"), "setup: destination must start with one plant")
+	require.Equal(t, 1, rowCount(t, dst, "sensor_data"), "setup: destination must start with one reading")
+
+	// A payload with no rows for either table — the same shape as an
+	// archive whose owner had zero plants, or a restore where the user
+	// unchecked "include sensor data".
+	require.NoError(t, handlers.ApplyBackupToDB(context.Background(), dst, handlers.BackupPayload{}))
+
+	assert.Equal(t, 0, rowCount(t, dst, "plant"),
+		"a non-allow-listed table with an empty payload must still be cleared, not left with stale rows")
+	assert.Equal(t, 0, rowCount(t, dst, "sensor_data"),
+		"the skip-sensor-data-import option must still empty sensor_data, not keep the destination's old readings")
+}

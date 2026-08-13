@@ -19,24 +19,27 @@ type dbExecutor interface {
 }
 
 var conflictKeys = map[string]string{
-	"settings":           "id",
-	"api_keys":           "id",
-	"zones":              "id",
-	"sensors":            "id",
-	"strain":             "id",
-	"plant_status":       "id",
-	"plant":              "id",
-	"plant_status_log":   "id",
-	"metric":             "id",
-	"plant_measurements": "id",
-	"activity":           "id",
-	"activity_metric":    "id",
-	"plant_activity":     "id",
-	"plant_images":       "id",
-	"breeder":            "id",
-	"sensor_data":        "id",
-	"streams":            "id",
-	"strain_lineage":     "id",
+	"settings":               "id",
+	"api_keys":               "id",
+	"zones":                  "id",
+	"sensors":                "id",
+	"strain":                 "id",
+	"plant_status":           "id",
+	"plant":                  "id",
+	"plant_status_log":       "id",
+	"metric":                 "id",
+	"plant_measurements":     "id",
+	"activity":               "id",
+	"activity_metric":        "id",
+	"plant_activity":         "id",
+	"plant_images":           "id",
+	"breeder":                "id",
+	"sensor_data":            "id",
+	"streams":                "id",
+	"strain_lineage":         "id",
+	"smoke_report_criterion": "id",
+	"smoke_report":           "id",
+	"smoke_report_score":     "id",
 }
 
 var boolToIntFields = map[string][]string{
@@ -64,6 +67,9 @@ var orderedTables = []string{
 	"plant_activity",
 	"plant_images",
 	"streams",
+	"smoke_report_criterion",
+	"smoke_report",       // After plant — references plant(id)
+	"smoke_report_score", // After both of the above
 }
 
 // MigrateSqliteToPostgres copies all data from the SQLite database at
@@ -239,24 +245,27 @@ func copyTableData(src *sql.DB, dest dbExecutor, table string) error {
 func hasSerialID(table string) bool {
 	// List of tables where 'id' is a SERIAL/identity column and needs sequence reset
 	serialTables := map[string]bool{
-		"api_keys":           true,
-		"settings":           true,
-		"zones":              true,
-		"sensors":            true,
-		"sensor_data":        true,
-		"strain":             true,
-		"plant_status":       true,
-		"plant":              true,
-		"plant_status_log":   true,
-		"metric":             true,
-		"plant_measurements": true,
-		"activity":           true,
-		"activity_metric":    true,
-		"plant_activity":     true,
-		"plant_images":       true,
-		"breeder":            true,
-		"streams":            true,
-		"strain_lineage":     true,
+		"api_keys":               true,
+		"settings":               true,
+		"zones":                  true,
+		"sensors":                true,
+		"sensor_data":            true,
+		"strain":                 true,
+		"plant_status":           true,
+		"plant":                  true,
+		"plant_status_log":       true,
+		"metric":                 true,
+		"plant_measurements":     true,
+		"activity":               true,
+		"activity_metric":        true,
+		"plant_activity":         true,
+		"plant_images":           true,
+		"breeder":                true,
+		"streams":                true,
+		"strain_lineage":         true,
+		"smoke_report_criterion": true,
+		"smoke_report":           true,
+		"smoke_report_score":     true,
 	}
 
 	return serialTables[table]

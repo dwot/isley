@@ -150,6 +150,21 @@
                     <div id="descendantsList"></div>
                 </div>
             </div>
+
+            <!-- Tasting box -->
+            <div class="card strain-infobox mt-3" id="smokeSummaryCard" style="display:none;">
+                <div class="card-body">
+                    <h2 class="h5 card-title text-primary text-center mb-3">
+                        <i class="fa-solid fa-smoking me-1"></i> {{ .lcl.title_tasting }}
+                    </h2>
+                    <div class="text-center mb-2">
+                        <div class="fs-4" id="smokeSummaryStars"></div>
+                        <div class="text-muted small" id="smokeSummaryCaption"></div>
+                    </div>
+                    <hr>
+                    <ul class="list-unstyled strain-info-list mb-0" id="smokeSummaryList"></ul>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -160,6 +175,7 @@
 </script>
 <script src="/static/js/strain-lineage.js"></script>
 <script src="/static/js/strain-descendants.js"></script>
+<script src="/static/js/strain-smoke-summary.js"></script>
 {{ template "common/footer.html" .}}
 
 {{ end }}

@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Smoke reports: record one or more tasting notes per harvested plant, with an
+  overall 1–5 rating, a free-text description, an auto-computed cure duration
+  and scores on user-configurable criteria (Settings › Customization). Strain
+  pages show the average across harvests, using each plant's most recent report.
+
 ### Changed
 
 ### Deprecated
