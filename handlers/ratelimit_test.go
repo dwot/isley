@@ -96,3 +96,31 @@ func TestRateLimiter_CleanupRemovesExpiredEntries(t *testing.T) {
 		assert.NotContains(t, rl.entries, stale, "expired entry %q should be cleaned up", stale)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// RateLimiter.AllowN
+// ---------------------------------------------------------------------------
+
+func TestRateLimiter_AllowNCountsEachUnit(t *testing.T) {
+	t.Parallel()
+
+	rl := NewRateLimiter(5, time.Minute)
+
+	ok, _ := rl.AllowN("k1", 3)
+	assert.True(t, ok, "3 of 5 should be allowed")
+	ok, _ = rl.AllowN("k1", 2)
+	assert.True(t, ok, "5 of 5 should be allowed")
+	ok, retryAfter := rl.AllowN("k1", 1)
+	assert.False(t, ok, "the 6th unit should be blocked")
+	assert.Greater(t, retryAfter, time.Duration(0), "a blocked call reports time left in the window")
+	assert.LessOrEqual(t, retryAfter, time.Minute)
+}
+
+func TestRateLimiter_AllowNOversizedFirstCall(t *testing.T) {
+	t.Parallel()
+
+	rl := NewRateLimiter(3, time.Minute)
+
+	ok, _ := rl.AllowN("k1", 4)
+	assert.False(t, ok, "a single call larger than the limit is blocked")
+}

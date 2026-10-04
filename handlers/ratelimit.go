@@ -4,8 +4,10 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"math"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -58,6 +60,14 @@ func (rl *RateLimiter) cleanup() {
 // Allow checks whether the given key is within the rate limit. Returns true
 // if the request is allowed.
 func (rl *RateLimiter) Allow(key string) bool {
+	ok, _ := rl.AllowN(key, 1)
+	return ok
+}
+
+// AllowN counts n requests against the key at once (a batch ingest counts
+// each reading). When the key is over its limit it also returns how long
+// until the current window ends.
+func (rl *RateLimiter) AllowN(key string, n int) (bool, time.Duration) {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
@@ -68,39 +78,47 @@ func (rl *RateLimiter) Allow(key string) bool {
 
 	if !exists || now.After(entry.windowEnd) {
 		// New window
-		rl.entries[key] = &rateLimitEntry{
-			count:     1,
-			windowEnd: now.Add(rl.window),
-		}
-		return true
+		entry = &rateLimitEntry{windowEnd: now.Add(rl.window)}
+		rl.entries[key] = entry
 	}
 
-	entry.count++
-	return entry.count <= rl.limit
+	entry.count += n
+	if entry.count <= rl.limit {
+		return true, 0
+	}
+	return false, entry.windowEnd.Sub(now)
+}
+
+// ingestRateKey is the limiter key for an ingest request: the API key when
+// one is sent, otherwise the client IP. logKey is safe to log.
+func ingestRateKey(c *gin.Context) (key, logKey string) {
+	if apiKey := c.GetHeader("X-API-KEY"); apiKey != "" {
+		return "key:" + apiKey, "key:" + redactAPIKey(apiKey)
+	}
+	key = "ip:" + c.ClientIP()
+	return key, key
+}
+
+// abortRateLimited sends the 429 with a Retry-After header, so clients can
+// wait exactly as long as the window has left instead of guessing.
+func abortRateLimited(c *gin.Context, logKey string, retryAfter time.Duration) {
+	logger.Log.WithField("key", logKey).Warn("Rate limit exceeded")
+	c.Header("Retry-After", strconv.Itoa(int(math.Ceil(retryAfter.Seconds()))))
+	c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+		"error": T(c, "api_rate_limit_exceeded"),
+	})
 }
 
 // IngestRateLimitMiddleware returns a Gin middleware that rate-limits
 // inbound ingest requests. It reads the per-engine ingest limiter from
 // the RateLimiterService on the request context and keys on X-API-KEY
-// if present, otherwise on the client IP.
+// if present, otherwise on the client IP. A request counts once here; the
+// ingest handler counts the rest of a batch's readings after parsing it.
 func IngestRateLimitMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		rl := RateLimiterServiceFromContext(c).Ingest()
-
-		var key, logKey string
-		if apiKey := c.GetHeader("X-API-KEY"); apiKey != "" {
-			key = "key:" + apiKey
-			logKey = "key:" + redactAPIKey(apiKey)
-		} else {
-			key = "ip:" + c.ClientIP()
-			logKey = key
-		}
-
-		if !rl.Allow(key) {
-			logger.Log.WithField("key", logKey).Warn("Rate limit exceeded")
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-				"error": T(c, "api_rate_limit_exceeded"),
-			})
+		key, logKey := ingestRateKey(c)
+		if ok, retryAfter := RateLimiterServiceFromContext(c).Ingest().AllowN(key, 1); !ok {
+			abortRateLimited(c, logKey, retryAfter)
 			return
 		}
 

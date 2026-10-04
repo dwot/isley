@@ -605,6 +605,7 @@ api_failed_to_commit_tx: "Datenbanktransaktion konnte nicht abgeschlossen werden
 api_image_deleted: "Bild erfolgreich gelöscht"
 api_image_not_found: "Bild nicht gefunden"
 api_images_uploaded: "Bilder erfolgreich hochgeladen"
+api_ingest_batch_size: "Ein Stapel muss zwischen 1 und 100 Messwerte enthalten"
 api_indica_sativa_must_sum_100: "Indica und Sativa müssen zusammen 100 ergeben"
 api_internal_server_error: "Interner Serverfehler"
 api_invalid_file_type: "Ungültiger Dateityp; nur JPEG, PNG, GIF und WebP sind erlaubt"

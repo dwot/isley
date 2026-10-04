@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Sensor ingest accepts a JSON array of up to 100 readings per request. The batch is validated as a whole, stored with one timestamp, and each reading counts toward the ingest rate limit.
+- Ingest `429` responses include a `Retry-After` header.
+- The zone leaf temperature offset can be entered in °C or °F (still stored in °F).
+- Ingest accepts `celsius` and `fahrenheit` (any case) as temperature units and stores them as `°C` and `°F`.
 
 ### Changed
 
@@ -29,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 ### Fixed
+- Ingest no longer rejects a reading of exactly `0`.
+- VPD treated a temperature sensor with a lower-case `celsius` unit as Fahrenheit.
 
 ### Security
 

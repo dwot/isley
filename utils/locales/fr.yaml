@@ -603,6 +603,7 @@ api_failed_to_commit_tx: "Impossible de valider la transaction de base de donné
 api_image_deleted: "Image supprimée avec succès"
 api_image_not_found: "Image non trouvée"
 api_images_uploaded: "Images téléversées avec succès"
+api_ingest_batch_size: "Un lot doit contenir entre 1 et 100 relevés"
 api_indica_sativa_must_sum_100: "Indica et Sativa doivent totaliser 100"
 api_internal_server_error: "Erreur interne du serveur"
 api_invalid_file_type: "Type de fichier non valide ; seuls JPEG, PNG, GIF et WebP sont autorisés"

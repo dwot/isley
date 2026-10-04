@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 	"github.com/sirupsen/logrus"
 )
 
@@ -1046,19 +1047,138 @@ func ValidateServerAddress(address string) bool {
 	return validHostname(address)
 }
 
-// SensorDataPayload represents the expected structure of incoming sensor data
+// SensorDataPayload is one reading. Value is a pointer so binding:"required"
+// means "present": on a plain float64 it treated an exact 0 as missing and
+// rejected legitimate zero readings.
 type SensorDataPayload struct {
-	Source  string  `json:"source" binding:"required"`
-	Device  string  `json:"device" binding:"required"`
-	Type    string  `json:"type" binding:"required"`
-	Value   float64 `json:"value" binding:"required"`
-	Name    string  `json:"name"`
-	Unit    string  `json:"unit"`
-	ZoneID  *int    `json:"zone_id"`
-	NewZone string  `json:"new_zone"`
+	Source  string   `json:"source" binding:"required"`
+	Device  string   `json:"device" binding:"required"`
+	Type    string   `json:"type" binding:"required"`
+	Value   *float64 `json:"value" binding:"required"`
+	Name    string   `json:"name"`
+	Unit    string   `json:"unit"`
+	ZoneID  *int     `json:"zone_id"`
+	NewZone string   `json:"new_zone"`
 }
 
-// IngestSensorData handles the ingestion of sensor data from external sources
+const (
+	// maxIngestBatch caps the readings one request may carry.
+	maxIngestBatch = 100
+	// maxIngestBodyBytes bounds the body before parsing; a full batch with
+	// maximum-length names still fits.
+	maxIngestBodyBytes = 256 << 10
+)
+
+// parseIngestBody accepts one reading as a JSON object or several as a JSON
+// array, binding and validating each with the same rules. batch reports
+// which form was sent, since the response shape follows it.
+func parseIngestBody(body []byte) (payloads []SensorDataPayload, batch bool, err error) {
+	body = bytes.TrimSpace(body)
+	if len(body) == 0 || body[0] != '[' {
+		var p SensorDataPayload
+		if err := binding.JSON.BindBody(body, &p); err != nil {
+			return nil, false, err
+		}
+		return []SensorDataPayload{p}, false, nil
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(body, &items); err != nil {
+		return nil, true, err
+	}
+	payloads = make([]SensorDataPayload, len(items))
+	for i, item := range items {
+		if err := binding.JSON.BindBody(item, &payloads[i]); err != nil {
+			return nil, true, fmt.Errorf("reading %d: %w", i, err)
+		}
+	}
+	return payloads, true, nil
+}
+
+// validateIngestPayload applies the length and value checks to one reading
+// and fills in its defaults: the canonical unit and a generated name.
+func validateIngestPayload(p *SensorDataPayload) error {
+	for _, f := range []struct {
+		field, value string
+		max          int
+	}{
+		{"source", p.Source, utils.MaxSourceLength},
+		{"device", p.Device, utils.MaxDeviceLength},
+		{"type", p.Type, utils.MaxTypeLength},
+		{"name", p.Name, utils.MaxNameLength},
+		{"unit", p.Unit, utils.MaxUnitLength},
+		{"new_zone", p.NewZone, utils.MaxNameLength},
+	} {
+		if err := utils.ValidateStringLength(f.field, f.value, f.max); err != nil {
+			return err
+		}
+	}
+	// Validate sensor value is finite (reject NaN and Infinity)
+	if err := utils.ValidateFiniteFloat64("value", *p.Value); err != nil {
+		return err
+	}
+	p.Unit = utils.NormalizeUnit(p.Unit)
+	if p.Name == "" {
+		p.Name = fmt.Sprintf("%s (%s) %s", p.Source, p.Device, p.Type)
+	}
+	return nil
+}
+
+// resolveIngestSensor finds or creates the reading's zone (when new_zone is
+// given) and its sensor. On failure it returns a translation key.
+func resolveIngestSensor(db *sql.DB, store *config.Store, p SensorDataPayload) (int, string) {
+	fieldLogger := logger.Log.WithField("func", "resolveIngestSensor")
+
+	zoneID := p.ZoneID
+	if zoneID == nil && p.NewZone != "" {
+		// Try to find an existing zone with the given new_zone name first
+		if existingZoneID, err := GetZoneIDByName(db, p.NewZone); err == nil && existingZoneID != 0 {
+			zoneID = &existingZoneID
+		} else {
+			newID, err := CreateNewZone(db, store, p.NewZone)
+			if err != nil {
+				fieldLogger.WithError(err).Error("Failed to create new zone")
+				return 0, "api_zone_creation_failed"
+			}
+			zoneID = &newID
+		}
+	}
+
+	// findOrCreateSensor serializes the SELECT-then-INSERT to prevent
+	// concurrent ingests of an unknown sensor from each creating a
+	// duplicate row.
+	sensorID, err := findOrCreateSensor(db, p.Name, p.Source, p.Device, p.Type, zoneID, p.Unit)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Error upserting sensor")
+		return 0, "api_failed_to_create_sensor"
+	}
+	return sensorID, ""
+}
+
+// insertReadings stores the readings; a batch goes in one transaction so it
+// lands whole or not at all, with one timestamp for all of its readings.
+func insertReadings(db *sql.DB, sensorIDs []int, payloads []SensorDataPayload) error {
+	const insert = "INSERT INTO sensor_data (sensor_id, value) VALUES ($1, $2)"
+	if len(payloads) == 1 {
+		_, err := db.Exec(insert, sensorIDs[0], *payloads[0].Value)
+		return err
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	for i, p := range payloads {
+		if _, err := tx.Exec(insert, sensorIDs[i], *p.Value); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// IngestSensorData stores readings pushed by external devices. The body is
+// one reading (a JSON object) or a batch (a JSON array of up to
+// maxIngestBatch readings). A batch is validated as a whole before anything
+// is written, and each of its readings counts toward the ingest rate limit.
 func IngestSensorData(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "IngestSensorData")
 
@@ -1071,93 +1191,70 @@ func IngestSensorData(c *gin.Context) {
 		return
 	}
 
-	var payload SensorDataPayload
-	if err := c.ShouldBindJSON(&payload); err != nil {
+	body, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, maxIngestBodyBytes))
+	if err != nil {
 		fieldLogger.WithError(err).Error("Invalid payload")
 		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
-
-	// Validate string lengths
-	if err := utils.ValidateStringLength("source", payload.Source, utils.MaxSourceLength); err != nil {
-		apiBadRequest(c, err.Error())
+	payloads, batch, err := parseIngestBody(body)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Invalid payload")
+		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
-	if err := utils.ValidateStringLength("device", payload.Device, utils.MaxDeviceLength); err != nil {
-		apiBadRequest(c, err.Error())
-		return
-	}
-	if err := utils.ValidateStringLength("type", payload.Type, utils.MaxTypeLength); err != nil {
-		apiBadRequest(c, err.Error())
-		return
-	}
-	if err := utils.ValidateStringLength("name", payload.Name, utils.MaxNameLength); err != nil {
-		apiBadRequest(c, err.Error())
-		return
-	}
-	if err := utils.ValidateStringLength("unit", payload.Unit, utils.MaxUnitLength); err != nil {
-		apiBadRequest(c, err.Error())
-		return
-	}
-	if err := utils.ValidateStringLength("new_zone", payload.NewZone, utils.MaxNameLength); err != nil {
-		apiBadRequest(c, err.Error())
+	if len(payloads) == 0 || len(payloads) > maxIngestBatch {
+		apiBadRequest(c, "api_ingest_batch_size")
 		return
 	}
 
-	// Validate sensor value is finite (reject NaN and Infinity)
-	if err := utils.ValidateFiniteFloat64("value", payload.Value); err != nil {
-		apiBadRequest(c, err.Error())
-		return
-	}
-
-	// If no name is provided, generate one
-	if payload.Name == "" {
-		payload.Name = fmt.Sprintf("%s (%s) %s", payload.Source, payload.Device, payload.Type)
-	}
-
-	db := DBFromContext(c)
-
-	// Handle new zone creation if specified
-	if payload.ZoneID == nil && payload.NewZone != "" {
-		// Try to find an existing zone with the given new_zone name first
-		existingZoneID, err := GetZoneIDByName(db, payload.NewZone)
-
-		if err == nil && existingZoneID != 0 {
-			// If an existing zone is found, use its ID
-			payload.ZoneID = &existingZoneID
-		} else {
-			zoneID, err := CreateNewZone(db, store, payload.NewZone)
-			if err != nil {
-				fieldLogger.WithError(err).Error("Failed to create new zone")
-				apiInternalError(c, "api_zone_creation_failed")
-				return
-			}
-			payload.ZoneID = &zoneID
+	// The middleware counted the request as one reading; count the rest.
+	if extra := len(payloads) - 1; extra > 0 {
+		key, logKey := ingestRateKey(c)
+		if ok, retryAfter := RateLimiterServiceFromContext(c).Ingest().AllowN(key, extra); !ok {
+			abortRateLimited(c, logKey, retryAfter)
+			return
 		}
 	}
 
-	// Look up the sensor or create it. findOrCreateSensor serializes
-	// the SELECT-then-INSERT to prevent concurrent ingests of an
-	// unknown sensor from each creating a duplicate row.
-	sensorID, err := findOrCreateSensor(db, payload.Name, payload.Source, payload.Device, payload.Type, payload.ZoneID, payload.Unit)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error upserting sensor")
-		apiInternalError(c, "api_failed_to_create_sensor")
-		return
+	for i := range payloads {
+		if err := validateIngestPayload(&payloads[i]); err != nil {
+			msg := err.Error()
+			if batch {
+				msg = fmt.Sprintf("reading %d: %s", i, msg)
+			}
+			apiBadRequest(c, msg)
+			return
+		}
 	}
 
-	// Insert the sensor reading
-	_, err = db.Exec("INSERT INTO sensor_data (sensor_id, value) VALUES ($1, $2)",
-		sensorID, payload.Value)
-	if err != nil {
+	db := DBFromContext(c)
+	sensorIDs := make([]int, len(payloads))
+	for i, p := range payloads {
+		id, errKey := resolveIngestSensor(db, store, p)
+		if errKey != "" {
+			apiInternalError(c, errKey)
+			return
+		}
+		sensorIDs[i] = id
+	}
+
+	if err := insertReadings(db, sensorIDs, payloads); err != nil {
 		fieldLogger.WithError(err).Error("Error inserting sensor data")
 		apiInternalError(c, "api_failed_to_save_sensor_data")
 		return
 	}
 
+	if batch {
+		c.JSON(http.StatusOK, gin.H{
+			"message":    T(c, "api_sensor_data_ingested"),
+			"sensor_ids": sensorIDs,
+		})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"message":   T(c, "api_sensor_data_ingested"),
-		"sensor_id": sensorID,
+		"sensor_id": sensorIDs[0],
 	})
 }
 

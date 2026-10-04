@@ -880,8 +880,15 @@ color: #0d6efd; /* Primary color */
                     <hr>
                     <p class="text-muted small mb-2">VPD — leave offset blank to disable VPD for this zone.</p>
                     <div class="mb-3">
-                        <label for="editZoneLeafOffset" class="form-label">Leaf temp offset (°F)</label>
-                        <input type="number" class="form-control" id="editZoneLeafOffset" step="0.1" placeholder="e.g. -2 (leave blank to disable)">
+                        <label for="editZoneLeafOffset" class="form-label">Leaf temp offset</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="editZoneLeafOffset" step="0.1" placeholder="e.g. -2 (leave blank to disable)">
+                            <select class="form-select flex-grow-0 w-auto" id="editZoneLeafOffsetUnit" aria-label="Leaf temp offset unit">
+                                <option value="F">°F</option>
+                                <option value="C">°C</option>
+                            </select>
+                        </div>
+                        <div class="form-text">Leaf minus air temperature; negative when the leaves run cooler than the air.</div>
                     </div>
                     <div class="mb-3">
                         <label for="editZoneVpdTempSensor" class="form-label">VPD temperature sensor</label>
@@ -1273,6 +1280,47 @@ color: #0d6efd; /* Primary color */
         const zoneForm = document.getElementById("editZoneForm");
         const deleteZoneButton = document.getElementById("deleteZone");
 
+        // The leaf offset is stored in °F. It is a temperature difference, so
+        // converting it is a pure 5/9 scale with no 32 shift.
+        const offsetInput = document.getElementById("editZoneLeafOffset");
+        const offsetUnit = document.getElementById("editZoneLeafOffsetUnit");
+        const roundTenth = v => Math.round(v * 10) / 10;
+        const offsetForDisplay = f => offsetUnit.value === 'C' ? roundTenth(f * 5 / 9) : f;
+
+        // The unit last picked; else the one the zone's VPD temperature sensor
+        // reports, or failing that any temperature sensor in the zone.
+        function preferredOffsetUnit(zoneId, tempSensorId) {
+            let saved = null;
+            try { saved = localStorage.getItem('isley.leafOffsetUnit'); } catch (_) {}
+            if (saved === 'C' || saved === 'F') return saved;
+            const isC = u => /°C|celsius|^C$/i.test(u || '');
+            const isF = u => /°F|fahrenheit|^F$/i.test(u || '');
+            const all = window._vpdSensors || [];
+            const s = all.find(x => x.id === tempSensorId) ||
+                      all.find(x => x.zone_id === zoneId && (isC(x.unit) || isF(x.unit)));
+            return s && isC(s.unit) ? 'C' : 'F';
+        }
+
+        // The exact stored °F value is kept until the user types, so switching
+        // units back and forth never rounds a value nobody edited.
+        offsetInput.addEventListener('input', () => { delete offsetInput.dataset.offsetF; });
+        offsetUnit.addEventListener('change', () => {
+            if ('offsetF' in offsetInput.dataset) {
+                offsetInput.value = offsetForDisplay(parseFloat(offsetInput.dataset.offsetF));
+            } else if (offsetInput.value !== '') {
+                const v = parseFloat(offsetInput.value);
+                offsetInput.value = roundTenth(offsetUnit.value === 'C' ? v * 5 / 9 : v * 9 / 5);
+            }
+            try { localStorage.setItem('isley.leafOffsetUnit', offsetUnit.value); } catch (_) {}
+        });
+
+        function offsetForSave() {
+            if (offsetInput.value === '') return null;
+            if ('offsetF' in offsetInput.dataset) return parseFloat(offsetInput.dataset.offsetF);
+            const v = parseFloat(offsetInput.value);
+            return offsetUnit.value === 'C' ? Math.round(v * 9 / 5 * 100) / 100 : v;
+        }
+
         function populateVpdSensorSelect(selectEl, zoneId, selectedId) {
             const sensors = window._vpdSensors || [];
             selectEl.innerHTML = '<option value="">— none —</option>';
@@ -1295,8 +1343,14 @@ color: #0d6efd; /* Primary color */
                 document.getElementById("zoneId").value = zoneData.id;
                 document.getElementById("editZoneName").value = zoneData.name;
 
-                const offsetInput = document.getElementById("editZoneLeafOffset");
-                offsetInput.value = (zoneData.leaf_temp_offset != null) ? zoneData.leaf_temp_offset : '';
+                offsetUnit.value = preferredOffsetUnit(zoneData.id, zoneData.vpd_temp_sensor_id);
+                if (zoneData.leaf_temp_offset != null) {
+                    offsetInput.dataset.offsetF = zoneData.leaf_temp_offset;
+                    offsetInput.value = offsetForDisplay(zoneData.leaf_temp_offset);
+                } else {
+                    delete offsetInput.dataset.offsetF;
+                    offsetInput.value = '';
+                }
 
                 const tempSelect = document.getElementById("editZoneVpdTempSensor");
                 const humSelect  = document.getElementById("editZoneVpdHumSensor");
@@ -1310,13 +1364,12 @@ color: #0d6efd; /* Primary color */
         zoneForm.addEventListener("submit", (e) => {
             e.preventDefault();
             const zoneId = document.getElementById("zoneId").value;
-            const offsetRaw = document.getElementById("editZoneLeafOffset").value;
             const tempSensor = document.getElementById("editZoneVpdTempSensor").value;
             const humSensor  = document.getElementById("editZoneVpdHumSensor").value;
 
             const payload = {
                 zone_name:              document.getElementById("editZoneName").value,
-                leaf_temp_offset:       offsetRaw !== '' ? parseFloat(offsetRaw) : null,
+                leaf_temp_offset:       offsetForSave(),
                 vpd_temp_sensor_id:     tempSensor  !== '' ? parseInt(tempSensor,  10) : null,
                 vpd_humidity_sensor_id: humSensor   !== '' ? parseInt(humSensor,   10) : null,
             };
