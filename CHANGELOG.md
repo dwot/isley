@@ -32,13 +32,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in °F). (#239)
 - Ingest accepts `celsius` and `fahrenheit` (any case) as temperature units
   and stores them as `°C` and `°F`. (#239)
-
 - Smoke reports: record one or more tasting notes per harvested plant, with an
   overall 1–5 rating, a free-text description, an auto-computed cure duration
   and scores on user-configurable criteria (Settings › Customization). Strain
   pages show the average across harvests, using each plant's most recent report.
+  (#228, thanks @CrazyGrower)
+- Development data seeder: `go run ./cmd/seed` fills an empty database with
+  generated breeders, strains, plants, activity history and sensor readings.
+  (#238, thanks @platentgrows)
 
 ### Changed
+- Confirmation dialogs are standardised app-wide (consistent titles, button
+  labels and cancel/escape handling), with a `confirmDelete()` helper for
+  destructive actions. Missing translation keys referenced from JavaScript and
+  templates were added in all four locales, and a test now keeps the locales in
+  sync. The Settings page keeps its active tab and scroll position across
+  reloads, and breeders delete in place. (#237, thanks @platentgrows)
+- Go module and Docker builder image bumps: x/image 0.45.0, x/text 0.41.0,
+  x/crypto 0.55.0, testify 1.12.0, modernc.org/sqlite 1.56.0, golang 1.27.1.
 
 ### Deprecated
 
