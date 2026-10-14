@@ -2,6 +2,7 @@ package integration
 
 import (
 	"net/http"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -233,5 +234,56 @@ func TestSessionCSRF_ZoneCreate(t *testing.T) {
 		defer testutil.DrainAndClose(resp)
 		assert.Containsf(t, []int{http.StatusUnauthorized, http.StatusForbidden},
 			resp.StatusCode, "anonymous POST /zones must be rejected (got %d)", resp.StatusCode)
+	})
+}
+
+// TestSessionCSRF_SmokeReportCreate covers POST /plant/:plantID/smoke-reports
+// over the session path. The CSRF token comes from /plant/:id/edit, which is
+// the page the plant-detail JS reads it from.
+func TestSessionCSRF_SmokeReportCreate(t *testing.T) {
+	t.Parallel()
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db)
+
+	testutil.SeedAdmin(t, db, sessionCSRFPassword)
+	breederID := testutil.SeedBreeder(t, db, "Test Breeder")
+	strainID := testutil.SeedStrain(t, db, breederID, "Test Strain")
+	zoneID := testutil.SeedZone(t, db, "Test Zone")
+	plantID := testutil.SeedPlant(t, db, "Tasted Plant", strainID, zoneID)
+
+	// A smoke report is only accepted on a harvested plant.
+	testutil.MustExec(t, db,
+		`INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, $3)`,
+		plantID, statusIDByNameInt(t, db, "Curing"), "2026-06-01 12:00:00")
+
+	path := "/plant/" + strconv.Itoa(plantID) + "/smoke-reports"
+	c, token := server.LoginAndFetchCSRF(t, sessionCSRFPassword,
+		"/plant/"+strconv.Itoa(plantID)+"/edit")
+
+	body := map[string]interface{}{
+		"report_date": "2026-07-13",
+		"rating":      4,
+		"description": "Session-path smoke report.",
+	}
+
+	t.Run("cookie + valid token succeeds", func(t *testing.T) {
+		resp := c.SessionPostJSON(t, path, token, body)
+		defer testutil.DrainAndClose(resp)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
+	})
+
+	t.Run("cookie + missing token is rejected by CSRF", func(t *testing.T) {
+		resp := c.SessionPostJSON(t, path, "", body)
+		defer testutil.DrainAndClose(resp)
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode,
+			"missing X-CSRF-Token must be rejected by CSRF middleware")
+	})
+
+	t.Run("no cookie is rejected", func(t *testing.T) {
+		anon := server.NewClient(t)
+		resp := anon.SessionPostJSON(t, path, "", body)
+		defer testutil.DrainAndClose(resp)
+		assert.Containsf(t, []int{http.StatusUnauthorized, http.StatusForbidden},
+			resp.StatusCode, "anonymous POST %s must be rejected (got %d)", path, resp.StatusCode)
 	})
 }

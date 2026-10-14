@@ -386,6 +386,36 @@
             </div>
             {{ end }}
 
+            <!-- Smoke Reports (sidebar) -->
+            {{ if .smokeEligible }}
+            <div class="card plant-infobox mb-3 plant-section-card" id="smokeReportCard"
+                 data-plant-id="{{ .plant.ID }}"
+                 data-logged-in="{{ if .loggedIn }}true{{ else }}false{{ end }}">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h3 class="h6 card-title mb-0 text-primary">
+                            <i class="fa-solid fa-smoking me-1"></i> {{ .lcl.title_smoke_reports }}
+                            <span class="badge bg-secondary ms-1" id="smokeReportCount" style="font-size:0.7rem">0</span>
+                        </h3>
+                        {{ if and .loggedIn .smokeHarvested }}
+                        <button class="btn btn-sm btn-outline-success py-0 px-2" data-bs-toggle="modal"
+                                data-bs-target="#addSmokeReportModal" style="font-size:0.75rem">
+                            <i class="fa-solid fa-plus me-1"></i>{{ .lcl.title_add }}
+                        </button>
+                        {{ end }}
+                    </div>
+                    <div id="smokeReportList"></div>
+                    <div id="smokeReportEmpty" class="text-center text-muted py-2" style="display:none;">
+                        <small>{{ .lcl.smoke_report_empty }}</small>
+                    </div>
+                    <button class="btn btn-sm btn-link p-0 mt-2 text-decoration-none"
+                            type="button" id="smokeReportShowMore" style="display:none;">
+                        <i class="fa-solid fa-chevron-down me-1"></i>{{ .lcl.smoke_report_show_more }}
+                    </button>
+                </div>
+            </div>
+            {{ end }}
+
         </div>
     </div>
 </div>
@@ -398,6 +428,16 @@
 {{ template "modals/status-history-edit-modal.html" . }}
 {{ template "modals/measurement-edit-modal.html" . }}
 {{ template "modals/activity-edit-modal.html" . }}
+{{ if .smokeEligible }}
+{{ template "modals/add-smoke-report-modal.html" . }}
+{{ template "modals/smoke-report-edit-modal.html" . }}
+<!-- star-rating.js defines window.starRating, which the two modal scripts call
+     to read and prefill their star groups — it must load before them. -->
+<script src="/static/js/star-rating.js"></script>
+<script src="/static/js/smoke-report-list.js"></script>
+<script src="/static/js/add-smoke-report-modal.js"></script>
+<script src="/static/js/smoke-report-edit-modal.js"></script>
+{{ end }}
 
 <script nonce="{{ .cspNonce }}">
 document.addEventListener("DOMContentLoaded", () => {
@@ -628,18 +668,21 @@ document.addEventListener("DOMContentLoaded", () => {
     async function advanceToStatus(sid, name) {
         const isTerminal = /dead|success/i.test(name);
         if (isTerminal) {
-            const msg = `Are you sure you want to set status to ${name}?`;
-            if (window.uiMessages && typeof uiMessages.showConfirm === "function") {
-                const confirmed = await uiMessages.showConfirm(msg);
-                if (!confirmed) return;
-            } else if (!confirm(msg)) return;
+            const label = uiMessages.t(`${String(name).toLowerCase()}_label`, name);
+            const msg = uiMessages.t('confirm_set_status_to', 'Are you sure you want to set status to {status}?').replace('{status}', label);
+            const confirmed = await uiMessages.showConfirm(msg, {
+                title: uiMessages.t('change_status', 'Change Status'),
+                confirmText: uiMessages.t('confirm', 'Confirm'),
+                variant: /dead/i.test(name) ? 'danger' : 'primary',
+            });
+            if (!confirmed) return;
         }
         try {
             await window.postStatus(plantId, sid);
             location.reload();
         } catch (err) {
             console.error(err);
-            if (window.uiMessages) uiMessages.showToast("Failed to advance status", "danger");
+            if (window.uiMessages) uiMessages.showToast(uiMessages.t('failed_to_advance_status', 'Failed to advance status'), "danger");
         }
     }
 

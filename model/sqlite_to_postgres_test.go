@@ -713,6 +713,84 @@ func snapshotMigrationCounts(t *testing.T, pg *sql.DB) map[string]int {
 	return out
 }
 
+// TestMigrateSqliteToPostgres_SmokeReportTablesPostgres is the automated
+// counterpart to a check the reviewer of the smoke-report branch performed
+// by hand: the three smoke-report tables are the newest entries in
+// orderedTables and, until now, had no coverage of their own here — they
+// only ever appeared with zero rows via TestCopyTableData_ConflictKey's
+// full-table sweep. It seeds a SQLite source with a criterion beyond the
+// five migration-seeded defaults (so the copy has to move an actual row,
+// not just no-op on ON CONFLICT), a report, and a score, migrates into a
+// fresh Postgres, asserts every row arrived, and then asserts a follow-up
+// INSERT into each of the three tables picks an id past anything the
+// migration copied — i.e. copyTableData's setval call actually ran for all
+// three sequences, not just the ones TestMigrateSqliteToPostgres_EndToEnd
+// happens to exercise.
+func TestMigrateSqliteToPostgres_SmokeReportTablesPostgres(t *testing.T) {
+	t.Parallel()
+
+	path := freshSQLiteFile(t)
+	sqliteDB := openSQLiteFile(t, path)
+
+	mustExecSQL(t, sqliteDB, `INSERT INTO breeder (id, name) VALUES (1, 'Smoke Breeder')`)
+	mustExecSQL(t, sqliteDB, `INSERT INTO strain (id, name, sativa, indica, autoflower, description, seed_count, breeder_id)
+		VALUES (1, 'Smoke Strain', 50, 50, 0, '', 5, 1)`)
+	mustExecSQL(t, sqliteDB, `INSERT INTO plant (id, name, description, clone, strain_id, sensors)
+		VALUES (1, 'Smoke Plant', '', 0, 1, '[]')`)
+
+	// A criterion beyond the five migration-seeded defaults (both sides
+	// already agree on ids 1-5) so smoke_report_criterion's copy has to move
+	// a real row rather than no-op on ON CONFLICT.
+	mustExecSQL(t, sqliteDB, `INSERT INTO smoke_report_criterion (id, name, sort_order, active)
+		VALUES (6, 'Ash Color', 6, 1)`)
+	mustExecSQL(t, sqliteDB, `INSERT INTO smoke_report
+		(id, plant_id, report_date, consumption_method, rating, description)
+		VALUES (1, 1, '2026-05-01 10:00:00', 'joint', 4, 'Smooth burn')`)
+	mustExecSQL(t, sqliteDB, `INSERT INTO smoke_report_score (id, report_id, criterion_id, value)
+		VALUES (1, 1, 6, 5)`)
+
+	require.NoError(t, sqliteDB.Close())
+
+	pg := freshPostgresDB(t, true)
+
+	require.NoError(t, MigrateSqliteToPostgres(path, pg), "migration must succeed")
+
+	// The rows arrived.
+	var criterionName string
+	require.NoError(t, pg.QueryRow(`SELECT name FROM smoke_report_criterion WHERE id = 6`).Scan(&criterionName))
+	assert.Equal(t, "Ash Color", criterionName)
+
+	var reportDescription string
+	require.NoError(t, pg.QueryRow(`SELECT description FROM smoke_report WHERE id = 1`).Scan(&reportDescription))
+	assert.Equal(t, "Smooth burn", reportDescription)
+
+	var scoreValue int
+	require.NoError(t, pg.QueryRow(`SELECT value FROM smoke_report_score WHERE id = 1`).Scan(&scoreValue))
+	assert.Equal(t, 5, scoreValue)
+
+	// A subsequent INSERT into each of the three tables must not collide
+	// with the migrated ids.
+	var newCriterionID int
+	require.NoError(t, pg.QueryRow(
+		`INSERT INTO smoke_report_criterion (name, sort_order) VALUES ('Post-migration criterion', 99) RETURNING id`,
+	).Scan(&newCriterionID))
+	assert.Greater(t, newCriterionID, 6, "smoke_report_criterion sequence must advance past the migrated id")
+
+	var newReportID int
+	require.NoError(t, pg.QueryRow(
+		`INSERT INTO smoke_report (plant_id, report_date, consumption_method, rating, description)
+		 VALUES (1, '2026-05-02 10:00:00', 'bong', 3, 'post-migration') RETURNING id`,
+	).Scan(&newReportID))
+	assert.Greater(t, newReportID, 1, "smoke_report sequence must advance past the migrated id")
+
+	var newScoreID int
+	require.NoError(t, pg.QueryRow(
+		`INSERT INTO smoke_report_score (report_id, criterion_id, value) VALUES ($1, 6, 4) RETURNING id`,
+		newReportID,
+	).Scan(&newScoreID))
+	assert.Greater(t, newScoreID, 1, "smoke_report_score sequence must advance past the migrated id")
+}
+
 // TestMigrateSqliteToPostgres_BadPath asserts the function surfaces a
 // useful error when the SQLite source path doesn't resolve. We do not
 // test every error path inside copyTableData because they require

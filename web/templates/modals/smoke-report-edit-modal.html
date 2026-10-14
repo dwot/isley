@@ -1,0 +1,93 @@
+{{ define "modals/smoke-report-edit-modal.html" }}
+<!-- Smoke Report Edit Modal -->
+<div class="modal fade" id="editSmokeReportModal" tabindex="-1" aria-labelledby="editSmokeReportModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editSmokeReportModalLabel">{{ .lcl.edit_smoke_report }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editSmokeReportForm">
+                    <input type="hidden" id="editSmokeReportId">
+                    <div class="mb-3">
+                        <label for="editSmokeReportDate" class="form-label">{{ .lcl.smoke_report_date }}</label>
+                        <input type="date" class="form-control" id="editSmokeReportDate" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="editSmokeConsumptionMethod" class="form-label">{{ .lcl.smoke_consumption_method }}</label>
+                        <input type="text" class="form-control" id="editSmokeConsumptionMethod"
+                               list="editSmokeConsumptionOptions" maxlength="100">
+                        <datalist id="editSmokeConsumptionOptions">
+                            <option value="{{ .lcl.smoke_method_joint }}"></option>
+                            <option value="{{ .lcl.smoke_method_bong }}"></option>
+                            <option value="{{ .lcl.smoke_method_vaporizer }}"></option>
+                            <option value="{{ .lcl.smoke_method_pipe }}"></option>
+                        </datalist>
+                    </div>
+
+                    <hr>
+                    <p class="text-muted small mb-2">{{ $.lcl.smoke_criteria_hint }}</p>
+                    {{ range .smokeCriteria }}
+                    {{ if .Active }}
+                    <div class="mb-2 d-flex justify-content-between align-items-center edit-smoke-score-row"
+                         data-criterion-id="{{ .ID }}">
+                        <span class="form-label mb-0" id="editSmokeScoreLabel{{ .ID }}">{{ .Name }}</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="star-rating" id="editSmokeScore{{ .ID }}"
+                                 role="radiogroup" aria-labelledby="editSmokeScoreLabel{{ .ID }}">
+                                {{ $cid := .ID }}
+                                {{ range $v := $.smokeRatingScale }}
+                                <input type="radio" id="editSmokeScore{{ $cid }}_{{ $v }}"
+                                       name="editSmokeScore{{ $cid }}" value="{{ $v }}">
+                                <label for="editSmokeScore{{ $cid }}_{{ $v }}" data-star-value="{{ $v }}">
+                                    <i class="fa-solid fa-star" aria-hidden="true"></i>
+                                    <span class="visually-hidden">{{ $v }}</span>
+                                </label>
+                                {{ end }}
+                            </div>
+                            <button type="button" class="btn btn-sm btn-link p-0 star-clear"
+                                    data-star-target="editSmokeScore{{ .ID }}"
+                                    title="{{ $.lcl.smoke_score_clear }}"
+                                    aria-label="{{ $.lcl.smoke_score_clear }}">
+                                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {{ end }}
+                    {{ end }}
+
+                    <hr>
+                    <div class="mb-3">
+                        <span class="form-label" id="editSmokeRatingLabel">{{ .lcl.smoke_overall_rating }}</span>
+                        <div class="star-rating d-block" id="editSmokeRating"
+                             role="radiogroup" aria-labelledby="editSmokeRatingLabel">
+                            {{ range $v := .smokeRatingScale }}
+                            <input type="radio" id="editSmokeRating_{{ $v }}" name="editSmokeRating"
+                                   value="{{ $v }}" required>
+                            <label for="editSmokeRating_{{ $v }}" data-star-value="{{ $v }}">
+                                <i class="fa-solid fa-star fa-lg" aria-hidden="true"></i>
+                                <span class="visually-hidden">{{ $v }}</span>
+                            </label>
+                            {{ end }}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="editSmokeDescription" class="form-label">{{ .lcl.smoke_description }}</label>
+                        <textarea class="form-control" id="editSmokeDescription" rows="4" maxlength="5000"></textarea>
+                    </div>
+
+                    {{ if .loggedIn }}
+                    <div class="d-flex justify-content-between">
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
+                        <button type="button" class="btn btn-danger" id="deleteSmokeReportBtn"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_smoke_report }}</button>
+                    </div>
+                    {{ end }}
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{{ end }}

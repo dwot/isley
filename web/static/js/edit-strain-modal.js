@@ -166,7 +166,7 @@ document.addEventListener("DOMContentLoaded", () => {
     deleteStrainButton.addEventListener("click", () => {
         const strainId = document.getElementById("editStrainId").value;
 
-        uiMessages.showConfirm(uiMessages.t('confirm_delete_strain') || 'Are you sure you want to delete this strain?').then(confirmed => {
+        uiMessages.confirmDelete(uiMessages.t('confirm_delete_strain', 'Are you sure you want to delete this strain?'), uiMessages.t('delete_strain', 'Delete Strain')).then(confirmed => {
             if (!confirmed) return;
             fetch(`/strains/${strainId}`, { method: "DELETE" })
                 .then(response => {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsZeroDate(t *testing.T) {
@@ -84,4 +85,22 @@ func TestLayoutConstants_AreParseable(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestParseFlexibleDate_AcceptsUISubmittedFormats confirms the layout list
+// mirrors ValidateDate's: a date that passes validation must always be
+// parsable here too.
+func TestParseFlexibleDate_AcceptsUISubmittedFormats(t *testing.T) {
+	t.Parallel()
+
+	for _, in := range []string{"2026-08-12", "2026-08-12T14:30", "2026-08-12 14:30:00"} {
+		got, err := ParseFlexibleDate(in)
+		require.NoErrorf(t, err, "should parse %q", in)
+		assert.Equal(t, 2026, got.Year())
+		assert.Equal(t, time.August, got.Month())
+		assert.Equal(t, 12, got.Day())
+	}
+
+	_, err := ParseFlexibleDate("not a date")
+	assert.Error(t, err)
 }

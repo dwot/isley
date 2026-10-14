@@ -34,6 +34,17 @@ Thanks for your interest in contributing! This guide covers everything you need 
 
    The app starts on `http://localhost:8080`. Default login is `admin` / `isley`.
 
+   To populate an empty database with realistic development data (a zone,
+   generated breeders and strains, plants across the lifecycle with activity
+   history, and two sensors with 15 days of readings), run the seeder with the
+   same `ISLEY_DB_*` environment variables:
+
+   ```bash
+   go run ./cmd/seed
+   ```
+
+   It is a no-op if any plant already exists, so it will not touch a real database.
+
 4. **Run with PostgreSQL:**
 
    ```bash

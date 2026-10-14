@@ -70,7 +70,7 @@ document.addEventListener("DOMContentLoaded", () => {
     deleteActivityButton.addEventListener("click", () => {
         const activityId = document.getElementById("activityId").value;
 
-        uiMessages.showConfirm(uiMessages.t('confirm_delete_activity')).then(confirmed => {
+        uiMessages.confirmDelete(uiMessages.t('confirm_delete_activity', 'Are you sure you want to delete this activity?'), uiMessages.t('delete_activity', 'Delete Activity')).then(confirmed => {
             if (!confirmed) return;
             fetch(`/plantActivity/delete/${activityId}`, { method: "DELETE" })
                 .then(response => response.json())

@@ -17,7 +17,6 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -499,11 +498,11 @@ func (w *Watcher) computeZoneVPD(_ context.Context) {
 		}
 
 		// The offset is stored in °F as a temperature *delta*, so it always
-		// converts to a °C delta by *5/9 (no -32 — it is a difference, not an
+		// converts to a °C delta by *5/9 (no -32: it is a difference, not an
 		// absolute temperature). The air temperature is converted to °C only
-		// when the source sensor reports Fahrenheit (unit lacks "C").
+		// when the source sensor does not report Celsius.
 		airTempC := tempValue
-		if !strings.Contains(tempUnit, "C") {
+		if !utils.IsCelsius(tempUnit) {
 			airTempC = utils.FahrenheitToCelsius(tempValue)
 		}
 		leafOffsetC := z.LeafTempOffset * 5.0 / 9.0

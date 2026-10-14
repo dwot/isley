@@ -282,8 +282,12 @@ document.addEventListener("DOMContentLoaded", () => {
             // Only prompt for terminal statuses (e.g., 'dead', 'success'). For normal advances, proceed directly.
             if (isTerminal) {
                 const displayLabelForConfirm = localizeStatus(targetName);
-                const confirmMsg = (window.uiMessages && typeof uiMessages.t === 'function' && uiMessages.t('confirm_set_status_to')) ? uiMessages.t('confirm_set_status_to').replace('{status}', displayLabelForConfirm) : `Are you sure you want to set status to ${displayLabelForConfirm}?`;
-                const confirmed = await uiMessages.showConfirm(confirmMsg);
+                const confirmMsg = uiMessages.t('confirm_set_status_to', 'Are you sure you want to set status to {status}?').replace('{status}', displayLabelForConfirm);
+                const confirmed = await uiMessages.showConfirm(confirmMsg, {
+                    title: uiMessages.t('change_status', 'Change Status'),
+                    confirmText: uiMessages.t('confirm', 'Confirm'),
+                    variant: /dead/i.test(targetName) ? 'danger' : 'primary',
+                });
                 if (!confirmed) return;
             }
             

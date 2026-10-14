@@ -148,6 +148,16 @@ const (
 	// ACISuccessCode is the HTTP-level success code returned by the
 	// AC Infinity API (inside the JSON response body, not the HTTP status).
 	ACISuccessCode = 200
+	// SmokeRatingMin and SmokeRatingMax bound both the overall rating of a
+	// smoke report and each per-criterion score. The scale is fixed at 1–5
+	// across every criterion so scores stay comparable between harvests.
+	SmokeRatingMin = 1
+	SmokeRatingMax = 5
+	// MaxSmokeCriterionNameLength bounds a tasting criterion's label.
+	MaxSmokeCriterionNameLength = 50
+	// MaxConsumptionMethodLength bounds the free-text consumption method
+	// recorded on a smoke report (joint, bong, vaporizer…).
+	MaxConsumptionMethodLength = 100
 )
 
 // ---------------------------------------------------------------------------

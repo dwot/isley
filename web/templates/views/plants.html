@@ -73,7 +73,14 @@
                     <option value="day-desc">{{ .lcl.sort_newest_first }}</option>
                     <option value="day-asc">{{ .lcl.sort_oldest_first }}</option>
                     <option value="strain-asc">{{ .lcl.sort_strain_asc }}</option>
+                    <option value="strain-desc">{{ .lcl.sort_strain_desc }}</option>
+                    <option value="zone-asc">{{ .lcl.sort_zone_asc }}</option>
+                    <option value="zone-desc">{{ .lcl.sort_zone_desc }}</option>
+                    <option value="status-asc">{{ .lcl.sort_status_asc }}</option>
+                    <option value="status-desc">{{ .lcl.sort_status_desc }}</option>
                     <option value="water-desc">{{ .lcl.sort_needs_water }}</option>
+                    <option value="weight-desc">{{ .lcl.sort_weight_desc }}</option>
+                    <option value="weight-asc">{{ .lcl.sort_weight_asc }}</option>
                 </select>
             </div>
             <div class="plants-filter-group">
@@ -265,7 +272,29 @@ document.addEventListener("DOMContentLoaded", () => {
     let currentView = "living";
     let currentLayout = localStorage.getItem("plantsLayout") || "cards";
     let allPlants = [];
-    let tableSort = { key: null, asc: true };
+
+    // ----- Table header sort click -----
+    const sortableTable = new IsleySortableTable(sortBy, {
+        prefix: "pt",
+        headerToDropdown: {
+            name:   { asc: "name-asc",   desc: "name-desc" },
+            strain: { asc: "strain-asc", desc: "strain-desc" },
+            zone:   { asc: "zone-asc",   desc: "zone-desc" },
+            status: { asc: "status-asc", desc: "status-desc" },
+            // col1 is harvest weight in the harvested view, plant age otherwise
+            col1:   () => currentView === "harvested"
+                        ? { asc: "weight-asc", desc: "weight-desc" }
+                        : { asc: "day-asc",    desc: "day-desc" },
+            col2:   { asc: "day-asc", desc: "day-desc" },
+        },
+        dropdownToHeader: {
+            name: "name", strain: "strain", zone: "zone", status: "status", weight: "col1",
+            day: () => currentView === "harvested" ? "col2"
+                     : currentView === "dead"      ? "col1"
+                     : ["col1", "col2"],
+        },
+        onChange: applyFilters,
+    });
 
     // Set initial layout button state
     layoutButtons.forEach(b => {
@@ -292,6 +321,8 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             updateHeaders(view);
+            // updateHeaders rewrites the dynamic column labels, so redraw the sort arrows.
+            sortableTable.refreshIcons();
             populateFilters();
             applyFilters();
         } catch (e) {
@@ -366,10 +397,15 @@ document.addEventListener("DOMContentLoaded", () => {
             filterStatus.appendChild(opt);
         });
 
-        // Hide "Needs Water" sort option for non-living views
-        const waterSortOpt = sortBy.querySelector('option[value="water-desc"]');
-        if (waterSortOpt) waterSortOpt.style.display = currentView === "living" ? "" : "none";
-        if (currentView !== "living" && sortBy.value === "water-desc") sortBy.value = "name-asc";
+        // Hide sort options that only make sense in one view; fall back to Name A–Z if one is selected
+        const viewOnlySorts = { "water-desc": "living", "weight-desc": "harvested", "weight-asc": "harvested" };
+        Object.entries(viewOnlySorts).forEach(([value, view]) => {
+            const opt = sortBy.querySelector(`option[value="${value}"]`);
+            if (opt) opt.style.display = currentView === view ? "" : "none";
+        });
+        if (viewOnlySorts[sortBy.value] && viewOnlySorts[sortBy.value] !== currentView) {
+            sortableTable.resetToDefault("name-asc");
+        }
     }
 
     // ----- Filter + Sort -----
@@ -379,7 +415,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const zone = filterZone.value;
         const breeder = filterBreeder.value;
         const status = filterStatus.value;
-        const sort = sortBy.value;
 
         if (query) {
             data = data.filter(p =>
@@ -394,15 +429,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (status) data = data.filter(p => p.status === status);
 
         // Use table header sort if active, otherwise use dropdown
-        let sortKey, sortAsc;
-        if (tableSort.key) {
-            sortKey = tableSort.key;
-            sortAsc = tableSort.asc;
-        } else {
-            const [k, d] = sort.split("-");
-            sortKey = k;
-            sortAsc = d === "asc";
-        }
+        const { key: sortKey, asc: sortAsc } = sortableTable.getSort();
 
         data.sort((a, b) => {
             let va, vb;
@@ -412,7 +439,24 @@ document.addEventListener("DOMContentLoaded", () => {
                     vb = (b.name || "").toLowerCase();
                     return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
                 case "day":
+                    if (currentView === "harvested" || currentView === "dead") {   // harvest / dead date
+                        va = a.harvest_date || "";
+                        vb = b.harvest_date || "";
+                        return sortAsc ? (va < vb ? -1 : va > vb ? 1 : 0) : (vb < va ? -1 : vb > va ? 1 : 0);
+                    }
+                    va = a.current_day || 0;
+                    vb = b.current_day || 0;
+                    return sortAsc ? va - vb : vb - va;
+                case "weight":
+                    va = a.harvest_weight || 0;
+                    vb = b.harvest_weight || 0;
+                    return sortAsc ? va - vb : vb - va;
                 case "col1":
+                    if (currentView === "dead") {   // col1 is the dead date
+                        va = a.harvest_date || "";
+                        vb = b.harvest_date || "";
+                        return sortAsc ? (va < vb ? -1 : va > vb ? 1 : 0) : (vb < va ? -1 : vb > va ? 1 : 0);
+                    }
                     if (currentView === "harvested") {
                         va = a.harvest_weight || 0;
                         vb = b.harvest_weight || 0;
@@ -802,64 +846,18 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // ----- Table header sort click -----
-    document.querySelectorAll(".pt-sortable").forEach(th => {
-        th.style.cursor = "pointer";
-        th.addEventListener("click", () => {
-            const sortKey = th.dataset.sort;
-            if (tableSort.key === sortKey) {
-                tableSort.asc = !tableSort.asc;
-            } else {
-                tableSort.key = sortKey;
-                tableSort.asc = true;
-            }
-            // Update sort icons
-            document.querySelectorAll(".pt-sortable i").forEach(icon => {
-                icon.className = "fa-solid fa-sort ms-1 text-muted";
-            });
-            const icon = th.querySelector("i");
-            if (icon) icon.className = `fa-solid fa-sort-${tableSort.asc ? "up" : "down"} ms-1`;
-
-            // Also sync the dropdown sort value if there's a matching option
-            const mappedSort = {
-                "name": tableSort.asc ? "name-asc" : "name-desc",
-                "strain": tableSort.asc ? "strain-asc" : "strain-desc",
-                "zone": null,
-                "status": null,
-                "col1": tableSort.asc ? "day-asc" : "day-desc",
-                "col2": tableSort.asc ? "day-asc" : "day-desc",
-            }[sortKey];
-            if (mappedSort && sortBy.querySelector(`option[value="${mappedSort}"]`)) {
-                sortBy.value = mappedSort;
-            }
-            applyFilters();
-        });
-    });
-
     // ----- Event listeners -----
     searchInput.addEventListener("input", debounce(applyFilters, 200));
     filterZone.addEventListener("change", applyFilters);
     filterBreeder.addEventListener("change", applyFilters);
     filterStatus.addEventListener("change", applyFilters);
-    sortBy.addEventListener("change", () => {
-        // When dropdown sort is used, clear table header sort
-        tableSort = { key: null, asc: true };
-        document.querySelectorAll(".pt-sortable i").forEach(icon => {
-            icon.className = "fa-solid fa-sort ms-1 text-muted";
-        });
-        applyFilters();
-    });
 
     clearBtn.addEventListener("click", () => {
         searchInput.value = "";
         filterZone.value = "";
         filterBreeder.value = "";
         filterStatus.value = "";
-        sortBy.value = "name-asc";
-        tableSort = { key: null, asc: true };
-        document.querySelectorAll(".pt-sortable i").forEach(icon => {
-            icon.className = "fa-solid fa-sort ms-1 text-muted";
-        });
+        sortableTable.resetToDefault("name-asc");
         applyFilters();
     });
 
@@ -868,11 +866,7 @@ document.addEventListener("DOMContentLoaded", () => {
             currentView = btn.dataset.view;
             viewButtons.forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
-            // Reset table sort on view switch
-            tableSort = { key: null, asc: true };
-            document.querySelectorAll(".pt-sortable i").forEach(icon => {
-                icon.className = "fa-solid fa-sort ms-1 text-muted";
-            });
+            sortableTable.resetToDefault(); // no forced value — let the water-desc/view logic below decide
             fetchPlants(currentView);
         });
     });

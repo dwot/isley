@@ -30,24 +30,6 @@
 <!-- Toast container (for ui-messages.js) -->
 <div id="uiToastContainer" class="position-fixed bottom-0 end-0 p-3" style="z-index: 1080; pointer-events: none;"></div>
 
-<!-- Reusable confirmation modal -->
-<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="confirmModalLabel"></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="confirmModalBody"></div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" id="confirmModalCancel" data-bs-dismiss="modal"></button>
-                <button type="button" class="btn btn-danger" id="confirmModalConfirm"></button>
-            </div>
-        </div>
-    </div>
-</div>
-
-
 <!-- Bootstrap core JavaScript -->
 <script src="/static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <!-- UI messages helper (toasts + confirm modal + i18n fetch) -->

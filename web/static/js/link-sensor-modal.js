@@ -41,10 +41,12 @@ document.addEventListener("DOMContentLoaded", () => {
             const onHidden = () => {
                 linkModalEl.removeEventListener("hidden.bs.modal", onHidden);
 
-                const msg = uiMessages.t('confirm_unlink_all_sensors') || 'Unlink all sensors from this plant?';
-                const doUnlink = (window.uiMessages && typeof uiMessages.showConfirm === "function")
-                    ? uiMessages.showConfirm(msg)
-                    : Promise.resolve(confirm(msg));
+                const msg = uiMessages.t('confirm_unlink_all_sensors', 'Unlink all sensors from this plant?');
+                const doUnlink = uiMessages.showConfirm(msg, {
+                    title: uiMessages.t('unlink_all_sensors', 'Unlink All'),
+                    confirmText: uiMessages.t('unlink_all_sensors', 'Unlink All'),
+                    variant: 'danger',
+                });
 
                 doUnlink.then(confirmed => {
                     if (!confirmed) return;

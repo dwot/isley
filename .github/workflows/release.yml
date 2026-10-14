@@ -148,6 +148,12 @@ jobs:
   test-postgres:
     name: Test (Postgres)
     runs-on: ubuntu-latest
+    # This job only checks out and tests — it posts no comments and cuts no
+    # releases, so it needs nothing beyond read. Declared explicitly rather
+    # than relying on the repo-level default workflow permission, which is a
+    # setting that can be widened without touching this file.
+    permissions:
+      contents: read
     # docs/TEST_PLAN.md Phase 5: every dialect-branching path runs against
     # real PostgreSQL on every PR. Without this matrix the project's
     # second supported backend has only ever been exercised against a

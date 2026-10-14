@@ -244,7 +244,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function confirmDeleteImage() {
     const imageId = document.getElementById("imageId").value;
-    uiMessages.showConfirm(uiMessages.t('confirm_delete_image') || 'Are you sure you want to delete this image?').then(confirmed => {
+    uiMessages.confirmDelete(uiMessages.t('confirm_delete_image', 'Are you sure you want to delete this image?'), uiMessages.t('delete_image', 'Delete Image')).then(confirmed => {
         if (!confirmed) return;
         fetch(`/plant/images/${imageId}/delete`, {
             method: "DELETE",

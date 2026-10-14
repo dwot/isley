@@ -53,6 +53,11 @@ func TestBackup_RoundTrip(t *testing.T) {
 	zoneID := testutil.SeedZone(t, db, "Roundtrip Zone")
 	plantID := testutil.SeedPlant(t, db, "Roundtrip Plant", strainID, zoneID)
 
+	// Smoke-report rows across all three tables, so a missing registration
+	// in any backup table list is provable from the assertions below.
+	criterionID := testutil.SeedSmokeCriterion(t, db, "Roundtrip Axis", 42)
+	reportID := testutil.SeedSmokeReport(t, db, plantID, 4, map[int]int{criterionID: 3})
+
 	c := server.NewClient(t)
 
 	// 2. Trigger the backup. CreateBackup returns 202 immediately and
@@ -92,6 +97,9 @@ func TestBackup_RoundTrip(t *testing.T) {
 	//    first). The auth key (roundtrip-key) is left in place so the
 	//    follow-up requests still authenticate; the extra key is deleted
 	//    here and must be brought back by the restore.
+	testutil.MustExec(t, db, `DELETE FROM smoke_report_score`)
+	testutil.MustExec(t, db, `DELETE FROM smoke_report`)
+	testutil.MustExec(t, db, `DELETE FROM smoke_report_criterion`)
 	testutil.MustExec(t, db, `DELETE FROM plant`)
 	testutil.MustExec(t, db, `DELETE FROM strain`)
 	testutil.MustExec(t, db, `DELETE FROM breeder`)
@@ -137,6 +145,21 @@ func TestBackup_RoundTrip(t *testing.T) {
 	// The deleted extra api key must be restored from the archive.
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM api_keys WHERE prefix = $1`, extraKeyPrefix).Scan(&n))
 	assert.Equal(t, 1, n, "the extra api key should be restored from the backup")
+
+	// The three smoke-report tables must come back. A table missing from any
+	// of the ten registration points fails here and nowhere else: the feature
+	// keeps working, the archive is just silently incomplete.
+	require.NoError(t, db.QueryRow(
+		`SELECT COUNT(*) FROM smoke_report_criterion WHERE id = $1`, criterionID).Scan(&n))
+	assert.Equal(t, 1, n, "smoke_report_criterion should round-trip")
+
+	require.NoError(t, db.QueryRow(
+		`SELECT COUNT(*) FROM smoke_report WHERE id = $1`, reportID).Scan(&n))
+	assert.Equal(t, 1, n, "smoke_report should round-trip")
+
+	require.NoError(t, db.QueryRow(
+		`SELECT value FROM smoke_report_score WHERE report_id = $1`, reportID).Scan(&n))
+	assert.Equal(t, 3, n, "smoke_report_score should round-trip with its value intact")
 }
 
 // ---------------------------------------------------------------------------
