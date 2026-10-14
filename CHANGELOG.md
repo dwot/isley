@@ -21,6 +21,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [2.5.0] - 2026-10-14
+
+### Added
 - New sort options on the plants, strains and sensors pages: Z–A variants,
   Zone, Status and harvest weight (plants), Breeder Z–A (strains), Device,
   Unit and Visibility (sensors). (#240, thanks @platentgrows)
