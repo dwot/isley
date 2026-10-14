@@ -41,6 +41,7 @@ type Store struct {
 	timezone           string
 	cannadbEnabled     int
 	cannadbBaseURL     string
+	smokeCriteria      []types.SmokeReportCriterion
 }
 
 // Defaults mirrors the historical package-global initial values. Tests
@@ -391,4 +392,21 @@ func (s *Store) SetStreams(v []types.Stream) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.streams = append(s.streams[:0:0], v...)
+}
+
+// SmokeCriteria returns the configured smoke-report tasting criteria,
+// including archived ones. Callers that render the entry form should filter
+// on Active themselves.
+func (s *Store) SmokeCriteria() []types.SmokeReportCriterion {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]types.SmokeReportCriterion, len(s.smokeCriteria))
+	copy(out, s.smokeCriteria)
+	return out
+}
+
+func (s *Store) SetSmokeCriteria(v []types.SmokeReportCriterion) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.smokeCriteria = append(s.smokeCriteria[:0:0], v...)
 }

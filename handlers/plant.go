@@ -329,6 +329,9 @@ func DeletePlantById(db *sql.DB, id string) error {
 		{"plant_measurements", "DELETE FROM plant_measurements WHERE plant_id = $1"},
 		{"plant_activity", "DELETE FROM plant_activity WHERE plant_id = $1"},
 		{"plant_status_log", "DELETE FROM plant_status_log WHERE plant_id = $1"},
+		{"smoke_report_score", `DELETE FROM smoke_report_score WHERE report_id IN (
+			SELECT id FROM smoke_report WHERE plant_id = $1)`},
+		{"smoke_report", "DELETE FROM smoke_report WHERE plant_id = $1"},
 		{"plant", "DELETE FROM plant WHERE id = $1"},
 	}
 	for _, d := range deletes {

@@ -408,6 +408,46 @@ color: #0d6efd; /* Primary color */
                     </table>
                 </div>
             </div>
+
+            <!-- Smoke Report Criteria -->
+            <div class="card mb-4 shadow-sm card-table">
+                <div class="card-header bg-themed d-flex justify-content-between align-items-center">
+                    <div>
+                        <h2 class="h5 mb-0">&#127811; {{ .lcl.title_smoke_criteria }}</h2>
+                        <small class="text-muted">{{ .lcl.settings_smoke_criteria_desc }}</small>
+                    </div>
+                    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addSmokeCriterionModal">
+                        <i class="fa-solid fa-plus"></i> {{ .lcl.add_smoke_criterion }}
+                    </button>
+                </div>
+                <div class="card-body">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="bg-themed">
+                        <tr>
+                            <th>{{ .lcl.title_smoke_criterion }}</th>
+                            <th>{{ .lcl.smoke_criterion_order }}</th>
+                            <th>{{ .lcl.title_status }}</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {{ range .smokeCriteria }}
+                        <tr class="clickable-row smoke-criterion-row {{ if not .Active }}text-muted{{ end }}"
+                            data-criterion='{{ json . }}'>
+                            <td>{{ .Name }}</td>
+                            <td>{{ .SortOrder }}</td>
+                            <td>
+                                {{ if .Active }}
+                                    <span class="badge bg-success">{{ $.lcl.smoke_criterion_active }}</span>
+                                {{ else }}
+                                    <span class="badge bg-secondary">{{ $.lcl.smoke_criterion_archived }}</span>
+                                {{ end }}
+                            </td>
+                        </tr>
+                        {{ end }}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
 
         <!-- Appearance Tab -->
@@ -1139,6 +1179,62 @@ color: #0d6efd; /* Primary color */
                     </div>
                     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
                     <button type="button" class="btn btn-danger" id="deleteStream"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_stream }}</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Smoke Criterion Modal -->
+<div class="modal fade" id="addSmokeCriterionModal" tabindex="-1" aria-labelledby="addSmokeCriterionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addSmokeCriterionModalLabel">{{ .lcl.add_smoke_criterion }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addSmokeCriterionForm">
+                    <div class="mb-3">
+                        <label for="smokeCriterionName" class="form-label">{{ .lcl.smoke_criterion_name }}</label>
+                        <input type="text" class="form-control" id="smokeCriterionName" maxlength="50" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="smokeCriterionOrder" class="form-label">{{ .lcl.smoke_criterion_order }}</label>
+                        <input type="number" class="form-control" id="smokeCriterionOrder" value="0" min="0" step="1">
+                    </div>
+                    <button type="submit" class="btn btn-primary">{{ .lcl.add_smoke_criterion }}</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Smoke Criterion Modal -->
+<div class="modal fade" id="editSmokeCriterionModal" tabindex="-1" aria-labelledby="editSmokeCriterionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editSmokeCriterionModalLabel">{{ .lcl.edit_smoke_criterion }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ .lcl.title_close }}"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editSmokeCriterionForm">
+                    <input type="hidden" id="editSmokeCriterionId">
+                    <div class="mb-3">
+                        <label for="editSmokeCriterionName" class="form-label">{{ .lcl.smoke_criterion_name }}</label>
+                        <input type="text" class="form-control" id="editSmokeCriterionName" maxlength="50" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editSmokeCriterionOrder" class="form-label">{{ .lcl.smoke_criterion_order }}</label>
+                        <input type="number" class="form-control" id="editSmokeCriterionOrder" min="0" step="1">
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="editSmokeCriterionActive">
+                        <label class="form-check-label" for="editSmokeCriterionActive">{{ .lcl.smoke_criterion_active }}</label>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {{ .lcl.save_changes }}</button>
+                    <button type="button" class="btn btn-danger" id="deleteSmokeCriterionBtn"><i class="fa-solid fa-trash"></i> {{ .lcl.delete_smoke_criterion }}</button>
                 </form>
             </div>
         </div>
@@ -2709,6 +2805,8 @@ color: #0d6efd; /* Primary color */
     });
 
 </script>
+
+<script src="/static/js/smoke-criteria.js"></script>
 
 <!--Embed the footer.html template at this location-->
 {{ template "common/footer.html" .}}

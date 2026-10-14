@@ -45,6 +45,7 @@ Isley doesn't try to revolutionize your grow — it centralizes your tools so yo
 | 📷 | **Webcam Integration** | Capture periodic snapshots from camera streams via FFmpeg |
 | 🌱 | **Seed Inventory** | Manage strains, breeders, and seed stock with Indica/Sativa and autoflower tracking |
 | 📊 | **Harvest Tracking** | Record harvest dates, yields, and full cycle times |
+| 🌬️ | **Smoke Reports** | Rate each harvest after curing with configurable tasting criteria, and see a strain's average across harvests |
 | 📈 | **Graphs and Charts** | Visualize sensor data over time with configurable retention windows |
 | ⚙️ | **Customizable Settings** | Define custom zones, activities, metrics, and camera streams |
 | 🌍 | **Internationalization** | Available in English, German, Spanish, and French |

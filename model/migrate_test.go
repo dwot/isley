@@ -365,6 +365,27 @@ func TestRunStartupMaintenance_NoOpForSQLite(t *testing.T) {
 	require.NotPanics(t, func() { RunStartupMaintenance() })
 }
 
+func TestApplyMigrations_CreatesSmokeReportTables(t *testing.T) {
+	initTestLogger()
+	db := freshSQLite(t)
+	require.NoError(t, applySQLiteMigrations(t, db))
+
+	got := userTablesT(t, db)
+	gotSet := make(map[string]bool, len(got))
+	for _, n := range got {
+		gotSet[n] = true
+	}
+
+	for _, name := range []string{"smoke_report_criterion", "smoke_report", "smoke_report_score"} {
+		assert.Truef(t, gotSet[name], "expected table %q after migrations; got: %v", name, sortedCopy(got))
+	}
+
+	var n int
+	require.NoError(t, db.QueryRow(
+		`SELECT COUNT(*) FROM smoke_report_criterion WHERE active = 1`).Scan(&n))
+	assert.Equal(t, 5, n, "five criteria should be seeded and active")
+}
+
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------

@@ -165,3 +165,27 @@ func TestApplyBackupToDB_ResetsSequences_Postgres(t *testing.T) {
 	)
 	assert.Greaterf(t, newID, 1, "sequence must be reset past the imported MAX(id); got %d", newID)
 }
+
+// TestApplyBackupToDB_PreFeatureBackupPreservesSeededCriteriaPostgres is the
+// Postgres-dialect counterpart of
+// TestApplyBackupToDB_PreFeatureBackupPreservesSeededCriteria in
+// backup_archive_test.go (IMPORTANT 2 from the final whole-branch review).
+// samplePayloadForPostgres never sets SmokeCriteria, matching a backup
+// produced before the smoke-report feature existed, so this exercises the
+// tablesToTruncate guard against a real TRUNCATE TABLE ... CASCADE rather
+// than SQLite's DELETE FROM.
+func TestApplyBackupToDB_PreFeatureBackupPreservesSeededCriteriaPostgres(t *testing.T) {
+	t.Parallel()
+
+	dst := testutil.NewTestPostgresDB(t)
+
+	var before int
+	require.NoError(t, dst.QueryRow(`SELECT COUNT(*) FROM smoke_report_criterion`).Scan(&before))
+	require.Equal(t, 5, before, "fresh Postgres DB must start with the five migration-seeded criteria")
+
+	require.NoError(t, handlers.ApplyBackupToDB(context.Background(), dst, samplePayloadForPostgres()))
+
+	var after int
+	require.NoError(t, dst.QueryRow(`SELECT COUNT(*) FROM smoke_report_criterion`).Scan(&after))
+	assert.Equal(t, 5, after, "a payload with no smoke-report data must not empty the seeded criteria")
+}

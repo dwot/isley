@@ -61,6 +61,9 @@ type BackupPayload struct {
 	PlantActivity  []map[string]interface{} `json:"plant_activity"`
 	PlantImages    []map[string]interface{} `json:"plant_images"`
 	Streams        []map[string]interface{} `json:"streams"`
+	SmokeCriteria  []map[string]interface{} `json:"smoke_report_criterion"`
+	SmokeReports   []map[string]interface{} `json:"smoke_report"`
+	SmokeScores    []map[string]interface{} `json:"smoke_report_score"`
 }
 
 // BackupFileInfo is returned by the list endpoint.
@@ -595,6 +598,9 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 
 	// Tables in deletion order (children first) to satisfy FK constraints.
 	truncateOrder := []string{
+		"smoke_report_score",
+		"smoke_report",
+		"smoke_report_criterion",
 		"plant_activity",
 		"plant_measurements",
 		"plant_status_log",
@@ -640,6 +646,9 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 		{"plant_activity", payload.PlantActivity},
 		{"plant_images", payload.PlantImages},
 		{"streams", payload.Streams},
+		{"smoke_report_criterion", payload.SmokeCriteria},
+		{"smoke_report", payload.SmokeReports},
+		{"smoke_report_score", payload.SmokeScores},
 	}
 
 	// Count tables with data for progress tracking
@@ -713,7 +722,7 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 		}
 	}
 
-	for _, tbl := range truncateOrder {
+	for _, tbl := range tablesToTruncate(truncateOrder, insertOrder) {
 		var stmt string
 		if model.IsPostgres() {
 			stmt = fmt.Sprintf("TRUNCATE TABLE %s CASCADE", tbl)
@@ -820,6 +829,7 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 			"strain", "strain_lineage", "plant_status", "plant",
 			"plant_status_log", "metric", "plant_measurements",
 			"activity", "activity_metric", "plant_activity", "plant_images", "streams",
+			"smoke_report_criterion", "smoke_report", "smoke_report_score",
 		}
 		for _, tbl := range seqTables {
 			q := fmt.Sprintf(
@@ -934,6 +944,85 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+// seededTablesSafeToSkip is the explicit allow-list of tables that
+// tablesToTruncate may leave untouched when the payload carries no rows for
+// them. A table belongs here only if BOTH: (a) it is migration-seeded — a
+// fresh database already has default rows in it that a restore should not
+// destroy with nothing to put back — AND (b) it is newer than archives that
+// exist in the wild, i.e. an old backup's JSON can genuinely omit it rather
+// than legitimately describing it as emptied by the user.
+//
+// smoke_report_criterion is the only current member: it is the table whose
+// truncate-with-nothing-to-restore bug this map exists to fix (see below).
+// settings, plant_status, metric, activity, and api_keys are also
+// migration-seeded, but every archive ever written already contains them —
+// they don't need the allow-list and must not be added to it, because
+// putting them here would make "the user emptied this on purpose" and "this
+// archive predates the table" indistinguishable, which is exactly the
+// problem this map avoids.
+//
+// When you add a new migration-seeded table: if it is old enough that every
+// archive in the wild already contains it, leave it off this list — the
+// normal truncate-then-insert behaviour is correct and desired for it. Add
+// it here only if it is new enough that pre-existing archives can lack the
+// key entirely.
+var seededTablesSafeToSkip = map[string]bool{
+	"smoke_report_criterion": true,
+}
+
+// tablesToTruncate filters truncateOrder down to the tables that must
+// actually be truncated for this payload: every table EXCEPT one that is
+// both empty in the payload AND on the seededTablesSafeToSkip allow-list.
+// Shared by runRestore (this file) and ApplyBackupToDB (backup_archive.go)
+// — both build their own truncateOrder/insertOrder pair, and routing the
+// truncate loop in each through this one function is what keeps the two
+// from silently diverging.
+//
+// This used to skip truncation for ANY table with zero payload rows, which
+// is wrong: for a non-seeded table (plant, sensor_data, api_keys, ...), zero
+// rows in the payload is a legitimate statement — "the archive's owner had
+// none of this" — and a restore is supposed to replace the destination with
+// exactly what the archive describes, including emptying it out. The broad
+// version left the destination's old rows in place instead, which (a)
+// resurrected data the archive said was gone, cross-linked against
+// truncated-and-reinserted parent tables with different ids (a surviving
+// plant ending up pointed at the wrong, freshly-restored strain), (b) turned
+// the "skip sensor data import" option (payload.SensorData forced to nil at
+// call time) into "keep the old install's sensor data" instead of "restore
+// with none", and (c) cannot be made to hold on Postgres anyway:
+// truncateOrder's ordering exists to satisfy FK constraints
+// (children-before-parents), and TRUNCATE ... CASCADE on a parent removed
+// from the list still cascades into children that were meant to be skipped.
+// Narrowing the skip to an explicit, tiny allow-list keeps the one case it
+// was built for fixed without reintroducing any of that.
+//
+// The semantically ideal fix would distinguish "this table's JSON key is
+// absent" (old archive, predates the table) from "the key is present but
+// empty" (archive's owner truly had zero rows) and skip only the former.
+// That is not implemented: dumpTable (below) returns a nil slice for an
+// empty table, and both a nil slice and an "absent key" serialise to JSON
+// `null` — recovering the distinction would require dumpTable to always
+// return a non-nil (possibly empty) slice plus a schema/manifest change to
+// record which tables the archive's Isley version knew about. Left as a
+// follow-up; the allow-list is the pragmatic fix for the one table that
+// currently needs it.
+func tablesToTruncate(truncateOrder []string, insertOrder []struct {
+	name string
+	rows []map[string]interface{}
+}) []string {
+	hasRows := make(map[string]bool, len(insertOrder))
+	for _, t := range insertOrder {
+		hasRows[t.name] = len(t.rows) > 0
+	}
+	kept := make([]string, 0, len(truncateOrder))
+	for _, tbl := range truncateOrder {
+		if hasRows[tbl] || !seededTablesSafeToSkip[tbl] {
+			kept = append(kept, tbl)
+		}
+	}
+	return kept
+}
 
 // dumpTable runs SELECT * on the given table and returns every row as a
 // map[string]interface{}. Values are coerced to JSON-friendly types.
