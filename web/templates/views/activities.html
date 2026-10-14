@@ -111,8 +111,21 @@ document.addEventListener("DOMContentLoaded", () => {
     const exportCsv = document.getElementById("exportCsv");
     const exportXlsx = document.getElementById("exportXlsx");
 
+    // Table header sorting
+    const sortableTable = new IsleySortableTable(null, { prefix: "al", onChange: applyFilters });
+
+    clearBtn.addEventListener("click", () => {
+        searchInput.value = "";
+        filterPlant.value = "";
+        filterActivity.value = "";
+        filterZone.value = "";
+        filterFrom.value = "";
+        filterTo.value = "";
+        sortableTable.resetToDefault();
+        applyFilters();
+    });
+
     let allActivities = [];
-    let tableSort = { key: null, asc: true };
 
     // ----- Fetch activities -----
     async function fetchActivities() {
@@ -207,14 +220,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // Sort by table header or default to date descending
-        let sortKey, sortAsc;
-        if (tableSort.key) {
-            sortKey = tableSort.key;
-            sortAsc = tableSort.asc;
-        } else {
-            sortKey = "date";
-            sortAsc = false;
-        }
+        let { key: sortKey, asc: sortAsc } = sortableTable.getSort();
+        if (!sortKey) { sortKey = "date"; sortAsc = false; } // default when nothing's been clicked yet
 
         data.sort((a, b) => {
             let va, vb;
@@ -327,41 +334,6 @@ document.addEventListener("DOMContentLoaded", () => {
     filterZone.addEventListener("change", applyFilters);
     filterFrom.addEventListener("change", applyFilters);
     filterTo.addEventListener("change", applyFilters);
-
-    // Table header sorting
-    document.querySelectorAll(".al-sortable").forEach(th => {
-        th.style.cursor = "pointer";
-        th.addEventListener("click", () => {
-            const sortKey = th.dataset.sort;
-            if (tableSort.key === sortKey) {
-                tableSort.asc = !tableSort.asc;
-            } else {
-                tableSort.key = sortKey;
-                tableSort.asc = true;
-            }
-            // Update sort icons
-            document.querySelectorAll(".al-sortable i").forEach(icon => {
-                icon.className = "fa-solid fa-sort ms-1 text-muted";
-            });
-            const icon = th.querySelector("i");
-            if (icon) icon.className = `fa-solid fa-sort-${tableSort.asc ? "up" : "down"} ms-1`;
-            applyFilters();
-        });
-    });
-
-    clearBtn.addEventListener("click", () => {
-        searchInput.value = "";
-        filterPlant.value = "";
-        filterActivity.value = "";
-        filterZone.value = "";
-        filterFrom.value = "";
-        filterTo.value = "";
-        tableSort = { key: null, asc: true };
-        document.querySelectorAll(".al-sortable i").forEach(icon => {
-            icon.className = "fa-solid fa-sort ms-1 text-muted";
-        });
-        applyFilters();
-    });
 
     // ----- Initial load -----
     fetchActivities();

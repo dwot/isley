@@ -69,6 +69,7 @@
                     <option value="name-asc">{{ .lcl.sort_name_asc }}</option>
                     <option value="name-desc">{{ .lcl.sort_name_desc }}</option>
                     <option value="breeder-asc">{{ .lcl.sort_breeder_asc }}</option>
+                    <option value="breeder-desc">{{ .lcl.sort_breeder_desc }}</option>
                     <option value="indica-desc">{{ .lcl.sort_most_indica }}</option>
                     <option value="sativa-desc">{{ .lcl.sort_most_sativa }}</option>
                     <option value="seeds-desc">{{ .lcl.sort_most_seeds }}</option>
@@ -130,10 +131,22 @@ document.addEventListener("DOMContentLoaded", () => {
     const viewButtons = document.querySelectorAll(".view-button");
     const layoutButtons = document.querySelectorAll(".layout-toggle");
 
+    // ----- Table header sort click -----
+    const sortableTable = new IsleySortableTable(sortBy, {
+        prefix: "st",
+        headerToDropdown: {
+            name:    { asc: "name-asc", desc: "name-desc" },
+            breeder: { asc: "breeder-asc", desc: "breeder-desc" },
+            indica:  { asc: "sativa-desc", desc: "indica-desc" },
+            seeds:   { asc: "seeds-asc", desc: "seeds-desc" },
+        },
+        dropdownToHeader: { name: "name", breeder: "breeder", indica: "indica", seeds: "seeds" },
+        onChange: applyFilters,
+    });
+
     let currentView = "in-stock";
     let currentLayout = localStorage.getItem("strainsLayout") || "cards";
     let allStrains = [];
-    let tableSort = { key: null, asc: true };
 
     // Delegated click handler for strain table rows (replaces inline onclick)
     tableBody.addEventListener("click", (e) => {
@@ -182,7 +195,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const query = searchInput.value.toLowerCase().trim();
         const breeder = filterBreeder.value;
         const type = filterType.value;
-        const sort = sortBy.value;
 
         if (query) {
             data = data.filter(s =>
@@ -202,15 +214,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // Use table header sort if active, otherwise use dropdown
-        let key, asc;
-        if (tableSort.key) {
-            key = tableSort.key;
-            asc = tableSort.asc;
-        } else {
-            const [k, d] = sort.split("-");
-            key = k;
-            asc = d === "asc";
-        }
+        const { key, asc } = sortableTable.getSort();
         data.sort((a, b) => {
             let va, vb;
             switch (key) {
@@ -388,60 +392,16 @@ document.addEventListener("DOMContentLoaded", () => {
         return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
     }
 
-    // ----- Table header sort click -----
-    document.querySelectorAll(".st-sortable").forEach(th => {
-        th.style.cursor = "pointer";
-        th.addEventListener("click", () => {
-            const sortKey = th.dataset.sort;
-            if (tableSort.key === sortKey) {
-                tableSort.asc = !tableSort.asc;
-            } else {
-                tableSort.key = sortKey;
-                tableSort.asc = true;
-            }
-            // Update sort icons
-            document.querySelectorAll(".st-sortable i").forEach(icon => {
-                icon.className = "fa-solid fa-sort ms-1 text-muted";
-            });
-            const icon = th.querySelector("i");
-            if (icon) icon.className = `fa-solid fa-sort-${tableSort.asc ? "up" : "down"} ms-1`;
-
-            // Sync dropdown sort value if there's a matching option
-            const mappedSort = {
-                "name": tableSort.asc ? "name-asc" : "name-desc",
-                "breeder": tableSort.asc ? "breeder-asc" : null,
-                "indica": tableSort.asc ? null : "indica-desc",
-                "seeds": tableSort.asc ? "seeds-asc" : "seeds-desc",
-            }[sortKey];
-            if (mappedSort && sortBy.querySelector(`option[value="${mappedSort}"]`)) {
-                sortBy.value = mappedSort;
-            }
-            applyFilters();
-        });
-    });
-
     // ----- Event listeners -----
     searchInput.addEventListener("input", debounce(applyFilters, 200));
     filterBreeder.addEventListener("change", applyFilters);
     filterType.addEventListener("change", applyFilters);
-    sortBy.addEventListener("change", () => {
-        // When dropdown sort is used, clear table header sort
-        tableSort = { key: null, asc: true };
-        document.querySelectorAll(".st-sortable i").forEach(icon => {
-            icon.className = "fa-solid fa-sort ms-1 text-muted";
-        });
-        applyFilters();
-    });
 
     clearBtn.addEventListener("click", () => {
         searchInput.value = "";
         filterBreeder.value = "";
         filterType.value = "";
-        sortBy.value = "name-asc";
-        tableSort = { key: null, asc: true };
-        document.querySelectorAll(".st-sortable i").forEach(icon => {
-            icon.className = "fa-solid fa-sort ms-1 text-muted";
-        });
+        sortableTable.resetToDefault("name-asc");
         applyFilters();
     });
 
@@ -450,11 +410,7 @@ document.addEventListener("DOMContentLoaded", () => {
             currentView = btn.dataset.view;
             viewButtons.forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
-            // Reset table sort on view switch
-            tableSort = { key: null, asc: true };
-            document.querySelectorAll(".st-sortable i").forEach(icon => {
-                icon.className = "fa-solid fa-sort ms-1 text-muted";
-            });
+            sortableTable.resetToDefault();
             fetchStrains(currentView);
         });
     });

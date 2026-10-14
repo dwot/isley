@@ -66,8 +66,17 @@
                     <option value="name-asc">{{ .lcl.sort_name_asc }}</option>
                     <option value="name-desc">{{ .lcl.sort_name_desc }}</option>
                     <option value="zone-asc">{{ .lcl.sort_zone_asc }}</option>
+                    <option value="zone-desc">{{ .lcl.sort_zone_desc }}</option>
                     <option value="source-asc">{{ .lcl.sort_source_asc }}</option>
+                    <option value="source-desc">{{ .lcl.sort_source_desc }}</option>
+                    <option value="device-asc">{{ .lcl.sort_device_asc }}</option>
+                    <option value="device-desc">{{ .lcl.sort_device_desc }}</option>
                     <option value="type-asc">{{ .lcl.sort_type_asc }}</option>
+                    <option value="type-desc">{{ .lcl.sort_type_desc }}</option>
+                    <option value="unit-asc">{{ .lcl.sort_unit_asc }}</option>
+                    <option value="unit-desc">{{ .lcl.sort_unit_desc }}</option>
+                    <option value="visibility-asc">{{ .lcl.sort_visibility_asc }}</option>
+                    <option value="visibility-desc">{{ .lcl.sort_visibility_desc }}</option>
                     <option value="updated-desc">{{ .lcl.sort_recently_updated }}</option>
                 </select>
             </div>
@@ -293,8 +302,24 @@ document.addEventListener("DOMContentLoaded", () => {
     const clearBtn = document.getElementById("clearFilters");
     const resultCount = document.getElementById("resultCount");
 
+    // ----- Table header sort click -----
+    const sortableTable = new IsleySortableTable(sortBy, {
+        prefix: "sn",
+        headerToDropdown: {
+            name:       { asc: "name-asc",       desc: "name-desc" },
+            zone:       { asc: "zone-asc",       desc: "zone-desc" },
+            source:     { asc: "source-asc",     desc: "source-desc" },
+            device:     { asc: "device-asc",     desc: "device-desc" },
+            type:       { asc: "type-asc",       desc: "type-desc" },
+            unit:       { asc: "unit-asc",       desc: "unit-desc" },
+            visibility: { asc: "visibility-asc", desc: "visibility-desc" },
+        },
+        dropdownToHeader: { name: "name", zone: "zone", source: "source", device: "device",
+                            type: "type", unit: "unit", visibility: "visibility" },
+        onChange: applyFilters,
+    });
+
     let allSensors = [];
-    let tableSort = { key: null, asc: true };
 
     // Visibility label map (injected from server-side locale)
     const visLabels = {
@@ -349,7 +374,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const zone = filterZone.value;
         const source = filterSource.value;
         const visibility = filterVisibility.value;
-        const sort = sortBy.value;
 
         if (query) {
             data = data.filter(s =>
@@ -372,15 +396,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // Use table header sort if active, otherwise use dropdown
-        let key, asc;
-        if (tableSort.key) {
-            key = tableSort.key;
-            asc = tableSort.asc;
-        } else {
-            const [k, d] = sort.split("-");
-            key = k;
-            asc = d === "asc";
-        }
+        const { key, asc } = sortableTable.getSort();
 
         data.sort((a, b) => {
             let va, vb;
@@ -481,61 +497,18 @@ document.addEventListener("DOMContentLoaded", () => {
         return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
     }
 
-    // ----- Table header sort click -----
-    document.querySelectorAll(".sn-sortable").forEach(th => {
-        th.style.cursor = "pointer";
-        th.addEventListener("click", () => {
-            const sortKey = th.dataset.sort;
-            if (tableSort.key === sortKey) {
-                tableSort.asc = !tableSort.asc;
-            } else {
-                tableSort.key = sortKey;
-                tableSort.asc = true;
-            }
-            // Update sort icons
-            document.querySelectorAll(".sn-sortable i").forEach(icon => {
-                icon.className = "fa-solid fa-sort ms-1 text-muted";
-            });
-            const icon = th.querySelector("i");
-            if (icon) icon.className = `fa-solid fa-sort-${tableSort.asc ? "up" : "down"} ms-1`;
-
-            // Sync dropdown sort value if there's a matching option
-            const mappedSort = {
-                "name": tableSort.asc ? "name-asc" : "name-desc",
-                "zone": tableSort.asc ? "zone-asc" : null,
-                "source": tableSort.asc ? "source-asc" : null,
-                "type": tableSort.asc ? "type-asc" : null,
-            }[sortKey];
-            if (mappedSort && sortBy.querySelector(`option[value="${mappedSort}"]`)) {
-                sortBy.value = mappedSort;
-            }
-            applyFilters();
-        });
-    });
-
     // ----- Event listeners -----
     searchInput.addEventListener("input", debounce(applyFilters, 200));
     filterZone.addEventListener("change", applyFilters);
     filterSource.addEventListener("change", applyFilters);
     filterVisibility.addEventListener("change", applyFilters);
-    sortBy.addEventListener("change", () => {
-        tableSort = { key: null, asc: true };
-        document.querySelectorAll(".sn-sortable i").forEach(icon => {
-            icon.className = "fa-solid fa-sort ms-1 text-muted";
-        });
-        applyFilters();
-    });
 
     clearBtn.addEventListener("click", () => {
         searchInput.value = "";
         filterZone.value = "";
         filterSource.value = "";
         filterVisibility.value = "";
-        sortBy.value = "name-asc";
-        tableSort = { key: null, asc: true };
-        document.querySelectorAll(".sn-sortable i").forEach(icon => {
-            icon.className = "fa-solid fa-sort ms-1 text-muted";
-        });
+        sortableTable.resetToDefault("name-asc");
         applyFilters();
     });
 
