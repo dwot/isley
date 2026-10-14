@@ -1,5 +1,5 @@
 # BUILD PHASE
-FROM golang:1.26.5-alpine3.23 AS builder
+FROM golang:1.27.1-alpine3.23 AS builder
 WORKDIR /build
 
 COPY go.mod go.sum ./
