@@ -140,7 +140,7 @@ document.addEventListener("DOMContentLoaded", () => {
             indica:  { asc: "sativa-desc", desc: "indica-desc" },
             seeds:   { asc: "seeds-asc", desc: "seeds-desc" },
         },
-        dropdownToHeader: { name: "name", breeder: "breeder", indica: "indica", seeds: "seeds" },
+        dropdownToHeader: { name: "name", breeder: "breeder", indica: "indica", sativa: { key: "indica", invert: true }, seeds: "seeds" },
         onChange: applyFilters,
     });
 

@@ -65,6 +65,17 @@ class IsleySortableTable {
         this._syncIconsFromDropdown();
     }
 
+    /** Redraw the sort arrows without changing the current sort. Call after
+     *  code that rewrites header cell contents (e.g. per-view column relabels). */
+    refreshIcons() {
+        if (this.state.key) {
+            this._resetIcons();
+            this._setIcon(this.state.key, this.state.asc);
+        } else {
+            this._syncIconsFromDropdown();
+        }
+    }
+
     /* ---- private ---- */
 
     // A mapping entry may be a function, for pages whose columns change meaning per view.

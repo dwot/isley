@@ -321,6 +321,8 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             updateHeaders(view);
+            // updateHeaders rewrites the dynamic column labels, so redraw the sort arrows.
+            sortableTable.refreshIcons();
             populateFilters();
             applyFilters();
         } catch (e) {

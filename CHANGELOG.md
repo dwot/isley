@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- New sort options on the plants, strains and sensors pages: Z–A variants,
+  Zone, Status and harvest weight (plants), Breeder Z–A (strains), Device,
+  Unit and Visibility (sensors). (#240, thanks @platentgrows)
 
 ### Changed
 
@@ -29,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 ### Fixed
+- Column-header sorting and the "Sort by" dropdown now stay in sync on the
+  plants, strains, sensors and activities pages via a shared helper. (#240)
 
 ### Security
 
