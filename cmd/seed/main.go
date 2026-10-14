@@ -506,7 +506,7 @@ func seedSensorsAndData(db *sql.DB, zoneID int64) error {
 			definition.sensorType, // $4 type
 			zoneID,                // $5 zone_id
 			definition.unit,       // $6 unit
-			1,                     // $7 visibility
+			"zone_plant",          // $7 visibility
 		)
 		if err != nil {
 			return err
@@ -535,7 +535,7 @@ func seedSensorHistory(
 
 		value := definition.base +
 			definition.amp*dailyWave +
-			rand.NormFloat64()*definition.noise
+			rng.NormFloat64()*definition.noise
 
 		if err := insertSensorData(
 			db,
