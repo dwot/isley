@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"isley/config"
+	"isley/handlers"
 	"isley/model/types"
 	"isley/tests/testutil"
 )
@@ -202,6 +203,181 @@ func TestSensorIngest_RejectsNonFiniteValue(t *testing.T) {
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
 		"non-finite values must be rejected")
+}
+
+func TestSensorIngest_AcceptsZeroValue(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithAPIIngest(1)))
+	apiKey := seedSensorIngestKey(t, db)
+
+	c := server.NewClient(t)
+	// 0 is a real reading (a freezer, a light sensor at night). It used to be
+	// rejected because binding:"required" on a float64 treats 0 as missing.
+	resp := c.APIPostJSON(t, "/api/sensors/ingest", apiKey, map[string]interface{}{
+		"source": "src", "device": "D", "type": "temp", "value": 0,
+	})
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var v float64
+	require.NoError(t, db.QueryRow(`SELECT value FROM sensor_data`).Scan(&v))
+	assert.Zero(t, v)
+}
+
+func TestSensorIngest_RejectsMissingValue(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithAPIIngest(1)))
+	apiKey := seedSensorIngestKey(t, db)
+
+	c := server.NewClient(t)
+	resp := c.APIPostJSON(t, "/api/sensors/ingest", apiKey, map[string]interface{}{
+		"source": "src", "device": "D", "type": "temp",
+	})
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "an absent value is still required")
+}
+
+func TestSensorIngest_NormalizesUnit(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithAPIIngest(1)))
+	apiKey := seedSensorIngestKey(t, db)
+
+	c := server.NewClient(t)
+	// The words are the plain-text standard and are stored as the symbols;
+	// any other unit is stored exactly as sent.
+	cases := map[string]string{"celsius": "°C", "Fahrenheit": "°F", "°C": "°C", "PPM": "PPM", "lux": "lux"}
+	for unit, want := range cases {
+		resp := c.APIPostJSON(t, "/api/sensors/ingest", apiKey, map[string]interface{}{
+			"source": "src", "device": "D", "type": unit, "value": 1.0, "unit": unit,
+		})
+		resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode, unit)
+
+		var got string
+		require.NoError(t, db.QueryRow(`SELECT unit FROM sensors WHERE type = $1`, unit).Scan(&got))
+		assert.Equal(t, want, got, "unit %q", unit)
+	}
+}
+
+func TestSensorIngest_Batch(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithAPIIngest(1)))
+	apiKey := seedSensorIngestKey(t, db)
+
+	c := server.NewClient(t)
+	reading := func(kind string, v float64, unit string) map[string]interface{} {
+		return map[string]interface{}{
+			"source": "esp32", "device": "node-1", "type": kind, "value": v,
+			"unit": unit, "new_zone": "Tent B",
+		}
+	}
+	resp := c.APIPostJSON(t, "/api/sensors/ingest", apiKey, []map[string]interface{}{
+		reading("temperature", 24.7, "°C"),
+		reading("humidity", 58.2, "%"),
+		reading("co2", 612, "ppm"),
+	})
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var got struct {
+		SensorIDs []int `json:"sensor_ids"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
+	require.Len(t, got.SensorIDs, 3)
+	assert.NotEqual(t, got.SensorIDs[0], got.SensorIDs[1])
+	assert.NotEqual(t, got.SensorIDs[1], got.SensorIDs[2])
+
+	var readings, zones, linked int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM sensor_data`).Scan(&readings))
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM zones WHERE name = 'Tent B'`).Scan(&zones))
+	require.NoError(t, db.QueryRow(
+		`SELECT COUNT(*) FROM sensors s JOIN zones z ON z.id = s.zone_id WHERE z.name = 'Tent B'`,
+	).Scan(&linked))
+	assert.Equal(t, 3, readings)
+	assert.Equal(t, 1, zones, "the batch's zone is created once")
+	assert.Equal(t, 3, linked)
+}
+
+func TestSensorIngest_BatchIsAllOrNothing(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithAPIIngest(1)))
+	apiKey := seedSensorIngestKey(t, db)
+
+	c := server.NewClient(t)
+	valid := map[string]interface{}{"source": "src", "device": "D", "type": "temp", "value": 1.0}
+	invalid := []map[string]interface{}{
+		{"device": "D", "type": "humidity", "value": 2.0}, // fails binding: no source
+		{"source": "src", "device": "D", "type": "humidity", "value": 2.0,
+			"name": strings.Repeat("n", 300)}, // fails the length check after binding
+	}
+	for _, bad := range invalid {
+		resp := c.APIPostJSON(t, "/api/sensors/ingest", apiKey, []map[string]interface{}{valid, bad})
+		resp.Body.Close()
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	}
+
+	var readings, sensors int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM sensor_data`).Scan(&readings))
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM sensors`).Scan(&sensors))
+	assert.Zero(t, readings, "a batch with an invalid reading stores nothing")
+	assert.Zero(t, sensors)
+}
+
+func TestSensorIngest_BatchSizeLimits(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithAPIIngest(1)))
+	apiKey := seedSensorIngestKey(t, db)
+
+	c := server.NewClient(t)
+	tooMany := make([]map[string]interface{}, 61)
+	for i := range tooMany {
+		tooMany[i] = map[string]interface{}{"source": "src", "device": "D", "type": "t" + strconv.Itoa(i), "value": 1.0}
+	}
+	for name, body := range map[string]interface{}{"empty": []map[string]interface{}{}, "61 readings": tooMany} {
+		resp := c.APIPostJSON(t, "/api/sensors/ingest", apiKey, body)
+		resp.Body.Close()
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode, name)
+	}
+}
+
+func TestSensorIngest_BatchCountsEachReadingTowardRateLimit(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	limits := handlers.NewRateLimiterService(handlers.NewRateLimiter(3, time.Minute), nil)
+	server := testutil.NewTestServer(t, db,
+		testutil.WithConfigStore(storeWithAPIIngest(1)),
+		testutil.WithRateLimiterService(limits))
+	apiKey := seedSensorIngestKey(t, db)
+
+	c := server.NewClient(t)
+	batch := []map[string]interface{}{
+		{"source": "src", "device": "D", "type": "a", "value": 1.0},
+		{"source": "src", "device": "D", "type": "b", "value": 1.0},
+		{"source": "src", "device": "D", "type": "c", "value": 1.0},
+	}
+	resp := c.APIPostJSON(t, "/api/sensors/ingest", apiKey, batch)
+	resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode, "3 readings fit a limit of 3")
+
+	resp = c.APIPostJSON(t, "/api/sensors/ingest", apiKey, batch[0])
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusTooManyRequests, resp.StatusCode, "the batch used up the window")
+	retryAfter, err := strconv.Atoi(resp.Header.Get("Retry-After"))
+	require.NoError(t, err, "a 429 carries Retry-After in seconds")
+	assert.True(t, retryAfter >= 1 && retryAfter <= 60, "Retry-After %d", retryAfter)
 }
 
 // ---------------------------------------------------------------------------

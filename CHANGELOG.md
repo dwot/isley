@@ -24,6 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New sort options on the plants, strains and sensors pages: Z–A variants,
   Zone, Status and harvest weight (plants), Breeder Z–A (strains), Device,
   Unit and Visibility (sensors). (#240, thanks @platentgrows)
+- Sensor ingest accepts a JSON array of up to 60 readings per request. The
+  batch is validated as a whole, stored in one transaction, and each reading
+  counts toward the 60/min ingest rate limit. (#239, thanks @Rambomst)
+- Ingest `429` responses include a `Retry-After` header. (#239)
+- The zone leaf temperature offset can be entered in °C or °F (still stored
+  in °F). (#239)
+- Ingest accepts `celsius` and `fahrenheit` (any case) as temperature units
+  and stores them as `°C` and `°F`. (#239)
 
 ### Changed
 
@@ -34,6 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Column-header sorting and the "Sort by" dropdown now stay in sync on the
   plants, strains, sensors and activities pages via a shared helper. (#240)
+- Ingest no longer rejects a reading of exactly `0`. (#239)
+- VPD treated a temperature sensor with a lower-case `celsius` unit as
+  Fahrenheit. (#239)
+- A rejected ingest request no longer consumes rate-limit quota, so an
+  oversized batch cannot lock an API key out for the rest of the minute.
 
 ### Security
 

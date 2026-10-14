@@ -285,6 +285,31 @@ device's key doesn't disturb the others.
 }
 ```
 
+`source`, `device`, `type` and `value` are required; `value` may be `0`. A sensor is
+matched on `source` + `device` + `type`, so keep those stable and readings append to
+the same history. `name`, `unit` and the zone (`zone_id`, or `new_zone`, which finds
+or creates a zone by name) are applied when the sensor is first created.
+
+**Temperature units** can be sent as the symbols `°C` / `°F` or as the words
+`celsius` / `fahrenheit` (any case), which are stored as the symbols. Any other unit
+is stored exactly as sent.
+
+**Batches:** send a JSON array of up to 60 readings to store several in one request,
+for example everything a device measured in one cycle:
+
+```json
+[
+  { "source": "esp32", "device": "node-1", "type": "temperature", "value": 24.7, "unit": "celsius", "new_zone": "Tent 1" },
+  { "source": "esp32", "device": "node-1", "type": "humidity",    "value": 58.2, "unit": "%",       "new_zone": "Tent 1" },
+  { "source": "esp32", "device": "node-1", "type": "co2",         "value": 612,  "unit": "ppm",     "new_zone": "Tent 1" }
+]
+```
+
+A batch is validated as a whole before anything is stored (one bad reading rejects
+it with `400` and stores nothing), its readings share one timestamp, and the
+response lists `sensor_ids` in request order. Each reading counts toward the ingest
+rate limit of 60 per minute per key; a `429` carries a `Retry-After` header in seconds.
+
 > **Use this for:** Arduino/ESP32 sensors, Home Assistant, Node-RED, or any off-the-shelf sensor not natively supported by Isley.
 
 ### Overlay Endpoint
