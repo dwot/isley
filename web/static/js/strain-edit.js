@@ -171,13 +171,9 @@ document.addEventListener("DOMContentLoaded", () => {
                     });
             };
 
-            if (typeof uiMessages !== 'undefined' && uiMessages.showConfirm) {
-                uiMessages.showConfirm(uiMessages.t('confirm_delete_strain') || 'Are you sure you want to delete this strain?').then(confirmed => {
-                    if (confirmed) doDelete();
-                });
-            } else if (confirm('Are you sure you want to delete this strain?')) {
-                doDelete();
-            }
+            uiMessages.confirmDelete(uiMessages.t('confirm_delete_strain', 'Are you sure you want to delete this strain?'), uiMessages.t('delete_strain', 'Delete Strain')).then(confirmed => {
+                if (confirmed) doDelete();
+            });
         });
     }
 });

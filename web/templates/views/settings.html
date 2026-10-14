@@ -386,7 +386,7 @@ color: #0d6efd; /* Primary color */
                         </thead>
                         <tbody>
                         {{ range .breeders }}
-                        <tr class="clickable-row breeder-row" data-breeder='{{ json . }}'>
+                        <tr class="clickable-row breeder-row" data-breeder-id="{{ .ID }}" data-breeder='{{ json . }}'>
                             <td>{{ .Name }}</td>
                         </tr>
                         {{ end }}
@@ -1139,6 +1139,47 @@ color: #0d6efd; /* Primary color */
 </div>
 
 <script nonce="{{ .cspNonce }}">
+
+    // Add/edit/delete handlers on this page refresh by reloading. The page
+    // deliberately opens on the Settings tab on a normal visit, so a plain
+    // reload dropped you back there at the top (e.g. after deleting a breeder
+    // on the Tables tab). Remember the active tab and scroll position for the
+    // one reload that follows, then restore them and forget them.
+    const SETTINGS_RELOAD_KEY = 'settingsReloadState';
+
+    function reloadKeepingPlace() {
+        try {
+            const activeTab = document.querySelector('#settingsTabs .nav-link.active');
+            sessionStorage.setItem(SETTINGS_RELOAD_KEY, JSON.stringify({
+                tab: activeTab ? activeTab.getAttribute('data-bs-target') : null,
+                scrollY: window.scrollY,
+            }));
+        } catch (e) {
+            // Storage unavailable: fall back to a plain reload.
+        }
+        window.location.reload();
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        let state = null;
+        try {
+            state = JSON.parse(sessionStorage.getItem(SETTINGS_RELOAD_KEY) || 'null');
+            sessionStorage.removeItem(SETTINGS_RELOAD_KEY);
+        } catch (e) {
+            return;
+        }
+        if (!state) return;
+
+        const restoreScroll = () => window.scrollTo(0, state.scrollY || 0);
+        const tabBtn = state.tab ? document.querySelector(`#settingsTabs [data-bs-target="${state.tab}"]`) : null;
+        if (tabBtn && !tabBtn.classList.contains('active')) {
+            // Scroll once the tab pane has finished fading in and has height.
+            tabBtn.addEventListener('shown.bs.tab', restoreScroll, { once: true });
+            bootstrap.Tab.getOrCreateInstance(tabBtn).show();
+        } else {
+            restoreScroll();
+        }
+    });
     document.addEventListener("DOMContentLoaded", () => {
         const pollingSlider = document.getElementById("pollingInterval");
         const pollingValue = document.getElementById("pollingValue");
@@ -1215,7 +1256,7 @@ color: #0d6efd; /* Primary color */
                     // Success: Close modal and reload page
                     const modal = bootstrap.Modal.getInstance(document.getElementById("addStreamModal"));
                     modal.hide();
-                    window.location.reload(); // Refresh page to show updated data
+                    reloadKeepingPlace(); // Refresh page to show updated data
                 })
                 .catch((error) => {
                     console.error("Error:", error);
@@ -1259,7 +1300,7 @@ color: #0d6efd; /* Primary color */
                     // Success: Close modal and reload page
                     const modal = bootstrap.Modal.getInstance(document.getElementById("addZoneModal"));
                     modal.hide();
-                    window.location.reload(); // Refresh page to show updated data
+                    reloadKeepingPlace(); // Refresh page to show updated data
                 })
                 .catch((error) => {
                     console.error("Error:", error);
@@ -1327,18 +1368,18 @@ color: #0d6efd; /* Primary color */
                 body: JSON.stringify(payload),
             })
                 .then(response => response.json())
-                .then(() => location.reload())
+                .then(() => reloadKeepingPlace())
                 .catch(err => uiMessages.showToast(uiMessages.t('failed_to_update_zone'), 'danger'));
         });
 
         deleteZoneButton.addEventListener("click", () => {
             const zoneId = document.getElementById("zoneId").value;
 
-            uiMessages.showConfirm(uiMessages.t('delete_zone_confirm')).then(confirmed => {
+            uiMessages.confirmDelete(uiMessages.t('delete_zone_confirm'), uiMessages.t('delete_zone', 'Delete Zone')).then(confirmed => {
                 if (!confirmed) return;
                 fetch(`/zones/${zoneId}`, { method: "DELETE" })
                     .then(response => response.json())
-                    .then(() => location.reload())
+                    .then(() => reloadKeepingPlace())
                     .catch(err => uiMessages.showToast(uiMessages.t('failed_to_delete_zone'), 'danger'));
             });
         });
@@ -1529,7 +1570,7 @@ color: #0d6efd; /* Primary color */
                     // Success: Close modal and reload page
                     const modal = bootstrap.Modal.getInstance(document.getElementById("addActivityModal"));
                     modal.hide();
-                    window.location.reload(); // Refresh page to show updated data
+                    reloadKeepingPlace(); // Refresh page to show updated data
                 })
                 .catch((error) => {
                     console.error("Error:", error);
@@ -1601,18 +1642,18 @@ color: #0d6efd; /* Primary color */
                 body: JSON.stringify(payload),
             })
                 .then(response => response.json())
-                .then(() => location.reload())
+                .then(() => reloadKeepingPlace())
                 .catch(err => uiMessages.showToast(uiMessages.t('failed_to_update_activity'), 'danger'));
         });
 
         deleteActivityButton.addEventListener("click", () => {
             const activityId = document.getElementById("activityId").value;
 
-            uiMessages.showConfirm(uiMessages.t('delete_activity_confirm')).then(confirmed => {
+            uiMessages.confirmDelete(uiMessages.t('delete_activity_confirm'), uiMessages.t('delete_activity', 'Delete Activity')).then(confirmed => {
                 if (!confirmed) return;
                 fetch(`/activities/${activityId}`, { method: "DELETE" })
                     .then(response => response.json())
-                    .then(() => location.reload())
+                    .then(() => reloadKeepingPlace())
                     .catch(err => uiMessages.showToast(uiMessages.t('failed_to_delete_activity'), 'danger'));
             });
         });
@@ -1653,18 +1694,18 @@ color: #0d6efd; /* Primary color */
                 body: JSON.stringify(payload),
             })
                 .then(response => response.json())
-                .then(() => location.reload())
+                .then(() => reloadKeepingPlace())
                 .catch(err => uiMessages.showToast(uiMessages.t('failed_to_update_stream'), 'danger'));
         });
 
         deleteStreamButton.addEventListener("click", () => {
             const streamId = document.getElementById("streamId").value;
 
-            uiMessages.showConfirm(uiMessages.t('delete_stream_confirm')).then(confirmed => {
+            uiMessages.confirmDelete(uiMessages.t('delete_stream_confirm'), uiMessages.t('delete_stream', 'Delete Stream')).then(confirmed => {
                 if (!confirmed) return;
                 fetch(`/streams/${streamId}`, { method: "DELETE" })
                     .then(response => response.json())
-                    .then(() => location.reload())
+                    .then(() => reloadKeepingPlace())
                     .catch(err => uiMessages.showToast(uiMessages.t('failed_to_delete_stream'), 'danger'));
             });
         });
@@ -1706,7 +1747,7 @@ color: #0d6efd; /* Primary color */
                     // Success: Close modal and reload page
                     const modal = bootstrap.Modal.getInstance(document.getElementById("addMetricModal"));
                     modal.hide();
-                    window.location.reload(); // Refresh page to show updated data
+                    reloadKeepingPlace(); // Refresh page to show updated data
                 })
                 .catch((error) => {
                     console.error("Error:", error);
@@ -1746,18 +1787,18 @@ color: #0d6efd; /* Primary color */
                 body: JSON.stringify(payload),
             })
                 .then(response => response.json())
-                .then(() => location.reload())
+                .then(() => reloadKeepingPlace())
                 .catch(err => uiMessages.showToast(uiMessages.t('failed_to_update_metric'), 'danger'));
         });
 
         deleteMetricButton.addEventListener("click", () => {
             const metricId = document.getElementById("metricId").value;
 
-            uiMessages.showConfirm(uiMessages.t('delete_metric_confirm')).then(confirmed => {
+            uiMessages.confirmDelete(uiMessages.t('delete_metric_confirm'), uiMessages.t('delete_metric', 'Delete Metric')).then(confirmed => {
                 if (!confirmed) return;
                 fetch(`/metrics/${metricId}`, { method: "DELETE" })
                     .then(response => response.json())
-                    .then(() => location.reload())
+                    .then(() => reloadKeepingPlace())
                     .catch(err => uiMessages.showToast(uiMessages.t('failed_to_delete_metric'), 'danger'));
             });
         });
@@ -1797,7 +1838,7 @@ color: #0d6efd; /* Primary color */
                     // Success: Close modal and reload page
                     const modal = bootstrap.Modal.getInstance(document.getElementById("addBreederModal"));
                     modal.hide();
-                    window.location.reload(); // Refresh page to show updated data
+                    reloadKeepingPlace(); // Refresh page to show updated data
                 })
                 .catch((error) => {
                     console.error("Error:", error);
@@ -1835,19 +1876,30 @@ color: #0d6efd; /* Primary color */
                 body: JSON.stringify(payload),
             })
                 .then(response => response.json())
-                .then(() => location.reload())
+                .then(() => reloadKeepingPlace())
                 .catch(err => uiMessages.showToast(uiMessages.t('failed_to_update_breeder'), 'danger'));
         });
 
         deleteBreederButton.addEventListener("click", () => {
             const breederId = document.getElementById("breederId").value;
 
-            uiMessages.showConfirm(uiMessages.t('delete_breeder_confirm')).then(confirmed => {
+            uiMessages.confirmDelete(uiMessages.t('delete_breeder_confirm'), uiMessages.t('delete_breeder', 'Delete Breeder')).then(confirmed => {
                 if (!confirmed) return;
                 fetch(`/breeders/${breederId}`, { method: "DELETE" })
-                    .then(response => response.json())
-                    .then(() => location.reload())
-                    .catch(err => uiMessages.showToast(uiMessages.t('failed_to_delete_breeder'), 'danger'));
+                    .then(async response => {
+                        const data = await response.json().catch(() => ({}));
+                        if (!response.ok) throw new Error(data.error || '');
+                        return data;
+                    })
+                    .then(data => {
+                        // Remove the row in place; no reload, so the active tab
+                        // and scroll position are untouched.
+                        const row = document.querySelector(`.breeder-row[data-breeder-id="${breederId}"]`);
+                        if (row) row.remove();
+                        editBreederModal.hide();
+                        uiMessages.showToast(data.message || uiMessages.t('api_breeder_deleted', 'Breeder deleted'), 'success');
+                    })
+                    .catch(err => uiMessages.showToast(err.message || uiMessages.t('failed_to_delete_breeder', 'Failed to delete breeder. Please try again.'), 'danger'));
             });
         });
     });
@@ -1886,7 +1938,7 @@ color: #0d6efd; /* Primary color */
                     .then((response) => {
                         if (response.ok) {
                             uiMessages.showToast(uiMessages.t('logo_uploaded_successfully') || 'Logo uploaded', 'success');
-                            location.reload();
+                            reloadKeepingPlace();
                         } else {
                             uiMessages.showToast(uiMessages.t('error_uploading_logo') || 'Error uploading logo', 'danger');
                         }
@@ -2047,8 +2099,12 @@ color: #0d6efd; /* Primary color */
     }
 
     function regenerateAPIKey(id, name) {
-        const msg = uiMessages.t('api_key_regenerate_confirm') || 'Regenerate this key? The current value will stop working immediately.';
-        uiMessages.showConfirm(name ? (msg + ' (' + name + ')') : msg).then(confirmed => {
+        const msg = uiMessages.t('api_key_regenerate_confirm', 'Regenerate this key? The current value will stop working immediately.');
+        uiMessages.showConfirm(name ? (msg + ' (' + name + ')') : msg, {
+            title: uiMessages.t('settings_regenerate_key', 'Regenerate API Key'),
+            confirmText: uiMessages.t('api_key_regenerate', 'Regenerate'),
+            variant: 'danger',
+        }).then(confirmed => {
             if (!confirmed) return;
             fetch('/settings/api-keys/' + encodeURIComponent(id) + '/regenerate', { method: 'POST' })
                 .then(r => r.json().then(data => ({ ok: r.ok, data })))
@@ -2065,8 +2121,12 @@ color: #0d6efd; /* Primary color */
     }
 
     function revokeAPIKey(id, name) {
-        const msg = uiMessages.t('api_key_revoke_confirm') || 'Revoke this key? Any system using it will be locked out immediately.';
-        uiMessages.showConfirm(name ? (msg + ' (' + name + ')') : msg).then(confirmed => {
+        const msg = uiMessages.t('api_key_revoke_confirm', 'Revoke this key? Any system using it will be locked out immediately.');
+        uiMessages.showConfirm(name ? (msg + ' (' + name + ')') : msg, {
+            title: uiMessages.t('api_key_revoke', 'Revoke'),
+            confirmText: uiMessages.t('api_key_revoke', 'Revoke'),
+            variant: 'danger',
+        }).then(confirmed => {
             if (!confirmed) return;
             fetch('/settings/api-keys/' + encodeURIComponent(id), { method: 'DELETE' })
                 .then(r => r.json().then(data => ({ ok: r.ok, data })))
@@ -2302,9 +2362,12 @@ color: #0d6efd; /* Primary color */
 
                 // Wire delete buttons
                 document.querySelectorAll(".backup-delete-btn").forEach(btn => {
-                    btn.addEventListener("click", () => {
+                    btn.addEventListener("click", async () => {
                         const name = btn.dataset.name;
-                        if (!confirm("Delete backup " + name + "?")) return;
+                        const ok = await uiMessages.confirmDelete(
+                            uiMessages.t('confirm_delete_backup', 'Delete backup {name}?').replace('{name}', name),
+                            uiMessages.t('delete_backup', 'Delete Backup'));
+                        if (!ok) return;
                         fetch("/settings/backup/" + encodeURIComponent(name), { method: "DELETE" })
                         .then(() => loadBackupList());
                     });
@@ -2376,9 +2439,14 @@ color: #0d6efd; /* Primary color */
         const progressBar = document.getElementById("restoreProgressBar");
         const detailText = document.getElementById("restoreDetailText");
 
-        importBtn.addEventListener("click", () => {
+        importBtn.addEventListener("click", async () => {
             if (!selectedFile) return;
-            if (!confirm(bkT.confirmRestore)) return;
+            const ok = await uiMessages.showConfirm(bkT.confirmRestore, {
+                title: uiMessages.t('backup_restore_title', 'Restore Backup'),
+                confirmText: uiMessages.t('backup_restore_btn', 'Restore Backup'),
+                variant: 'danger',
+            });
+            if (!ok) return;
 
             const formData = new FormData();
             formData.append("backup", selectedFile);
@@ -2475,7 +2543,7 @@ color: #0d6efd; /* Primary color */
                         result.innerHTML = '<div class="alert alert-success mb-0"><strong>' +
                             bkT.restoreComplete + '</strong>' + (status.tables || 0) + bkT.tablesFilesRestored +
                             (status.files || 0) + bkT.filesRestored + '</div>';
-                        setTimeout(() => location.reload(), 2000);
+                        setTimeout(() => reloadKeepingPlace(), 2000);
                     } else {
                         progress.style.display = "none";
                         result.style.display = "block";
@@ -2540,9 +2608,14 @@ color: #0d6efd; /* Primary color */
                 sqliteResult.style.display = "none";
             });
 
-            uploadSqliteBtn.addEventListener("click", () => {
+            uploadSqliteBtn.addEventListener("click", async () => {
                 if (!selectedSqliteFile) return;
-                if (!confirm(bkT.confirmSqliteReplace)) return;
+                const ok = await uiMessages.showConfirm(bkT.confirmSqliteReplace, {
+                    title: uiMessages.t('replace_database', 'Replace Database'),
+                    confirmText: uiMessages.t('replace_database', 'Replace Database'),
+                    variant: 'danger',
+                });
+                if (!ok) return;
 
                 const formData = new FormData();
                 formData.append("database", selectedSqliteFile);

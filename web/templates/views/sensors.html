@@ -560,7 +560,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Delete sensor
     deleteButton.addEventListener("click", () => {
-        uiMessages.showConfirm(uiMessages.t('confirm_delete_sensor') || '{{ .lcl.confirm_delete_sensor }}').then(confirmed => {
+        uiMessages.confirmDelete(uiMessages.t('confirm_delete_sensor', '{{ .lcl.confirm_delete_sensor }}'), uiMessages.t('delete_sensor', '{{ .lcl.delete_sensor }}')).then(confirmed => {
             if (!confirmed) return;
             const spinner = document.getElementById('deleteSpinner');
             const saveBtn = sensorForm.querySelector('button[type="submit"]');
@@ -688,7 +688,7 @@ document.addEventListener("DOMContentLoaded", () => {
             server_address: serverAddress,
         };
         if (!currentScanEndpoint) {
-            uiMessages.showToast(uiMessages.t('no_scan_endppoint') || '{{ .lcl.no_scan_endppoint }}', 'warning');
+            uiMessages.showToast(uiMessages.t('no_scan_endpoint', '{{ .lcl.no_scan_endpoint }}'), 'warning');
             return;
         }
         fetch(currentScanEndpoint, {

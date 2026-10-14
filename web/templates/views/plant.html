@@ -628,18 +628,21 @@ document.addEventListener("DOMContentLoaded", () => {
     async function advanceToStatus(sid, name) {
         const isTerminal = /dead|success/i.test(name);
         if (isTerminal) {
-            const msg = `Are you sure you want to set status to ${name}?`;
-            if (window.uiMessages && typeof uiMessages.showConfirm === "function") {
-                const confirmed = await uiMessages.showConfirm(msg);
-                if (!confirmed) return;
-            } else if (!confirm(msg)) return;
+            const label = uiMessages.t(`${String(name).toLowerCase()}_label`, name);
+            const msg = uiMessages.t('confirm_set_status_to', 'Are you sure you want to set status to {status}?').replace('{status}', label);
+            const confirmed = await uiMessages.showConfirm(msg, {
+                title: uiMessages.t('change_status', 'Change Status'),
+                confirmText: uiMessages.t('confirm', 'Confirm'),
+                variant: /dead/i.test(name) ? 'danger' : 'primary',
+            });
+            if (!confirmed) return;
         }
         try {
             await window.postStatus(plantId, sid);
             location.reload();
         } catch (err) {
             console.error(err);
-            if (window.uiMessages) uiMessages.showToast("Failed to advance status", "danger");
+            if (window.uiMessages) uiMessages.showToast(uiMessages.t('failed_to_advance_status', 'Failed to advance status'), "danger");
         }
     }
 

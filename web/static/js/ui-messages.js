@@ -1,8 +1,13 @@
 // ui-messages.js
 // Lightweight UI messaging helper used across templates. Provides:
-// - uiMessages.t(key) -> returns translation if loaded, otherwise key
+// - uiMessages.t(key, fallback) -> translation if loaded, else fallback, else key
+// - uiMessages.has(key) -> true if a translation for key is loaded
 // - uiMessages.showToast(message, level)
-// - uiMessages.showConfirm(message) -> Promise<boolean>
+// - uiMessages.confirmDelete(message, title) -> showConfirm with danger "Delete" button
+// - uiMessages.showConfirm(message, opts) -> Promise<boolean>
+//     opts: { title, confirmText, cancelText, variant }
+//     Resolves true only when the confirm button is clicked; any other
+//     dismissal (cancel, X, Esc, backdrop) resolves false.
 
 (() => {
     const translations = {};
@@ -27,9 +32,16 @@
         }
     }
 
-    function t(key) {
+    function has(key) {
+        return !!key && Object.prototype.hasOwnProperty.call(translations, key) && !!translations[key];
+    }
+
+    // Returns the translation for key. When the key is missing (or translations
+    // have not loaded) returns `fallback` if given, otherwise the key itself.
+    function t(key, fallback) {
         if (!key) return '';
-        return translations[key] || key;
+        if (has(key)) return translations[key];
+        return (fallback !== undefined) ? fallback : key;
     }
 
     function showToast(message, level = 'info', opts = {}) {
@@ -80,55 +92,100 @@
         return container;
     }
 
-    function showConfirm(message) {
-        return new Promise((resolve) => {
-            // Create a modal-like confirm using bootstrap modal markup
-            const modalId = 'uiConfirmModal';
-            let modalEl = document.getElementById(modalId);
-            if (!modalEl) {
-                modalEl = document.createElement('div');
-                modalEl.id = modalId;
-                modalEl.className = 'modal fade';
-                modalEl.tabIndex = -1;
-                modalEl.innerHTML = `
-                <div class="modal-dialog modal-dialog-centered">
-                  <div class="modal-content">
-                    <div class="modal-header">
-                      <h5 class="modal-title">${t('confirm') || 'Confirm'}</h5>
-                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                      <p id="uiConfirmMessage"></p>
-                    </div>
-                    <div class="modal-footer">
-                      <button type="button" class="btn btn-secondary" id="uiConfirmCancel">${t('cancel') || 'Cancel'}</button>
-                      <button type="button" class="btn btn-primary" id="uiConfirmOk">${t('ok') || 'OK'}</button>
-                    </div>
-                  </div>
-                </div>
-                `;
-                document.body.appendChild(modalEl);
+    let pendingConfirmResolve = null;
+
+    function ensureConfirmModal() {
+        const modalId = 'uiConfirmModal';
+        let modalEl = document.getElementById(modalId);
+        if (modalEl) return modalEl;
+        modalEl = document.createElement('div');
+        modalEl.id = modalId;
+        modalEl.className = 'modal fade';
+        modalEl.tabIndex = -1;
+        modalEl.setAttribute('aria-labelledby', 'uiConfirmTitle');
+        modalEl.setAttribute('aria-hidden', 'true');
+        // Text is filled in on every showConfirm() call so it always reflects
+        // the current translations and the caller's options.
+        modalEl.innerHTML = `
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="uiConfirmTitle"></h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <p id="uiConfirmMessage" class="mb-0"></p>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" id="uiConfirmCancel"></button>
+              <button type="button" class="btn" id="uiConfirmOk"></button>
+            </div>
+          </div>
+        </div>
+        `;
+        document.body.appendChild(modalEl);
+        return modalEl;
+    }
+
+    // opts: { title, confirmText, cancelText, variant }  (variant: Bootstrap
+    // button colour for the confirm button, default 'primary')
+    function showConfirm(message, opts = {}) {
+        return readyPromise.then(() => new Promise((resolve) => {
+            // A second confirm while one is open cancels the first.
+            if (pendingConfirmResolve) {
+                pendingConfirmResolve(false);
+                pendingConfirmResolve = null;
             }
 
+            const modalEl = ensureConfirmModal();
+            const titleEl = modalEl.querySelector('#uiConfirmTitle');
             const msgEl = modalEl.querySelector('#uiConfirmMessage');
             const okBtn = modalEl.querySelector('#uiConfirmOk');
             const cancelBtn = modalEl.querySelector('#uiConfirmCancel');
 
+            titleEl.textContent = opts.title || t('confirm', 'Confirm');
             msgEl.textContent = message;
+            okBtn.textContent = opts.confirmText || t('ok', 'OK');
+            cancelBtn.textContent = opts.cancelText || t('cancel', 'Cancel');
+            okBtn.className = 'btn btn-' + (opts.variant || 'primary');
 
-            const bsModal = new bootstrap.Modal(modalEl);
-            const cleanup = () => {
+            const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            let result = false;
+            let settled = false;
+
+            const settle = (value) => {
+                if (settled) return;
+                settled = true;
                 okBtn.removeEventListener('click', okHandler);
                 cancelBtn.removeEventListener('click', cancelHandler);
-                try { bsModal.hide(); } catch (e) {}
+                modalEl.removeEventListener('hidden.bs.modal', hiddenHandler);
+                if (pendingConfirmResolve === settle) pendingConfirmResolve = null;
+                resolve(value);
             };
-            const okHandler = () => { cleanup(); resolve(true); };
-            const cancelHandler = () => { cleanup(); resolve(false); };
+            const okHandler = () => { result = true; bsModal.hide(); };
+            const cancelHandler = () => { result = false; bsModal.hide(); };
+            // Fires for every way the dialog can close (buttons, X, Esc,
+            // backdrop), so the promise always settles.
+            const hiddenHandler = () => settle(result);
+
             okBtn.addEventListener('click', okHandler);
             cancelBtn.addEventListener('click', cancelHandler);
+            modalEl.addEventListener('hidden.bs.modal', hiddenHandler);
+            pendingConfirmResolve = settle;
 
             bsModal.show();
-        });
+        }));
+    }
+
+    // Convenience wrapper for destructive confirms: danger-styled confirm
+    // button labelled "Delete". `title` should be an already-translated string
+    // such as t('delete_strain').
+    function confirmDelete(message, title, opts = {}) {
+        return showConfirm(message, Object.assign({
+            title: title,
+            confirmText: t('delete', 'Delete'),
+            variant: 'danger',
+        }, opts));
     }
 
     // Start loading translations immediately
@@ -136,9 +193,11 @@
 
     window.uiMessages = {
         t: t,
+        has: has,
         loadTranslations: loadTranslations,
         showToast: showToast,
         showConfirm: showConfirm,
+        confirmDelete: confirmDelete,
         _ready: () => readyPromise,
     };
 })();

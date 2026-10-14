@@ -90,26 +90,12 @@ document.addEventListener("DOMContentLoaded", () => {
     // Delete plant
     if (deletePlantButton) {
         deletePlantButton.addEventListener("click", () => {
-            // Use the global confirm modal if available
-            const confirmModal = document.getElementById("confirmModal");
-            if (confirmModal && window.bootstrap) {
-                const confirmBody = confirmModal.querySelector(".modal-body");
-                const confirmBtn = confirmModal.querySelector(".confirm-action-btn");
-                if (confirmBody) confirmBody.textContent = "Are you sure you want to delete this plant? This action cannot be undone.";
-                if (confirmBtn) {
-                    const newBtn = confirmBtn.cloneNode(true);
-                    confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
-                    newBtn.addEventListener("click", () => {
-                        doDelete();
-                        bootstrap.Modal.getInstance(confirmModal)?.hide();
-                    });
-                }
-                new bootstrap.Modal(confirmModal).show();
-            } else {
-                if (confirm("Are you sure you want to delete this plant?")) {
-                    doDelete();
-                }
-            }
+            uiMessages.confirmDelete(
+                uiMessages.t('confirm_delete_plant', 'Are you sure you want to delete this plant? This action cannot be undone.'),
+                uiMessages.t('delete_plant', 'Delete Plant')
+            ).then(confirmed => {
+                if (confirmed) doDelete();
+            });
         });
     }
 
@@ -121,7 +107,7 @@ document.addEventListener("DOMContentLoaded", () => {
             })
             .catch(error => {
                 console.error("Error:", error);
-                uiMessages.showToast(uiMessages.t('failed_delete_plant') || 'Failed to delete plant', 'danger');
+                uiMessages.showToast(uiMessages.t('failed_delete_plant', 'Failed to delete plant'), 'danger');
             });
     }
 });

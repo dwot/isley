@@ -45,7 +45,7 @@ document.addEventListener("DOMContentLoaded", () => {
     deleteMeasurementButton.addEventListener("click", () => {
         const measurementId = document.getElementById("measurementId").value;
 
-        uiMessages.showConfirm(uiMessages.t('confirm_delete_measurement')).then(confirmed => {
+        uiMessages.confirmDelete(uiMessages.t('confirm_delete_measurement', 'Are you sure you want to delete this measurement?'), uiMessages.t('delete_measurement', 'Delete Measurement')).then(confirmed => {
             if (!confirmed) return;
             fetch(`/plantMeasurement/delete/${measurementId}`, { method: "DELETE" })
                 .then(response => response.json())
