@@ -24,11 +24,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Docker builder image bumped to golang 1.27.2. (#242)
-
 ### Deprecated
 
 ### Removed
+
+### Fixed
+
+### Security
+
+## [2.5.1] - 2026-10-18
+
+### Changed
+
+- Docker builder image bumped to golang 1.27.2. (#242)
 
 ### Fixed
 
@@ -37,8 +45,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   changes at midnight. Postgres and SQLite previously disagreed, and the plant
   page could shift the start date on hosts not running in UTC. (#243, thanks
   @platentgrows)
-
-### Security
 
 ## [2.5.0] - 2026-10-14
 
