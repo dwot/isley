@@ -4,12 +4,14 @@ import (
 	"database/sql"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"isley/handlers"
 	"isley/tests/testutil"
+	"isley/utils"
 )
 
 // External package — handlers_test — to avoid the
@@ -153,6 +155,40 @@ func TestGetPlant_UnknownIDReturnsZeroValue(t *testing.T) {
 	// zero value of types.Plant (current code path).
 	got := handlers.GetPlant(db, "9999")
 	assert.Zero(t, got.ID, "unknown id should yield zero-value plant")
+}
+
+func TestPlantAge_ListAndPageAgree(t *testing.T) {
+	t.Parallel()
+	assertPlantAgeAgrees(t, testutil.NewTestDB(t))
+}
+
+// assertPlantAgeAgrees seeds a plant started six days ago at 23:59:59 and
+// checks the plants list and the plant page both report Day 7 / Week 1
+// (#243). The late start time is what separates calendar days from elapsed
+// 24h periods: elapsed time would still say Day 6 for almost all of today.
+func assertPlantAgeAgrees(t *testing.T, db *sql.DB) {
+	t.Helper()
+	breederID := testutil.SeedBreeder(t, db, "B")
+	strainID := testutil.SeedStrain(t, db, breederID, "S")
+	zoneID := testutil.SeedZone(t, db, "Z")
+	plantID := testutil.SeedPlant(t, db, "P", strainID, zoneID)
+
+	now := time.Now()
+	start := time.Date(now.Year(), now.Month(), now.Day()-6, 23, 59, 59, 0, time.Local)
+	testutil.MustExec(t, db, `UPDATE plant SET start_dt = $1 WHERE id = $2`,
+		start.Format(utils.LayoutDB), plantID)
+	testutil.MustExec(t, db,
+		`INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, $3)`,
+		plantID, statusIDByName(t, db, "Veg"), start.Format(utils.LayoutDB))
+
+	page := handlers.GetPlant(db, strconv.Itoa(plantID))
+	assert.Equal(t, 7, page.CurrentDay, "plant page day")
+	assert.Equal(t, 1, page.CurrentWeek, "plant page week")
+
+	list := handlers.GetLivingPlants(db)
+	require.Len(t, list, 1)
+	assert.Equal(t, 7, list[0].CurrentDay, "plants list day")
+	assert.Equal(t, 1, list[0].CurrentWeek, "plants list week")
 }
 
 // ---------------------------------------------------------------------------

@@ -404,12 +404,8 @@ func GetPlant(db *sql.DB, id string) types.Plant {
 		fieldLogger.WithError(err).Error("Failed to query plant")
 		return plant
 	}
-	startDT = startDT.Local()
-
-	// Calculate current day and week
-	diff := time.Now().Sub(startDT)
-	currentDay := int(diff.Hours()/24) + 1
-	currentWeek := int((diff.Hours() / 24 / 7) + 1)
+	startDT = utils.AsLocal(startDT)
+	currentDay, currentWeek := utils.PlantAge(startDT, time.Now())
 
 	// --- Load related data via focused sub-functions ---
 	statuses := GetStatuses(db)
@@ -1032,8 +1028,6 @@ SELECT
     p.id, p.name, p.description, p.clone, 
     s.name AS strain_name, b.name AS breeder_name, z.name AS zone_name,
     p.start_dt,
-    (((CURRENT_DATE - p.start_dt::date)) / 7 + 1) AS current_week,
-	((CURRENT_DATE - p.start_dt::date) + 1) AS current_day,
 	COALESCE((
 		SELECT (CURRENT_DATE - MAX(pa.date)::date)
 		FROM plant_activity pa
@@ -1091,8 +1085,6 @@ SELECT
     p.id, p.name, p.description, p.clone, 
     s.name AS strain_name, b.name AS breeder_name, z.name AS zone_name,
     p.start_dt,
-    CAST((julianday('now', 'localtime') - julianday(p.start_dt)) / 7 + 1 AS INT) AS current_week,
-    CAST((julianday('now', 'localtime') - julianday(p.start_dt)) + 1 AS INT) AS current_day,
     COALESCE((
         SELECT CAST(julianday('now', 'localtime') - julianday(MAX(pa.date)) AS INT)
         FROM plant_activity pa
@@ -1160,7 +1152,7 @@ ORDER BY p.start_dt, p.name;
 		var plant types.PlantListResponse
 
 		var harvestDateStr string
-		if err := rows.Scan(&plant.ID, &plant.Name, &plant.Description, &plant.Clone, &plant.StrainName, &plant.BreederName, &plant.ZoneName, &plant.StartDT, &plant.CurrentWeek, &plant.CurrentDay, &plant.DaysSinceLastWatering, &plant.DaysSinceLastFeeding, &plant.FloweringDays, &plant.HarvestWeight, &plant.Status, &plant.StatusDate, &plant.CycleTime, &plant.StrainUrl, &plant.Autoflower, &harvestDateStr); err != nil {
+		if err := rows.Scan(&plant.ID, &plant.Name, &plant.Description, &plant.Clone, &plant.StrainName, &plant.BreederName, &plant.ZoneName, &plant.StartDT, &plant.DaysSinceLastWatering, &plant.DaysSinceLastFeeding, &plant.FloweringDays, &plant.HarvestWeight, &plant.Status, &plant.StatusDate, &plant.CycleTime, &plant.StrainUrl, &plant.Autoflower, &harvestDateStr); err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan plant")
 			return nil, err
 		}
@@ -1192,6 +1184,7 @@ ORDER BY p.start_dt, p.name;
 		} else {
 			estHarvestDate := startTime.AddDate(0, 0, plant.CycleTime)
 			plant.EstHarvestDate = estHarvestDate
+			plant.CurrentDay, plant.CurrentWeek = utils.PlantAge(utils.AsLocal(startTime), time.Now())
 		}
 		plants = append(plants, plant)
 	}
