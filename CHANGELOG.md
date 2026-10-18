@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Docker builder image bumped to golang 1.27.2. (#242)
+
 ### Deprecated
 
 ### Removed
