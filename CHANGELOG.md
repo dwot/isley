@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Plant age (Day / Week) now matches between the plants list, dashboard, overlay
+  and plant page. Day 1 is the calendar date the plant was started, and the count
+  changes at midnight. Postgres and SQLite previously disagreed, and the plant
+  page could shift the start date on hosts not running in UTC. (#243, thanks
+  @platentgrows)
+
 ### Security
 
 ## [2.5.0] - 2026-10-14
