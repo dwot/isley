@@ -34,6 +34,19 @@ func AsLocal(t time.Time) time.Time {
 		t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.Local)
 }
 
+// PlantAge returns the 1-based day and week a plant started at start is on at
+// now. The calendar date the plant was started is Day 1 and the count rolls
+// over at midnight, so every page that shows a plant's age agrees. Both times
+// should already be in local time (see AsLocal).
+func PlantAge(start, now time.Time) (day, week int) {
+	// Compare midnights in UTC so DST transitions don't shorten a day.
+	s := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
+	n := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	day = int(n.Sub(s).Hours()/24) + 1
+	week = (day-1)/7 + 1
+	return day, week
+}
+
 // layoutDateTimeLocalNoSeconds matches the value browsers actually emit for
 // <input type="datetime-local"> when the field has no seconds step: seconds
 // are omitted. LayoutDateTimeLocal (which requires them) is kept as-is

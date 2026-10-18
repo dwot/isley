@@ -55,13 +55,11 @@ func TestSeed(t *testing.T) {
 	require.Zero(t, missingGerminating,
 		"every seeded plant should have a Germinating status log entry")
 
-	// current_week is computed live from start_dt via julianday() in
-	// getPlantsByStatus (handlers/plant.go) -- it isn't a stored column.
-	// If start_dt isn't written as the plain date string the rest of the
-	// app expects, julianday() returns NULL here and that handler's Scan
-	// fails in production. Reproducing the same computation directly
-	// means a regression in date formatting fails this test instead of
-	// only surfacing as a scan error in the server log.
+	// start_dt has to be a plain date string the SQL date functions
+	// understand; julianday() returns NULL for anything else. This used
+	// to break getPlantsByStatus's Scan (handlers/plant.go) in production,
+	// so a regression in date formatting should fail here instead of
+	// only surfacing in the server log.
 	var nullCurrentWeek int
 	require.NoError(t, db.QueryRow(`
 		SELECT COUNT(*)

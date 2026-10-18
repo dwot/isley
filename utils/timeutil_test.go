@@ -104,3 +104,33 @@ func TestParseFlexibleDate_AcceptsUISubmittedFormats(t *testing.T) {
 	_, err := ParseFlexibleDate("not a date")
 	assert.Error(t, err)
 }
+
+// TestPlantAge_CountsCalendarDays pins the definition shared by the plant
+// list and the plant page (#243): the start date is Day 1 and the count
+// rolls over at midnight, not 24h after the start time.
+func TestPlantAge_CountsCalendarDays(t *testing.T) {
+	t.Parallel()
+	at := func(y int, m time.Month, d, h, min int) time.Time {
+		return time.Date(y, m, d, h, min, 0, 0, time.Local)
+	}
+	cases := []struct {
+		name      string
+		start     time.Time
+		now       time.Time
+		day, week int
+	}{
+		{"same day", at(2026, 10, 1, 8, 0), at(2026, 10, 1, 23, 0), 1, 1},
+		{"next day before start time", at(2026, 10, 1, 23, 59), at(2026, 10, 2, 0, 1), 2, 1},
+		{"day 7 is still week 1", at(2026, 10, 1, 23, 59), at(2026, 10, 7, 12, 0), 7, 1},
+		{"day 8 starts week 2", at(2026, 10, 1, 23, 59), at(2026, 10, 8, 0, 0), 8, 2},
+		{"across DST change", at(2026, 3, 1, 12, 0), at(2026, 3, 15, 12, 0), 15, 3},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			day, week := PlantAge(tc.start, tc.now)
+			assert.Equal(t, tc.day, day, "day")
+			assert.Equal(t, tc.week, week, "week")
+		})
+	}
+}
