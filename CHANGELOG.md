@@ -24,11 +24,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Static assets (`/static`, `/fonts`) now send `Cache-Control`, `ETag` and
+  `Last-Modified`, so browsers and CDNs cache them instead of refetching every
+  script and stylesheet on each page load.
+
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+
+- Dashboard, plant page and overlay no longer slow down as sensors stop
+  reporting. The "latest reading per sensor" lookup scanned past every newer
+  row from other sensors; on an instance with ten idle sensors and 4.6M
+  readings the dashboard's sensor call took 1.8s and now takes ~2ms.
 
 ### Security
 
