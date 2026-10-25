@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Two redundant `sensor_data` indexes (`idx_sensor_data_sensor_id`, covered by
+  the composite index, and `idx_sensor_data_hourly_bucket`, a duplicate of the
+  rollup table's primary key) are dropped by migration 023.
+
 ### Fixed
 
 - Dashboard, plant page and overlay no longer slow down as sensors stop
