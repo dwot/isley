@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Go toolchain pinned to 1.27.3 in go.mod, the GitHub and GitLab test jobs
+  and the Docker builder (was 1.25.8 / 1.27.2). Newer dependency releases
+  require Go 1.26+.
 - Static assets (`/static`, `/fonts`) now send `Cache-Control`, `ETag` and
   `Last-Modified`, so browsers and CDNs cache them instead of refetching every
   script and stylesheet on each page load.
