@@ -6,7 +6,7 @@ require (
 	github.com/fogleman/gg v1.3.0
 	github.com/gin-contrib/sessions v1.1.2
 	github.com/gin-gonic/gin v1.12.0
-	github.com/golang-migrate/migrate/v4 v4.19.1
+	github.com/golang-migrate/migrate/v4 v4.20.1
 	github.com/lib/pq v1.12.3
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/nicksnyder/go-i18n/v2 v2.6.1
