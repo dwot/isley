@@ -32,6 +32,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [2.5.3] - 2026-10-25
+
+### Added
+
+- Integration test that round-trips the activity-log xlsx export through excelize,
+  so a broken workbook fails CI rather than just a wrong status code.
+
+### Changed
+
+- Dependencies: excelize bumped from v2.11.0 to the v2.11.1 pre-release
+  (master @ 2026-10-20), clearing all 15 open Dependabot security alerts. None of
+  them were reachable in Isley, which only writes workbooks and never parses
+  uploaded ones, but the pinned version carried every one of them. Also
+  gin-contrib/sessions 1.1.2 (#256), golang.org/x/crypto 0.58.0 (#257) and
+  golang-migrate 4.20.1 (#258).
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
 ## [2.5.2] - 2026-10-25
 
 ### Added
