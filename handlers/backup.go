@@ -776,7 +776,7 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 		name       string
 		createStmt string
 	}{
-		{"idx_sensor_data_sensor_id", "CREATE INDEX IF NOT EXISTS idx_sensor_data_sensor_id ON sensor_data(sensor_id)"},
+		{"idx_sensor_data_sensor_id_create_dt", "CREATE INDEX IF NOT EXISTS idx_sensor_data_sensor_id_create_dt ON sensor_data(sensor_id, create_dt)"},
 		{"idx_sensor_data_create_dt", "CREATE INDEX IF NOT EXISTS idx_sensor_data_create_dt ON sensor_data(create_dt)"},
 	}
 

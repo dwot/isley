@@ -118,7 +118,7 @@ FROM sensors s
 JOIN sensor_data sd ON s.id = sd.sensor_id
 LEFT JOIN rolling_averages ra ON ra.sensor_id = s.id
 WHERE s.id IN ` + sensorInClause + `
-  AND sd.id = (SELECT MAX(id) FROM sensor_data WHERE sensor_id = s.id)`
+  AND sd.id = (SELECT id FROM sensor_data WHERE sensor_id = s.id ORDER BY create_dt DESC LIMIT 1)`
 
 	sensorRows, err := db.Query(sensorQuery, sensorArgs...)
 	if err != nil {

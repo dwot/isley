@@ -16,7 +16,7 @@ test:
   stage: test
   # Pinned to match the GitHub Actions test job and the go directive in
   # go.mod. Bump in lockstep with that file when the toolchain upgrades.
-  image: golang:1.25.8
+  image: golang:1.27.3
   rules:
     - if: $CI_COMMIT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -90,7 +90,7 @@ test:
 # job so the `build` stage gates on both automatically.
 test-postgres:
   stage: test
-  image: golang:1.25.8
+  image: golang:1.27.3
   rules:
     - if: $CI_COMMIT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
