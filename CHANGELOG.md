@@ -22,6 +22,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [2.5.3] - 2026-10-25
+
+### Added
+
 - Integration test that round-trips the activity-log xlsx export through excelize,
   so a broken workbook fails CI rather than just a wrong status code.
 
