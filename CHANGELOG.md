@@ -24,6 +24,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [2.5.2] - 2026-10-25
+
+### Added
+
+### Changed
+
 - Go toolchain pinned to 1.27.3 in go.mod, the GitHub and GitLab test jobs
   and the Docker builder (was 1.25.8 / 1.27.2). Newer dependency releases
   require Go 1.26+. (#253)
