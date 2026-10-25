@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"io"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xuri/excelize/v2"
 
 	"isley/handlers"
 	"isley/tests/testutil"
@@ -385,4 +387,56 @@ func TestActivity_ExportCSV(t *testing.T) {
 	csv := string(body)
 	assert.Contains(t, csv, "Date,Plant,Strain,Zone,Activity,Note", "header row")
 	assert.Contains(t, csv, "csv test row", "seeded note must appear")
+}
+
+// ---------------------------------------------------------------------------
+// GET /activities/export/xlsx  (protected — session-gated)
+// ---------------------------------------------------------------------------
+
+func TestActivity_ExportXLSX(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db)
+	fix := seedActivityHTTP(t, db)
+
+	_, err := db.Exec(
+		`INSERT INTO plant_activity (plant_id, activity_id, note, date) VALUES ($1, $2, 'xlsx test row', '2026-04-25')`,
+		fix.PlantID, fix.WaterID,
+	)
+	require.NoError(t, err)
+
+	testutil.SeedAdmin(t, db, "xlsx-pw")
+	c := server.LoginAsAdmin(t, "xlsx-pw")
+
+	resp := c.Get("/activities/export/xlsx")
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Contains(t, resp.Header.Get("Content-Type"), "spreadsheetml.sheet")
+	assert.Contains(t, resp.Header.Get("Content-Disposition"), ".xlsx")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	// Round-trip the workbook through excelize so a broken or empty file,
+	// not just a 200 with the right headers, fails the test.
+	wb, err := excelize.OpenReader(bytes.NewReader(body))
+	require.NoError(t, err, "response must be a readable xlsx workbook")
+	defer wb.Close()
+
+	sheets := wb.GetSheetList()
+	require.NotEmpty(t, sheets)
+	rows, err := wb.GetRows(sheets[0])
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(rows), 2, "header row plus at least one activity")
+	assert.Equal(t, []string{"Date", "Plant", "Strain", "Zone", "Activity", "Note"}, rows[0])
+
+	found := false
+	for _, row := range rows[1:] {
+		if len(row) >= 6 && row[5] == "xlsx test row" {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "seeded note must appear in the Note column")
 }
