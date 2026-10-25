@@ -9,13 +9,19 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # PRs merge into dev first; main only moves on a release cut.
+    target-branch: "dev"
 
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
+    # PRs merge into dev first; main only moves on a release cut.
+    target-branch: "dev"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    # PRs merge into dev first; main only moves on a release cut.
+    target-branch: "dev"
