@@ -2,6 +2,7 @@ package app
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"database/sql"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-contrib/sessions"
@@ -484,31 +486,57 @@ func buildFuncMap(store *config.Store) template.FuncMap {
 	}
 }
 
+// staticCacheMaxAge is how long browsers and CDNs may reuse an embedded
+// asset before revalidating. Asset URLs are not fingerprinted, so this is
+// kept to an hour: after a deploy the old file is served for at most that
+// long, and the ETag turns the revalidation into a 304 rather than a
+// re-download.
+const staticCacheMaxAge = time.Hour
+
+// assetStartTime is used as Last-Modified for embedded assets. The embed FS
+// carries no modtimes, and a process (re)start is the only time the bundle
+// can change.
+var assetStartTime = time.Now().UTC().Truncate(time.Second)
+
+// serveEmbeddedAsset returns a handler that serves files under root in the
+// embedded FS with the headers browsers and Cloudflare need to cache them:
+// Cache-Control, a content-hash ETag, and Last-Modified. Without these every
+// page navigation refetched every script and stylesheet through the proxy.
+// ETags are computed once per path and memoised; the bundle is immutable
+// for the life of the process.
+func serveEmbeddedAsset(assets fs.FS, root string) gin.HandlerFunc {
+	var etags sync.Map // path -> etag string
+	return func(c *gin.Context) {
+		filePath := root + c.Param("filepath")
+		data, err := fs.ReadFile(assets, filePath)
+		if err != nil {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		etag, ok := etags.Load(filePath)
+		if !ok {
+			sum := sha256.Sum256(data)
+			etag = fmt.Sprintf(`"%x"`, sum[:16])
+			etags.Store(filePath, etag)
+		}
+		h := c.Writer.Header()
+		h.Set("ETag", etag.(string))
+		h.Set("Cache-Control", fmt.Sprintf("public, max-age=%d", int(staticCacheMaxAge.Seconds())))
+		// ServeContent handles Range, If-None-Match and If-Modified-Since,
+		// and sets Content-Type from the extension and Last-Modified from
+		// the modtime.
+		http.ServeContent(c.Writer, c.Request, filePath, assetStartTime, strings.NewReader(string(data)))
+	}
+}
+
 // registerStaticRoutes wires up /static/, /fonts/, /uploads, and /favicon.ico.
 // Uploads remain on the live filesystem (./uploads); everything else comes
 // from cfg.Assets.
 func registerStaticRoutes(r *gin.Engine, assets fs.FS) {
 	r.Static("/uploads", "./uploads")
 
-	r.GET("/static/*filepath", func(c *gin.Context) {
-		filePath := fmt.Sprintf("web/static%s", c.Param("filepath"))
-		data, err := fs.ReadFile(assets, filePath)
-		if err != nil {
-			c.Status(http.StatusNotFound)
-			return
-		}
-		http.ServeContent(c.Writer, c.Request, filePath, time.Time{}, strings.NewReader(string(data)))
-	})
-
-	r.GET("/fonts/*filepath", func(c *gin.Context) {
-		filePath := fmt.Sprintf("utils/fonts%s", c.Param("filepath"))
-		data, err := fs.ReadFile(assets, filePath)
-		if err != nil {
-			c.Status(http.StatusNotFound)
-			return
-		}
-		http.ServeContent(c.Writer, c.Request, filePath, time.Time{}, strings.NewReader(string(data)))
-	})
+	r.GET("/static/*filepath", serveEmbeddedAsset(assets, "web/static"))
+	r.GET("/fonts/*filepath", serveEmbeddedAsset(assets, "utils/fonts"))
 
 	r.GET("/favicon.ico", func(c *gin.Context) {
 		data, err := fs.ReadFile(assets, "web/static/img/favicon.ico")

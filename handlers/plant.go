@@ -511,7 +511,7 @@ func loadPlantSensors(db *sql.DB, plantID uint, zoneID int, currentStatus string
 		SELECT s.id, s.name, s.unit, s.source, s.type, sd.value, sd.create_dt
 		FROM sensors s
 		LEFT JOIN sensor_data sd ON s.id = sd.sensor_id
-			AND sd.id = (SELECT MAX(id) FROM sensor_data WHERE sensor_id = s.id)
+			AND sd.id = (SELECT id FROM sensor_data WHERE sensor_id = s.id ORDER BY create_dt DESC LIMIT 1)
 		WHERE s.id IN ` + inClause
 
 	rows, err := db.Query(query, inArgs...)

@@ -739,7 +739,11 @@ JOIN zones z ON s.zone_id = z.id
 JOIN sensor_data sd ON s.id = sd.sensor_id
 LEFT JOIN rolling_averages ra ON ra.sensor_id = s.id
 WHERE sd.id = (
-    SELECT MAX(id) FROM sensor_data WHERE sensor_id = s.id
+    -- Latest reading per sensor. ORDER BY create_dt walks the
+    -- (sensor_id, create_dt) index from the top; MAX(id) made Postgres
+    -- scan the primary key backwards past every newer row from other
+    -- sensors, which took ~75ms+ for each sensor that had stopped reporting.
+    SELECT id FROM sensor_data WHERE sensor_id = s.id ORDER BY create_dt DESC LIMIT 1
 )
 AND s.visibility IN ('zone_plant', 'zone')
 ORDER BY z.name, s.device, s.type;
