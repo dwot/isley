@@ -47,7 +47,7 @@ jobs:
           # Pinned to match go.mod's `go` directive and the GitLab test
           # job. Bump in lockstep with that file when the toolchain
           # upgrades.
-          go-version: '1.25.8'
+          go-version: '1.27.3'
 
       - name: Verify Go Modules
         run: go mod verify
@@ -178,7 +178,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: '1.25.8'
+          go-version: '1.27.3'
 
       - name: Verify Go Modules
         run: go mod verify
@@ -246,7 +246,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: '1.25.8'
+          go-version: '1.27.3'
 
       - name: Verify Go Modules
         run: go mod verify
