@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/fogleman/gg v1.3.0
-	github.com/gin-contrib/sessions v1.1.2
+	github.com/gin-contrib/sessions v1.1.3
 	github.com/gin-gonic/gin v1.12.0
 	github.com/golang-migrate/migrate/v4 v4.20.1
 	github.com/lib/pq v1.12.3
