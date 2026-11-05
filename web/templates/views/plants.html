@@ -353,49 +353,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // ----- Populate filter dropdowns -----
     function populateFilters() {
-        const zones = [...new Set(allPlants.map(p => p.zone_name).filter(Boolean))].sort();
-        const breeders = [...new Set(allPlants.map(p => p.breeder_name).filter(Boolean))].sort();
-        const statuses = [...new Set(allPlants.map(p => p.status).filter(Boolean))].sort();
-
-        const curZone = filterZone.value;
-        const curBreeder = filterBreeder.value;
-        const curStatus = filterStatus.value;
-
         // Zone filter — only relevant for living plants
         if (currentView === "living") {
             filterZoneGroup.style.display = "";
-            filterZone.innerHTML = '<option value="">All</option>';
-            zones.forEach(z => {
-                const opt = document.createElement("option");
-                opt.value = z;
-                opt.textContent = z;
-                if (z === curZone) opt.selected = true;
-                filterZone.appendChild(opt);
-            });
+            populateFilter(filterZone, allPlants, "zone_name");
         } else {
             filterZoneGroup.style.display = "none";
             filterZone.value = "";
         }
 
-        // Breeder filter
-        filterBreeder.innerHTML = '<option value="">All</option>';
-        breeders.forEach(b => {
-            const opt = document.createElement("option");
-            opt.value = b;
-            opt.textContent = b;
-            if (b === curBreeder) opt.selected = true;
-            filterBreeder.appendChild(opt);
-        });
-
-        // Status filter
-        filterStatus.innerHTML = '<option value="">All</option>';
-        statuses.forEach(s => {
-            const opt = document.createElement("option");
-            opt.value = s;
-            opt.textContent = s;
-            if (s === curStatus) opt.selected = true;
-            filterStatus.appendChild(opt);
-        });
+        populateFilter(filterBreeder, allPlants, "breeder_name");
+        populateFilter(filterStatus, allPlants, "status");
 
         // Hide sort options that only make sense in one view; fall back to Name A–Z if one is selected
         const viewOnlySorts = { "water-desc": "living", "weight-desc": "harvested", "weight-asc": "harvested" };
@@ -416,14 +384,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const breeder = filterBreeder.value;
         const status = filterStatus.value;
 
-        if (query) {
-            data = data.filter(p =>
-                p.name.toLowerCase().includes(query) ||
-                (p.strain_name || "").toLowerCase().includes(query) ||
-                (p.breeder_name || "").toLowerCase().includes(query) ||
-                (p.zone_name || "").toLowerCase().includes(query)
-            );
-        }
+        data = list.filterByText(data, query, ["name", "strain_name", "breeder_name", "zone_name"]);
         if (zone) data = data.filter(p => p.zone_name === zone);
         if (breeder) data = data.filter(p => p.breeder_name === breeder);
         if (status) data = data.filter(p => p.status === status);
@@ -495,7 +456,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
-        resultCount.textContent = `${data.length} plant${data.length !== 1 ? "s" : ""}`;
+        resultCount.textContent = pluralize(data.length, "plant");
 
         if (data.length === 0) {
             cardsContainer.innerHTML = "";
@@ -710,18 +671,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // ----- Helpers -----
-    function esc(str) {
-        if (!str) return "";
-        const d = document.createElement("div");
-        d.textContent = str;
-        return d.innerHTML;
-    }
-
-    function debounce(fn, ms) {
-        let t;
-        return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
-    }
-
     function formatDateTimeLocal(date) {
         const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
         return offsetDate.toISOString().slice(0, 19);
@@ -853,11 +802,12 @@ document.addEventListener("DOMContentLoaded", () => {
     filterStatus.addEventListener("change", applyFilters);
 
     clearBtn.addEventListener("click", () => {
-        searchInput.value = "";
-        filterZone.value = "";
-        filterBreeder.value = "";
-        filterStatus.value = "";
-        sortableTable.resetToDefault("name-asc");
+        clearFilters({
+            searchInput,
+            selects: [filterZone, filterBreeder, filterStatus],
+            sortableTable,
+            defaultSort: "name-asc"
+        });
         applyFilters();
     });
 
