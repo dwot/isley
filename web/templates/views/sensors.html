@@ -343,28 +343,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // ----- Populate filter dropdowns from data -----
     function populateFilters() {
-        const zones = [...new Set(allSensors.map(s => s.zone).filter(Boolean))].sort();
-        const sources = [...new Set(allSensors.map(s => s.source).filter(Boolean))].sort();
-
-        const currentZone = filterZone.value;
-        filterZone.innerHTML = '<option value="">All</option>';
-        zones.forEach(z => {
-            const opt = document.createElement("option");
-            opt.value = z;
-            opt.textContent = z;
-            if (z === currentZone) opt.selected = true;
-            filterZone.appendChild(opt);
-        });
-
-        const currentSource = filterSource.value;
-        filterSource.innerHTML = '<option value="">All</option>';
-        sources.forEach(s => {
-            const opt = document.createElement("option");
-            opt.value = s;
-            opt.textContent = s;
-            if (s === currentSource) opt.selected = true;
-            filterSource.appendChild(opt);
-        });
+        populateFilter(filterZone, allSensors, "zone");
+        populateFilter(filterSource, allSensors, "source");
     }
 
     // ----- Filter + Sort -----
@@ -375,16 +355,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const source = filterSource.value;
         const visibility = filterVisibility.value;
 
-        if (query) {
-            data = data.filter(s =>
-                (s.name || "").toLowerCase().includes(query) ||
-                (s.zone || "").toLowerCase().includes(query) ||
-                (s.source || "").toLowerCase().includes(query) ||
-                (s.device || "").toLowerCase().includes(query) ||
-                (s.type || "").toLowerCase().includes(query) ||
-                (s.unit || "").toLowerCase().includes(query)
-            );
-        }
+        data = list.filterByText(data, query, ["name", "zone", "source", "device", "type", "unit"]);
         if (zone) {
             data = data.filter(s => s.zone === zone);
         }
@@ -438,7 +409,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
-        resultCount.textContent = `${data.length} sensor${data.length !== 1 ? "s" : ""}`;
+        resultCount.textContent = pluralize(data.length, "sensor");
 
         if (data.length === 0) {
             tableBody.innerHTML = "";
@@ -484,19 +455,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // ----- Helpers -----
-    function esc(str) {
-        if (!str) return "";
-        const d = document.createElement("div");
-        d.textContent = str;
-        return d.innerHTML;
-    }
-
-    function debounce(fn, ms) {
-        let t;
-        return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
-    }
-
     // ----- Event listeners -----
     searchInput.addEventListener("input", debounce(applyFilters, 200));
     filterZone.addEventListener("change", applyFilters);
@@ -504,11 +462,12 @@ document.addEventListener("DOMContentLoaded", () => {
     filterVisibility.addEventListener("change", applyFilters);
 
     clearBtn.addEventListener("click", () => {
-        searchInput.value = "";
-        filterZone.value = "";
-        filterSource.value = "";
-        filterVisibility.value = "";
-        sortableTable.resetToDefault("name-asc");
+        clearFilters({
+            searchInput,
+            selects: [filterZone, filterSource, filterVisibility],
+            sortableTable,
+            defaultSort: "name-asc"
+        });
         applyFilters();
     });
 
