@@ -48,13 +48,10 @@ func PlantAge(start, now time.Time) (day, week int) {
 }
 
 // layoutDateTimeLocalNoSeconds matches the value browsers actually emit for
-// <input type="datetime-local"> when the field has no seconds step: seconds
-// are omitted. LayoutDateTimeLocal (which requires them) is kept as-is
-// because it mirrors utils.ValidateDate's layout list exactly — changing a
-// shared validator used across the app is out of scope here. Accepting this
-// additional, seconds-less layout only widens what ParseFlexibleDate parses
-// beyond what ValidateDate validates, which preserves the property that
-// matters: anything that validates, parses.
+// <input type="datetime-local"> when the seconds are zero (the HTML spec
+// omits them, e.g. after picking a date and time on a phone). ValidateDate
+// accepts it too, so the two layout lists match: anything that validates,
+// parses, and every format the UI submits validates.
 const layoutDateTimeLocalNoSeconds = "2006-01-02T15:04"
 
 // ParseFlexibleDate parses the date formats the UI submits: a plain date from
