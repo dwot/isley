@@ -32,6 +32,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [2.5.4] - 2026-11-09
+
+### Added
+
+### Changed
+
+- The plants, strains, sensors and activities lists share one set of search,
+  filter, result-count and clear-filters helpers (`list-utils.js`) instead of
+  four copies. No change in behaviour. (#263, thanks @platentgrows)
+- Dependencies: go-i18n 2.7.0 (#260), modernc.org/sqlite 1.61.1 (#261),
+  gin-contrib/sessions 1.1.3 (#262).
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+- Saving a measurement or activity with an earlier date picked on a phone
+  failed with "Failed to add measurement". Date pickers leave out the seconds
+  (`2026-11-06T18:30`), and the server rejected that format. (#264, #265,
+  thanks @dermorz)
+- Plant pages no longer get a 500 from `/listLogos` on installs that have never
+  uploaded a watermark logo. An empty logos folder no longer breaks the
+  decorate-image dialog either.
+
+### Security
+
 ## [2.5.3] - 2026-10-25
 
 ### Added

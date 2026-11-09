@@ -52,7 +52,7 @@ func ValidateDate(field, value string) error {
 	if strings.TrimSpace(value) == "" {
 		return nil
 	}
-	for _, layout := range []string{LayoutDate, LayoutDateTimeLocal, LayoutDB, time.RFC3339} {
+	for _, layout := range []string{LayoutDate, LayoutDateTimeLocal, layoutDateTimeLocalNoSeconds, LayoutDB, time.RFC3339} {
 		if _, err := time.Parse(layout, value); err == nil {
 			return nil
 		}

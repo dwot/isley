@@ -407,3 +407,37 @@ func TestGrabWebcamImage_HLSNoThumbnailReturnsError(t *testing.T) {
 		strings.Contains(err.Error(), "no thumbnail endpoint found"),
 		"error message should explain why HLS fallback failed; got: %v", err)
 }
+
+// TestListLogos: uploads/logos/ only exists after a logo is uploaded, so a
+// missing or empty directory must yield an empty, non-nil list. Before, a
+// missing directory made /listLogos return 500 on every plant page load, and
+// an empty one encoded "logos": null, which decorate-image-modal.js iterated.
+func TestListLogos(t *testing.T) {
+	t.Parallel()
+
+	t.Run("missing dir is empty, not an error", func(t *testing.T) {
+		t.Parallel()
+		logos, err := listLogos(filepath.Join(t.TempDir(), "nope"))
+		require.NoError(t, err)
+		assert.NotNil(t, logos)
+		assert.Empty(t, logos)
+	})
+
+	t.Run("empty dir is empty, not nil", func(t *testing.T) {
+		t.Parallel()
+		logos, err := listLogos(t.TempDir())
+		require.NoError(t, err)
+		assert.NotNil(t, logos)
+		assert.Empty(t, logos)
+	})
+
+	t.Run("lists files, skips directories", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "a.png"), []byte("x"), 0o600))
+		require.NoError(t, os.Mkdir(filepath.Join(dir, "sub"), 0o700))
+		logos, err := listLogos(dir)
+		require.NoError(t, err)
+		assert.Equal(t, []string{filepath.Join(dir, "a.png")}, logos)
+	})
+}

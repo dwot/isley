@@ -115,13 +115,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const sortableTable = new IsleySortableTable(null, { prefix: "al", onChange: applyFilters });
 
     clearBtn.addEventListener("click", () => {
-        searchInput.value = "";
-        filterPlant.value = "";
-        filterActivity.value = "";
-        filterZone.value = "";
-        filterFrom.value = "";
-        filterTo.value = "";
-        sortableTable.resetToDefault();
+        clearFilters({
+            searchInput,
+            selects: [filterPlant, filterActivity, filterZone],
+            inputs: [filterFrom, filterTo],
+            onClear: () => sortableTable.resetToDefault()
+        });
         applyFilters();
     });
 
@@ -143,43 +142,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // ----- Populate filter dropdowns -----
     function populateFilters() {
-        const plants = [...new Set(allActivities.map(a => a.plant_name).filter(Boolean))].sort();
-        const activities = [...new Set(allActivities.map(a => a.activity_name).filter(Boolean))].sort();
-        const zones = [...new Set(allActivities.map(a => a.zone_name).filter(Boolean))].sort();
-
-        const curPlant = filterPlant.value;
-        const curActivity = filterActivity.value;
-        const curZone = filterZone.value;
-
-        // Plant filter
-        filterPlant.innerHTML = '<option value="">All</option>';
-        plants.forEach(p => {
-            const opt = document.createElement("option");
-            opt.value = p;
-            opt.textContent = p;
-            if (p === curPlant) opt.selected = true;
-            filterPlant.appendChild(opt);
-        });
-
-        // Activity filter
-        filterActivity.innerHTML = '<option value="">All</option>';
-        activities.forEach(a => {
-            const opt = document.createElement("option");
-            opt.value = a;
-            opt.textContent = a;
-            if (a === curActivity) opt.selected = true;
-            filterActivity.appendChild(opt);
-        });
-
-        // Zone filter
-        filterZone.innerHTML = '<option value="">All</option>';
-        zones.forEach(z => {
-            const opt = document.createElement("option");
-            opt.value = z;
-            opt.textContent = z;
-            if (z === curZone) opt.selected = true;
-            filterZone.appendChild(opt);
-        });
+        populateFilter(filterPlant, allActivities, "plant_name");
+        populateFilter(filterActivity, allActivities, "activity_name");
+        populateFilter(filterZone, allActivities, "zone_name");
     }
 
     // ----- Filter + Sort -----
@@ -193,15 +158,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const toStr = filterTo.value;
 
         // Search across multiple fields
-        if (query) {
-            data = data.filter(a =>
-                a.plant_name.toLowerCase().includes(query) ||
-                (a.strain_name || "").toLowerCase().includes(query) ||
-                (a.zone_name || "").toLowerCase().includes(query) ||
-                a.activity_name.toLowerCase().includes(query) ||
-                (a.note || "").toLowerCase().includes(query)
-            );
-        }
+        data = list.filterByText(data, query, ["plant_name", "strain_name", "zone_name", "activity_name", "note"]);
 
         // Apply filters
         if (plant) data = data.filter(a => a.plant_name === plant);
@@ -243,7 +200,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
-        resultCount.textContent = `${data.length} activit${data.length !== 1 ? "ies" : "y"}`;
+        resultCount.textContent = pluralize(data.length, "activity", "activities");
 
         if (data.length === 0) {
             tableBody.innerHTML = "";
@@ -277,20 +234,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td class="al-cell-note">${esc(a.note || "")}</td>
             </tr>
         `).join("");
-    }
-
-    // ----- Escape HTML -----
-    function esc(str) {
-        if (!str) return "";
-        const d = document.createElement("div");
-        d.textContent = str;
-        return d.innerHTML;
-    }
-
-    // ----- Debounce -----
-    function debounce(fn, ms) {
-        let t;
-        return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
     }
 
     // ----- Update export links -----

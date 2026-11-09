@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"embed"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -453,10 +454,16 @@ func ListFontsHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "fonts": fonts})
 }
 
-func ListLogosHandler(c *gin.Context) {
-	var logos []string
-	//Load all file names in the local filesystem on path ./uploads/logos/ to the slice  NOT EMBEDDED
-	err := filepath.Walk("./uploads/logos/", func(path string, info os.FileInfo, err error) error {
+// logosDir is where user-uploaded watermark logos live. It is not embedded
+// and only exists once a logo has been uploaded (see handlers/settings.go).
+const logosDir = "./uploads/logos/"
+
+// listLogos returns the files under dir. A missing directory just means no
+// logo has been uploaded yet, so it yields an empty list rather than an
+// error, and the result is never nil so it encodes as [] instead of null.
+func listLogos(dir string) ([]string, error) {
+	logos := []string{}
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -465,13 +472,20 @@ func ListLogosHandler(c *gin.Context) {
 		}
 		return nil
 	})
+	if errors.Is(err, fs.ErrNotExist) {
+		return []string{}, nil
+	}
+	return logos, err
+}
 
+func ListLogosHandler(c *gin.Context) {
+	logos, err := listLogos(logosDir)
 	if err != nil {
 		logger.Log.WithError(err).Error("Failed to list logos")
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Unable to list logos"})
-	} else {
-		c.JSON(http.StatusOK, gin.H{"success": true, "logos": logos})
+		return
 	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "logos": logos})
 }
 
 // maxFrameSize limits the amount of data read for a single image frame
