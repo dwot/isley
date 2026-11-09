@@ -24,6 +24,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [2.5.4] - 2026-11-09
+
+### Added
+
+### Changed
+
 - The plants, strains, sensors and activities lists share one set of search,
   filter, result-count and clear-filters helpers (`list-utils.js`) instead of
   four copies. No change in behaviour. (#263, thanks @platentgrows)
