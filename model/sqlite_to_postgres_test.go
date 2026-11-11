@@ -270,7 +270,7 @@ func TestIsPostgresEmpty_FalseAfterMigrations(t *testing.T) {
 
 	var strainID int
 	require.NoError(t, pg.QueryRow(
-		`INSERT INTO strain (name, sativa, indica, autoflower, description, seed_count, breeder_id)
+		`INSERT INTO strain (name, sativa, indica, autoflower, feminized, description, seed_count, breeder_id)
 		 VALUES ($1, 50, 50, 0, '', 5, $2) RETURNING id`, "Roundtrip", breederID,
 	).Scan(&strainID))
 
@@ -403,7 +403,7 @@ func TestCopyTableData_HappyPath(t *testing.T) {
 	mustExecSQL(t, sqliteDB,
 		`INSERT INTO breeder (id, name) VALUES (1, 'Roundtrip Breeder')`)
 	mustExecSQL(t, sqliteDB,
-		`INSERT INTO strain (id, name, sativa, indica, autoflower, description, seed_count, breeder_id)
+		`INSERT INTO strain (id, name, sativa, indica, autoflower, feminized, description, seed_count, breeder_id)
 		 VALUES (1, 'Roundtrip Strain', 60, 40, 0, 'A test strain', 5, 1)`)
 	mustExecSQL(t, sqliteDB,
 		`INSERT INTO zones (id, name) VALUES (1, 'Roundtrip Zone')`)
@@ -595,8 +595,8 @@ func seedConflictFixture(t *testing.T, db *sql.DB) {
 
 	mustExecSQL(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Test Zone')`)
 	mustExecSQL(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'Test Breeder')`)
-	mustExecSQL(t, db, `INSERT INTO strain (id, name, sativa, indica, autoflower, description, seed_count, breeder_id)
-		VALUES (1, 'Test Strain', 50, 50, 0, '', 5, 1)`)
+	mustExecSQL(t, db, `INSERT INTO strain (id, name, sativa, indica, autoflower, feminized, description, seed_count, breeder_id)
+		VALUES (1, 'Test Strain', 50, 50, 0, 1, '', 5, 1)`)
 	mustExecSQL(t, db, `INSERT INTO plant (id, name, description, clone, strain_id, zone_id, start_dt, sensors)
 		VALUES (1, 'Test Plant', '', 0, 1, 1, '2026-04-26 10:00:00', '[]')`)
 	mustExecSQL(t, db, `INSERT INTO plant_status_log (id, plant_id, status_id, date)

@@ -55,17 +55,32 @@
                         <i class="fa-solid fa-dna me-1"></i> {{ .lcl.title_strain }} Info
                     </h2>
 
-                    <!-- Type badge -->
-                    <div class="text-center mb-3">
-                        {{ if .strain.Autoflower }}
-                        <span class="badge strain-badge-auto">
-                            <i class="fa-solid fa-bolt me-1"></i> {{ .lcl.autoflower }}
-                        </span>
-                        {{ else }}
-                        <span class="badge strain-badge-photo">
-                            <i class="fa-solid fa-sun me-1"></i> Photoperiod
-                        </span>
-                        {{ end }}
+                    <div class="d-flex gap-2 justify-content-center mb-3">
+                        <!-- Type badge -->
+                        <div>
+                            {{ if .strain.Autoflower }}
+                            <span class="badge strain-badge-auto">
+                                <i class="fa-solid fa-bolt me-1"></i> {{ .lcl.autoflower }}
+                            </span>
+                            {{ else }}
+                            <span class="badge strain-badge-photo">
+                                <i class="fa-solid fa-sun me-1"></i> Photoperiod
+                            </span>
+                            {{ end }}
+                        </div>
+
+                        <!-- Fem badge -->
+                        <div>
+                            {{ if .strain.Feminized }}
+                            <span class="badge strain-badge-feminized">
+                                <i class="fa-solid fa-venus me-1"></i> {{ .lcl.feminized }}
+                            </span>
+                            {{ else }}
+                            <span class="badge strain-badge-regular">
+                                <i class="fa-solid fa-venus-mars me-1"></i> Regular
+                            </span>
+                            {{ end }}
+                        </div>
                     </div>
 
                     <!-- Indica / Sativa ratio bar -->

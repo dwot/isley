@@ -183,7 +183,7 @@ func validateStrainFields(name, description, shortDesc, newBreeder, strainURL st
 func GetStrains(db *sql.DB) []types.Strain {
 	fieldLogger := logger.Log.WithField("func", "GetStrains")
 
-	rows, err := db.Query("SELECT s.id, s.name, b.id as breeder_id, b.name as breeder, s.indica, s.sativa, s.autoflower, s.description, coalesce(s.short_desc, ''), s.seed_count FROM strain s left outer join breeder b on s.breeder_id = b.id ORDER BY s.name ASC")
+	rows, err := db.Query("SELECT s.id, s.name, b.id as breeder_id, b.name as breeder, s.indica, s.sativa, s.autoflower, s.description, coalesce(s.short_desc, ''), s.seed_count, s.feminized FROM strain s left outer join breeder b on s.breeder_id = b.id ORDER BY s.name ASC")
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to query strains")
 		return nil
@@ -192,7 +192,7 @@ func GetStrains(db *sql.DB) []types.Strain {
 	var strains []types.Strain
 	for rows.Next() {
 		var strain types.Strain
-		err = rows.Scan(&strain.ID, &strain.Name, &strain.BreederID, &strain.Breeder, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.Description, &strain.ShortDescription, &strain.SeedCount)
+		err = rows.Scan(&strain.ID, &strain.Name, &strain.BreederID, &strain.Breeder, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.Description, &strain.ShortDescription, &strain.SeedCount, &strain.Feminized)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan strain")
 			return nil
@@ -209,11 +209,11 @@ func GetStrain(db *sql.DB, id string) types.Strain {
 	var strain types.Strain
 	//join in breeder name
 	err := db.QueryRow(`
-		SELECT s.id, s.name, coalesce(s.short_desc, ''), b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count, s.description, coalesce(s.cycle_time, 0), coalesce(s.url, ''), coalesce(s.cannadb_uri, '')
+		SELECT s.id, s.name, coalesce(s.short_desc, ''), b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count, s.description, coalesce(s.cycle_time, 0), coalesce(s.url, ''), coalesce(s.cannadb_uri, ''), s.feminized
 		FROM strain s
 		JOIN breeder b ON s.breeder_id = b.id
 		WHERE s.id = $1`, id).Scan(
-		&strain.ID, &strain.Name, &strain.ShortDescription, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount, &strain.Description, &strain.CycleTime, &strain.Url, &strain.CannadbURI)
+		&strain.ID, &strain.Name, &strain.ShortDescription, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount, &strain.Description, &strain.CycleTime, &strain.Url, &strain.CannadbURI, &strain.Feminized)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			fieldLogger.Error("Strain not found")
@@ -236,6 +236,7 @@ func AddStrainHandler(c *gin.Context) {
 		Indica           int    `json:"indica"`
 		Sativa           int    `json:"sativa"`
 		Autoflower       bool   `json:"autoflower"`
+		Feminized        bool   `json:"feminized"`
 		SeedCount        int    `json:"seed_count"`
 		Description      string `json:"description"`
 		ShortDescription string `json:"short_desc"`
@@ -298,18 +299,14 @@ func AddStrainHandler(c *gin.Context) {
 
 	// Insert the new strain into the database
 	stmt := `
-		INSERT INTO strain (name, breeder_id, indica, sativa, autoflower, seed_count, description, cycle_time, url, short_desc)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id
+		INSERT INTO strain (name, breeder_id, indica, sativa, autoflower, feminized, seed_count, description, cycle_time, url, short_desc)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id
 	`
 	//convert autoflower to int
-	var autoflowerInt int
-	if req.Autoflower {
-		autoflowerInt = 1
-	} else {
-		autoflowerInt = 0
-	}
+	autoflowerInt := boolToInt(req.Autoflower)
+	feminizedInt := boolToInt(req.Feminized)
 	var id int
-	err := db.QueryRow(stmt, req.Name, breederID, req.Indica, req.Sativa, autoflowerInt, req.SeedCount, req.Description, req.CycleTime, req.Url, req.ShortDescription).Scan(&id)
+	err := db.QueryRow(stmt, req.Name, breederID, req.Indica, req.Sativa, autoflowerInt, feminizedInt, req.SeedCount, req.Description, req.CycleTime, req.Url, req.ShortDescription).Scan(&id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to insert strain")
 		apiInternalError(c, "api_failed_to_add_strain")
@@ -337,11 +334,11 @@ func GetStrainHandler(c *gin.Context) {
 	var strain types.Strain
 
 	err = db.QueryRow(`
-        SELECT s.id, s.name, b.name as breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.description, coalesce(s.short_desc, ''), s.seed_count, coalesce(s.cycle_time, 0), coalesce(s.url, ''), coalesce(s.cannadb_uri, '')
+        SELECT s.id, s.name, b.name as breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.description, coalesce(s.short_desc, ''), s.seed_count, coalesce(s.cycle_time, 0), coalesce(s.url, ''), coalesce(s.cannadb_uri, ''), s.feminized
         FROM strain s LEFT OUTER JOIN breeder b on s.breeder_id = b.id
         WHERE s.id = $1`, id).Scan(
 		&strain.ID, &strain.Name, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa,
-		&strain.Autoflower, &strain.Description, &strain.ShortDescription, &strain.SeedCount, &strain.CycleTime, &strain.Url, &strain.CannadbURI)
+		&strain.Autoflower, &strain.Description, &strain.ShortDescription, &strain.SeedCount, &strain.CycleTime, &strain.Url, &strain.CannadbURI, &strain.Feminized)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			apiNotFound(c, "api_strain_not_found")
@@ -371,6 +368,7 @@ func UpdateStrainHandler(c *gin.Context) {
 		Indica           int    `json:"indica"`
 		Sativa           int    `json:"sativa"`
 		Autoflower       bool   `json:"autoflower"`
+		Feminized        bool   `json:"feminized"`
 		Description      string `json:"description"`
 		ShortDescription string `json:"short_desc"`
 		SeedCount        int    `json:"seed_count"`
@@ -433,19 +431,18 @@ func UpdateStrainHandler(c *gin.Context) {
 
 	// Update the strain in the database
 	updateStmt := `
-        UPDATE strain
-        SET name = $1, breeder_id = $2, indica = $3, sativa = $4, autoflower = $5, description = $6, seed_count = $7, cycle_time = $8, url = $9, short_desc = $10
-        WHERE id = $11
+  	UPDATE strain
+    SET name = $1, breeder_id = $2, indica = $3, sativa = $4, autoflower = $5, feminized = $6, description = $7, seed_count = $8, cycle_time = $9, url = $10, short_desc = $11
+    WHERE id = $12
     `
 	//Convert autoflower to int
-	var autoflowerInt int
-	if req.Autoflower {
-		autoflowerInt = 1
-	} else {
-		autoflowerInt = 0
-	}
+	autoflowerInt := boolToInt(req.Autoflower)
+
+	//Convert feminized to int
+	feminizedInt := boolToInt(req.Feminized)
+
 	_, err = db.Exec(updateStmt, req.Name, breederID, req.Indica, req.Sativa,
-		autoflowerInt, req.Description, req.SeedCount, req.CycleTime, req.Url, req.ShortDescription, id)
+		autoflowerInt, feminizedInt, req.Description, req.SeedCount, req.CycleTime, req.Url, req.ShortDescription, id)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to update strain")
 		apiInternalError(c, "api_failed_to_update_strain")
@@ -521,7 +518,7 @@ func getStrainsBySeedCount(db *sql.DB, inStock bool) ([]types.Strain, error) {
 
 	query := `
 		SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id,
-		       s.indica, s.sativa, s.autoflower, s.seed_count, s.description,
+		       s.indica, s.sativa, s.autoflower, s.seed_count, s.description, s.feminized,
 		       coalesce(s.short_desc, ''), coalesce(s.cycle_time, 0), coalesce(s.url, ''),
 		       ` + aggExpr + `
 		FROM strain s
@@ -529,7 +526,7 @@ func getStrainsBySeedCount(db *sql.DB, inStock bool) ([]types.Strain, error) {
 		LEFT JOIN strain_lineage sl ON sl.strain_id = s.id
 		WHERE s.seed_count ` + op + ` 0
 		GROUP BY s.id, s.name, b.name, b.id, s.indica, s.sativa, s.autoflower,
-		         s.seed_count, s.description, s.short_desc, s.cycle_time, s.url
+		         s.seed_count, s.description, s.feminized, s.short_desc, s.cycle_time, s.url
 		ORDER BY s.name ASC
 	`
 
@@ -545,7 +542,7 @@ func getStrainsBySeedCount(db *sql.DB, inStock bool) ([]types.Strain, error) {
 		var strain types.Strain
 		if err := rows.Scan(&strain.ID, &strain.Name, &strain.Breeder, &strain.BreederID,
 			&strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount,
-			&strain.Description, &strain.ShortDescription, &strain.CycleTime, &strain.Url,
+			&strain.Description, &strain.Feminized, &strain.ShortDescription, &strain.CycleTime, &strain.Url,
 			&strain.Lineage); err != nil {
 			fieldLogger.WithError(err).Error("Failed to scan strain")
 			return nil, err

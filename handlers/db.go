@@ -23,3 +23,12 @@ const contextKeyDB = "db"
 func DBFromContext(c *gin.Context) *sql.DB {
 	return c.MustGet(contextKeyDB).(*sql.DB)
 }
+
+// boolToInt converts a Go bool to the 0/1 representation used for
+// boolean columns in both the SQLite and Postgres schemas.
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}

@@ -239,6 +239,7 @@ type Strain struct {
 	// record's indexedAt, kept for future refresh logic.
 	CannadbURI       string `json:"cannadb_uri,omitempty"`
 	CannadbIndexedAt string `json:"cannadb_indexed_at,omitempty"`
+	Feminized        bool   `json:"feminized"`
 }
 
 type StrainLineage struct {
