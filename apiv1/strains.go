@@ -133,6 +133,7 @@ type strainJSON struct {
 	IndicaPct        int                `json:"indica_pct"`
 	SativaPct        int                `json:"sativa_pct"`
 	Autoflower       bool               `json:"autoflower"`
+	Feminized        bool               `json:"feminized"`
 	SeedCount        int                `json:"seed_count"`
 	CycleTimeDays    *int               `json:"cycle_time_days"`
 	URL              string             `json:"url"`
@@ -152,7 +153,7 @@ func toLineageEntryJSON(e service.LineageEntry) lineageEntryJSON {
 func toStrainJSON(st service.Strain) strainJSON {
 	out := strainJSON{
 		ID: st.ID, Name: st.Name, Breeder: refJSON{ID: st.Breeder.ID, Name: st.Breeder.Name},
-		IndicaPct: st.IndicaPct, SativaPct: st.SativaPct, Autoflower: st.Autoflower,
+		IndicaPct: st.IndicaPct, SativaPct: st.SativaPct, Autoflower: st.Autoflower, Feminized: st.Feminized,
 		SeedCount: st.SeedCount, CycleTimeDays: st.CycleTimeDays, URL: st.URL,
 		ShortDescription: st.ShortDescription, Description: st.Description,
 		Parents: make([]lineageEntryJSON, len(st.Parents)),
@@ -175,16 +176,8 @@ func (a *api) listStrains(c *gin.Context) {
 		Offset:    offset,
 		Limit:     page.Limit,
 	}
-	switch c.Query("in_stock") {
-	case "":
-	case "true":
-		f.InStock = new(bool)
-		*f.InStock = true
-	case "false":
-		f.InStock = new(bool)
-	default:
-		problems["in_stock"] = "must be true or false"
-	}
+	f.InStock = queryBool(c, "in_stock", problems)
+	f.Feminized = queryBool(c, "feminized", problems)
 	if len(problems) > 0 {
 		invalid(c, problems)
 		return
@@ -226,6 +219,7 @@ func (a *api) createStrain(c *gin.Context) {
 		IndicaPct        *int   `json:"indica_pct"`
 		SativaPct        *int   `json:"sativa_pct"`
 		Autoflower       bool   `json:"autoflower"`
+		Feminized        *bool  `json:"feminized"`
 		SeedCount        int    `json:"seed_count"`
 		CycleTimeDays    *int   `json:"cycle_time_days"`
 		URL              string `json:"url"`
@@ -237,7 +231,7 @@ func (a *api) createStrain(c *gin.Context) {
 	}
 	in := service.StrainInput{
 		Name: req.Name, BreederID: req.BreederID, BreederName: req.BreederName,
-		IndicaPct: 50, SativaPct: 50, Autoflower: req.Autoflower, SeedCount: req.SeedCount,
+		IndicaPct: 50, SativaPct: 50, Autoflower: req.Autoflower, Feminized: req.Feminized, SeedCount: req.SeedCount,
 		CycleTimeDays: req.CycleTimeDays, URL: req.URL,
 		ShortDescription: req.ShortDescription, Description: req.Description,
 	}
@@ -271,6 +265,7 @@ func (a *api) updateStrain(c *gin.Context) {
 		IndicaPct        optional[int]    `json:"indica_pct"`
 		SativaPct        optional[int]    `json:"sativa_pct"`
 		Autoflower       optional[bool]   `json:"autoflower"`
+		Feminized        optional[bool]   `json:"feminized"`
 		SeedCount        optional[int]    `json:"seed_count"`
 		CycleTimeDays    optional[int]    `json:"cycle_time_days"`
 		URL              optional[string] `json:"url"`
@@ -283,7 +278,7 @@ func (a *api) updateStrain(c *gin.Context) {
 	upd := service.StrainUpdate{
 		Name: req.Name.patch(), BreederID: req.BreederID.patch(), BreederName: req.BreederName,
 		IndicaPct: req.IndicaPct.patch(), SativaPct: req.SativaPct.patch(), Autoflower: req.Autoflower.patch(),
-		SeedCount: req.SeedCount.patch(), CycleTimeDays: req.CycleTimeDays.patch(), URL: req.URL.patch(),
+		Feminized: req.Feminized.patch(), SeedCount: req.SeedCount.patch(), CycleTimeDays: req.CycleTimeDays.patch(), URL: req.URL.patch(),
 		ShortDescription: req.ShortDescription.patch(), Description: req.Description.patch(),
 	}
 	// One percentage alone moves the other with it.
@@ -431,4 +426,21 @@ func (a *api) listDescendants(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, NewList(out, next))
+}
+
+// queryBool reads an optional true/false query parameter: nil when absent.
+func queryBool(c *gin.Context, name string, problems map[string]string) *bool {
+	switch c.Query(name) {
+	case "":
+		return nil
+	case "true":
+		v := true
+		return &v
+	case "false":
+		v := false
+		return &v
+	default:
+		problems[name] = "must be true or false"
+		return nil
+	}
 }

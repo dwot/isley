@@ -39,7 +39,9 @@ type Strain struct {
 	SativaPct int
 	// Autoflower strains flower on age rather than light.
 	Autoflower bool
-	SeedCount  int
+	// Feminized seeds grow only female plants; regular seeds give both.
+	Feminized bool
+	SeedCount int
 	// CycleTimeDays is seed to harvest for an autoflower, or the flowering
 	// time for a photoperiod strain; nil when unknown.
 	CycleTimeDays    *int
@@ -84,12 +86,14 @@ type ParentInput struct {
 // StrainInput is a new strain. BreederID picks an existing breeder; when
 // it is 0, BreederName names one, created if there is none by that name.
 type StrainInput struct {
-	Name             string
-	BreederID        int
-	BreederName      string
-	IndicaPct        int
-	SativaPct        int
-	Autoflower       bool
+	Name        string
+	BreederID   int
+	BreederName string
+	IndicaPct   int
+	SativaPct   int
+	Autoflower  bool
+	// Feminized nil means feminized, the default for a new strain.
+	Feminized        *bool
 	SeedCount        int
 	CycleTimeDays    *int
 	URL              string
@@ -107,6 +111,7 @@ type StrainUpdate struct {
 	IndicaPct        Patch[int]
 	SativaPct        Patch[int]
 	Autoflower       Patch[bool]
+	Feminized        Patch[bool]
 	SeedCount        Patch[int]
 	CycleTimeDays    Patch[int]
 	URL              Patch[string]
@@ -119,6 +124,8 @@ type StrainFilter struct {
 	BreederID int
 	// InStock, when set, keeps strains with (true) or without (false) seeds.
 	InStock *bool
+	// Feminized, when set, keeps feminized (true) or regular (false) strains.
+	Feminized *bool
 	// Query matches part of the name, ignoring case.
 	Query  string
 	Offset int
@@ -138,7 +145,7 @@ func strainNotFound(id int) error {
 }
 
 const strainSelect = `
-	SELECT s.id, s.name, s.breeder_id, COALESCE(b.name, ''), s.indica, s.sativa, s.autoflower, s.seed_count,
+	SELECT s.id, s.name, s.breeder_id, COALESCE(b.name, ''), s.indica, s.sativa, s.autoflower, s.feminized, s.seed_count,
 	       s.cycle_time, COALESCE(s.url, ''), COALESCE(s.short_desc, ''), s.description,
 	       COALESCE(s.cannadb_uri, '')
 	FROM strain s LEFT JOIN breeder b ON b.id = s.breeder_id`
@@ -160,6 +167,9 @@ func (s *StrainService) List(ctx context.Context, f StrainFilter) ([]Strain, int
 		} else {
 			where = append(where, "s.seed_count <= 0")
 		}
+	}
+	if f.Feminized != nil {
+		add("s.feminized = ?", boolInt(*f.Feminized))
 	}
 	if q := strings.TrimSpace(f.Query); q != "" {
 		add("LOWER(s.name) LIKE ?", "%"+strings.ToLower(q)+"%")
@@ -206,7 +216,7 @@ func (s *StrainService) query(ctx context.Context, q string, args ...any) ([]Str
 			cycle sql.NullInt64
 		)
 		if err := rows.Scan(&st.ID, &st.Name, &st.Breeder.ID, &st.Breeder.Name, &st.IndicaPct, &st.SativaPct,
-			&st.Autoflower, &st.SeedCount, &cycle, &st.URL, &st.ShortDescription, &st.Description,
+			&st.Autoflower, &st.Feminized, &st.SeedCount, &cycle, &st.URL, &st.ShortDescription, &st.Description,
 			&st.CannadbURI); err != nil {
 			return nil, fmt.Errorf("scan strain: %w", err)
 		}
@@ -336,7 +346,7 @@ func (s *StrainService) resolveBreeder(ctx context.Context, tx *sql.Tx, v *Valid
 func (s *StrainService) Create(ctx context.Context, in StrainInput) (Strain, error) {
 	st := Strain{
 		Name: in.Name, IndicaPct: in.IndicaPct, SativaPct: in.SativaPct, Autoflower: in.Autoflower,
-		SeedCount: in.SeedCount, CycleTimeDays: in.CycleTimeDays, URL: in.URL,
+		Feminized: in.Feminized == nil || *in.Feminized, SeedCount: in.SeedCount, CycleTimeDays: in.CycleTimeDays, URL: in.URL,
 		ShortDescription: in.ShortDescription, Description: in.Description,
 	}
 	var v Validation
@@ -358,9 +368,9 @@ func (s *StrainService) Create(ctx context.Context, in StrainInput) (Strain, err
 		}
 		st.Breeder.ID = bid
 		return tx.QueryRowContext(ctx, `
-			INSERT INTO strain (name, breeder_id, indica, sativa, autoflower, seed_count, cycle_time, url, short_desc, description)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
-			st.Name, st.Breeder.ID, st.IndicaPct, st.SativaPct, boolInt(st.Autoflower), st.SeedCount,
+			INSERT INTO strain (name, breeder_id, indica, sativa, autoflower, feminized, seed_count, cycle_time, url, short_desc, description)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+			st.Name, st.Breeder.ID, st.IndicaPct, st.SativaPct, boolInt(st.Autoflower), boolInt(st.Feminized), st.SeedCount,
 			st.CycleTimeDays, st.URL, st.ShortDescription, st.Description).Scan(&id)
 	})
 	if err != nil {
@@ -398,6 +408,10 @@ func (s *StrainService) Update(ctx context.Context, id int, upd StrainUpdate) (S
 	if upd.Autoflower.Set {
 		st.Autoflower = upd.Autoflower.Value != nil && *upd.Autoflower.Value
 	}
+	if upd.Feminized.Set {
+		// Cleared means the default, feminized.
+		st.Feminized = upd.Feminized.Value == nil || *upd.Feminized.Value
+	}
 	if upd.CycleTimeDays.Set {
 		st.CycleTimeDays = upd.CycleTimeDays.Value
 	}
@@ -426,9 +440,9 @@ func (s *StrainService) Update(ctx context.Context, id int, upd StrainUpdate) (S
 		}
 		_, err := tx.ExecContext(ctx, `
 			UPDATE strain SET name = $1, breeder_id = $2, indica = $3, sativa = $4, autoflower = $5,
-			       seed_count = $6, cycle_time = $7, url = $8, short_desc = $9, description = $10
-			WHERE id = $11`,
-			st.Name, st.Breeder.ID, st.IndicaPct, st.SativaPct, boolInt(st.Autoflower), st.SeedCount,
+			       feminized = $6, seed_count = $7, cycle_time = $8, url = $9, short_desc = $10, description = $11
+			WHERE id = $12`,
+			st.Name, st.Breeder.ID, st.IndicaPct, st.SativaPct, boolInt(st.Autoflower), boolInt(st.Feminized), st.SeedCount,
 			st.CycleTimeDays, st.URL, st.ShortDescription, st.Description, id)
 		if err != nil {
 			return fmt.Errorf("update strain %d: %w", id, err)
@@ -804,8 +818,8 @@ func (s *StrainService) RefreshCaches(ctx context.Context) error {
 // refreshStrains reloads the strain cache the web pages read.
 func refreshStrains(ctx context.Context, q querier, store *config.Store) error {
 	rows, err := q.QueryContext(ctx, `
-		SELECT s.id, s.name, s.breeder_id, COALESCE(b.name, ''), s.indica, s.sativa, s.autoflower, s.description,
-		       COALESCE(s.short_desc, ''), s.seed_count
+		SELECT s.id, s.name, s.breeder_id, COALESCE(b.name, ''), s.indica, s.sativa, s.autoflower, s.feminized,
+		       s.description, COALESCE(s.short_desc, ''), s.seed_count
 		FROM strain s LEFT JOIN breeder b ON s.breeder_id = b.id
 		ORDER BY s.name`)
 	if err != nil {
@@ -816,7 +830,7 @@ func refreshStrains(ctx context.Context, q querier, store *config.Store) error {
 	for rows.Next() {
 		var st types.Strain
 		if err := rows.Scan(&st.ID, &st.Name, &st.BreederID, &st.Breeder, &st.Indica, &st.Sativa,
-			&st.Autoflower, &st.Description, &st.ShortDescription, &st.SeedCount); err != nil {
+			&st.Autoflower, &st.Feminized, &st.Description, &st.ShortDescription, &st.SeedCount); err != nil {
 			return fmt.Errorf("scan strain: %w", err)
 		}
 		out = append(out, st)

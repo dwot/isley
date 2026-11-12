@@ -64,6 +64,14 @@
                 </select>
             </div>
             <div class="strains-filter-group">
+                <label class="strains-filter-label">{{ .lcl.title_feminized }}</label>
+                <select id="filterFeminized" class="form-select form-select-sm">
+                    <option value="">{{ .lcl.filter_all }}</option>
+                    <option value="feminized">{{ .lcl.feminized }}</option>
+                    <option value="regular">{{ .lcl.regular }}</option>
+                </select>
+            </div>
+            <div class="strains-filter-group">
                 <label class="strains-filter-label">{{ .lcl.sort_by }}</label>
                 <select id="sortBy" class="form-select form-select-sm">
                     <option value="name-asc">{{ .lcl.sort_name_asc }}</option>
@@ -74,6 +82,8 @@
                     <option value="sativa-desc">{{ .lcl.sort_most_sativa }}</option>
                     <option value="seeds-desc">{{ .lcl.sort_most_seeds }}</option>
                     <option value="seeds-asc">{{ .lcl.sort_fewest_seeds }}</option>
+                    <option value="feminized-desc">{{ .lcl.sort_feminized_first }}</option>
+                    <option value="feminized-asc">{{ .lcl.sort_regular_first }}</option>
                 </select>
             </div>
             <div class="strains-filter-group">
@@ -100,6 +110,7 @@
                     <th class="st-th-breeder st-sortable" data-sort="breeder">{{ .lcl.breeder }} <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
                     <th class="st-th-lineage">Lineage</th>
                     <th class="st-th-type">Type</th>
+                    <th class="st-th-feminized st-sortable" data-sort="feminized">Fem/Reg <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
                     <th class="st-th-ratio st-sortable" data-sort="indica">Indica/Sativa <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
                     <th class="st-th-seeds st-sortable" data-sort="seeds">Seeds <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
                 </tr>
@@ -125,6 +136,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const searchInput = document.getElementById("searchStrains");
     const filterBreeder = document.getElementById("filterBreeder");
     const filterType = document.getElementById("filterType");
+    const filterFeminized = document.getElementById("filterFeminized");
     const sortBy = document.getElementById("sortBy");
     const clearBtn = document.getElementById("clearFilters");
     const resultCount = document.getElementById("resultCount");
@@ -139,8 +151,9 @@ document.addEventListener("DOMContentLoaded", () => {
             breeder: { asc: "breeder-asc", desc: "breeder-desc" },
             indica:  { asc: "sativa-desc", desc: "indica-desc" },
             seeds:   { asc: "seeds-asc", desc: "seeds-desc" },
+            feminized: { asc: "feminized-asc", desc: "feminized-desc" },
         },
-        dropdownToHeader: { name: "name", breeder: "breeder", indica: "indica", sativa: { key: "indica", invert: true }, seeds: "seeds" },
+        dropdownToHeader: { name: "name", breeder: "breeder", indica: "indica", sativa: { key: "indica", invert: true }, seeds: "seeds", feminized: "feminized" },
         onChange: applyFilters,
     });
 
@@ -163,7 +176,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // ----- Fetch strains -----
     async function fetchStrains(view) {
         cardsContainer.innerHTML = `<div class="text-center py-5" style="flex-basis:100%"><div class="spinner-border text-primary" role="status"></div></div>`;
-        tableBody.innerHTML = `<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="7" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>`;
         try {
             const res = await fetch(`/strains/${view}`);
             allStrains = await res.json() || [];
@@ -186,6 +199,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const query = searchInput.value.toLowerCase().trim();
         const breeder = filterBreeder.value;
         const type = filterType.value;
+        const feminized = filterFeminized.value;
 
         data = list.filterByText(data, query, ["name", "breeder", "short_desc", "lineage"]);
         if (breeder) {
@@ -195,6 +209,11 @@ document.addEventListener("DOMContentLoaded", () => {
             data = data.filter(s => s.autoflower);
         } else if (type === "photo") {
             data = data.filter(s => !s.autoflower);
+        }
+        if (feminized === "feminized") {
+            data = data.filter(s => s.feminized);
+        } else if (feminized === "regular") {
+            data = data.filter(s => !s.feminized);
         }
 
         // Use table header sort if active, otherwise use dropdown
@@ -216,6 +235,9 @@ document.addEventListener("DOMContentLoaded", () => {
                     return asc ? a.sativa - b.sativa : b.sativa - a.sativa;
                 case "seeds":
                     return asc ? a.seed_count - b.seed_count : b.seed_count - a.seed_count;
+                case "feminized":
+                    if (a.feminized === b.feminized) return 0;
+                    return asc ? (a.feminized ? 1 : -1) : (a.feminized ? -1 : 1);
                 default:
                     return 0;
             }
@@ -234,12 +256,20 @@ document.addEventListener("DOMContentLoaded", () => {
         renderTable(data);
     }
 
+    function renderBadges(s) {
+        const typeBadge = s.autoflower
+            ? `<span class="strain-badge-auto"><i class="fa-solid fa-bolt me-1"></i>Auto</span>`
+            : `<span class="strain-badge-photo"><i class="fa-solid fa-sun me-1"></i>Photo</span>`;
+        const femBadge = s.feminized
+            ? `<span class="strain-badge-feminized"><i class="fa-solid fa-venus me-1"></i>Fem</span>`
+            : `<span class="strain-badge-regular"><i class="fa-solid fa-venus-mars me-1"></i>Reg</span>`;
+        return { typeBadge, femBadge };
+    }
+
     // ----- Render card grid -----
     function renderCards(data) {
         cardsContainer.innerHTML = data.map(s => {
-            const typeBadge = s.autoflower
-                ? `<span class="strain-badge-auto"><i class="fa-solid fa-bolt me-1"></i>Auto</span>`
-                : `<span class="strain-badge-photo"><i class="fa-solid fa-sun me-1"></i>Photo</span>`;
+            const { typeBadge, femBadge } = renderBadges(s);
 
             const dominance = s.indica > s.sativa ? "Indica" : s.sativa > s.indica ? "Sativa" : "Hybrid";
 
@@ -276,6 +306,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <div class="sc-card-footer">
                         <div class="sc-meta-left">
                             ${typeBadge}
+                            ${femBadge}
                             <span class="sc-dominance">${dominance} ${s.indica}/${s.sativa}</span>
                         </div>
                         <div class="sc-ratio-mini">
@@ -293,9 +324,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // ----- Render table -----
     function renderTable(data) {
         tableBody.innerHTML = data.map(s => {
-            const typeBadge = s.autoflower
-                ? `<span class="strain-badge-auto" style="font-size:0.7rem;padding:0.15em 0.5em"><i class="fa-solid fa-bolt me-1"></i>Auto</span>`
-                : `<span class="strain-badge-photo" style="font-size:0.7rem;padding:0.15em 0.5em"><i class="fa-solid fa-sun me-1"></i>Photo</span>`;
+            const { typeBadge, femBadge } = renderBadges(s);
 
             const seedBadge = s.seed_count > 0
                 ? `<span class="badge bg-success">${s.seed_count}</span>`
@@ -312,7 +341,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 </td>
                 <td class="st-cell-breeder">${esc(s.breeder || "")}</td>
                 <td class="st-cell-lineage">${s.lineage ? esc(s.lineage) : '<span class="text-muted">—</span>'}</td>
-                <td class="text-center">${typeBadge}</td>
+                <td class="text-center text-nowrap">${typeBadge}</td>
+                <td class="text-center text-nowrap">${femBadge}</td>
                 <td>
                     <div class="st-ratio-wrap">
                         <div class="sc-ratio-mini" style="width:60px">
@@ -367,11 +397,12 @@ document.addEventListener("DOMContentLoaded", () => {
     searchInput.addEventListener("input", debounce(applyFilters, 200));
     filterBreeder.addEventListener("change", applyFilters);
     filterType.addEventListener("change", applyFilters);
+    filterFeminized.addEventListener("change", applyFilters);
 
     clearBtn.addEventListener("click", () => {
         clearFilters({
             searchInput,
-            selects: [filterBreeder, filterType],
+            selects: [filterBreeder, filterType, filterFeminized],
             sortableTable,
             defaultSort: "name-asc"
         });

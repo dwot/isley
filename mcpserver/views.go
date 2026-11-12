@@ -226,6 +226,7 @@ type strainSummary struct {
 	Breeder       string `json:"breeder"`
 	BreederID     int    `json:"breeder_id"`
 	Autoflower    bool   `json:"autoflower"`
+	Feminized     bool   `json:"feminized"`
 	IndicaPct     int    `json:"indica_pct"`
 	SativaPct     int    `json:"sativa_pct"`
 	SeedCount     int    `json:"seed_count"`
@@ -236,7 +237,7 @@ type strainSummary struct {
 func strain(s service.Strain) strainSummary {
 	return strainSummary{
 		ID: s.ID, Name: s.Name, Breeder: s.Breeder.Name, BreederID: s.Breeder.ID, Autoflower: s.Autoflower,
-		IndicaPct: s.IndicaPct, SativaPct: s.SativaPct, SeedCount: s.SeedCount, CycleTimeDays: s.CycleTimeDays,
+		Feminized: s.Feminized, IndicaPct: s.IndicaPct, SativaPct: s.SativaPct, SeedCount: s.SeedCount, CycleTimeDays: s.CycleTimeDays,
 		Summary: s.ShortDescription,
 	}
 }

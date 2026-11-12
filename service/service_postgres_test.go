@@ -43,6 +43,12 @@ func TestPostgresStrains(t *testing.T) {
 	checkStrains(t, testutil.NewServices(t, db), db)
 }
 
+func TestPostgresStrains_Feminized(t *testing.T) {
+	t.Parallel()
+	db := testutil.NewTestPostgresDB(t)
+	checkStrainFeminized(t, testutil.NewServices(t, db), db)
+}
+
 func TestPostgresBreeders(t *testing.T) {
 	t.Parallel()
 	db := testutil.NewTestPostgresDB(t)

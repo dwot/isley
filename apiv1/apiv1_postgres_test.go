@@ -104,6 +104,11 @@ func TestPostgresStrainsAPI(t *testing.T) {
 	checkStrainsAPI(t, newPostgresFixture(t))
 }
 
+func TestPostgresStrainsAPI_Feminized(t *testing.T) {
+	t.Parallel()
+	checkStrainsAPIFeminized(t, newPostgresFixture(t))
+}
+
 func TestPostgresSensorsAPI(t *testing.T) {
 	t.Parallel()
 	checkSensorsAPI(t, newPostgresFixture(t))

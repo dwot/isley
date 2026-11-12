@@ -78,7 +78,7 @@ func DeleteBreederHandler(c *gin.Context) {
 func toTypeStrain(st service.Strain) types.Strain {
 	out := types.Strain{
 		ID: st.ID, Name: st.Name, Breeder: st.Breeder.Name, BreederID: st.Breeder.ID,
-		Indica: st.IndicaPct, Sativa: st.SativaPct, Autoflower: st.Autoflower,
+		Indica: st.IndicaPct, Sativa: st.SativaPct, Autoflower: st.Autoflower, Feminized: st.Feminized,
 		Description: st.Description, SeedCount: st.SeedCount, Url: st.URL,
 		ShortDescription: st.ShortDescription, CannadbURI: st.CannadbURI,
 	}
@@ -113,12 +113,15 @@ func GetStrain(ctx context.Context, svc *service.Services, id string) types.Stra
 // strainRequest is the strain form. A null breeder_id means new_breeder
 // names the breeder.
 type strainRequest struct {
-	Name             string `json:"name"`
-	BreederID        *int   `json:"breeder_id"`
-	NewBreeder       string `json:"new_breeder"`
-	Indica           int    `json:"indica"`
-	Sativa           int    `json:"sativa"`
-	Autoflower       bool   `json:"autoflower"`
+	Name       string `json:"name"`
+	BreederID  *int   `json:"breeder_id"`
+	NewBreeder string `json:"new_breeder"`
+	Indica     int    `json:"indica"`
+	Sativa     int    `json:"sativa"`
+	Autoflower bool   `json:"autoflower"`
+	// Feminized is left out by forms that don't show it: a new strain is
+	// then feminized, an edited one keeps what it had.
+	Feminized        *bool  `json:"feminized"`
 	SeedCount        int    `json:"seed_count"`
 	Description      string `json:"description"`
 	ShortDescription string `json:"short_desc"`
@@ -159,7 +162,7 @@ func AddStrainHandler(c *gin.Context) {
 	cycle := req.CycleTime
 	st, err := ServicesFromContext(c).Strains.Create(c.Request.Context(), service.StrainInput{
 		Name: req.Name, BreederID: breederID, BreederName: breederName,
-		IndicaPct: req.Indica, SativaPct: req.Sativa, Autoflower: req.Autoflower,
+		IndicaPct: req.Indica, SativaPct: req.Sativa, Autoflower: req.Autoflower, Feminized: req.Feminized,
 		SeedCount: req.SeedCount, CycleTimeDays: &cycle, URL: req.Url,
 		ShortDescription: req.ShortDescription, Description: req.Description,
 	})
@@ -213,6 +216,9 @@ func UpdateStrainHandler(c *gin.Context) {
 		URL:              service.Put(&req.Url),
 		ShortDescription: service.Put(&req.ShortDescription),
 		Description:      service.Put(&req.Description),
+	}
+	if req.Feminized != nil {
+		upd.Feminized = service.Put(req.Feminized)
 	}
 	if breederName == "" {
 		upd.BreederID = service.Put(&breederID)

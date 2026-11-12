@@ -36,7 +36,7 @@ func (t *tools) addReadTools(s *mcp.Server) {
 	addTool(s, &mcp.Tool{
 		Name: "find_strains",
 		Description: "Find strains by part of the name and/or breeder, optionally only those with seeds in stock. " +
-			"Returns seed counts, indica/sativa split, autoflower, and cycle time (days of flower for a " +
+			"Returns seed counts, indica/sativa split, autoflower, feminized or regular, and cycle time (days of flower for a " +
 			"photoperiod strain, seed to harvest for an autoflower).",
 	}, scope.Read, t.findStrains)
 
@@ -278,6 +278,11 @@ func (t *tools) getStrain(ctx context.Context, in getStrainInput) (result, error
 	kind := "photoperiod"
 	if s.Autoflower {
 		kind = "autoflower"
+	}
+	if s.Feminized {
+		kind = "feminized " + kind
+	} else {
+		kind = "regular " + kind
 	}
 	return result{
 		summary: fmt.Sprintf("%s by %s: %s, %s left.", s.Name, s.Breeder.Name, kind, count(s.SeedCount, "seed")),

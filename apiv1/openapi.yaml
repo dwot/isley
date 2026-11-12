@@ -1355,6 +1355,11 @@ paths:
           description: true for strains with seeds left, false for those without.
           schema:
             type: boolean
+        - name: feminized
+          in: query
+          description: true for feminized strains, false for regular ones.
+          schema:
+            type: boolean
         - name: q
           in: query
           description: Part of the name (any case).
@@ -1419,6 +1424,9 @@ paths:
                   maximum: 100
                 autoflower:
                   type: boolean
+                feminized:
+                  type: boolean
+                  description: Feminized (female plants only) or regular seeds. A new strain defaults to feminized.
                 seed_count:
                   type: integer
                   minimum: 0
@@ -1517,6 +1525,9 @@ paths:
                   maximum: 100
                 autoflower:
                   type: boolean
+                feminized:
+                  type: boolean
+                  description: Feminized (female plants only) or regular seeds. A new strain defaults to feminized.
                 seed_count:
                   type: integer
                   minimum: 0
@@ -3342,8 +3353,8 @@ components:
     Strain:
       type: object
       additionalProperties: false
-      required: [id, name, breeder, indica_pct, sativa_pct, autoflower, seed_count, cycle_time_days, url,
-        short_description, description, parents]
+      required: [id, name, breeder, indica_pct, sativa_pct, autoflower, feminized, seed_count, cycle_time_days,
+        url, short_description, description, parents]
       properties:
         id:
           type: integer
@@ -3357,6 +3368,9 @@ components:
           type: integer
         autoflower:
           type: boolean
+        feminized:
+          type: boolean
+          description: Feminized (female plants only) or regular seeds.
         seed_count:
           type: integer
         cycle_time_days:

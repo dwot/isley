@@ -102,6 +102,15 @@
                                 </select>
                             </div>
 
+                            <!-- Feminized -->
+                            <div class="col-md-6">
+                                <label for="editFeminized" class="form-label required">{{ .lcl.feminized }}</label>
+                                <select class="form-select" id="editFeminized" required>
+                                    <option value="true" selected>{{ .lcl.yes }}</option>
+                                    <option value="false">{{ .lcl.no }}</option>
+                                </select>
+                            </div>
+
                             <!-- Cycle Time -->
                             <div class="col-md-6">
                                 <label for="editCycleTime" class="form-label required">{{ .lcl.cycle_time }}</label>

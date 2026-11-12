@@ -110,6 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 indica: parseInt(editIndicaSativaSlider.value, 10),
                 sativa: 100 - parseInt(editIndicaSativaSlider.value, 10),
                 autoflower: document.getElementById("editAutoflower").value === "true",
+                feminized: document.getElementById("editFeminized").value === "true",
                 seed_count: parseInt(document.getElementById("editSeedCount").value, 10),
                 description: descriptionTextarea.value,
                 short_desc: document.getElementById("editStrainShortDescription").value,

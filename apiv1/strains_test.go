@@ -26,6 +26,7 @@ type strainBody struct {
 	IndicaPct     int    `json:"indica_pct"`
 	SativaPct     int    `json:"sativa_pct"`
 	Autoflower    bool   `json:"autoflower"`
+	Feminized     bool   `json:"feminized"`
 	SeedCount     int    `json:"seed_count"`
 	CycleTimeDays *int   `json:"cycle_time_days"`
 	URL           string `json:"url"`
@@ -210,4 +211,51 @@ func checkStrainsAPI(t *testing.T, f fixture) {
 	assert.Equal(t, "OG", cross.Parents[1].Name, "the name stays")
 	assert.Nil(t, cross.Parents[1].Strain, "the link goes")
 	assert.Equal(t, http.StatusNotFound, f.cc.get("/strains/"+itoa(og.ID), read).StatusCode)
+}
+
+func TestStrainsAPI_Feminized(t *testing.T) {
+	t.Parallel()
+	checkStrainsAPIFeminized(t, newFixture(t))
+}
+
+// checkStrainsAPIFeminized: strains carry feminized (default true), it can be
+// set on create and patched, and the list filters on it.
+func checkStrainsAPIFeminized(t *testing.T, f fixture) {
+	read, write := f.key(t, "read"), f.key(t, "write")
+
+	resp := f.cc.do(http.MethodPost, "/strains", bearer(write), []byte(`{"name":"Fem","breeder_name":"Acme"}`))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "%s", resp.Body)
+	fem := decode[strainBody](t, resp.Body)
+	assert.True(t, fem.Feminized, "defaults to feminized")
+
+	resp = f.cc.do(http.MethodPost, "/strains", bearer(write),
+		[]byte(`{"name":"Reg","breeder_id":`+itoa(fem.Breeder.ID)+`,"feminized":false}`))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "%s", resp.Body)
+	reg := decode[strainBody](t, resp.Body)
+	assert.False(t, reg.Feminized)
+
+	list := func(q string) []string {
+		resp := f.cc.do(http.MethodGet, "/strains"+q, bearer(read), nil)
+		require.Equal(t, http.StatusOK, resp.StatusCode, "%s", resp.Body)
+		page := decode[struct {
+			Items []strainBody `json:"items"`
+		}](t, resp.Body)
+		names := []string{}
+		for _, s := range page.Items {
+			names = append(names, s.Name)
+		}
+		return names
+	}
+	assert.Equal(t, []string{"Reg"}, list("?feminized=false"))
+	assert.Equal(t, []string{"Fem"}, list("?feminized=true"))
+	resp = f.cc.do(http.MethodGet, "/strains?feminized=maybe", bearer(read), nil)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Contains(t, requireErrorEnvelope(t, resp.Body).Error.Details["fields"].(map[string]any), "feminized")
+
+	resp = f.cc.do(http.MethodPatch, "/strains/"+itoa(fem.ID), bearer(write), []byte(`{"feminized":false}`))
+	require.Equal(t, http.StatusOK, resp.StatusCode, "%s", resp.Body)
+	assert.False(t, decode[strainBody](t, resp.Body).Feminized)
+	resp = f.cc.do(http.MethodGet, "/strains/"+itoa(fem.ID), bearer(read), nil)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.False(t, decode[strainBody](t, resp.Body).Feminized)
 }

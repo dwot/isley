@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Strains can be marked feminized or regular (#271, thanks @platentgrows).
+  The strains list gets a Fem/Reg filter, sort options, a sortable column
+  and badges; the strain page and the add/edit forms show the field. API v1
+  strains carry `feminized` and the list takes `?feminized=true|false`.
+  Existing strains and new ones that don't say default to feminized.
 - Scoped API keys. Each key now has an access level (read only, read and write,
   or admin) and, separately, permission to push sensor readings. Pick it when
   creating a key in Settings → API, and change it later without changing the

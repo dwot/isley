@@ -221,6 +221,7 @@ type Strain struct {
 	Indica           int    `json:"indica"`
 	Sativa           int    `json:"sativa"`
 	Autoflower       bool   `json:"autoflower"`
+	Feminized        bool   `json:"feminized"`
 	Description      string `json:"description"`
 	SeedCount        int    `json:"seed_count"`
 	CycleTime        int    `json:"cycle_time"`

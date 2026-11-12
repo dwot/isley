@@ -244,3 +244,51 @@ func checkBreeders(t *testing.T, svc *service.Services, db *sql.DB) {
 	_, err = svc.Plants.Get(ctx, plant)
 	assert.True(t, service.IsKind(err, service.KindNotFound))
 }
+
+// TestStrains_Feminized: a new strain is feminized unless it says otherwise,
+// an update can change it (cleared means feminized again), and the list
+// filters on it.
+func TestStrains_Feminized(t *testing.T) {
+	t.Parallel()
+	db := testutil.NewTestDB(t)
+	checkStrainFeminized(t, testutil.NewServices(t, db), db)
+}
+
+func checkStrainFeminized(t *testing.T, svc *service.Services, db *sql.DB) {
+	ctx := context.Background()
+	breeder := testutil.SeedBreeder(t, db, "Fem Genetics")
+	// A strain from before migration 030 picks up the column default.
+	seeded := testutil.SeedStrain(t, db, breeder, "Old Strain")
+	st, err := svc.Strains.Get(ctx, seeded)
+	require.NoError(t, err)
+	assert.True(t, st.Feminized, "existing strains default to feminized")
+
+	fem, err := svc.Strains.Create(ctx, service.StrainInput{Name: "Default Fem", BreederID: breeder, IndicaPct: 50, SativaPct: 50})
+	require.NoError(t, err)
+	assert.True(t, fem.Feminized, "a new strain is feminized unless it says otherwise")
+
+	no := false
+	reg, err := svc.Strains.Create(ctx, service.StrainInput{Name: "A Regular", BreederID: breeder, IndicaPct: 50, SativaPct: 50, Feminized: &no})
+	require.NoError(t, err)
+	assert.False(t, reg.Feminized)
+
+	list, total, err := svc.Strains.List(ctx, service.StrainFilter{Feminized: &no})
+	require.NoError(t, err)
+	require.Equal(t, 1, total)
+	assert.Equal(t, "A Regular", list[0].Name)
+	yes := true
+	_, total, err = svc.Strains.List(ctx, service.StrainFilter{Feminized: &yes})
+	require.NoError(t, err)
+	assert.Equal(t, 2, total)
+
+	upd, err := svc.Strains.Update(ctx, fem.ID, service.StrainUpdate{Feminized: service.Put(&no)})
+	require.NoError(t, err)
+	assert.False(t, upd.Feminized)
+	three := 3
+	upd, err = svc.Strains.Update(ctx, fem.ID, service.StrainUpdate{SeedCount: service.Put(&three)})
+	require.NoError(t, err)
+	assert.False(t, upd.Feminized, "an update that doesn't mention it keeps it")
+	upd, err = svc.Strains.Update(ctx, fem.ID, service.StrainUpdate{Feminized: service.Patch[bool]{Set: true}})
+	require.NoError(t, err)
+	assert.True(t, upd.Feminized, "cleared means feminized again")
+}
