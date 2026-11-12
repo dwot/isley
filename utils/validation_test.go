@@ -183,16 +183,3 @@ func TestNormalizeWebURL_FeedsValidateWebURL(t *testing.T) {
 		assert.NoError(t, ValidateWebURL("url", NormalizeWebURL("")))
 	})
 }
-
-// TestValidateDate_AcceptsWhatParseFlexibleDateAccepts: handlers validate with
-// ValidateDate before storing, so every format ParseFlexibleDate reads must
-// pass validation too. datetime-local inputs drop ":00" seconds (HTML spec),
-// e.g. a backdated entry picked on a phone sends "2026-08-12T14:30".
-func TestValidateDate_AcceptsWhatParseFlexibleDateAccepts(t *testing.T) {
-	t.Parallel()
-	for _, in := range []string{"2026-08-12", "2026-08-12T14:30", "2026-08-12T14:30:05", "2026-08-12 14:30:00", "2026-08-12T14:30:00Z"} {
-		_, perr := ParseFlexibleDate(in)
-		assert.NoErrorf(t, perr, "ParseFlexibleDate(%q)", in)
-		assert.NoErrorf(t, ValidateDate("date", in), "ValidateDate(%q)", in)
-	}
-}

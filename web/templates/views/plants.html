@@ -490,7 +490,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const dayInfo = currentView === "harvested"
                 ? `<span class="pc-stat"><i class="fa-solid fa-weight-scale me-1"></i>${p.harvest_weight ? p.harvest_weight + "g" : "—"}</span>`
                 : currentView === "dead"
-                ? `<span class="pc-stat"><i class="fa-solid fa-calendar-xmark me-1"></i>${p.harvest_date ? new Date(p.harvest_date).toLocaleDateString() : "—"}</span>`
+                ? `<span class="pc-stat"><i class="fa-solid fa-calendar-xmark me-1"></i>${IsleyTime.formatDate(p.harvest_date) || "—"}</span>`
                 : `<span class="pc-stat"><i class="fa-solid fa-calendar-day me-1"></i>Day ${p.current_day || "—"}</span>
                    <span class="pc-stat"><i class="fa-solid fa-clock me-1"></i>Week ${p.current_week || "—"}</span>`;
 
@@ -572,9 +572,9 @@ document.addEventListener("DOMContentLoaded", () => {
             let col1 = "", col2 = "";
             if (currentView === "harvested") {
                 col1 = p.harvest_weight ? `${p.harvest_weight}g` : "—";
-                col2 = p.harvest_date ? new Date(p.harvest_date).toLocaleDateString() : "—";
+                col2 = IsleyTime.formatDate(p.harvest_date) || "—";
             } else if (currentView === "dead") {
-                col1 = p.harvest_date ? new Date(p.harvest_date).toLocaleDateString() : "—";
+                col1 = IsleyTime.formatDate(p.harvest_date) || "—";
                 col2 = "";
             } else {
                 col1 = `Wk ${p.current_week || "—"}`;
@@ -671,10 +671,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // ----- Helpers -----
-    function formatDateTimeLocal(date) {
-        const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-        return offsetDate.toISOString().slice(0, 19);
-    }
+    // An instant as a datetime-local value in the instance zone.
+    const formatDateTimeLocal = IsleyTime.toInput;
 
     // ----- Quick action modal handling -----
     const quickStatusModalEl = document.getElementById("quickStatusModal");

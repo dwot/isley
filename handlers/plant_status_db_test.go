@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 
@@ -51,7 +52,7 @@ func TestGetPlantResolvesLatestStatus(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	plantID := seedStatusFixture(t, db)
 
-	got := handlers.GetPlant(db, idStr(plantID))
+	got := handlers.GetPlant(context.Background(), testutil.NewServices(t, db), idStr(plantID))
 	assert.Equal(t, "Flower", got.Status, "GetPlant should pick the latest status_log entry")
 }
 
@@ -65,8 +66,8 @@ func seedStatusFixture(t *testing.T, db *sql.DB) int64 {
 	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
 
 	res, err := db.Exec(
-		`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
-		 VALUES ('Plant 1', 1, 1, '', 0, '2026-01-01', '[]')`,
+		`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt)
+		 VALUES ('Plant 1', 1, 1, '', 0, '2026-01-01')`,
 	)
 	require.NoError(t, err)
 	plantID, err := res.LastInsertId()

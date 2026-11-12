@@ -1,605 +1,276 @@
 package handlers
 
 import (
-	"database/sql"
-	"isley/logger"
-	model "isley/model"
-	"isley/model/types"
-	"isley/utils"
+	"context"
 	"net/http"
+	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+
+	"isley/logger"
+	"isley/model/types"
+	"isley/service"
 )
 
 // ---------------------------------------------------------------------------
-// Breeder helpers & handlers
+// Breeders
 // ---------------------------------------------------------------------------
 
-func GetBreeders(db *sql.DB) []types.Breeder {
-	fieldLogger := logger.Log.WithField("func", "GetBreeders")
-
-	rows, err := db.Query("SELECT id, name FROM breeder")
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to query breeders")
-		return nil
-	}
-
-	var breeders []types.Breeder
-	for rows.Next() {
-		var breeder types.Breeder
-		err = rows.Scan(&breeder.ID, &breeder.Name)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to scan breeder")
-			return nil
-		}
-		breeders = append(breeders, breeder)
-	}
-
-	return breeders
+type breederRequest struct {
+	Name string `json:"breeder_name"`
 }
 
 func AddBreederHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "AddBreederHandler")
-	var breeder struct {
-		Name string `json:"breeder_name"`
-	}
-	if err := c.ShouldBindJSON(&breeder); err != nil {
-		fieldLogger.WithError(err).Error("Failed to add breeder")
+	var req breederRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
-	if err := utils.ValidateRequiredString("breeder_name", breeder.Name, utils.MaxNameLength); err != nil {
-		apiBadRequest(c, err.Error())
-		return
-	}
-
-	// Add breeder to database
-	db := DBFromContext(c)
-
-	// Insert new breeder and return new id
-	var id int
-	err := db.QueryRow("INSERT INTO breeder (name) VALUES ($1) RETURNING id", breeder.Name).Scan(&id)
+	b, err := ServicesFromContext(c).Breeders.Create(c.Request.Context(), req.Name)
 	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to add breeder")
-		apiInternalError(c, "api_failed_to_add_breeder")
+		apiServiceError(c, err, "api_failed_to_add_breeder")
 		return
 	}
-	ConfigStoreFromContext(c).AppendBreeder(types.Breeder{ID: id, Name: breeder.Name})
-
-	c.JSON(http.StatusCreated, gin.H{"id": id})
+	c.JSON(http.StatusCreated, gin.H{"id": b.ID})
 }
+
 func UpdateBreederHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "UpdateBreederHandler")
-	id := c.Param("id")
-	var breeder struct {
-		Name string `json:"breeder_name"`
-	}
-	if err := c.ShouldBindJSON(&breeder); err != nil {
-		fieldLogger.WithError(err).Error("Failed to update breeder")
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
 		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
-	if err := utils.ValidateRequiredString("breeder_name", breeder.Name, utils.MaxNameLength); err != nil {
-		apiBadRequest(c, err.Error())
+	var req breederRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
-
-	// Update breeder in database
-	db := DBFromContext(c)
-
-	// Update breeder in database
-	_, err := db.Exec("UPDATE breeder SET name = $1 WHERE id = $2", breeder.Name, id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to update breeder")
-		apiInternalError(c, "api_failed_to_update_breeder")
+	if _, err := ServicesFromContext(c).Breeders.Rename(c.Request.Context(), id, req.Name); err != nil {
+		apiServiceError(c, err, "api_failed_to_update_breeder")
 		return
 	}
-
-	//Reload Config
-	ConfigStoreFromContext(c).SetBreeders(GetBreeders(db))
-
 	apiOK(c, "api_breeder_updated")
 }
 
+// DeleteBreederHandler deletes a breeder with its strains and their plants,
+// as the settings page warns.
 func DeleteBreederHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "DeleteBreederHandler")
-	id := c.Param("id")
-
-	// Delete breeder from database
-	db := DBFromContext(c)
-
-	// Delete any plants associated with this breeder
-	rows, err := db.Query("SELECT p.id FROM plant p LEFT OUTER JOIN strain s on s.id = p.strain_id WHERE s.breeder_id = $1", id)
+	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		if err.Error() != "sql: no rows in result set" {
-
-		} else {
-			fieldLogger.WithError(err).Error("Failed to delete plants")
-			return
-		}
-	}
-	defer rows.Close()
-
-	plantList := []int{}
-	for rows.Next() {
-		var plantId int
-		err = rows.Scan(&plantId)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to delete plant")
-			continue
-		}
-		plantList = append(plantList, plantId)
-	}
-
-	for _, plantId := range plantList {
-		DeletePlantById(db, strconv.Itoa(plantId))
-	}
-
-	// Delete any strains associated with this breeder
-	_, err = db.Exec("DELETE FROM strain WHERE breeder_id = $1", id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete strains")
-		apiInternalError(c, "api_failed_to_delete_strains")
-	}
-
-	// Delete breeder from database
-	_, err = db.Exec("DELETE FROM breeder WHERE id = $1", id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete breeder")
-		apiInternalError(c, "api_failed_to_delete_breeder")
+		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
-
-	//Reload Config
-	ConfigStoreFromContext(c).SetBreeders(GetBreeders(db))
-
+	if err := ServicesFromContext(c).Breeders.DeleteWithEverything(c.Request.Context(), id); err != nil {
+		apiServiceError(c, err, "api_failed_to_delete_breeder")
+		return
+	}
 	apiOK(c, "api_breeder_deleted")
 }
 
 // ---------------------------------------------------------------------------
-// Strain helpers & handlers
+// Strains
 // ---------------------------------------------------------------------------
 
-func validateStrainFields(name, description, shortDesc, newBreeder, strainURL string) error {
-	if err := utils.ValidateRequiredString("name", name, utils.MaxNameLength); err != nil {
-		return err
+// toTypeStrain maps a strain onto the shape the web pages and the legacy
+// JSON endpoints use.
+func toTypeStrain(st service.Strain) types.Strain {
+	out := types.Strain{
+		ID: st.ID, Name: st.Name, Breeder: st.Breeder.Name, BreederID: st.Breeder.ID,
+		Indica: st.IndicaPct, Sativa: st.SativaPct, Autoflower: st.Autoflower,
+		Description: st.Description, SeedCount: st.SeedCount, Url: st.URL,
+		ShortDescription: st.ShortDescription, CannadbURI: st.CannadbURI,
 	}
-	// description / short_desc are unbounded TEXT columns and were never
-	// length-checked before v0.2.0. Use generous caps so legacy strains with
-	// long free text still save (only pathological input is rejected).
-	if err := utils.ValidateStringLength("description", description, utils.MaxNotesLength); err != nil {
-		return err
+	if st.CycleTimeDays != nil {
+		out.CycleTime = *st.CycleTimeDays
 	}
-	if err := utils.ValidateStringLength("short_desc", shortDesc, utils.MaxDescriptionLength); err != nil {
-		return err
+	names := make([]string, len(st.Parents))
+	for i, p := range st.Parents {
+		names[i] = p.ParentName
 	}
-	if err := utils.ValidateStringLength("new_breeder", newBreeder, utils.MaxNameLength); err != nil {
-		return err
-	}
-	return utils.ValidateWebURL("url", strainURL)
+	out.Lineage = strings.Join(names, ", ")
+	return out
 }
 
-func GetStrains(db *sql.DB) []types.Strain {
-	fieldLogger := logger.Log.WithField("func", "GetStrains")
-
-	rows, err := db.Query("SELECT s.id, s.name, b.id as breeder_id, b.name as breeder, s.indica, s.sativa, s.autoflower, s.description, coalesce(s.short_desc, ''), s.seed_count FROM strain s left outer join breeder b on s.breeder_id = b.id ORDER BY s.name ASC")
+// GetStrain returns a strain for the strain pages, or the zero Strain when
+// there is none.
+func GetStrain(ctx context.Context, svc *service.Services, id string) types.Strain {
+	n, err := strconv.Atoi(id)
 	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to query strains")
-		return nil
+		return types.Strain{}
 	}
-
-	var strains []types.Strain
-	for rows.Next() {
-		var strain types.Strain
-		err = rows.Scan(&strain.ID, &strain.Name, &strain.BreederID, &strain.Breeder, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.Description, &strain.ShortDescription, &strain.SeedCount)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to scan strain")
-			return nil
-		}
-		strains = append(strains, strain)
-	}
-
-	return strains
-}
-
-func GetStrain(db *sql.DB, id string) types.Strain {
-	fieldLogger := logger.Log.WithField("func", "GetStrain")
-
-	var strain types.Strain
-	//join in breeder name
-	err := db.QueryRow(`
-		SELECT s.id, s.name, coalesce(s.short_desc, ''), b.name AS breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.seed_count, s.description, coalesce(s.cycle_time, 0), coalesce(s.url, ''), coalesce(s.cannadb_uri, '')
-		FROM strain s
-		JOIN breeder b ON s.breeder_id = b.id
-		WHERE s.id = $1`, id).Scan(
-		&strain.ID, &strain.Name, &strain.ShortDescription, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount, &strain.Description, &strain.CycleTime, &strain.Url, &strain.CannadbURI)
+	st, err := svc.Strains.Get(ctx, n)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			fieldLogger.Error("Strain not found")
-		} else {
-			fieldLogger.WithError(err).Error("Failed to fetch strain")
+		if !service.IsKind(err, service.KindNotFound) {
+			logger.Log.WithError(err).WithField("strain", n).Error("Failed to fetch strain")
 		}
 		return types.Strain{}
 	}
+	return toTypeStrain(st)
+}
 
-	return strain
+// strainRequest is the strain form. A null breeder_id means new_breeder
+// names the breeder.
+type strainRequest struct {
+	Name             string `json:"name"`
+	BreederID        *int   `json:"breeder_id"`
+	NewBreeder       string `json:"new_breeder"`
+	Indica           int    `json:"indica"`
+	Sativa           int    `json:"sativa"`
+	Autoflower       bool   `json:"autoflower"`
+	SeedCount        int    `json:"seed_count"`
+	Description      string `json:"description"`
+	ShortDescription string `json:"short_desc"`
+	CycleTime        int    `json:"cycle_time"`
+	Url              string `json:"url"`
+}
+
+// check keeps the form's own messages for its two most common mistakes.
+func (r strainRequest) check(c *gin.Context) bool {
+	if r.Indica+r.Sativa != 100 {
+		apiBadRequest(c, "api_indica_sativa_must_sum_100")
+		return false
+	}
+	if r.BreederID == nil && strings.TrimSpace(r.NewBreeder) == "" {
+		apiBadRequest(c, "api_new_breeder_name_required")
+		return false
+	}
+	return true
+}
+
+func (r strainRequest) breeder() (int, string) {
+	if r.BreederID == nil {
+		return 0, r.NewBreeder
+	}
+	return *r.BreederID, ""
 }
 
 func AddStrainHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "AddStrainHandler")
-	// Parse the incoming JSON request
-	var req struct {
-		Name             string `json:"name"`
-		BreederID        *int   `json:"breeder_id"` // Nullable for new breeders
-		NewBreeder       string `json:"new_breeder"`
-		Indica           int    `json:"indica"`
-		Sativa           int    `json:"sativa"`
-		Autoflower       bool   `json:"autoflower"`
-		SeedCount        int    `json:"seed_count"`
-		Description      string `json:"description"`
-		ShortDescription string `json:"short_desc"`
-		CycleTime        int    `json:"cycle_time"`
-		Url              string `json:"url"`
-	}
-
+	var req strainRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		fieldLogger.WithError(err).Error("Failed to bind JSON")
 		apiBadRequest(c, "api_invalid_request_payload")
 		return
 	}
-
-	// Rescue legacy/typed schemeless URLs (e.g. "www.seedfinder.eu/x") by
-	// prepending https:// so they pass validation and persist normalized.
-	req.Url = utils.NormalizeWebURL(req.Url)
-
-	if err := validateStrainFields(req.Name, req.Description, req.ShortDescription, req.NewBreeder, req.Url); err != nil {
-		apiBadRequest(c, err.Error())
+	if !req.check(c) {
 		return
 	}
-
-	// Validate Indica and Sativa sum
-	if req.Indica+req.Sativa != 100 {
-		fieldLogger.Error("Indica and Sativa must sum to 100")
-		apiBadRequest(c, "api_indica_sativa_must_sum_100")
-		return
-	}
-
-	// Open the database
-	db := DBFromContext(c)
-	store := ConfigStoreFromContext(c)
-
-	// Check for new breeder and insert if needed
-	var breederID int
-	if req.BreederID == nil {
-		if req.NewBreeder == "" {
-			fieldLogger.Error("New breeder name is required")
-			apiBadRequest(c, "api_new_breeder_name_required")
-			return
-		}
-
-		// Insert new breeder
-		insertBreederStmt := `
-			INSERT INTO breeder (name)
-			VALUES ($1)
-		 RETURNING id`
-		err := db.QueryRow(insertBreederStmt, req.NewBreeder).Scan(&breederID)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to insert new breeder")
-			apiInternalError(c, "api_failed_to_add_new_breeder")
-			return
-		}
-
-		store.SetBreeders(GetBreeders(db))
-	} else {
-		// Use existing breeder ID
-		breederID = *req.BreederID
-	}
-
-	// Insert the new strain into the database
-	stmt := `
-		INSERT INTO strain (name, breeder_id, indica, sativa, autoflower, seed_count, description, cycle_time, url, short_desc)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id
-	`
-	//convert autoflower to int
-	var autoflowerInt int
-	if req.Autoflower {
-		autoflowerInt = 1
-	} else {
-		autoflowerInt = 0
-	}
-	var id int
-	err := db.QueryRow(stmt, req.Name, breederID, req.Indica, req.Sativa, autoflowerInt, req.SeedCount, req.Description, req.CycleTime, req.Url, req.ShortDescription).Scan(&id)
+	breederID, breederName := req.breeder()
+	cycle := req.CycleTime
+	st, err := ServicesFromContext(c).Strains.Create(c.Request.Context(), service.StrainInput{
+		Name: req.Name, BreederID: breederID, BreederName: breederName,
+		IndicaPct: req.Indica, SativaPct: req.Sativa, Autoflower: req.Autoflower,
+		SeedCount: req.SeedCount, CycleTimeDays: &cycle, URL: req.Url,
+		ShortDescription: req.ShortDescription, Description: req.Description,
+	})
 	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to insert strain")
-		apiInternalError(c, "api_failed_to_add_strain")
+		apiServiceError(c, err, "api_failed_to_add_strain")
 		return
 	}
-
-	store.SetStrains(GetStrains(db))
-
-	// Respond with success
-	c.JSON(http.StatusCreated, gin.H{"id": id, "message": T(c, "api_strain_added")})
+	c.JSON(http.StatusCreated, gin.H{"id": st.ID, "message": T(c, "api_strain_added")})
 }
 
 func GetStrainHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "GetStrainHandler")
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		fieldLogger.WithError(err).Error("Invalid strain ID")
 		apiBadRequest(c, "api_invalid_strain_id")
 		return
 	}
-
-	// Open the database
-	db := DBFromContext(c)
-
-	var strain types.Strain
-
-	err = db.QueryRow(`
-        SELECT s.id, s.name, b.name as breeder, b.id as breeder_id, s.indica, s.sativa, s.autoflower, s.description, coalesce(s.short_desc, ''), s.seed_count, coalesce(s.cycle_time, 0), coalesce(s.url, ''), coalesce(s.cannadb_uri, '')
-        FROM strain s LEFT OUTER JOIN breeder b on s.breeder_id = b.id
-        WHERE s.id = $1`, id).Scan(
-		&strain.ID, &strain.Name, &strain.Breeder, &strain.BreederID, &strain.Indica, &strain.Sativa,
-		&strain.Autoflower, &strain.Description, &strain.ShortDescription, &strain.SeedCount, &strain.CycleTime, &strain.Url, &strain.CannadbURI)
+	st, err := ServicesFromContext(c).Strains.Get(c.Request.Context(), id)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			apiNotFound(c, "api_strain_not_found")
-		} else {
-			fieldLogger.WithError(err).Error("Failed to fetch strain")
-			apiInternalError(c, "api_failed_to_fetch_strain")
-		}
+		apiServiceError(c, err, "api_failed_to_fetch_strain")
 		return
 	}
-
-	c.JSON(http.StatusOK, strain)
+	out := toTypeStrain(st)
+	out.Lineage = ""
+	c.JSON(http.StatusOK, out)
 }
 
+// UpdateStrainHandler saves the whole strain form.
 func UpdateStrainHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "UpdateStrainHandler")
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		fieldLogger.WithError(err).Error("Invalid strain ID")
 		apiBadRequest(c, "api_invalid_strain_id")
 		return
 	}
-
-	var req struct {
-		Name             string `json:"name"`
-		BreederID        *int   `json:"breeder_id"` // Nullable for new breeders
-		NewBreeder       string `json:"new_breeder"`
-		Indica           int    `json:"indica"`
-		Sativa           int    `json:"sativa"`
-		Autoflower       bool   `json:"autoflower"`
-		Description      string `json:"description"`
-		ShortDescription string `json:"short_desc"`
-		SeedCount        int    `json:"seed_count"`
-		CycleTime        int    `json:"cycle_time"`
-		Url              string `json:"url"`
-	}
-
+	var req strainRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		fieldLogger.WithError(err).Error("Failed to bind JSON")
 		apiBadRequest(c, "api_invalid_request_body")
 		return
 	}
-
-	// Rescue legacy schemeless URLs sent back verbatim by the edit modal
-	// (pre-v0.2.0 strains stored URLs without http(s)://) so any field can be
-	// updated and the value persists normalized.
-	req.Url = utils.NormalizeWebURL(req.Url)
-
-	if err := validateStrainFields(req.Name, req.Description, req.ShortDescription, req.NewBreeder, req.Url); err != nil {
-		apiBadRequest(c, err.Error())
+	if !req.check(c) {
 		return
 	}
-
-	// Validate Indica and Sativa sum
-	if req.Indica+req.Sativa != 100 {
-		fieldLogger.Error("Indica and Sativa must sum to 100")
-		apiBadRequest(c, "api_indica_sativa_must_sum_100")
+	breederID, breederName := req.breeder()
+	upd := service.StrainUpdate{
+		Name:             service.Put(&req.Name),
+		BreederName:      breederName,
+		IndicaPct:        service.Put(&req.Indica),
+		SativaPct:        service.Put(&req.Sativa),
+		Autoflower:       service.Put(&req.Autoflower),
+		SeedCount:        service.Put(&req.SeedCount),
+		CycleTimeDays:    service.Put(&req.CycleTime),
+		URL:              service.Put(&req.Url),
+		ShortDescription: service.Put(&req.ShortDescription),
+		Description:      service.Put(&req.Description),
+	}
+	if breederName == "" {
+		upd.BreederID = service.Put(&breederID)
+	}
+	if _, err := ServicesFromContext(c).Strains.Update(c.Request.Context(), id, upd); err != nil {
+		apiServiceError(c, err, "api_failed_to_update_strain")
 		return
 	}
-
-	// Open the database
-	db := DBFromContext(c)
-
-	// Determine the breeder ID
-	var breederID int
-	if req.BreederID == nil {
-		if req.NewBreeder == "" {
-			fieldLogger.Error("New breeder name is required")
-			apiBadRequest(c, "api_new_breeder_name_required")
-			return
-		}
-
-		// Insert the new breeder into the database
-		insertBreederStmt := `
-			INSERT INTO breeder (name)
-			VALUES ($1)
-			RETURNING id
-		`
-		err := db.QueryRow(insertBreederStmt, req.NewBreeder).Scan(&breederID)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to insert new breeder")
-			apiInternalError(c, "api_failed_to_add_new_breeder")
-			return
-		}
-
-		ConfigStoreFromContext(c).SetBreeders(GetBreeders(db))
-	} else {
-		breederID = *req.BreederID
-	}
-
-	// Update the strain in the database
-	updateStmt := `
-        UPDATE strain
-        SET name = $1, breeder_id = $2, indica = $3, sativa = $4, autoflower = $5, description = $6, seed_count = $7, cycle_time = $8, url = $9, short_desc = $10
-        WHERE id = $11
-    `
-	//Convert autoflower to int
-	var autoflowerInt int
-	if req.Autoflower {
-		autoflowerInt = 1
-	} else {
-		autoflowerInt = 0
-	}
-	_, err = db.Exec(updateStmt, req.Name, breederID, req.Indica, req.Sativa,
-		autoflowerInt, req.Description, req.SeedCount, req.CycleTime, req.Url, req.ShortDescription, id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to update strain")
-		apiInternalError(c, "api_failed_to_update_strain")
-		return
-	}
-
-	// Refresh the in-memory strain cache so the UI reflects the update without
-	// a restart (AddStrainHandler already does this; Update regressed in the
-	// v0.2.0 ConfigStore refactor).
-	ConfigStoreFromContext(c).SetStrains(GetStrains(db))
-
 	apiOK(c, "api_strain_updated")
 }
 
 func DeleteStrainHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "DeleteStrainHandler")
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		fieldLogger.WithError(err).Error("Invalid strain ID")
 		apiBadRequest(c, "api_invalid_strain_id")
 		return
 	}
-
-	// Open the database
-	db := DBFromContext(c)
-
-	result, err := db.Exec(`DELETE FROM strain WHERE id = $1`, id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete strain")
-		apiInternalError(c, "api_failed_to_delete_strain")
+	if err := ServicesFromContext(c).Strains.Delete(c.Request.Context(), id); err != nil {
+		apiServiceError(c, err, "api_failed_to_delete_strain")
 		return
 	}
-
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
-		fieldLogger.Error("Strain not found")
-		apiNotFound(c, "api_strain_not_found")
-		return
-	}
-
 	apiOK(c, "api_strain_deleted")
 }
 
-func InStockStrainsHandler(c *gin.Context) {
-	db := DBFromContext(c)
-	strains, err := getStrainsBySeedCount(db, true)
+func InStockStrainsHandler(c *gin.Context)    { strainsBySeedCount(c, true) }
+func OutOfStockStrainsHandler(c *gin.Context) { strainsBySeedCount(c, false) }
+
+func strainsBySeedCount(c *gin.Context, inStock bool) {
+	strains, _, err := ServicesFromContext(c).Strains.List(c.Request.Context(), service.StrainFilter{InStock: &inStock})
 	if err != nil {
-		apiInternalError(c, "api_failed_to_fetch_strains")
+		apiServiceError(c, err, "api_failed_to_fetch_strains")
 		return
 	}
-	c.JSON(http.StatusOK, strains)
-}
-func OutOfStockStrainsHandler(c *gin.Context) {
-	db := DBFromContext(c)
-	strains, err := getStrainsBySeedCount(db, false)
-	if err != nil {
-		apiInternalError(c, "api_failed_to_fetch_strains")
-		return
+	out := make([]types.Strain, len(strains))
+	for i, st := range strains {
+		out[i] = toTypeStrain(st)
+		// The lists never carried CannaDB provenance.
+		out[i].CannadbURI = ""
 	}
-	c.JSON(http.StatusOK, strains)
-}
-func getStrainsBySeedCount(db *sql.DB, inStock bool) ([]types.Strain, error) {
-	fieldLogger := logger.Log.WithField("func", "getStrainsBySeedCount")
-	op := ">"
-	if !inStock {
-		op = "="
-	}
-	// string_agg is PostgreSQL-only; SQLite uses GROUP_CONCAT.
-	aggExpr := "coalesce(GROUP_CONCAT(sl.parent_name, ', '), '')"
-	if model.IsPostgres() {
-		aggExpr = "coalesce(string_agg(sl.parent_name, ', ' ORDER BY sl.parent_name), '')"
-	}
-
-	query := `
-		SELECT s.id, s.name, b.name AS breeder, b.id as breeder_id,
-		       s.indica, s.sativa, s.autoflower, s.seed_count, s.description,
-		       coalesce(s.short_desc, ''), coalesce(s.cycle_time, 0), coalesce(s.url, ''),
-		       ` + aggExpr + `
-		FROM strain s
-		JOIN breeder b ON s.breeder_id = b.id
-		LEFT JOIN strain_lineage sl ON sl.strain_id = s.id
-		WHERE s.seed_count ` + op + ` 0
-		GROUP BY s.id, s.name, b.name, b.id, s.indica, s.sativa, s.autoflower,
-		         s.seed_count, s.description, s.short_desc, s.cycle_time, s.url
-		ORDER BY s.name ASC
-	`
-
-	rows, err := db.Query(query)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to query strains")
-		return nil, err
-	}
-	defer rows.Close()
-
-	var strains []types.Strain
-	for rows.Next() {
-		var strain types.Strain
-		if err := rows.Scan(&strain.ID, &strain.Name, &strain.Breeder, &strain.BreederID,
-			&strain.Indica, &strain.Sativa, &strain.Autoflower, &strain.SeedCount,
-			&strain.Description, &strain.ShortDescription, &strain.CycleTime, &strain.Url,
-			&strain.Lineage); err != nil {
-			fieldLogger.WithError(err).Error("Failed to scan strain")
-			return nil, err
-		}
-		strains = append(strains, strain)
-	}
-
-	return strains, nil
+	c.JSON(http.StatusOK, out)
 }
 
-func PlantsByStrainHandler(context *gin.Context) {
-	fieldLogger := logger.Log.WithField("handler", "PlantsByStrainHandler")
-
-	// Parse strain ID from query parameter
-	strainID, err := strconv.Atoi(context.Param("strainID"))
+// PlantsByStrainHandler lists the plants of a strain by name.
+func PlantsByStrainHandler(c *gin.Context) {
+	strainID, err := strconv.Atoi(c.Param("strainID"))
 	if err != nil {
-		fieldLogger.WithError(err).Error("Invalid strain ID")
-		apiBadRequest(context, "api_invalid_strain_id")
+		apiBadRequest(c, "api_invalid_strain_id")
 		return
 	}
-
-	fieldLogger = fieldLogger.WithField("strainID", strainID)
-	fieldLogger.Info("Fetching plants for strain")
-
-	db := DBFromContext(context)
-
-	// Query plants with the given strain ID
-	rows, err := db.Query(`SELECT id, name FROM plant WHERE strain_id = $1 ORDER BY name ASC`, strainID)
+	plants, _, err := ServicesFromContext(c).Plants.List(c.Request.Context(), service.PlantFilter{StrainID: strainID})
 	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to query database")
-		apiInternalError(context, "api_failed_to_fetch_plants")
+		apiServiceError(c, err, "api_failed_to_fetch_plants")
 		return
 	}
-	defer rows.Close()
-
-	// Parse query results
-	var plants []types.Plant
-	for rows.Next() {
-		var plant types.Plant
-		if err := rows.Scan(&plant.ID, &plant.Name); err != nil {
-			fieldLogger.WithError(err).Error("Failed to scan row")
-			apiInternalError(context, "api_failed_to_process_results")
-			return
-		}
-		plants = append(plants, plant)
+	sort.SliceStable(plants, func(i, j int) bool { return plants[i].Name < plants[j].Name })
+	out := make([]types.Plant, len(plants))
+	for i, p := range plants {
+		out[i] = types.Plant{ID: uint(p.ID), Name: p.Name}
 	}
-
-	if err := rows.Err(); err != nil {
-		fieldLogger.WithError(err).Error("Error iterating rows")
-		apiInternalError(context, "api_failed_to_process_results")
-		return
-	}
-
-	// Return the list of plants as JSON
-	fieldLogger.WithField("plantCount", len(plants)).Info("Plants fetched successfully")
-	context.JSON(http.StatusOK, plants)
+	c.JSON(http.StatusOK, out)
 }

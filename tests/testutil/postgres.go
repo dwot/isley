@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -60,10 +61,11 @@ func getenv(name, def string) string {
 	return def
 }
 
-// dsn builds a libpq connection string for the given database name.
+// dsn builds a libpq connection string for the given database name,
+// with sessions pinned to UTC as the app pins them.
 func (e PostgresEnv) dsn(database string) string {
 	return fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable timezone=UTC",
 		e.Host, e.Port, e.User, e.Password, database,
 	)
 }
@@ -80,11 +82,32 @@ func (e PostgresEnv) dsn(database string) string {
 // dialect for the duration of the test run. Tests that mix this helper
 // with NewTestDB in the same test binary should filter via `-run Postgres`
 // to avoid racing the global driver state.
+// pgSlots bounds how many test databases one test binary has open at once.
+// go test runs packages in parallel too, so the server sees up to
+// (packages in parallel) × cap × (a few connections each). Without it the
+// count grows with the runner's cores: 114 on a 16-core machine, over
+// Postgres's default limit of 100. With 8 it peaks around 85.
+var pgSlots = make(chan struct{}, maxPostgresTestDBs())
+
+// maxPostgresTestDBs is ISLEY_TEST_PG_MAX_DBS, default 8.
+func maxPostgresTestDBs() int {
+	if n, err := strconv.Atoi(os.Getenv("ISLEY_TEST_PG_MAX_DBS")); err == nil && n > 0 {
+		return n
+	}
+	return 8
+}
+
 func NewTestPostgresDB(t *testing.T) *sql.DB {
 	t.Helper()
 	ensureProcessInitialized()
 
 	env := LoadPostgresEnv()
+
+	// Hold a slot for the life of the test: parallel tests across parallel
+	// packages otherwise open connections in proportion to the runner's
+	// cores and exhaust max_connections ("too many clients already").
+	pgSlots <- struct{}{}
+	t.Cleanup(func() { <-pgSlots })
 
 	dbName := uniqueDBName(t)
 

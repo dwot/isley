@@ -77,7 +77,7 @@ func TestPlantActivityHTTP_Edit_RejectsBadJSON(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
-func TestPlantActivityHTTP_Delete_NoOpOnMissing(t *testing.T) {
+func TestPlantActivityHTTP_Delete_MissingIs404(t *testing.T) {
 	t.Parallel()
 
 	db := testutil.NewTestDB(t)
@@ -90,8 +90,8 @@ func TestPlantActivityHTTP_Delete_NoOpOnMissing(t *testing.T) {
 	resp, err := c.Do(testutil.APIReq(t, http.MethodDelete, c.BaseURL+"/plantActivity/delete/99999", apiKey, nil, ""))
 	require.NoError(t, err)
 	defer testutil.DrainAndClose(resp)
-	assert.Equal(t, http.StatusOK, resp.StatusCode,
-		"deleting a non-existent activity is a no-op success")
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode,
+		"deleting a non-existent activity reports it")
 }
 
 func TestPlantActivityHTTP_Multi_RejectsBadJSON(t *testing.T) {

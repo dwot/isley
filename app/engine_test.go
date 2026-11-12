@@ -1,8 +1,12 @@
 package app_test
 
 import (
+	"io"
+	"net/http"
+	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"isley/app"
@@ -36,4 +40,28 @@ func TestNewEngine_RejectsMissingDB(t *testing.T) {
 	t.Parallel()
 	_, err := app.NewEngine(app.Config{})
 	require.Error(t, err)
+}
+
+// Pages link static files by content hash, and a hashed URL may be cached
+// for good.
+func TestStaticAssets_Versioned(t *testing.T) {
+	t.Parallel()
+	server := testutil.NewTestServer(t, testutil.NewTestDB(t))
+	c := server.NewClient(t)
+
+	resp := c.Get("/login")
+	body, err := io.ReadAll(resp.Body)
+	testutil.DrainAndClose(resp)
+	require.NoError(t, err)
+	m := regexp.MustCompile(`src="(/static/js/theme\.js\?v=[0-9a-f]{8})"`).FindSubmatch(body)
+	require.NotNil(t, m, "the login page links theme.js by hash")
+
+	resp = c.Get(string(m[1]))
+	testutil.DrainAndClose(resp)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "public, max-age=31536000, immutable", resp.Header.Get("Cache-Control"))
+
+	resp = c.Get("/static/js/theme.js")
+	testutil.DrainAndClose(resp)
+	assert.Equal(t, "public, max-age=3600", resp.Header.Get("Cache-Control"), "unversioned links still revalidate")
 }

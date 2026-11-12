@@ -200,10 +200,17 @@ func TestPlantHTTP_LinkSensors_HappyPath(t *testing.T) {
 	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	// Plant.sensors should now hold the JSON-encoded array of IDs.
-	var stored string
-	require.NoError(t, db.QueryRow(`SELECT sensors FROM plant WHERE id = $1`, plantID).Scan(&stored))
-	assert.Equal(t, "[1,2]", stored)
+	// The links are stored in order in plant_sensor.
+	rows, err := db.Query(`SELECT sensor_id FROM plant_sensor WHERE plant_id = $1 ORDER BY position`, plantID)
+	require.NoError(t, err)
+	defer rows.Close()
+	var linked []int
+	for rows.Next() {
+		var id int
+		require.NoError(t, rows.Scan(&id))
+		linked = append(linked, id)
+	}
+	assert.Equal(t, []int{1, 2}, linked)
 }
 
 func TestPlantHTTP_LinkSensors_RejectsBadJSON(t *testing.T) {
@@ -225,10 +232,9 @@ func TestPlantHTTP_LinkSensors_RejectsBadJSON(t *testing.T) {
 // DeletePlant — additional coverage of the not-found / cascade path
 // ---------------------------------------------------------------------------
 
-// TestPlantHTTP_Delete_NoOpOnMissingPlant verifies DeletePlant returns
-// 200 even when the row does not exist (the SQL DELETE is a no-op). The
-// handler is forgiving by design.
-func TestPlantHTTP_Delete_NoOpOnMissingPlant(t *testing.T) {
+// TestPlantHTTP_Delete_MissingPlantIs404 verifies DeletePlant reports a
+// plant that doesn't exist instead of claiming success.
+func TestPlantHTTP_Delete_MissingPlantIs404(t *testing.T) {
 	t.Parallel()
 
 	db := testutil.NewTestDB(t)
@@ -239,7 +245,7 @@ func TestPlantHTTP_Delete_NoOpOnMissingPlant(t *testing.T) {
 	resp, err := c.Do(testutil.APIReq(t, http.MethodDelete, c.BaseURL+"/plant/delete/99999", apiKey, nil, ""))
 	require.NoError(t, err)
 	defer testutil.DrainAndClose(resp)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
 
 // ---------------------------------------------------------------------------

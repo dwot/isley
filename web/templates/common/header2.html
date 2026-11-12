@@ -7,7 +7,7 @@
 <header class="d-flex flex-wrap justify-content-between align-items-center py-3 mb-4 border-bottom container">
     <!-- Logo and Title -->
     <a href="/" class="d-flex align-items-center text-decoration-none link-body-emphasis">
-        <img src="/static/img/isley_logo.png" alt="Isley" width="60" height="60" class="me-2">
+        <img src="{{ asset "/static/img/isley_logo.png" }}" alt="Isley" width="60" height="60" class="me-2">
         <span class="fs-4">Isley</span>
     </a>
 
@@ -84,7 +84,7 @@
     </ul>
 </header>
 
-<script src="/static/js/header.js"></script>
+<script src="{{ asset "/static/js/header.js" }}"></script>
 <!--Embed the multi-plant-activity-modal.html template at this location-->
 {{ template "modals/multi-plant-activity-modal.html" . }}
 

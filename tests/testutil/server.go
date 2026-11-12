@@ -10,9 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"isley/app"
+	"isley/chrono"
 	"isley/config"
 	"isley/handlers"
+	"isley/ratelimit"
+	"isley/service"
 )
 
 // RepoFS returns an fs.FS rooted at the repository's go.mod directory,
@@ -70,6 +75,10 @@ type TestServer struct {
 	// HTTP layer; the per-engine scope means each parallel test sees
 	// its own buckets.
 	SensorCacheService *handlers.SensorCacheService
+
+	// Engine is the Gin engine the server wraps, for tests that inspect
+	// its routes.
+	Engine *gin.Engine
 }
 
 // ServerOption tunes NewTestServer. Today we only need GuestMode; the
@@ -79,27 +88,33 @@ type ServerOption func(*serverOptions)
 
 type serverOptions struct {
 	guestMode          bool
-	sessionSecret      []byte
 	dataDir            string
 	uploadDir          string
 	streamDir          string
 	logsDir            string
-	frameDir           string
 	configStore        *config.Store
-	rateLimiterService *handlers.RateLimiterService
-	sensorCacheService *handlers.SensorCacheService
+	rateLimiterService *ratelimit.Service
+	clock              chrono.Clock
+	dialect            service.Dialect
+}
+
+// WithClock gives the engine's service layer (and /api/v1) a clock, e.g.
+// chrono.Fixed, so "now", "today" and plant ages are deterministic.
+func WithClock(c chrono.Clock) ServerOption {
+	return func(o *serverOptions) { o.clock = c }
+}
+
+// WithDialect tells the engine which database db is. Tests over
+// NewTestPostgresDB pass service.Postgres; the default follows the model
+// package's driver setting.
+func WithDialect(d service.Dialect) ServerOption {
+	return func(o *serverOptions) { o.dialect = d }
 }
 
 // WithGuestMode boots the engine with guest-mode semantics
 // (basic routes are public, mirroring the Store's GuestMode == 1).
 func WithGuestMode() ServerOption {
 	return func(o *serverOptions) { o.guestMode = true }
-}
-
-// WithSessionSecret overrides the default 32-byte test session secret.
-// Useful for verifying cookie cross-instance behavior.
-func WithSessionSecret(secret []byte) ServerOption {
-	return func(o *serverOptions) { o.sessionSecret = secret }
 }
 
 // WithDataDir overrides the engine's data directory (where backup
@@ -135,15 +150,6 @@ func WithLogsDir(dir string) ServerOption {
 	return func(o *serverOptions) { o.logsDir = dir }
 }
 
-// WithFrameDir overrides the configured frame directory (where the
-// watcher's grabber writes stream frame snapshots in production). The
-// engine itself does not write to this directory — it is recorded on
-// the resulting TestServer so tests that exercise the watcher's Grab
-// function can read it from one place rather than threading a literal.
-func WithFrameDir(dir string) ServerOption {
-	return func(o *serverOptions) { o.frameDir = dir }
-}
-
 // WithConfigStore overrides the per-engine *config.Store. Tests that
 // need a code path conditional on runtime config (e.g. ACIToken set,
 // APIIngestEnabled = 1) construct a Store, call its Set* methods, and
@@ -154,26 +160,15 @@ func WithConfigStore(s *config.Store) ServerOption {
 }
 
 // WithRateLimiterService overrides the per-engine
-// *handlers.RateLimiterService. Tests that want to drive the 429
+// *ratelimit.Service. Tests that want to drive the 429
 // branch on /login or /api/sensors/ingest construct a service with a
 // tightened policy and pass it here; tests that want to sidestep the
 // limiter entirely construct one with a generous limit. Pass nil to
 // use the default service (60/min ingest, MaxLoginAttempts/min login).
 // Each test gets its own service instance, which is what makes
 // t.Parallel() safe.
-func WithRateLimiterService(s *handlers.RateLimiterService) ServerOption {
+func WithRateLimiterService(s *ratelimit.Service) ServerOption {
 	return func(o *serverOptions) { o.rateLimiterService = s }
-}
-
-// WithSensorCacheService overrides the per-engine
-// *handlers.SensorCacheService. Tests that want to assert specific
-// cache behavior (e.g. seed an entry then verify the chart handler
-// serves it) construct a service and pass it here. Pass nil to let
-// NewTestServer construct a default per-test service, which is the
-// usual case — every test gets its own buckets, which is what makes
-// t.Parallel() safe on the chart-exercising tests.
-func WithSensorCacheService(s *handlers.SensorCacheService) ServerOption {
-	return func(o *serverOptions) { o.sensorCacheService = s }
 }
 
 // NewTestServer constructs a Gin engine wired to db and serves it via
@@ -185,12 +180,7 @@ func NewTestServer(t *testing.T, db *sql.DB, opts ...ServerOption) *TestServer {
 	t.Helper()
 	ensureProcessInitialized()
 
-	options := serverOptions{
-		// Deterministic 32-byte secret keeps cookies stable across
-		// tests in the same process. Tests that care about rotation
-		// pass WithSessionSecret.
-		sessionSecret: []byte("isley-test-session-secret-32-by!"),
-	}
+	var options serverOptions
 	for _, opt := range opts {
 		opt(&options)
 	}
@@ -205,49 +195,51 @@ func NewTestServer(t *testing.T, db *sql.DB, opts ...ServerOption) *TestServer {
 	configStore := options.configStore
 	if configStore == nil {
 		configStore = config.NewStore()
+		// A fixed instance zone, so stored times read the same on any
+		// machine (CI runs in UTC, a laptop may not).
+		configStore.SetTimezone("UTC")
 	}
 
 	rateLimiterSvc := options.rateLimiterService
 	if rateLimiterSvc == nil {
-		rateLimiterSvc = handlers.NewRateLimiterService(nil, nil)
+		rateLimiterSvc = ratelimit.NewService(nil, nil)
 	}
 
-	sensorCacheSvc := options.sensorCacheService
-	if sensorCacheSvc == nil {
-		// Mirror the engine's production TTL closure so tests see the
-		// same staleness rules — the closure reads PollingInterval off
-		// the per-test Store, so a test that pins PollingInterval via
-		// WithConfigStore controls the TTL exactly.
-		store := configStore
-		sensorCacheSvc = handlers.NewSensorCacheService(func() time.Duration {
-			interval := handlers.DefaultPollingIntervalSeconds
-			if store != nil {
-				interval = store.PollingInterval()
-			}
-			if interval <= 0 {
-				interval = handlers.DefaultPollingIntervalSeconds
-			}
-			return time.Duration(interval/10) * time.Second
-		}, 0)
-	}
+	// Mirror the engine's production TTL closure so tests see the same
+	// staleness rules — the closure reads PollingInterval off the
+	// per-test Store, so a test that pins PollingInterval via
+	// WithConfigStore controls the TTL exactly.
+	store := configStore
+	sensorCacheSvc := handlers.NewSensorCacheService(func() time.Duration {
+		interval := handlers.DefaultPollingIntervalSeconds
+		if store != nil {
+			interval = store.PollingInterval()
+		}
+		if interval <= 0 {
+			interval = handlers.DefaultPollingIntervalSeconds
+		}
+		return time.Duration(interval/10) * time.Second
+	}, 0)
 
 	engineCfg := app.Config{
-		DB:                 db,
-		Assets:             os.DirFS(root),
-		Version:            "isley-test",
-		SessionSecret:      options.sessionSecret,
+		DB:      db,
+		Assets:  os.DirFS(root),
+		Version: "isley-test",
+		// A fixed secret keeps cookies stable across tests in a process.
+		SessionSecret:      []byte("isley-test-session-secret-32-by!"),
 		SecureCookies:      false,
 		GuestMode:          options.guestMode,
 		TrustedProxies:     nil,
 		DataDir:            options.dataDir,
 		UploadDir:          options.uploadDir,
 		StreamDir:          options.streamDir,
-		FrameDir:           options.frameDir,
 		LogsDir:            options.logsDir,
 		BackupService:      backupSvc,
 		ConfigStore:        configStore,
 		RateLimiterService: rateLimiterSvc,
 		SensorCacheService: sensorCacheSvc,
+		Clock:              options.clock,
+		Dialect:            options.dialect,
 	}
 	// Resolve defaults so the TestServer's exported path fields reflect
 	// the same values the engine middleware injects into request context.
@@ -273,6 +265,7 @@ func NewTestServer(t *testing.T, db *sql.DB, opts ...ServerOption) *TestServer {
 		BackupService:      backupSvc,
 		ConfigStore:        configStore,
 		SensorCacheService: sensorCacheSvc,
+		Engine:             engine,
 	}
 }
 

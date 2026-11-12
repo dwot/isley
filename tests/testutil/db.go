@@ -9,8 +9,10 @@
 package testutil
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -18,7 +20,7 @@ import (
 	migratesqlite "github.com/golang-migrate/migrate/v4/database/sqlite"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/stretchr/testify/require"
-	_ "modernc.org/sqlite"
+	"modernc.org/sqlite"
 
 	"isley/model"
 )
@@ -60,7 +62,7 @@ func NewTestDB(t *testing.T) *sql.DB {
 		t.Fatalf("NewTestDB: ping: %v", err)
 	}
 
-	if err := applyMigrations(db); err != nil {
+	if err := restoreTemplate(db); err != nil {
 		_ = db.Close()
 		t.Fatalf("NewTestDB: migrate: %v", err)
 	}
@@ -81,6 +83,77 @@ func MustExec(t *testing.T, db *sql.DB, query string, args ...interface{}) {
 	t.Helper()
 	_, err := db.Exec(query, args...)
 	require.NoErrorf(t, err, "MustExec: %s", query)
+}
+
+// The migrated schema is built once per test process and copied into
+// each new database with SQLite's backup API. Running every migration
+// for every test cost ~300ms of CPU apiece under -race and grew with
+// each migration; the copy is a page copy of a small database.
+var (
+	templateOnce sync.Once
+	templateDSN  string
+	templateErr  error
+	// templateMu serialises reads of the template so concurrent restores
+	// never contend for its shared-cache locks.
+	templateMu sync.Mutex
+)
+
+func migratedTemplate() (string, error) {
+	templateOnce.Do(func() {
+		templateDSN = fmt.Sprintf("file:isley-test-template-%d?mode=memory&cache=shared&_pragma=foreign_keys(1)", testPID())
+		db, err := sql.Open("sqlite", templateDSN)
+		if err != nil {
+			templateErr = err
+			return
+		}
+		// Never closed: the open handle keeps the shared in-memory
+		// template alive for the life of the process.
+		db.SetMaxIdleConns(1)
+		if err := applyMigrations(db); err != nil {
+			templateErr = err
+			_ = db.Close()
+		}
+	})
+	return templateDSN, templateErr
+}
+
+// restoreTemplate copies the migrated template into db.
+func restoreTemplate(db *sql.DB) error {
+	dsn, err := migratedTemplate()
+	if err != nil {
+		return err
+	}
+	conn, err := db.Conn(context.Background())
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close() }()
+
+	templateMu.Lock()
+	defer templateMu.Unlock()
+	return conn.Raw(func(dc any) error {
+		r, ok := dc.(interface {
+			NewRestore(string) (*sqlite.Backup, error)
+		})
+		if !ok {
+			return fmt.Errorf("driver connection %T cannot restore", dc)
+		}
+		b, err := r.NewRestore(dsn)
+		if err != nil {
+			return err
+		}
+		for {
+			more, err := b.Step(-1)
+			if err != nil {
+				_ = b.Finish()
+				return err
+			}
+			if !more {
+				break
+			}
+		}
+		return b.Finish()
+	})
 }
 
 func applyMigrations(db *sql.DB) error {

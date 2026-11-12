@@ -1,0 +1,3585 @@
+openapi: 3.1.0
+info:
+  title: Isley API
+  version: "1"
+  summary: Read and record a grow in Isley.
+  description: |
+    The Isley API v1. JSON in and out.
+
+    **Auth.** Send an API key as `Authorization: Bearer <key>` (preferred)
+    or `X-API-KEY: <key>`. Create keys in Settings → API. Each key has
+    scopes: `read`, `write` (includes read), `admin` (includes everything)
+    and, separately, `ingest`. A request beyond a key's scopes gets `403`
+    with code `insufficient_scope`.
+
+    **Errors.** Every non-2xx response has the body
+    `{"error": {"code": "...", "message": "...", "details": {...}}}`.
+    `code` is stable; branch on it. `message` is for people.
+
+    **Lists.** `{"items": [...], "next_cursor": "..." | null}`. Pass
+    `next_cursor` back as `?cursor=` for the next page; `?limit=` is 1-200,
+    default 50.
+
+    **Retries.** Any POST may carry an `Idempotency-Key` header (up to 255
+    characters, unique per request you mean to make once). A retry with the
+    same key and body within 24 hours gets the first successful response
+    again, with `Idempotent-Replayed: true`, instead of logging a second
+    watering. The same key with a different body is `409
+    idempotency_key_reused`; while the first is still running, `409
+    idempotency_key_in_progress`. A failed request frees its key.
+
+    **Time.** Timestamps are RFC 3339 with the offset of the instance's
+    time zone (see `GET /instance`). Calendar days (a plant's start day)
+    are `YYYY-MM-DD`. Timestamps you send without an offset are read in
+    the instance's time zone.
+servers:
+  - url: /api/v1
+security:
+  - bearer: []
+  - apiKeyHeader: []
+
+paths:
+  /instance:
+    get:
+      operationId: getInstance
+      summary: Describe this Isley instance and the calling key
+      description: |
+        Version, time zone, enabled features, and the scopes of the key
+        making the call. Clients use it to adapt, and to check a key.
+      tags: [instance]
+      x-isley-scope: read
+      responses:
+        "200":
+          description: The instance.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Instance"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /statuses:
+    get:
+      operationId: listStatuses
+      summary: List plant statuses
+      description: |
+        Every status in lifecycle order (Germinating … Success, Dead). The
+        set is fixed; use the ids when changing a plant's status. Not
+        paginated: all statuses come back, with `next_cursor` null.
+      tags: [lookups]
+      x-isley-scope: read
+      responses:
+        "200":
+          description: The statuses.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /metrics:
+    get:
+      operationId: listMetrics
+      summary: List measurement types
+      description: |
+        The kinds of measurement that can be recorded on a plant (Height,
+        pH, …) with their units. Not paginated.
+      tags: [lookups]
+      x-isley-scope: read
+      responses:
+        "200":
+          description: The metrics.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetricList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /activity-types:
+    get:
+      operationId: listActivityTypes
+      summary: List activity types
+      description: |
+        The kinds of activity that can be logged on a plant (Water, Feed,
+        Note and user-defined ones), with the measurements each asks for.
+        Not paginated.
+      tags: [lookups]
+      x-isley-scope: read
+      responses:
+        "200":
+          description: The activity types.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityTypeList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /zones:
+    get:
+      operationId: listZones
+      summary: List zones
+      description: Grow spaces (tents, rooms, beds), oldest first.
+      tags: [zones]
+      x-isley-scope: read
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of zones.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZoneList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/Internal"
+    post:
+      operationId: createZone
+      summary: Create a zone
+      tags: [zones]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      x-isley-scope: admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ZoneCreate"
+      responses:
+        "201":
+          description: The new zone. `Location` is its URL.
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZoneDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /zones/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getZone
+      summary: Get a zone with its sensors
+      description: The zone, and each of its sensors with its latest reading.
+      tags: [zones]
+      x-isley-scope: read
+      responses:
+        "200":
+          description: The zone.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZoneDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    patch:
+      operationId: updateZone
+      summary: Change a zone
+      description: |
+        Send only the fields to change. `null` clears an optional field
+        (sending `leaf_temp_offset_f: null` turns VPD off).
+      tags: [zones]
+      x-isley-scope: admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ZonePatch"
+      responses:
+        "200":
+          description: The zone as it now stands.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZoneDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    delete:
+      operationId: deleteZone
+      summary: Delete an empty zone
+      description: |
+        Only a zone with no plants, sensors or streams can be deleted;
+        otherwise the answer is `409` with code `zone_not_empty`. Move or
+        delete what is in it first. (The web settings page deletes a zone
+        together with its contents; the API deliberately doesn't.)
+      tags: [zones]
+      x-isley-scope: admin
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /plants:
+    get:
+      operationId: listPlants
+      summary: List plants
+      description: |
+        Plants in id order, each with its age, status, last watering and
+        feeding, flowering and harvest facts. Filters combine with AND.
+      tags: [plants]
+      x-isley-scope: read
+      parameters:
+        - name: phase
+          in: query
+          description: |
+            By what the current status means: `growing` (Germinating to
+            Flower), `harvested` (Drying, Curing, Success) or `dead`.
+          schema:
+            type: string
+            enum: [growing, harvested, dead]
+        - name: status_id
+          in: query
+          description: By current status (ids from `GET /statuses`).
+          schema:
+            type: integer
+            minimum: 1
+        - name: zone_id
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: strain_id
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of plants.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlantList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+    post:
+      operationId: createPlant
+      summary: Create a plant
+      description: |
+        Creates the plant and its first status entry. `start_date` is Day 1
+        of its age. The first status starts at `status_at`, or the start
+        of `start_date` in the instance zone.
+      tags: [plants]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      x-isley-scope: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlantCreate"
+      responses:
+        "201":
+          description: The new plant. `Location` is its URL.
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlantDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /plants/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getPlant
+      summary: Get a plant in full
+      description: |
+        The plant with its whole status history, its sensors (linked to it,
+        or inherited from its zone) with their latest readings, and its 10
+        latest activities and measurements.
+      tags: [plants]
+      x-isley-scope: read
+      responses:
+        "200":
+          description: The plant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlantDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    patch:
+      operationId: updatePlant
+      summary: Change a plant
+      description: |
+        Send only the fields to change. `null` clears `zone_id` or
+        `parent_id`. To change status, use `POST /plants/{id}/status`.
+      tags: [plants]
+      x-isley-scope: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlantPatch"
+      responses:
+        "200":
+          description: The plant as it now stands.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlantDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    delete:
+      operationId: deletePlant
+      summary: Delete a plant
+      description: |
+        Deletes the plant with its history, activities, measurements,
+        images and smoke reports. Its clones are kept, without a mother.
+      tags: [plants]
+      x-isley-scope: admin
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /plants/{id}/sensors:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    put:
+      operationId: setPlantSensors
+      summary: Set the sensors linked to a plant
+      description: |
+        Replaces the plant's own sensors (a soil probe in its pot) with
+        `sensor_ids`, in that order. Sensors the plant inherits from its
+        zone aren't affected. `[]` unlinks all.
+      tags: [plants]
+      x-isley-scope: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [sensor_ids]
+              properties:
+                sensor_ids:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        "200":
+          description: The plant as it now stands.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlantDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /plants/{id}/status:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: changePlantStatus
+      summary: Move a plant to a status
+      description: |
+        Adds a status history entry at `at` (default now). If the plant is
+        already in that status nothing is added: the answer is `200` with
+        `changed: false` and the current entry. Otherwise `201`.
+      tags: [plants]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      x-isley-scope: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [status_id]
+              properties:
+                status_id:
+                  type: integer
+                at:
+                  $ref: "#/components/schemas/TimestampInput"
+      responses:
+        "200":
+          description: Already in that status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusChange"
+        "201":
+          description: The status changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusChange"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /plants/{id}/status-history:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: listStatusHistory
+      summary: A plant's status history
+      description: Oldest first. Not paginated.
+      tags: [plants]
+      x-isley-scope: read
+      responses:
+        "200":
+          description: The history.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/StatusEntry"
+                  next_cursor:
+                    type: "null"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /plants/{id}/status-history/{entry_id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+      - name: entry_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    patch:
+      operationId: updateStatusEntry
+      summary: Correct a status history entry
+      tags: [plants]
+      x-isley-scope: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                status_id:
+                  type: integer
+                at:
+                  $ref: "#/components/schemas/TimestampInput"
+      responses:
+        "200":
+          description: The entry as it now stands.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusEntry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    delete:
+      operationId: deleteStatusEntry
+      summary: Remove a status history entry
+      description: A plant's only entry can't be removed (`409 last_status_entry`).
+      tags: [plants]
+      x-isley-scope: write
+      responses:
+        "204":
+          description: Removed.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /plants/{id}/activities:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: listPlantActivities
+      summary: A plant's activities
+      description: Newest first.
+      tags: [activities]
+      x-isley-scope: read
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of activities.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    post:
+      operationId: createActivity
+      summary: Log an activity on a plant
+      description: |
+        Watering, feeding, a note, or any activity type (see
+        `GET /activity-types`), with the measurements taken alongside.
+        Measurements the activity type marks required must be included.
+      tags: [activities]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      x-isley-scope: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActivityCreate"
+      responses:
+        "201":
+          description: The activity. `Location` is its URL.
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Activity"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /activities:
+    get:
+      operationId: listActivities
+      summary: The activity log
+      description: Activities across plants, newest first unless `order=oldest`.
+      tags: [activities]
+      x-isley-scope: read
+      parameters:
+        - name: plant_id
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: zone_id
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: activity_type_id
+          in: query
+          description: One or more, repeated or comma-separated.
+          schema:
+            type: string
+        - name: from
+          in: query
+          description: First day, inclusive (instance zone).
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          description: Last day, inclusive (instance zone).
+          schema:
+            type: string
+            format: date
+        - name: q
+          in: query
+          description: Text the note contains (any case).
+          schema:
+            type: string
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [newest, oldest]
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of activities.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /activities/bulk:
+    post:
+      operationId: createActivitiesBulk
+      summary: Log one activity on several plants
+      description: All or nothing. Returns one activity per plant.
+      tags: [activities]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      x-isley-scope: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/ActivityCreate"
+                - type: object
+                  required: [plant_ids]
+                  properties:
+                    plant_ids:
+                      type: array
+                      minItems: 1
+                      items:
+                        type: integer
+              unevaluatedProperties: false
+      responses:
+        "201":
+          description: The activities.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Activity"
+                  next_cursor:
+                    type: "null"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /activities/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getActivity
+      summary: Get an activity
+      tags: [activities]
+      x-isley-scope: read
+      responses:
+        "200":
+          description: The activity.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Activity"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    patch:
+      operationId: updateActivity
+      summary: Change an activity
+      description: |
+        Send only the fields to change. `measurements` replaces all of the
+        activity's measurements. Moving `at` moves its measurements too.
+      tags: [activities]
+      x-isley-scope: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                activity_type_id:
+                  type: integer
+                note:
+                  type: string
+                  maxLength: 5000
+                at:
+                  $ref: "#/components/schemas/TimestampInput"
+                measurements:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/MeasurementValue"
+      responses:
+        "200":
+          description: The activity as it now stands.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Activity"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    delete:
+      operationId: deleteActivity
+      summary: Delete an activity
+      description: Its measurements go with it.
+      tags: [activities]
+      x-isley-scope: write
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /plants/{id}/measurements:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: listMeasurements
+      summary: A plant's measurements
+      description: Newest first, including those recorded with activities.
+      tags: [measurements]
+      x-isley-scope: read
+      parameters:
+        - name: metric_id
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of measurements.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Measurement"
+                  next_cursor:
+                    type: [string, "null"]
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    post:
+      operationId: createMeasurement
+      summary: Record a measurement
+      description: A measurement on its own; to record one with an activity, include it in the activity.
+      tags: [measurements]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      x-isley-scope: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [metric_id, value]
+              properties:
+                metric_id:
+                  type: integer
+                value:
+                  type: number
+                  description: In the metric's unit (see `GET /metrics`).
+                at:
+                  $ref: "#/components/schemas/TimestampInput"
+      responses:
+        "201":
+          description: The measurement. `Location` is its URL.
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Measurement"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /measurements/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    patch:
+      operationId: updateMeasurement
+      summary: Change a measurement
+      tags: [measurements]
+      x-isley-scope: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                value:
+                  type: number
+                at:
+                  $ref: "#/components/schemas/TimestampInput"
+      responses:
+        "200":
+          description: The measurement as it now stands.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Measurement"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    delete:
+      operationId: deleteMeasurement
+      summary: Delete a measurement
+      tags: [measurements]
+      x-isley-scope: write
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /plants/{id}/images:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: listPlantImages
+      summary: A plant's photos
+      description: Newest first (by the day taken).
+      tags: [images]
+      x-isley-scope: read
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of images.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Image"
+                  next_cursor:
+                    type: [string, "null"]
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    post:
+      operationId: uploadImage
+      summary: Upload a photo
+      description: |
+        One image per request, as `multipart/form-data`: the file in
+        `image` (JPEG, PNG, GIF or WebP, at most 50 MB). The type is read
+        from the file's content, not its name.
+      tags: [images]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      x-isley-scope: write
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [image]
+              properties:
+                image:
+                  type: string
+                  contentMediaType: application/octet-stream
+                description:
+                  type: string
+                  maxLength: 5000
+                taken_on:
+                  $ref: "#/components/schemas/CalendarDay"
+                  description: The day the photo was taken. Defaults to today.
+      responses:
+        "201":
+          description: The image. `Location` is its URL.
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Image"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /images/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getImage
+      summary: One photo
+      tags: [images]
+      x-isley-scope: read
+      responses:
+        "200":
+          description: The image.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Image"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    delete:
+      operationId: deleteImage
+      summary: Delete a photo
+      description: Deletes the file too, with any decorated copy made in the web UI.
+      tags: [images]
+      x-isley-scope: write
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /breeders:
+    get:
+      operationId: listBreeders
+      summary: Breeders
+      description: By name.
+      tags: [breeders]
+      x-isley-scope: read
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of breeders.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Breeder"
+                  next_cursor:
+                    type: [string, "null"]
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/Internal"
+    post:
+      operationId: createBreeder
+      summary: Add a breeder
+      description: Names are unique, ignoring case (`409 breeder_name_taken`).
+      tags: [breeders]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      x-isley-scope: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  maxLength: 255
+      responses:
+        "201":
+          description: The breeder. `Location` is its URL.
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Breeder"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /breeders/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getBreeder
+      summary: One breeder
+      tags: [breeders]
+      x-isley-scope: read
+      responses:
+        "200":
+          description: The breeder.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Breeder"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    patch:
+      operationId: updateBreeder
+      summary: Rename a breeder
+      tags: [breeders]
+      x-isley-scope: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name:
+                  type: string
+                  maxLength: 255
+      responses:
+        "200":
+          description: The breeder as it now stands.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Breeder"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/Internal"
+    delete:
+      operationId: deleteBreeder
+      summary: Delete a breeder
+      description: Only a breeder with no strains (`409 breeder_not_empty` otherwise).
+      tags: [breeders]
+      x-isley-scope: admin
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /strains:
+    get:
+      operationId: listStrains
+      summary: Strains
+      description: By name, each with its direct parents.
+      tags: [strains]
+      x-isley-scope: read
+      parameters:
+        - name: breeder_id
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: in_stock
+          in: query
+          description: true for strains with seeds left, false for those without.
+          schema:
+            type: boolean
+        - name: q
+          in: query
+          description: Part of the name (any case).
+          schema:
+            type: string
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of strains.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Strain"
+                  next_cursor:
+                    type: [string, "null"]
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/Internal"
+    post:
+      operationId: createStrain
+      summary: Add a strain
+      description: |
+        Needs `name` and a breeder (`breeder_id` or `breeder_name`).
+        `indica_pct` and `sativa_pct` add up to 100; give one and the other
+        follows, give neither for 50/50.
+      tags: [strains]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      x-isley-scope: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  maxLength: 255
+                indica_pct:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                sativa_pct:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                autoflower:
+                  type: boolean
+                seed_count:
+                  type: integer
+                  minimum: 0
+                cycle_time_days:
+                  type: [integer, "null"]
+                  minimum: 0
+                url:
+                  type: string
+                  description: http or https; an address without a scheme gets https.
+                short_description:
+                  type: string
+                  maxLength: 2000
+                description:
+                  type: string
+                  maxLength: 5000
+                breeder_id:
+                  type: integer
+                breeder_name:
+                  type: string
+                  maxLength: 255
+                  description: |
+                    The breeder by name instead of `breeder_id`: an existing
+                    one (ignoring case) or a new one. Wins over `breeder_id`.
+      responses:
+        "201":
+          description: The strain. `Location` is its URL.
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Strain"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /strains/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getStrain
+      summary: One strain
+      tags: [strains]
+      x-isley-scope: read
+      responses:
+        "200":
+          description: The strain.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Strain"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    patch:
+      operationId: updateStrain
+      summary: Change a strain
+      description: |
+        Changes the fields given. For the seed count prefer
+        `POST /strains/{id}/seed-count`, which can't lose a concurrent
+        change.
+      tags: [strains]
+      x-isley-scope: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name:
+                  type: string
+                  maxLength: 255
+                indica_pct:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                sativa_pct:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                autoflower:
+                  type: boolean
+                seed_count:
+                  type: integer
+                  minimum: 0
+                cycle_time_days:
+                  type: [integer, "null"]
+                  minimum: 0
+                url:
+                  type: string
+                  description: http or https; an address without a scheme gets https.
+                short_description:
+                  type: string
+                  maxLength: 2000
+                description:
+                  type: string
+                  maxLength: 5000
+                breeder_id:
+                  type: integer
+                breeder_name:
+                  type: string
+                  maxLength: 255
+                  description: |
+                    The breeder by name instead of `breeder_id`: an existing
+                    one (ignoring case) or a new one. Wins over `breeder_id`.
+      responses:
+        "200":
+          description: The strain as it now stands.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Strain"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    delete:
+      operationId: deleteStrain
+      summary: Delete a strain
+      description: |
+        Only a strain with no plants (`409 strain_in_use` otherwise).
+        Strains that named it as a parent keep the name, unlinked.
+      tags: [strains]
+      x-isley-scope: admin
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /strains/{id}/seed-count:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: adjustSeedCount
+      summary: Add or take out seeds
+      description: |
+        Changes the count by `delta` in one step, so two clients adjusting
+        at once both count. The count can't go below zero
+        (`409 not_enough_seeds`).
+      tags: [strains]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      x-isley-scope: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [delta]
+              properties:
+                delta:
+                  type: integer
+                  description: Seeds added (positive) or taken out (negative); not 0.
+                  examples: [-1]
+      responses:
+        "200":
+          description: The strain with its new count.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Strain"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /strains/{id}/lineage:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getLineage
+      summary: A strain's ancestry
+      description: Parents with their parents, up to 10 generations.
+      tags: [strains]
+      x-isley-scope: read
+      responses:
+        "200":
+          description: The strain's parents, each with theirs.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [parents]
+                properties:
+                  parents:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Ancestor"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    put:
+      operationId: setLineage
+      summary: Replace a strain's parents
+      description: |
+        Each parent has a `name`, a `strain_id` (a strain in this instance;
+        the name defaults to its name), or both. A strain can't be its own
+        ancestor (`409 lineage_cycle`). An empty list clears the lineage.
+      tags: [strains]
+      x-isley-scope: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [parents]
+              properties:
+                parents:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      name:
+                        type: string
+                        maxLength: 255
+                      strain_id:
+                        type: [integer, "null"]
+      responses:
+        "200":
+          description: The strain's parents, each with theirs.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [parents]
+                properties:
+                  parents:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Ancestor"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /strains/{id}/descendants:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: listDescendants
+      summary: Strains bred from this one
+      description: Strains that name this one as a parent, by name.
+      tags: [strains]
+      x-isley-scope: read
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of descendants.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Descendant"
+                  next_cursor:
+                    type: [string, "null"]
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /sensors:
+    get:
+      operationId: listSensors
+      summary: Sensors
+      description: By source, device and type, each with its latest reading.
+      tags: [sensors]
+      x-isley-scope: read
+      parameters:
+        - name: zone_id
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: source
+          in: query
+          description: e.g. `acinfinity`, `ecowitt`, `derived`, or an ingest client's name.
+          schema:
+            type: string
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of sensors.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Sensor"
+                  next_cursor:
+                    type: [string, "null"]
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /sensors/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getSensor
+      summary: One sensor
+      tags: [sensors]
+      x-isley-scope: read
+      responses:
+        "200":
+          description: The sensor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sensor"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    patch:
+      operationId: updateSensor
+      summary: Change a sensor
+      description: |
+        Name, zone, unit and visibility. Source, device and type identify
+        the sensor to the integration that feeds it and can't change.
+      tags: [sensors]
+      x-isley-scope: admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name:
+                  type: string
+                  maxLength: 255
+                zone_id:
+                  type: [integer, "null"]
+                  description: null takes the sensor out of any zone.
+                unit:
+                  type: string
+                visibility:
+                  type: string
+                  enum: [zone_plant, zone, plant, hide]
+      responses:
+        "200":
+          description: The sensor as it now stands.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sensor"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    delete:
+      operationId: deleteSensor
+      summary: Delete a sensor
+      description: |
+        With all its readings and plant links; zones that used it for VPD
+        lose that input.
+      tags: [sensors]
+      x-isley-scope: admin
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /sensors/{id}/data:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getSensorData
+      summary: A sensor's readings over time
+      description: |
+        Readings in [`from`, `to`), raw or summarised per bucket. Buckets
+        line up with midnight in the instance zone (whole-day buckets
+        follow the calendar), and those with no readings are left out.
+        Ports (on/off devices, which report a speed or level) also get
+        `on_fraction` (share of readings that were on) and `starts`
+        (switches from off to on). Raw readings come a page at a time.
+      tags: [sensors]
+      x-isley-scope: read
+      parameters:
+        - name: from
+          in: query
+          description: Default 24 hours before `to`.
+          schema:
+            $ref: "#/components/schemas/TimestampInput"
+        - name: to
+          in: query
+          description: Default now.
+          schema:
+            $ref: "#/components/schemas/TimestampInput"
+        - name: bucket
+          in: query
+          description: |
+            `raw`, or a size such as `5m`, `1h` or `1d` (at least 1m, at
+            most 5000 buckets). Default: the usual size giving about 300
+            buckets.
+          schema:
+            type: string
+            examples: ["1h"]
+        - name: limit
+          in: query
+          description: Raw readings per page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5000
+            default: 1000
+        - name: cursor
+          in: query
+          description: The `next_cursor` of the previous page (raw only).
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The readings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SensorData"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /streams:
+    get:
+      operationId: listStreams
+      summary: Camera streams
+      description: By zone, then name. All of them in one page.
+      tags: [streams]
+      x-isley-scope: read
+      parameters:
+        - name: zone_id
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: The streams.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Stream"
+                  next_cursor:
+                    type: "null"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/Internal"
+    post:
+      operationId: createStream
+      summary: Add a stream
+      description: Admin, since the server fetches frames from the URL. `visible` defaults to true.
+      tags: [streams]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      x-isley-scope: admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name, url, zone_id]
+              properties:
+                name:
+                  type: string
+                  maxLength: 255
+                url:
+                  type: string
+                  description: http, https, rtsp or rtmp. The server fetches frames from it.
+                zone_id:
+                  type: integer
+                visible:
+                  type: boolean
+      responses:
+        "201":
+          description: The stream. `Location` is its URL.
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stream"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /streams/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getStream
+      summary: One stream
+      tags: [streams]
+      x-isley-scope: read
+      responses:
+        "200":
+          description: The stream.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stream"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    patch:
+      operationId: updateStream
+      summary: Change a stream
+      tags: [streams]
+      x-isley-scope: admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name:
+                  type: string
+                  maxLength: 255
+                url:
+                  type: string
+                  description: http, https, rtsp or rtmp. The server fetches frames from it.
+                zone_id:
+                  type: integer
+                visible:
+                  type: boolean
+      responses:
+        "200":
+          description: The stream as it now stands.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stream"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    delete:
+      operationId: deleteStream
+      summary: Delete a stream
+      description: With its saved frame.
+      tags: [streams]
+      x-isley-scope: admin
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /smoke-criteria:
+    get:
+      operationId: listSmokeCriteria
+      summary: Tasting criteria
+      description: |
+        The axes a smoke report scores (Aroma, Taste ...), archived ones
+        included: only active criteria take new scores. Managed in Settings.
+      tags: [smoke-reports]
+      x-isley-scope: read
+      responses:
+        "200":
+          description: The criteria, by sort order.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SmokeCriterion"
+                  next_cursor:
+                    type: "null"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /plants/{id}/smoke-reports:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: listPlantSmokeReports
+      summary: A plant's tasting notes
+      description: Latest first.
+      tags: [smoke-reports]
+      x-isley-scope: read
+      responses:
+        "200":
+          description: The plant's reports.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SmokeReport"
+                  next_cursor:
+                    type: "null"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    post:
+      operationId: createSmokeReport
+      summary: Add a tasting note
+      description: |
+        Only for a plant that has been harvested (Drying, Curing or
+        Success); otherwise `409 plant_not_harvested`. `report_date`
+        defaults to today.
+      tags: [smoke-reports]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      x-isley-scope: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [rating]
+              properties:
+                report_date:
+                  $ref: "#/components/schemas/CalendarDay"
+                consumption_method:
+                  type: string
+                  maxLength: 100
+                  description: Joint, bong, vape ...
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                description:
+                  type: string
+                  maxLength: 5000
+                scores:
+                  type: array
+                  description: |
+                    One per active criterion at most (see `GET /smoke-criteria`),
+                    each 1-5. Replaces the report's scores on active criteria;
+                    scores on archived criteria are kept.
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [criterion_id, value]
+                    properties:
+                      criterion_id:
+                        type: integer
+                      value:
+                        type: integer
+                        minimum: 1
+                        maximum: 5
+      responses:
+        "201":
+          description: The report. `Location` is its URL.
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SmokeReport"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /smoke-reports/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getSmokeReport
+      summary: One tasting note
+      tags: [smoke-reports]
+      x-isley-scope: read
+      responses:
+        "200":
+          description: The report.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SmokeReport"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    patch:
+      operationId: updateSmokeReport
+      summary: Change a tasting note
+      description: Changes the fields given; without `scores` the scores stay as they are.
+      tags: [smoke-reports]
+      x-isley-scope: write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                report_date:
+                  $ref: "#/components/schemas/CalendarDay"
+                consumption_method:
+                  type: string
+                  maxLength: 100
+                  description: Joint, bong, vape ...
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                description:
+                  type: string
+                  maxLength: 5000
+                scores:
+                  type: array
+                  description: |
+                    One per active criterion at most (see `GET /smoke-criteria`),
+                    each 1-5. Replaces the report's scores on active criteria;
+                    scores on archived criteria are kept.
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [criterion_id, value]
+                    properties:
+                      criterion_id:
+                        type: integer
+                      value:
+                        type: integer
+                        minimum: 1
+                        maximum: 5
+      responses:
+        "200":
+          description: The report as it now stands.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SmokeReport"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+    delete:
+      operationId: deleteSmokeReport
+      summary: Delete a tasting note
+      tags: [smoke-reports]
+      x-isley-scope: write
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+  /strains/{id}/smoke-summary:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getStrainSmokeSummary
+      summary: How a strain smokes, across harvests
+      description: |
+        One entry per plant (its latest report), so a plant tasted ten times
+        doesn't outweigh one tasted once; `average_rating` is the mean of the
+        entries.
+      tags: [smoke-reports]
+      x-isley-scope: read
+      responses:
+        "200":
+          description: The summary.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [average_rating, harvests, entries]
+                properties:
+                  average_rating:
+                    type: [number, "null"]
+                  harvests:
+                    type: integer
+                  entries:
+                    type: array
+                    description: Latest report first.
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [plant, rating, report_date]
+                      properties:
+                        plant:
+                          $ref: "#/components/schemas/Ref"
+                        rating:
+                          type: integer
+                        report_date:
+                          $ref: "#/components/schemas/CalendarDay"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: An Isley API key.
+    apiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-KEY
+      description: An Isley API key (for existing clients; prefer Bearer).
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      description: Makes the POST safe to retry; see the API description.
+      schema:
+        type: string
+        maxLength: 255
+    Limit:
+      name: limit
+      in: query
+      description: Page size.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    ID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    Cursor:
+      name: cursor
+      in: query
+      description: The `next_cursor` of the previous page.
+      schema:
+        type: string
+
+  responses:
+    Conflict:
+      description: The request clashes with the current state; `code` says how.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    BadRequest:
+      description: The request was malformed. `details.fields` names each bad field.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: No API key, or the key is not valid.
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: The key lacks the scope this needs; `details.required` names it.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: No such resource or endpoint.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    PayloadTooLarge:
+      description: The request body is larger than the API accepts.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Internal:
+      description: Something went wrong on the server.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Error:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: |
+                Stable, machine-readable. API-level codes: `unauthorized`,
+                `insufficient_scope`, `invalid_request`, `not_found`,
+                `internal_error`. Resources add their own (documented per
+                endpoint), e.g. `zone_not_found`, `zone_not_empty`.
+              examples: [insufficient_scope]
+            message:
+              type: string
+              description: For people. May change; don't parse it.
+            details:
+              type: object
+              description: |
+                Extra facts about the error. `invalid_request` has
+                `fields` (field name → problem); `insufficient_scope` has
+                `required` (the scope needed).
+              properties:
+                fields:
+                  type: object
+                  additionalProperties:
+                    type: string
+                required:
+                  type: string
+                  enum: [read, write, admin, ingest]
+
+    Timestamp:
+      type: string
+      format: date-time
+      description: RFC 3339 with the instance zone's offset.
+      examples: ["2026-11-11T11:45:00-05:00"]
+
+    CalendarDay:
+      type: string
+      format: date
+      description: A calendar day, `YYYY-MM-DD`. Has no time zone.
+      examples: ["2026-11-01"]
+
+    Scope:
+      type: string
+      enum: [read, write, admin, ingest]
+
+    Instance:
+      type: object
+      additionalProperties: false
+      required: [version, time_zone, now, guest_mode, features, api]
+      properties:
+        version:
+          type: string
+          examples: ["2.6.0"]
+        time_zone:
+          type: string
+          description: |
+            IANA name of the instance zone. Timestamps in responses carry
+            its offset; timestamps you send without an offset are read in it.
+          examples: [America/New_York]
+        now:
+          $ref: "#/components/schemas/Timestamp"
+        guest_mode:
+          type: boolean
+          description: Whether the web dashboard is readable without logging in. Doesn't affect the API.
+        features:
+          type: object
+          additionalProperties: false
+          required: [ac_infinity, ecowitt, sensor_ingest, cannadb, stream_capture, mcp]
+          properties:
+            ac_infinity:
+              type: boolean
+            ecowitt:
+              type: boolean
+            sensor_ingest:
+              type: boolean
+              description: Whether POST /api/sensors/ingest accepts readings.
+            cannadb:
+              type: boolean
+            stream_capture:
+              type: boolean
+            mcp:
+              type: boolean
+              description: Whether the MCP server at /mcp is on.
+        api:
+          type: object
+          additionalProperties: false
+          required: [key_name, scopes]
+          description: The key making this call.
+          properties:
+            key_name:
+              type: string
+            scopes:
+              type: array
+              items:
+                $ref: "#/components/schemas/Scope"
+
+    StatusList:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Status"
+        next_cursor:
+          type: "null"
+
+    Status:
+      type: object
+      additionalProperties: false
+      required: [id, name, order, phase, vpd_low_kpa, vpd_high_kpa]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          enum: [Germinating, Planted, Seedling, Veg, Flower, Drying, Curing, Success, Dead]
+        order:
+          type: integer
+          description: Position in the lifecycle.
+        phase:
+          type: string
+          enum: [growing, harvested, dead]
+          description: |
+            `growing` up to Flower; `harvested` for Drying, Curing and
+            Success; `dead` for Dead.
+        vpd_low_kpa:
+          type: [number, "null"]
+          description: Lower bound of the target VPD for this status, in kPa.
+        vpd_high_kpa:
+          type: [number, "null"]
+          description: Upper bound of the target VPD for this status, in kPa.
+
+    MetricList:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Metric"
+        next_cursor:
+          type: "null"
+
+    Metric:
+      type: object
+      additionalProperties: false
+      required: [id, name, unit, built_in]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          examples: [Height]
+        unit:
+          type: string
+          description: Unit values are recorded in; may be empty.
+          examples: [in]
+        built_in:
+          type: boolean
+          description: Ships with Isley; can't be deleted.
+
+    ActivityTypeList:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivityType"
+        next_cursor:
+          type: "null"
+
+    ActivityType:
+      type: object
+      additionalProperties: false
+      required: [id, name, is_watering, is_feeding, built_in, metrics]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          examples: [Water]
+        is_watering:
+          type: boolean
+          description: Logging it counts as watering ("days since water").
+        is_feeding:
+          type: boolean
+          description: Logging it counts as feeding ("days since feed").
+        built_in:
+          type: boolean
+          description: One of Water, Feed and Note.
+        metrics:
+          type: array
+          description: Measurements the activity asks for.
+          items:
+            type: object
+            additionalProperties: false
+            required: [metric_id, name, unit, required]
+            properties:
+              metric_id:
+                type: integer
+              name:
+                type: string
+              unit:
+                type: string
+              required:
+                type: boolean
+
+    ZoneList:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Zone"
+        next_cursor:
+          type: [string, "null"]
+
+    ZoneFields:
+      type: object
+      required: [id, name, leaf_temp_offset_f, vpd_temp_sensor_id, vpd_humidity_sensor_id, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          examples: [Tent 1]
+        leaf_temp_offset_f:
+          type: [number, "null"]
+          description: |
+            How much cooler the leaves are than the air, in °F (a
+            temperature difference). Set means VPD is on for the zone and
+            a derived `VPD` sensor reports it.
+        vpd_temp_sensor_id:
+          type: [integer, "null"]
+          description: Air temperature sensor VPD uses; null picks one in the zone.
+        vpd_humidity_sensor_id:
+          type: [integer, "null"]
+          description: Humidity sensor VPD uses; null picks one in the zone.
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+        updated_at:
+          $ref: "#/components/schemas/Timestamp"
+
+    Zone:
+      allOf:
+        - $ref: "#/components/schemas/ZoneFields"
+      unevaluatedProperties: false
+
+    ZoneDetail:
+      allOf:
+        - $ref: "#/components/schemas/ZoneFields"
+        - type: object
+          required: [sensors]
+          properties:
+            sensors:
+              type: array
+              items:
+                $ref: "#/components/schemas/ZoneSensor"
+      unevaluatedProperties: false
+
+    ZoneSensor:
+      type: object
+      additionalProperties: false
+      required: [id, name, source, device, type, unit, visibility, latest]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        source:
+          type: string
+          description: Where readings come from, e.g. `acinfinity`, `ecowitt`, `derived`, or an ingest client's name.
+        device:
+          type: string
+        type:
+          type: string
+          description: What is measured, e.g. `Temperature`, `Humidity`, `VPD`.
+        unit:
+          type: string
+        visibility:
+          type: string
+          enum: [zone_plant, zone, plant, hide]
+          description: Where the web UI shows the sensor.
+        latest:
+          oneOf:
+            - $ref: "#/components/schemas/Reading"
+            - type: "null"
+
+    Sensor:
+      type: object
+      additionalProperties: false
+      required: [id, name, zone, source, device, type, unit, visibility, created_at, latest]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        zone:
+          description: Null for a sensor in no zone.
+          oneOf:
+            - $ref: "#/components/schemas/Ref"
+            - type: "null"
+        source:
+          type: string
+          description: Where readings come from, e.g. `acinfinity`, `ecowitt`, `derived`, or an ingest client's name.
+        device:
+          type: string
+        type:
+          type: string
+          description: What is measured, e.g. `Temperature`, `Humidity`, `VPD`.
+        unit:
+          type: string
+        visibility:
+          type: string
+          enum: [zone_plant, zone, plant, hide]
+          description: Where the web UI shows the sensor.
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+        latest:
+          oneOf:
+            - $ref: "#/components/schemas/Reading"
+            - type: "null"
+
+    SmokeCriterion:
+      type: object
+      additionalProperties: false
+      required: [id, name, sort_order, active]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        sort_order:
+          type: integer
+        active:
+          type: boolean
+          description: Archived criteria (false) keep their scores but take no new ones.
+
+    SmokeReport:
+      type: object
+      additionalProperties: false
+      required: [id, plant_id, report_date, consumption_method, rating, description, cure_days, scores]
+      properties:
+        id:
+          type: integer
+        plant_id:
+          type: integer
+        report_date:
+          $ref: "#/components/schemas/CalendarDay"
+        consumption_method:
+          type: string
+        rating:
+          type: integer
+        description:
+          type: string
+        cure_days:
+          type: [integer, "null"]
+          description: Days from the plant's harvest to the report; null without a harvest or for an earlier report.
+        scores:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [criterion, value]
+            properties:
+              criterion:
+                $ref: "#/components/schemas/Ref"
+              value:
+                type: integer
+
+    Stream:
+      type: object
+      additionalProperties: false
+      required: [id, name, url, zone, visible, frame_url]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        url:
+          type: string
+        zone:
+          $ref: "#/components/schemas/Ref"
+        visible:
+          type: boolean
+          description: Shown on the dashboard.
+        frame_url:
+          type: string
+          description: Path of the latest saved frame on this instance (served without a key).
+
+    SensorData:
+      type: object
+      additionalProperties: false
+      required: [sensor, from, to, bucket, items, next_cursor]
+      properties:
+        sensor:
+          type: object
+          additionalProperties: false
+          required: [id, name, type, unit]
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            type:
+              type: string
+            unit:
+              type: string
+        from:
+          $ref: "#/components/schemas/Timestamp"
+        to:
+          $ref: "#/components/schemas/Timestamp"
+        bucket:
+          type: string
+          description: '`raw`, or the bucket size used.'
+        items:
+          type: array
+          description: Oldest first. Raw readings, or one summary per bucket.
+          items:
+            oneOf:
+              - $ref: "#/components/schemas/RawReading"
+              - $ref: "#/components/schemas/ReadingBucket"
+        next_cursor:
+          type: [string, "null"]
+
+    RawReading:
+      type: object
+      additionalProperties: false
+      required: [at, value]
+      properties:
+        at:
+          $ref: "#/components/schemas/Timestamp"
+        value:
+          type: number
+
+    ReadingBucket:
+      type: object
+      additionalProperties: false
+      required: [start, min, avg, max, count]
+      properties:
+        start:
+          $ref: "#/components/schemas/Timestamp"
+        min:
+          type: number
+        avg:
+          type: number
+        max:
+          type: number
+        count:
+          type: integer
+          description: Readings summarised.
+        on_fraction:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Ports only. Share of the readings that were on.
+        starts:
+          type: integer
+          description: Ports only. Switches from off to on.
+
+    Reading:
+      type: object
+      additionalProperties: false
+      required: [value, at]
+      properties:
+        value:
+          type: number
+        at:
+          $ref: "#/components/schemas/Timestamp"
+
+    ZoneCreate:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        leaf_temp_offset_f:
+          type: [number, "null"]
+        vpd_temp_sensor_id:
+          type: [integer, "null"]
+        vpd_humidity_sensor_id:
+          type: [integer, "null"]
+
+    ZonePatch:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        leaf_temp_offset_f:
+          type: [number, "null"]
+        vpd_temp_sensor_id:
+          type: [integer, "null"]
+        vpd_humidity_sensor_id:
+          type: [integer, "null"]
+
+    Ref:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+
+    PlantList:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Plant"
+        next_cursor:
+          type: [string, "null"]
+
+    PlantFields:
+      type: object
+      required: [id, name, description, clone, parent, strain, zone, start_date, age, status,
+                 harvest_weight_g, last_watered_at, days_since_watered, last_fed_at, days_since_fed,
+                 flower, harvested_at, estimated_harvest_date]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        clone:
+          type: boolean
+        parent:
+          description: The mother plant of a clone.
+          oneOf:
+            - $ref: "#/components/schemas/Ref"
+            - type: "null"
+        strain:
+          oneOf:
+            - $ref: "#/components/schemas/PlantStrain"
+            - type: "null"
+        zone:
+          oneOf:
+            - $ref: "#/components/schemas/Ref"
+            - type: "null"
+        start_date:
+          description: The day the plant was started. It is Day 1 of its age.
+          oneOf:
+            - $ref: "#/components/schemas/CalendarDay"
+            - type: "null"
+        age:
+          description: |
+            Age today in the instance zone. The start day is Day 1; week 1
+            is days 1-7. Null without a start date.
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [day, week]
+              properties:
+                day:
+                  type: integer
+                week:
+                  type: integer
+            - type: "null"
+        status:
+          description: The latest status, and when the plant entered it.
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [id, name, phase, since]
+              properties:
+                id:
+                  type: integer
+                  description: The status id (as in `GET /statuses`).
+                name:
+                  type: string
+                phase:
+                  type: string
+                  enum: [growing, harvested, dead]
+                since:
+                  $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+        harvest_weight_g:
+          type: number
+          description: Dry harvest weight in grams; 0 until recorded.
+        last_watered_at:
+          description: The latest activity whose type counts as watering.
+          oneOf:
+            - $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+        days_since_watered:
+          type: [integer, "null"]
+          description: Calendar days since `last_watered_at` in the instance zone; 0 is today, null is never.
+        last_fed_at:
+          oneOf:
+            - $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+        days_since_fed:
+          type: [integer, "null"]
+          description: Calendar days since `last_fed_at`; 0 is today, null is never.
+        flower:
+          description: |
+            The latest spell in flower, or null if the plant never
+            flowered. While flowering, `days` is the day of flower (the
+            first day is 1); once ended, it is the days from start to end.
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [started_at, ended_at, days]
+              properties:
+                started_at:
+                  $ref: "#/components/schemas/Timestamp"
+                ended_at:
+                  oneOf:
+                    - $ref: "#/components/schemas/Timestamp"
+                    - type: "null"
+                days:
+                  type: integer
+            - type: "null"
+        harvested_at:
+          description: When the plant first entered Drying, Curing, Success or Dead.
+          oneOf:
+            - $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+        estimated_harvest_date:
+          description: |
+            Start date (autoflower) or first day of flower (photoperiod)
+            plus the strain's `cycle_days`. Null when either is unknown.
+          oneOf:
+            - $ref: "#/components/schemas/CalendarDay"
+            - type: "null"
+
+    Plant:
+      allOf:
+        - $ref: "#/components/schemas/PlantFields"
+      unevaluatedProperties: false
+
+    PlantDetail:
+      allOf:
+        - $ref: "#/components/schemas/PlantFields"
+        - type: object
+          required: [status_history, stages, grow_days, sensors, recent_activities, recent_measurements]
+          properties:
+            stages:
+              type: array
+              description: |
+                Days spent in each status reached, in the order first
+                reached. A finished stage counts the days from its start to
+                the next stage's start; the current stage counts like age
+                (its first day is 1); a final Success or Dead is 0. A status
+                reached twice adds up.
+              items:
+                type: object
+                additionalProperties: false
+                required: [status_id, name, days]
+                properties:
+                  status_id:
+                    type: integer
+                  name:
+                    type: string
+                  days:
+                    type: integer
+            grow_days:
+              type: [integer, "null"]
+              description: |
+                The plant's Day on the day growth ended (harvest or death),
+                or today's Day while it grows. Null without a start date.
+            status_history:
+              type: array
+              description: Oldest first.
+              items:
+                $ref: "#/components/schemas/StatusEntry"
+            sensors:
+              type: array
+              description: Linked sensors first, then those inherited from the zone (soil probes are never inherited).
+              items:
+                $ref: "#/components/schemas/PlantSensor"
+            recent_activities:
+              type: array
+              description: The 10 latest, newest first.
+              items:
+                $ref: "#/components/schemas/Activity"
+            recent_measurements:
+              type: array
+              description: The 10 latest, newest first.
+              items:
+                $ref: "#/components/schemas/Measurement"
+      unevaluatedProperties: false
+
+    PlantStrain:
+      type: object
+      additionalProperties: false
+      required: [id, name, breeder, url, autoflower, cycle_days]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        breeder:
+          $ref: "#/components/schemas/Ref"
+        url:
+          type: string
+        autoflower:
+          type: boolean
+        cycle_days:
+          type: [integer, "null"]
+          description: Flowering time (photoperiod) or seed-to-harvest time (autoflower), in days.
+
+    PlantSensor:
+      type: object
+      additionalProperties: false
+      required: [id, name, source, type, unit, inherited, latest, vpd_target]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        source:
+          type: string
+        type:
+          type: string
+        unit:
+          type: string
+        inherited:
+          type: boolean
+          description: True if it comes from the plant's zone rather than being linked to the plant.
+        latest:
+          oneOf:
+            - $ref: "#/components/schemas/Reading"
+            - type: "null"
+        vpd_target:
+          description: For the zone's VPD sensor, the target range for the plant's current status.
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [low_kpa, high_kpa, state]
+              properties:
+                low_kpa:
+                  type: number
+                high_kpa:
+                  type: number
+                state:
+                  type: [string, "null"]
+                  enum: [low, ideal, high, null]
+            - type: "null"
+
+    Activity:
+      type: object
+      additionalProperties: false
+      required: [id, plant, activity_type, note, at, is_watering, is_feeding, measurements]
+      properties:
+        id:
+          type: integer
+        plant:
+          $ref: "#/components/schemas/Ref"
+        activity_type:
+          $ref: "#/components/schemas/Ref"
+        note:
+          type: string
+        at:
+          $ref: "#/components/schemas/Timestamp"
+        is_watering:
+          type: boolean
+        is_feeding:
+          type: boolean
+        measurements:
+          type: array
+          description: Measurements recorded with this activity.
+          items:
+            $ref: "#/components/schemas/Measurement"
+
+    Measurement:
+      type: object
+      additionalProperties: false
+      required: [id, metric, unit, value, at, activity_id]
+      properties:
+        id:
+          type: integer
+        metric:
+          $ref: "#/components/schemas/Ref"
+        unit:
+          type: string
+        value:
+          type: number
+        at:
+          $ref: "#/components/schemas/Timestamp"
+        activity_id:
+          type: [integer, "null"]
+          description: The activity it was recorded with, if any.
+
+    Image:
+      type: object
+      additionalProperties: false
+      required: [id, plant_id, url, description, taken_on]
+      properties:
+        id:
+          type: integer
+        plant_id:
+          type: integer
+        url:
+          type: string
+          description: |
+            Path of the file on this instance (`/uploads/plants/...`).
+            Files under /uploads are served without a key.
+        description:
+          type: string
+          description: Empty when there is none.
+        taken_on:
+          $ref: "#/components/schemas/CalendarDay"
+
+    Breeder:
+      type: object
+      additionalProperties: false
+      required: [id, name, strain_count]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        strain_count:
+          type: integer
+
+    Strain:
+      type: object
+      additionalProperties: false
+      required: [id, name, breeder, indica_pct, sativa_pct, autoflower, seed_count, cycle_time_days, url,
+        short_description, description, parents]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        breeder:
+          $ref: "#/components/schemas/Ref"
+        indica_pct:
+          type: integer
+        sativa_pct:
+          type: integer
+        autoflower:
+          type: boolean
+        seed_count:
+          type: integer
+        cycle_time_days:
+          type: [integer, "null"]
+          description: |
+            Seed to harvest for an autoflower, flowering time for a
+            photoperiod strain. Null when unknown.
+        url:
+          type: string
+          description: Empty when there is none.
+        short_description:
+          type: string
+        description:
+          type: string
+        parents:
+          type: array
+          description: Direct parents, by name.
+          items:
+            $ref: "#/components/schemas/LineageEntry"
+
+    LineageEntryFields:
+      type: object
+      required: [id, name, strain]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        strain:
+          description: The parent's strain in this instance, if it has one.
+          oneOf:
+            - $ref: "#/components/schemas/Ref"
+            - type: "null"
+
+    LineageEntry:
+      allOf:
+        - $ref: "#/components/schemas/LineageEntryFields"
+      unevaluatedProperties: false
+
+    Ancestor:
+      allOf:
+        - $ref: "#/components/schemas/LineageEntryFields"
+        - type: object
+          required: [parents]
+          properties:
+            parents:
+              type: array
+              items:
+                $ref: "#/components/schemas/Ancestor"
+      unevaluatedProperties: false
+
+    Descendant:
+      type: object
+      additionalProperties: false
+      required: [id, name, breeder, other_parents]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        breeder:
+          $ref: "#/components/schemas/Ref"
+        other_parents:
+          type: array
+          items:
+            type: string
+
+    TimestampInput:
+      type: string
+      description: |
+        RFC 3339 (`2026-11-11T09:30:00-05:00`), or without an offset
+        (`2026-11-11T09:30`) to mean the instance's time zone.
+      examples: ["2026-11-11T09:30:00-05:00"]
+
+    StatusEntry:
+      type: object
+      additionalProperties: false
+      required: [id, status_id, name, at]
+      properties:
+        id:
+          type: integer
+          description: The history entry's id.
+        status_id:
+          type: integer
+        name:
+          type: string
+        at:
+          $ref: "#/components/schemas/Timestamp"
+
+    StatusChange:
+      type: object
+      additionalProperties: false
+      required: [changed, entry]
+      properties:
+        changed:
+          type: boolean
+        entry:
+          $ref: "#/components/schemas/StatusEntry"
+
+    PlantCreate:
+      type: object
+      additionalProperties: false
+      required: [name, strain_id, status_id, start_date]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+        strain_id:
+          type: integer
+        zone_id:
+          type: [integer, "null"]
+        status_id:
+          type: integer
+          description: The status it starts in (see `GET /statuses`).
+        start_date:
+          $ref: "#/components/schemas/CalendarDay"
+        status_at:
+          $ref: "#/components/schemas/TimestampInput"
+        clone:
+          type: boolean
+        parent_id:
+          type: [integer, "null"]
+          description: The mother plant of a clone.
+        sensor_ids:
+          type: array
+          description: Sensors to link to the plant, such as a soil probe.
+          items:
+            type: integer
+        decrement_seed_count:
+          type: boolean
+          description: Take one seed off the strain's count (not below 0).
+
+    PlantPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+        strain_id:
+          type: integer
+        zone_id:
+          type: [integer, "null"]
+        start_date:
+          $ref: "#/components/schemas/CalendarDay"
+        harvest_weight_g:
+          type: number
+          minimum: 0
+        clone:
+          type: boolean
+        parent_id:
+          type: [integer, "null"]
+
+    ActivityList:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Activity"
+        next_cursor:
+          type: [string, "null"]
+
+    MeasurementValue:
+      type: object
+      additionalProperties: false
+      required: [metric_id, value]
+      properties:
+        metric_id:
+          type: integer
+        value:
+          type: number
+          description: In the metric's unit (see `GET /metrics`).
+
+    ActivityCreate:
+      type: object
+      properties:
+        activity_type_id:
+          type: integer
+          description: See `GET /activity-types`.
+        note:
+          type: string
+          maxLength: 5000
+        at:
+          $ref: "#/components/schemas/TimestampInput"
+        measurements:
+          type: array
+          items:
+            $ref: "#/components/schemas/MeasurementValue"
+      required: [activity_type_id]
+
+tags:
+  - name: instance
+    description: The running Isley.
+  - name: lookups
+    description: Reference lists (statuses, metrics, activity types) other calls take ids from.
+  - name: zones
+    description: Grow spaces. Plants, sensors and streams belong to a zone.
+  - name: plants
+    description: Plants, with their age, status and care computed by the server.
+  - name: activities
+    description: What was done to plants (watering, feeding, notes, training ...).
+  - name: measurements
+    description: Values recorded on plants (height, pH, EC ...).
+  - name: images
+    description: Photos of plants.
+  - name: breeders
+    description: Seed companies.
+  - name: strains
+    description: Cultivars, with seed stock and lineage.
+  - name: sensors
+    description: Environment and soil sensors with their latest readings.
+  - name: streams
+    description: Camera streams shown with zones.
+  - name: smoke-reports
+    description: Post-harvest tasting notes and their criteria.

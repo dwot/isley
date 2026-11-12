@@ -504,6 +504,9 @@ func GrabWebcamImage(rawURL string, outputPath string) error {
 		return fmt.Errorf("invalid webcam URL")
 	}
 	scheme := strings.ToLower(parsedURL.Scheme)
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		return fmt.Errorf("create frame directory: %w", err)
+	}
 
 	switch scheme {
 	case "http", "https":

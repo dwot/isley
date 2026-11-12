@@ -163,6 +163,30 @@ func TestBuildBackupArchive_FilteredSensorDays(t *testing.T) {
 	}
 }
 
+// The window is exact: readings are stamped in UTC (SQLite's
+// CURRENT_TIMESTAMP), and the cutoff used to be computed in the server's
+// local zone, moving it by the zone's offset.
+func TestBuildBackupArchive_SensorDaysCutoffIsExact(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	seedSampleData(t, db)
+	testutil.MustExec(t, db, `DELETE FROM sensor_data`)
+	now := time.Date(2026, 11, 11, 3, 0, 0, 0, time.UTC)
+	cutoff := now.AddDate(0, 0, -30)
+	for v, at := range map[string]time.Time{"1": cutoff.Add(-time.Minute), "2": cutoff.Add(time.Minute)} {
+		testutil.MustExec(t, db, `INSERT INTO sensor_data (sensor_id, value, create_dt) VALUES (1, $1, $2)`,
+			v, at.Format("2006-01-02 15:04:05"))
+	}
+
+	archive, _, err := handlers.BuildBackupArchive(db, handlers.BuildArchiveOptions{SensorDays: 30, Now: now})
+	require.NoError(t, err)
+	parsed, err := handlers.ParseBackupArchive(archive)
+	require.NoError(t, err)
+	require.Len(t, parsed.SensorData, 1)
+	assert.Equal(t, "2", parsed.SensorData[0]["value"].(json.Number).String())
+}
+
 // ---------------------------------------------------------------------------
 // ParseBackupArchive — malformed inputs
 // ---------------------------------------------------------------------------
@@ -356,4 +380,54 @@ func TestApplyBackupToDB_EmptyPayloadTablesAreCleared(t *testing.T) {
 		"a non-allow-listed table with an empty payload must still be cleared, not left with stale rows")
 	assert.Equal(t, 0, rowCount(t, dst, "sensor_data"),
 		"the skip-sensor-data-import option must still empty sensor_data, not keep the destination's old readings")
+}
+
+// TestApplyBackupToDB_RollingAverages: the restore loads sensor_data with the
+// rolling-average trigger dropped (a per-row lookup without the indexes the
+// restore drops), then puts the same trigger back and works the averages out
+// once.
+func TestApplyBackupToDB_RollingAverages(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	require.NoError(t, handlers.ApplyBackupToDB(context.Background(), db, rollingAvgPayload()))
+	assertRollingAverages(t, db)
+}
+
+// TestBatchedRestore_RollingAverages covers the same for the bulk load
+// runRestore uses for sensor_data.
+func TestBatchedRestore_RollingAverages(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	p := rollingAvgPayload()
+	data := p.SensorData
+	p.SensorData = nil
+	require.NoError(t, handlers.ApplyBackupToDB(context.Background(), db, p))
+	require.NoError(t, handlers.InsertRowsBatchedForTest(db, "sensor_data", data))
+	assertRollingAverages(t, db)
+}
+
+// TestApplyBackupToDB_SQLiteForeignKeysOffDuringLoad: the restore switches
+// SQLite's foreign key checks off for the load (outside the transaction,
+// where SQLite honours it) and puts the connection's setting back after.
+// The test database runs with them on, so a reading for a sensor the backup
+// doesn't have only loads if they really were off.
+func TestApplyBackupToDB_SQLiteForeignKeysOffDuringLoad(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	p := samplePayload()
+	p.SensorData = append(p.SensorData, map[string]interface{}{
+		"id": json.Number("3"), "sensor_id": json.Number("99"), "value": json.Number("1"),
+	})
+	require.NoError(t, handlers.ApplyBackupToDB(context.Background(), db, p))
+	assert.Equal(t, 3, rowCount(t, db, "sensor_data"))
+
+	conn, err := db.Conn(context.Background())
+	require.NoError(t, err)
+	defer conn.Close()
+	var fk int
+	require.NoError(t, conn.QueryRowContext(context.Background(), "PRAGMA foreign_keys").Scan(&fk))
+	assert.Equal(t, 1, fk, "foreign key checks are back on afterwards")
 }

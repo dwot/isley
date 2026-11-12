@@ -295,14 +295,11 @@ func TestSensorsHTTP_EditSensor_RejectsUnknownVisibility(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// DeleteSensor — additional path: deleting a non-existent sensor
-//
-// DeleteSensorByID issues two unconditional DELETEs; missing rows are a
-// no-op, so the handler still reports success. This locks down that
-// behavior so a later refactor doesn't accidentally start 404'ing.
+// DeleteSensor — deleting a sensor that doesn't exist is a 404, as for
+// plants, zones and activities.
 // ---------------------------------------------------------------------------
 
-func TestSensorsHTTP_DeleteSensor_NoOpOnMissing(t *testing.T) {
+func TestSensorsHTTP_DeleteSensor_MissingIs404(t *testing.T) {
 	t.Parallel()
 
 	db := testutil.NewTestDB(t)
@@ -315,7 +312,7 @@ func TestSensorsHTTP_DeleteSensor_NoOpOnMissing(t *testing.T) {
 	resp, err := c.Do(testutil.APIReq(t, http.MethodDelete, c.BaseURL+"/sensors/delete/99999", apiKey, nil, ""))
 	require.NoError(t, err)
 	defer testutil.DrainAndClose(resp)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
 
 // ---------------------------------------------------------------------------

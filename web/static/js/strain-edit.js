@@ -159,14 +159,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const doDelete = () => {
                 fetch(`/strains/${strainId}`, { method: "DELETE" })
-                    .then(response => {
-                        if (!response.ok) throw new Error("Failed to delete strain");
+                    .then(async response => {
+                        if (!response.ok) {
+                            // The server says why (a strain with plants can't go).
+                            let serverMsg = "";
+                            try { const data = await response.json(); serverMsg = (data && data.error) || ""; } catch (e) {}
+                            throw new Error(serverMsg);
+                        }
                         window.location.href = "/strains";
                     })
                     .catch(error => {
                         console.error("Error deleting strain:", error);
                         if (typeof uiMessages !== 'undefined') {
-                            uiMessages.showToast(uiMessages.t('delete_error') || 'Delete failed', 'danger');
+                            uiMessages.showToast(error.message || uiMessages.t('delete_error') || 'Delete failed', 'danger');
                         }
                     });
             };

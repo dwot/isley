@@ -452,3 +452,16 @@ func TestLineage_LookupNoMatches(t *testing.T) {
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
 	assert.Empty(t, got, "no matches returns [] not null")
 }
+
+func TestLineage_UpdateMissingIs404(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db)
+	fix := seedLineageHTTP(t, db)
+
+	c := server.NewClient(t)
+	resp := apiPutJSON(t, c, "/lineage/9999", fix.APIKey, map[string]interface{}{"parent_name": "Anything"})
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}

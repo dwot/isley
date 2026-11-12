@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"isley/handlers"
+	"isley/service"
 	"isley/tests/testutil"
 )
 
@@ -44,11 +46,11 @@ func seedActivityFixture(t *testing.T, db *sql.DB) activityFixture {
 	exec(`INSERT INTO zones (id, name) VALUES (1, 'Zone A')`)
 	exec(`INSERT INTO zones (id, name) VALUES (2, 'Zone B')`)
 
-	res := exec(`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
-	             VALUES ('Plant 1', 1, 1, '', 0, '2026-01-01', '[]')`)
+	res := exec(`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt)
+	             VALUES ('Plant 1', 1, 1, '', 0, '2026-01-01')`)
 	plant1, _ := res.LastInsertId()
-	res = exec(`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
-	             VALUES ('Plant 2', 2, 1, '', 0, '2026-01-01', '[]')`)
+	res = exec(`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt)
+	             VALUES ('Plant 2', 2, 1, '', 0, '2026-01-01')`)
 	plant2, _ := res.LastInsertId()
 
 	// Activity rows: 4 for plant1, 1 for plant2.
@@ -74,7 +76,7 @@ func TestQueryActivityLog_NoFiltersReturnsAll(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	seedActivityFixture(t, db)
 
-	page, err := handlers.QueryActivityLog(db, handlers.ActivityLogFilters{}, 1, 100)
+	page, err := handlers.QueryActivityLog(context.Background(), testutil.NewServices(t, db), handlers.ActivityLogFilters{}, 1, 100)
 	require.NoError(t, err)
 	assert.Equal(t, 5, page.Total)
 	assert.Len(t, page.Entries, 5)
@@ -88,7 +90,7 @@ func TestQueryActivityLog_FilterByPlantID(t *testing.T) {
 	fix := seedActivityFixture(t, db)
 
 	pid := int(fix.Plant1)
-	page, err := handlers.QueryActivityLog(db, handlers.ActivityLogFilters{PlantID: &pid}, 1, 100)
+	page, err := handlers.QueryActivityLog(context.Background(), testutil.NewServices(t, db), handlers.ActivityLogFilters{PlantID: pid}, 1, 100)
 	require.NoError(t, err)
 	assert.Equal(t, 4, page.Total, "Plant 1 has 4 activity rows")
 	for _, e := range page.Entries {
@@ -102,8 +104,8 @@ func TestQueryActivityLog_FilterByActivityIDs(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	fix := seedActivityFixture(t, db)
 
-	page, err := handlers.QueryActivityLog(db, handlers.ActivityLogFilters{
-		ActivityIDs: []int{fix.WaterID},
+	page, err := handlers.QueryActivityLog(context.Background(), testutil.NewServices(t, db), handlers.ActivityLogFilters{
+		TypeIDs: []int{fix.WaterID},
 	}, 1, 100)
 	require.NoError(t, err)
 	assert.Equal(t, 3, page.Total, "three water activities across both plants")
@@ -119,7 +121,7 @@ func TestQueryActivityLog_FilterByZoneID(t *testing.T) {
 	fix := seedActivityFixture(t, db)
 
 	zid := fix.Zone1
-	page, err := handlers.QueryActivityLog(db, handlers.ActivityLogFilters{ZoneID: &zid}, 1, 100)
+	page, err := handlers.QueryActivityLog(context.Background(), testutil.NewServices(t, db), handlers.ActivityLogFilters{ZoneID: zid}, 1, 100)
 	require.NoError(t, err)
 	assert.Equal(t, 4, page.Total, "Plant 1 (zone 1) has 4 activities")
 	for _, e := range page.Entries {
@@ -136,7 +138,7 @@ func TestQueryActivityLog_FreeTextSearch(t *testing.T) {
 	// LIKE is case-sensitive on SQLite by default — assert a substring
 	// match that's lowercase. The Postgres ILIKE branch is exercised in
 	// the build-tagged Phase 6 tests.
-	page, err := handlers.QueryActivityLog(db, handlers.ActivityLogFilters{Query: "leaves"}, 1, 100)
+	page, err := handlers.QueryActivityLog(context.Background(), testutil.NewServices(t, db), handlers.ActivityLogFilters{Query: "leaves"}, 1, 100)
 	require.NoError(t, err)
 	assert.Equal(t, 1, page.Total)
 	assert.Equal(t, "note about leaves", page.Entries[0].Note)
@@ -149,18 +151,18 @@ func TestQueryActivityLog_Pagination(t *testing.T) {
 	seedActivityFixture(t, db)
 
 	// 5 rows, page size 2 → 3 pages.
-	page1, err := handlers.QueryActivityLog(db, handlers.ActivityLogFilters{}, 1, 2)
+	page1, err := handlers.QueryActivityLog(context.Background(), testutil.NewServices(t, db), handlers.ActivityLogFilters{}, 1, 2)
 	require.NoError(t, err)
 	assert.Equal(t, 5, page1.Total)
 	assert.Len(t, page1.Entries, 2)
 	assert.Equal(t, 3, page1.TotalPages)
 
-	page3, err := handlers.QueryActivityLog(db, handlers.ActivityLogFilters{}, 3, 2)
+	page3, err := handlers.QueryActivityLog(context.Background(), testutil.NewServices(t, db), handlers.ActivityLogFilters{}, 3, 2)
 	require.NoError(t, err)
 	assert.Len(t, page3.Entries, 1, "last page has the remaining entry")
 
 	// Out-of-range page numbers clamp to TotalPages (no error, no panic).
-	pageHigh, err := handlers.QueryActivityLog(db, handlers.ActivityLogFilters{}, 99, 2)
+	pageHigh, err := handlers.QueryActivityLog(context.Background(), testutil.NewServices(t, db), handlers.ActivityLogFilters{}, 99, 2)
 	require.NoError(t, err)
 	assert.Equal(t, 3, pageHigh.Page, "page > TotalPages should clamp to last page")
 }
@@ -171,7 +173,7 @@ func TestQueryActivityLog_OrderingDateAsc(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	seedActivityFixture(t, db)
 
-	page, err := handlers.QueryActivityLog(db, handlers.ActivityLogFilters{Order: "date_asc"}, 1, 100)
+	page, err := handlers.QueryActivityLog(context.Background(), testutil.NewServices(t, db), handlers.ActivityLogFilters{Order: service.OldestFirst}, 1, 100)
 	require.NoError(t, err)
 	require.Len(t, page.Entries, 5)
 

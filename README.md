@@ -270,9 +270,138 @@ You can keep several keys at once — add one per device, see when each was last
 used, and **regenerate** or **revoke** any of them individually so rotating one
 device's key doesn't disturb the others.
 
+### Key access (scopes)
+
+Each key has an access level and, separately, permission to push sensor readings.
+Give a key only what it needs; you can change a key's access later without
+changing the key itself.
+
+| Access | Can |
+|---|---|
+| **Read only** | read data, e.g. `GET /api/overlay` |
+| **Read and write** | read, and record plants, activities and measurements (for the upcoming `/api/v1`) |
+| **Admin** | everything, including settings, deletes, backups, and the endpoints the web UI itself uses |
+| **Sensor ingest** | `POST /api/sensors/ingest` (can be combined with any level; admin includes it) |
+
+New keys default to **Read only**. Keys created before scoped keys existed are
+**Admin**, so existing integrations keep working. A request a key isn't allowed to
+make gets `403` with `"code": "insufficient_scope"` and the scope it needed in
+`"required"`.
+
+### API v1
+
+A versioned JSON API at `/api/v1`. Every Isley instance serves a guide at
+**`/api/v1/docs`** (keys, conventions, times, errors, paging, safe retries and
+worked examples) and the full OpenAPI 3.1 reference at `/api/v1/openapi.yaml`,
+which any OpenAPI tool can load. Settings → API links to the guide.
+
+```bash
+curl -H "Authorization: Bearer $ISLEY_KEY" https://isley.example/api/v1/instance
+```
+
+`GET /api/v1/instance` reports the version, the instance time zone (every
+timestamp in the API carries its offset), enabled features, and what the
+calling key may do. Errors are `{"error": {"code": "...", "message": "..."}}`
+with a stable `code`.
+
+Available so far:
+
+| Endpoint | Key |
+|---|---|
+| `GET /instance` | read |
+| `GET /statuses`, `GET /metrics`, `GET /activity-types` | read |
+| `GET /zones`, `GET /zones/{id}` (with sensors and latest readings) | read |
+| `POST /zones`, `PATCH /zones/{id}`, `DELETE /zones/{id}` (empty zones only) | admin |
+| `GET /plants` (filter by `phase`, `status_id`, `zone_id`, `strain_id`), `GET /plants/{id}` | read |
+| `GET /plants/{id}/status-history` | read |
+| `POST /plants`, `PATCH /plants/{id}`, `PUT /plants/{id}/sensors`, `POST /plants/{id}/status`, `PATCH`/`DELETE /plants/{id}/status-history/{entry_id}` | write |
+| `GET /activities` (log: `plant_id`, `zone_id`, `activity_type_id`, `from`, `to`, `q`), `GET /activities/{id}`, `GET /plants/{id}/activities`, `GET /plants/{id}/measurements` | read |
+| `POST /plants/{id}/activities`, `POST /activities/bulk`, `PATCH`/`DELETE /activities/{id}`, `POST /plants/{id}/measurements`, `PATCH`/`DELETE /measurements/{id}` | write |
+| `GET /plants/{id}/images`, `GET /images/{id}` | read |
+| `POST /plants/{id}/images` (multipart, one image per request), `DELETE /images/{id}` | write |
+| `GET /streams` (filter by `zone_id`), `GET /streams/{id}` | read |
+| `GET /smoke-criteria`, `GET /plants/{id}/smoke-reports`, `GET /smoke-reports/{id}`, `GET /strains/{id}/smoke-summary` | read |
+| `POST /plants/{id}/smoke-reports`, `PATCH`/`DELETE /smoke-reports/{id}` | write |
+| `GET /sensors` (filter by `zone_id`, `source`), `GET /sensors/{id}` (with the latest reading), `GET /sensors/{id}/data` (`from`, `to`, `bucket` = `raw` or `5m`/`1h`/`1d`...) | read |
+| `GET /strains` (filter by `breeder_id`, `in_stock`, `q`), `GET /strains/{id}`, `GET /strains/{id}/lineage`, `GET /strains/{id}/descendants`, `GET /breeders`, `GET /breeders/{id}` | read |
+| `POST /strains`, `PATCH /strains/{id}`, `POST /strains/{id}/seed-count`, `PUT /strains/{id}/lineage`, `POST /breeders`, `PATCH /breeders/{id}` | write |
+| `DELETE /plants/{id}`, `DELETE /strains/{id}` (no plants), `DELETE /breeders/{id}` (no strains), `PATCH`/`DELETE /sensors/{id}`, `POST /streams`, `PATCH`/`DELETE /streams/{id}` | admin |
+
+Any POST can send an `Idempotency-Key` header so a retry doesn't record the
+same thing twice. Every write is logged on the server with the key's name, so
+give each script or device its own key.
+
+```bash
+# Log a watering on plant 12 (activity type 1 is Water; see GET /activity-types)
+curl -H "Authorization: Bearer $ISLEY_KEY" -H "Content-Type: application/json" \
+     -H "Idempotency-Key: $(uuidgen)" \
+     -d '{"activity_type_id": 1, "note": "250 ml"}' \
+     https://isley.example/api/v1/plants/12/activities
+
+# Temperature overnight, hour by hour
+curl -H "Authorization: Bearer $ISLEY_KEY" \
+     "https://isley.example/api/v1/sensors/2/data?from=2026-11-10T20:00&to=2026-11-11T08:00&bucket=1h"
+```
+
+### MCP server (AI assistants)
+
+Isley can serve AI assistants such as Claude over the
+[Model Context Protocol](https://modelcontextprotocol.io) at `/mcp`. It is off
+until you turn on **Enable MCP server** in Settings → API. An assistant connects
+with an API key as a bearer token and gets exactly that key's powers: a
+**Read only** key can look things up ("how did the tent do overnight?"), a
+**Read and write** key can also start plants, log waterings and feedings, record
+measurements and change statuses. There are no delete tools.
+
+Claude Code:
+
+```bash
+claude mcp add --transport http isley https://isley.example/mcp \
+  --header "Authorization: Bearer $ISLEY_KEY"
+```
+
+Claude Desktop, through the `mcp-remote` bridge, in `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "isley": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://isley.example/mcp", "--header", "Authorization:${ISLEY_AUTH}"],
+      "env": { "ISLEY_AUTH": "Bearer <your key>" }
+    }
+  }
+}
+```
+
+| Tool | Key | Does |
+|---|---|---|
+| `get_overview` | read | growing plants (age, status, zone, days since watered and fed) and each zone's latest readings |
+| `list_plants`, `get_plant` | read | plants by phase, status, zone or strain; one plant with its history, sensors and recent activity |
+| `find_strains`, `get_strain` | read | strains by name, breeder or stock; one strain with its lineage |
+| `list_zones`, `get_sensor_history` | read | zones and sensors; min/avg/max over a time range, bucketed, with on-time for fans and lights |
+| `list_reference_data` | read | the status, activity and metric names the write tools take |
+| `create_plant`, `update_plant`, `set_plant_status` | write | start a plant, change it, move it to a new stage (with harvest weight) |
+| `log_activity`, `record_measurement` | write | log watering, feeding or a note on one or more plants; record a measurement |
+| `adjust_seed_count`, `link_plant_sensors` | write | add or take seeds; set a plant's own sensors |
+
+Tools take names where people use names ("Water", "Flower") and times in the
+instance zone unless they carry an offset. Every write is logged with the key's
+name.
+
+That covers the plan's resources; an MCP server comes next.
+
+### Older endpoints
+
+The endpoints below predate API v1 and stay supported for the integrations that
+use them: push readings with `/api/sensors/ingest`, and read with the overlay and
+sensor data endpoints. New integrations should use [API v1](#api-v1), which
+covers the reads with documented, stable responses. (The web UI also has its own
+internal endpoints; they aren't an API and can change between versions.)
+
 ### Ingest Endpoint
 
-**`POST /api/sensors/ingest`**
+**`POST /api/sensors/ingest`** — needs a key with **Sensor ingest** (or **Admin**).
 
 ```json
 {
@@ -317,7 +446,7 @@ rate limit of 60 per minute per key; a `429` carries a `Retry-After` header in s
 
 **`GET /api/overlay`** — Returns a JSON snapshot of all living plants (with linked sensor readings) and grouped sensor data. Designed for live-stream overlays (e.g., OBS browser sources).
 
-Requires the `X-API-KEY` header.
+Requires the `X-API-KEY` header, with a key that has at least **Read only** access.
 
 **Response structure:**
 
@@ -570,6 +699,8 @@ services:
 - Back up these volumes on a regular schedule — see [Backup & Restore](#-backup--restore) above.
 - Set `ISLEY_SESSION_SECRET` to keep sessions valid across container restarts.
 - Configure a [sensor data retention period](#) in Settings to prevent unbounded database growth.
+- Plant photos under `/uploads` are served without a login, so guest mode and shared links work. Their file
+  names are random and unguessable, but anyone you give a photo's URL to can open it.
 
 ---
 

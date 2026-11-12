@@ -1,35 +1,20 @@
 package routes
 
 import (
+	"isley/cannadb"
 	"isley/handlers"
 	"isley/model"
+	"isley/scope"
 	"isley/utils"
 	"net/http"
-	"strconv"
 
-	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
 
 func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	r.GET("/", func(c *gin.Context) {
-		lang := utils.GetLanguage(c)
-		translations := utils.TranslationService.GetTranslations(lang)
-		currentPath, _ := c.Get("currentPath")
-		store := handlers.ConfigStoreFromContext(c)
-		c.HTML(http.StatusOK, "views/index.html", gin.H{
-			"title":           "Dashboard",
-			"currentPath":     currentPath,
-			"version":         version,
-			"plants":          handlers.GetLivingPlants(handlers.DBFromContext(c)),
-			"activities":      store.Activities(),
-			"loggedIn":        sessions.Default(c).Get("logged_in"),
-			"lcl":             translations,
-			"languages":       utils.AvailableLanguages,
-			"currentLanguage": lang,
-			"csrfToken":       c.GetString("csrf_token"),
-			"cspNonce":        c.GetString("cspNonce"),
-			"pollInterval":    store.PollingInterval(),
+		page(c, version, "views/index.html", "Dashboard", gin.H{
+			"pollInterval": handlers.ConfigStoreFromContext(c).PollingInterval(),
 		})
 	})
 
@@ -41,189 +26,62 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	})
 
 	r.GET("/plants", func(c *gin.Context) {
-		lang := utils.GetLanguage(c)
-		translations := utils.TranslationService.GetTranslations(lang)
-		currentPath, _ := c.Get("currentPath")
 		store := handlers.ConfigStoreFromContext(c)
-		c.HTML(http.StatusOK, "views/plants.html", gin.H{
-			"title":           "Plants",
-			"currentPath":     currentPath,
-			"version":         version,
-			"zones":           store.Zones(),
-			"strains":         store.Strains(),
-			"statuses":        store.Statuses(),
-			"measurements":    store.Metrics(),
-			"breeders":        store.Breeders(),
-			"plants":          handlers.GetLivingPlants(handlers.DBFromContext(c)),
-			"activities":      store.Activities(),
-			"loggedIn":        sessions.Default(c).Get("logged_in"),
-			"lcl":             translations,
-			"languages":       utils.AvailableLanguages,
-			"currentLanguage": lang,
-			"csrfToken":       c.GetString("csrf_token"),
-			"cspNonce":        c.GetString("cspNonce"),
+		page(c, version, "views/plants.html", "Plants", gin.H{
+			"zones": store.Zones(), "strains": store.Strains(), "statuses": store.Statuses(),
+			"measurements": store.Metrics(), "breeders": store.Breeders(),
 		})
 	})
 
 	r.GET("/activities", func(c *gin.Context) {
-		lang := utils.GetLanguage(c)
-		translations := utils.TranslationService.GetTranslations(lang)
-		currentPath, _ := c.Get("currentPath")
-
-		db := handlers.DBFromContext(c)
-		filters, err := handlers.ParseActivityLogFilters(c)
-		if err != nil {
-			// Bad filter input — render the page with empty filters but flag
-			// the error to the user via a query param check in the template.
-			filters = handlers.ActivityLogFilters{Order: "date_desc"}
-		}
-
-		page := 1
-		if v := c.Query("page"); v != "" {
-			if n, perr := strconv.Atoi(v); perr == nil && n > 0 {
-				page = n
-			}
-		}
-
-		pageCtx, err := handlers.BuildActivityLogPageContext(db, filters, page, c.Request.URL.Query())
-		if err != nil {
-			pageCtx = handlers.ActivityLogPageContext{}
-		}
-
 		store := handlers.ConfigStoreFromContext(c)
-		activities := store.Activities()
-		c.HTML(http.StatusOK, "views/activities.html", gin.H{
-			"title":           "Activity Log",
-			"currentPath":     currentPath,
-			"version":         version,
-			"zones":           store.Zones(),
-			"strains":         store.Strains(),
-			"breeders":        store.Breeders(),
-			"activityTypes":   activities,
-			"activityCtx":     pageCtx,
-			"plants":          handlers.GetLivingPlants(handlers.DBFromContext(c)),
-			"activities":      activities,
-			"loggedIn":        sessions.Default(c).Get("logged_in"),
-			"lcl":             translations,
-			"languages":       utils.AvailableLanguages,
-			"currentLanguage": lang,
-			"csrfToken":       c.GetString("csrf_token"),
-			"cspNonce":        c.GetString("cspNonce"),
+		page(c, version, "views/activities.html", "Activity Log", gin.H{
+			"zones": store.Zones(), "strains": store.Strains(), "breeders": store.Breeders(),
+			"activityTypes": store.Activities(),
 		})
 	})
 	r.GET("/activities/list", handlers.ListAllActivities)
 
 	r.GET("/strains", func(c *gin.Context) {
-		lang := utils.GetLanguage(c)
-		translations := utils.TranslationService.GetTranslations(lang)
-		currentPath, _ := c.Get("currentPath")
 		store := handlers.ConfigStoreFromContext(c)
-		c.HTML(http.StatusOK, "views/strains.html", gin.H{
-			"title":           "Strains",
-			"currentPath":     currentPath,
-			"version":         version,
-			"strains":         store.Strains(),
-			"breeders":        store.Breeders(),
-			"plants":          handlers.GetLivingPlants(handlers.DBFromContext(c)),
-			"activities":      store.Activities(),
-			"loggedIn":        sessions.Default(c).Get("logged_in"),
-			"cannadbEnabled":  store.CannadbEnabled() == 1,
-			"lcl":             translations,
-			"languages":       utils.AvailableLanguages,
-			"currentLanguage": lang,
-			"csrfToken":       c.GetString("csrf_token"),
-			"cspNonce":        c.GetString("cspNonce"),
+		page(c, version, "views/strains.html", "Strains", gin.H{
+			"strains": store.Strains(), "breeders": store.Breeders(),
+			"cannadbEnabled": store.CannadbEnabled() == 1,
 		})
 	})
 
 	r.GET("/graph/:id", func(c *gin.Context) {
-		lang := utils.GetLanguage(c)
-		translations := utils.TranslationService.GetTranslations(lang)
-		currentPath, _ := c.Get("currentPath")
-		store := handlers.ConfigStoreFromContext(c)
-		c.HTML(http.StatusOK, "views/graph.html", gin.H{
-			"title":           "Sensor Graphs",
-			"currentPath":     currentPath,
-			"version":         version,
-			"SensorID":        c.Param("id"),
-			"plants":          handlers.GetLivingPlants(handlers.DBFromContext(c)),
-			"activities":      store.Activities(),
-			"loggedIn":        sessions.Default(c).Get("logged_in"),
-			"lcl":             translations,
-			"languages":       utils.AvailableLanguages,
-			"currentLanguage": lang,
-			"csrfToken":       c.GetString("csrf_token"),
-			"cspNonce":        c.GetString("cspNonce"),
-		})
+		page(c, version, "views/graph.html", "Sensor Graphs", gin.H{"SensorID": c.Param("id")})
 	})
 
 	r.GET("/plant/new", func(c *gin.Context) {
-		// Redirect to login if not authenticated
-		if sessions.Default(c).Get("logged_in") == nil {
-			c.Redirect(http.StatusFound, "/login")
+		if !requireLogin(c) {
 			return
 		}
-		lang := utils.GetLanguage(c)
-		translations := utils.TranslationService.GetTranslations(lang)
-		currentPath, _ := c.Get("currentPath")
 		store := handlers.ConfigStoreFromContext(c)
-		c.HTML(http.StatusOK, "views/plant-add.html", gin.H{
-			"title":           "Add Plant",
-			"currentPath":     currentPath,
-			"version":         version,
-			"zones":           store.Zones(),
-			"strains":         store.Strains(),
-			"statuses":        store.Statuses(),
-			"breeders":        store.Breeders(),
-			"plants":          handlers.GetLivingPlants(handlers.DBFromContext(c)),
-			"activities":      store.Activities(),
-			"loggedIn":        sessions.Default(c).Get("logged_in"),
-			"lcl":             translations,
-			"languages":       utils.AvailableLanguages,
-			"currentLanguage": lang,
-			"csrfToken":       c.GetString("csrf_token"),
-			"cspNonce":        c.GetString("cspNonce"),
+		page(c, version, "views/plant-add.html", "Add Plant", gin.H{
+			"zones": store.Zones(), "strains": store.Strains(), "statuses": store.Statuses(),
+			"breeders": store.Breeders(),
 		})
 	})
 
 	r.GET("/plant/:id", func(c *gin.Context) {
-		lang := utils.GetLanguage(c)
-		translations := utils.TranslationService.GetTranslations(lang)
-		currentPath, _ := c.Get("currentPath")
 		store := handlers.ConfigStoreFromContext(c)
-		db := handlers.DBFromContext(c)
-		idStr := c.Param("id")
-		plant := handlers.GetPlant(db, idStr)
-		prevPlantID, nextPlantID := handlers.GetAdjacentPlantIDs(db, int(plant.ID))
+		svc := handlers.ServicesFromContext(c)
+		plant := handlers.GetPlant(c.Request.Context(), svc, c.Param("id"))
+		prevPlantID, nextPlantID := handlers.GetAdjacentPlantIDs(c.Request.Context(), svc, int(plant.ID))
 		// smokeHarvested gates the "+ Add" trigger alone: a new report may
 		// only ever be created on a currently-harvested plant. smokeEligible
 		// (harvested || has reports) gates the card and its modals, so a
 		// plant that leaves its harvested statuses (e.g. a mis-logged Curing
 		// entry gets deleted from the status-history modal) does not orphan
-		// reports it already has — see PlantHasSmokeReportsForTemplate.
-		smokeHarvested := handlers.PlantIsHarvestedForTemplate(db, int(plant.ID))
-		smokeHasReports := handlers.PlantHasSmokeReportsForTemplate(db, int(plant.ID))
-		c.HTML(http.StatusOK, "views/plant.html", gin.H{
-			"title":            "Plant Details",
-			"currentPath":      currentPath,
-			"version":          version,
-			"plant":            plant,
-			"zones":            store.Zones(),
-			"strains":          store.Strains(),
-			"statuses":         store.Statuses(),
-			"breeders":         store.Breeders(),
-			"measurements":     store.Metrics(),
-			"sensors":          handlers.GetSensors(db),
-			"plants":           handlers.GetLivingPlants(db),
-			"activities":       store.Activities(),
-			"loggedIn":         sessions.Default(c).Get("logged_in"),
-			"lcl":              translations,
-			"languages":        utils.AvailableLanguages,
-			"currentLanguage":  lang,
-			"csrfToken":        c.GetString("csrf_token"),
-			"cspNonce":         c.GetString("cspNonce"),
-			"prevPlantID":      prevPlantID,
-			"nextPlantID":      nextPlantID,
+		// reports it already has — see handlers.SmokeEligibility.
+		smokeHarvested, smokeHasReports := handlers.SmokeEligibility(c.Request.Context(), svc, int(plant.ID))
+		page(c, version, "views/plant.html", "Plant Details", gin.H{
+			"plant": plant, "zones": store.Zones(), "strains": store.Strains(), "statuses": store.Statuses(),
+			"breeders": store.Breeders(), "measurements": store.Metrics(),
+			"sensors":     handlers.GetSensors(c.Request.Context(), svc),
+			"prevPlantID": prevPlantID, "nextPlantID": nextPlantID,
 			"smokeCriteria":    store.SmokeCriteria(),
 			"smokeRatingScale": handlers.SmokeRatingScale(),
 			"smokeEligible":    smokeHarvested || smokeHasReports,
@@ -232,51 +90,19 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	})
 
 	r.GET("/strain/new", func(c *gin.Context) {
-		// Redirect to login if not authenticated
-		if sessions.Default(c).Get("logged_in") == nil {
-			c.Redirect(http.StatusFound, "/login")
+		if !requireLogin(c) {
 			return
 		}
-		lang := utils.GetLanguage(c)
-		translations := utils.TranslationService.GetTranslations(lang)
-		currentPath, _ := c.Get("currentPath")
-		store := handlers.ConfigStoreFromContext(c)
-		c.HTML(http.StatusOK, "views/strain-add.html", gin.H{
-			"title":           "Add Strain",
-			"currentPath":     currentPath,
-			"version":         version,
-			"prefillName":     c.Query("name"),
-			"breeders":        store.Breeders(),
-			"plants":          handlers.GetLivingPlants(handlers.DBFromContext(c)),
-			"activities":      store.Activities(),
-			"loggedIn":        sessions.Default(c).Get("logged_in"),
-			"lcl":             translations,
-			"languages":       utils.AvailableLanguages,
-			"currentLanguage": lang,
-			"csrfToken":       c.GetString("csrf_token"),
-			"cspNonce":        c.GetString("cspNonce"),
+		page(c, version, "views/strain-add.html", "Add Strain", gin.H{
+			"prefillName": c.Query("name"), "breeders": handlers.ConfigStoreFromContext(c).Breeders(),
 		})
 	})
 
 	r.GET("/strain/:id", func(c *gin.Context) {
-		lang := utils.GetLanguage(c)
-		translations := utils.TranslationService.GetTranslations(lang)
-		currentPath, _ := c.Get("currentPath")
-		store := handlers.ConfigStoreFromContext(c)
-		strain := handlers.GetStrain(handlers.DBFromContext(c), c.Param("id"))
-		c.HTML(http.StatusOK, "views/strain.html", gin.H{
-			"title":           "Strain Details",
-			"currentPath":     currentPath,
-			"version":         version,
-			"strain":          strain,
-			"cannadbURL":      handlers.CannadbWebURL(strain.CannadbURI),
-			"breeders":        store.Breeders(),
-			"loggedIn":        sessions.Default(c).Get("logged_in"),
-			"lcl":             translations,
-			"languages":       utils.AvailableLanguages,
-			"currentLanguage": lang,
-			"csrfToken":       c.GetString("csrf_token"),
-			"cspNonce":        c.GetString("cspNonce"),
+		strain := handlers.GetStrain(c.Request.Context(), handlers.ServicesFromContext(c), c.Param("id"))
+		page(c, version, "views/strain.html", "Strain Details", gin.H{
+			"strain": strain, "cannadbURL": cannadb.WebURL(strain.CannadbURI),
+			"breeders": handlers.ConfigStoreFromContext(c).Breeders(),
 		})
 	})
 
@@ -290,7 +116,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	r.GET("/sensorData", handlers.ChartHandler)
 	r.GET("/sensors/grouped", func(c *gin.Context) {
 		groupedSensors := handlers.GetGroupedSensorsWithLatestReading(
-			handlers.DBFromContext(c), handlers.SensorCacheServiceFromContext(c))
+			c.Request.Context(), handlers.ServicesFromContext(c), handlers.SensorCacheServiceFromContext(c))
 		c.JSON(http.StatusOK, groupedSensors)
 	})
 	r.GET("/strains/:id", handlers.GetStrainHandler)
@@ -410,87 +236,39 @@ func AddProtectedApiRoutes(r *gin.RouterGroup) {
 
 // AddExternalApiRoutes External API endpoints
 func AddExternalApiRoutes(r *gin.RouterGroup) {
-	r.POST("/api/sensors/ingest", handlers.IngestRateLimitMiddleware(), handlers.IngestSensorData)
-	r.GET("/api/overlay", handlers.IngestRateLimitMiddleware(), handlers.GetOverlayData)
+	r.POST("/api/sensors/ingest", handlers.RequireKeyScope(scope.Ingest), handlers.IngestRateLimitMiddleware(), handlers.IngestSensorData)
+	r.GET("/api/overlay", handlers.RequireKeyScope(scope.Read), handlers.IngestRateLimitMiddleware(), handlers.GetOverlayData)
 }
 
 func AddProtectedRoutes(r *gin.RouterGroup, version string) {
 	r.GET("/plant/:id/edit", func(c *gin.Context) {
-		lang := utils.GetLanguage(c)
-		translations := utils.TranslationService.GetTranslations(lang)
-		currentPath, _ := c.Get("currentPath")
 		store := handlers.ConfigStoreFromContext(c)
-		c.HTML(http.StatusOK, "views/plant-edit.html", gin.H{
-			"title":           "Edit Plant",
-			"currentPath":     currentPath,
-			"version":         version,
-			"plant":           handlers.GetPlant(handlers.DBFromContext(c), c.Param("id")),
-			"zones":           store.Zones(),
-			"strains":         store.Strains(),
-			"statuses":        store.Statuses(),
-			"breeders":        store.Breeders(),
-			"measurements":    store.Metrics(),
-			"sensors":         handlers.GetSensors(handlers.DBFromContext(c)),
-			"plants":          handlers.GetLivingPlants(handlers.DBFromContext(c)),
-			"activities":      store.Activities(),
-			"loggedIn":        sessions.Default(c).Get("logged_in"),
-			"lcl":             translations,
-			"languages":       utils.AvailableLanguages,
-			"currentLanguage": lang,
-			"csrfToken":       c.GetString("csrf_token"),
-			"cspNonce":        c.GetString("cspNonce"),
+		svc := handlers.ServicesFromContext(c)
+		page(c, version, "views/plant-edit.html", "Edit Plant", gin.H{
+			"plant": handlers.GetPlant(c.Request.Context(), svc, c.Param("id")),
+			"zones": store.Zones(), "strains": store.Strains(), "statuses": store.Statuses(),
+			"breeders": store.Breeders(), "measurements": store.Metrics(),
+			"sensors": handlers.GetSensors(c.Request.Context(), svc),
 		})
 	})
 
 	r.GET("/strain/:id/edit", func(c *gin.Context) {
-		lang := utils.GetLanguage(c)
-		translations := utils.TranslationService.GetTranslations(lang)
-		currentPath, _ := c.Get("currentPath")
-		store := handlers.ConfigStoreFromContext(c)
-		c.HTML(http.StatusOK, "views/strain-edit.html", gin.H{
-			"title":           "Edit Strain",
-			"currentPath":     currentPath,
-			"version":         version,
-			"strain":          handlers.GetStrain(handlers.DBFromContext(c), c.Param("id")),
-			"breeders":        store.Breeders(),
-			"plants":          handlers.GetLivingPlants(handlers.DBFromContext(c)),
-			"activities":      store.Activities(),
-			"loggedIn":        sessions.Default(c).Get("logged_in"),
-			"lcl":             translations,
-			"languages":       utils.AvailableLanguages,
-			"currentLanguage": lang,
-			"csrfToken":       c.GetString("csrf_token"),
-			"cspNonce":        c.GetString("cspNonce"),
+		page(c, version, "views/strain-edit.html", "Edit Strain", gin.H{
+			"strain":   handlers.GetStrain(c.Request.Context(), handlers.ServicesFromContext(c), c.Param("id")),
+			"breeders": handlers.ConfigStoreFromContext(c).Breeders(),
 		})
 	})
 
 	r.GET("/settings", func(c *gin.Context) {
-		lang := utils.GetLanguage(c)
-		translations := utils.TranslationService.GetTranslations(lang)
-		currentPath, _ := c.Get("currentPath")
 		store := handlers.ConfigStoreFromContext(c)
-		db := handlers.DBFromContext(c)
-		c.HTML(http.StatusOK, "views/settings.html", gin.H{
-			"title":           "Settings",
-			"currentPath":     currentPath,
-			"version":         version,
-			"settings":        handlers.GetSettings(db),
-			"zones":           store.Zones(),
-			"statuses":        store.Statuses(),
-			"sensors":         handlers.GetSensors(db),
-			"metrics":         store.Metrics(),
-			"plants":          handlers.GetLivingPlants(db),
-			"activities":      store.Activities(),
-			"breeders":        store.Breeders(),
-			"streams":         handlers.GetStreams(db),
-			"smokeCriteria":   store.SmokeCriteria(),
-			"loggedIn":        sessions.Default(c).Get("logged_in"),
-			"lcl":             translations,
-			"languages":       utils.AvailableLanguages,
-			"currentLanguage": lang,
-			"dbDriver":        model.GetDriver(),
-			"csrfToken":       c.GetString("csrf_token"),
-			"cspNonce":        c.GetString("cspNonce"),
+		svc := handlers.ServicesFromContext(c)
+		page(c, version, "views/settings.html", "Settings", gin.H{
+			"settings": handlers.GetSettings(handlers.DBFromContext(c)),
+			"zones":    store.Zones(), "statuses": store.Statuses(), "metrics": store.Metrics(),
+			"breeders": store.Breeders(), "smokeCriteria": store.SmokeCriteria(),
+			"sensors":  handlers.GetSensors(c.Request.Context(), svc),
+			"streams":  handlers.GetStreams(c.Request.Context(), svc),
+			"dbDriver": model.GetDriver(),
 		})
 	})
 
@@ -499,28 +277,14 @@ func AddProtectedRoutes(r *gin.RouterGroup, version string) {
 	r.GET("/settings/api-keys", handlers.GetAPIKeysHandler)
 	r.POST("/settings/api-keys", handlers.CreateAPIKeyHandler)
 	r.POST("/settings/api-keys/:id/regenerate", handlers.RegenerateAPIKeyHandler)
+	r.PUT("/settings/api-keys/:id/scopes", handlers.UpdateAPIKeyScopesHandler)
 	r.DELETE("/settings/api-keys/:id", handlers.RevokeAPIKeyHandler)
 
 	r.GET("/sensors", func(c *gin.Context) {
-		lang := utils.GetLanguage(c)
-		translations := utils.TranslationService.GetTranslations(lang)
-		currentPath, _ := c.Get("currentPath")
-		store := handlers.ConfigStoreFromContext(c)
-		c.HTML(http.StatusOK, "views/sensors.html", gin.H{
-			"title":           "Sensors",
-			"currentPath":     currentPath,
-			"version":         version,
-			"settings":        handlers.GetSettings(handlers.DBFromContext(c)),
-			"sensors":         handlers.GetSensors(handlers.DBFromContext(c)),
-			"zones":           store.Zones(),
-			"plants":          handlers.GetLivingPlants(handlers.DBFromContext(c)),
-			"activities":      store.Activities(),
-			"loggedIn":        sessions.Default(c).Get("logged_in"),
-			"lcl":             translations,
-			"languages":       utils.AvailableLanguages,
-			"currentLanguage": lang,
-			"csrfToken":       c.GetString("csrf_token"),
-			"cspNonce":        c.GetString("cspNonce"),
+		page(c, version, "views/sensors.html", "Sensors", gin.H{
+			"settings": handlers.GetSettings(handlers.DBFromContext(c)),
+			"sensors":  handlers.GetSensors(c.Request.Context(), handlers.ServicesFromContext(c)),
+			"zones":    handlers.ConfigStoreFromContext(c).Zones(),
 		})
 	})
 

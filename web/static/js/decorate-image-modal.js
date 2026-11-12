@@ -21,11 +21,11 @@ document.addEventListener("DOMContentLoaded", () => {
         modalDateInput.value = img.dataset.date;
         imageIdInput.value = img.dataset.id;
 
-        const plantStartDate = new Date(modalStartDate.value);
-        const modalDate = new Date(img.dataset.date);
-        const diffTime = Math.abs(modalDate - plantStartDate);
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        const diffWeeks = Math.floor(diffDays / 7);
+        // The plant's age on the photo's day, counted as everywhere else:
+        // the start day is day 1, week 1 is days 1-7.
+        const age = IsleyTime.ageOn(modalStartDate.value, img.dataset.date);
+        const diffDays = age.day;
+        const diffWeeks = age.week;
         const strainName = document.getElementById("strainName").value;
         const breederName = document.getElementById("breederName").value;
         const plantName = document.getElementById("modalPlantName").value;

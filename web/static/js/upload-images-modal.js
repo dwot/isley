@@ -71,8 +71,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 // Read EXIF metadata
                 EXIF.getData(file, function () {
-                    const _now = new Date();
-                    let imageDate = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`; // Default to current local date
+                    let imageDate = IsleyTime.today(); // Default to today in the instance zone
 
                     // Try to get the DateTimeOriginal tag from EXIF
                     const exifDate = EXIF.getTag(this, "DateTimeOriginal");

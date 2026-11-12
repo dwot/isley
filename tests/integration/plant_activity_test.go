@@ -169,8 +169,8 @@ func TestActivity_MultiPlantHappyPath(t *testing.T) {
 
 	// Add a second plant so multi-plant insert covers >1 row.
 	res, err := db.Exec(
-		`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
-		 VALUES ('Plant 2', 1, 1, '', 0, '2026-01-01', '[]')`,
+		`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt)
+		 VALUES ('Plant 2', 1, 1, '', 0, '2026-01-01')`,
 	)
 	require.NoError(t, err)
 	plant2, _ := res.LastInsertId()
@@ -325,8 +325,8 @@ func TestActivity_ListFilterByPlantID(t *testing.T) {
 
 	// Add a second plant + activity so the filter has something to drop.
 	res, err := db.Exec(
-		`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
-		 VALUES ('Plant 2', 1, 1, '', 0, '2026-01-01', '[]')`,
+		`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt)
+		 VALUES ('Plant 2', 1, 1, '', 0, '2026-01-01')`,
 	)
 	require.NoError(t, err)
 	plant2, _ := res.LastInsertId()
@@ -439,4 +439,28 @@ func TestActivity_ExportXLSX(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "seeded note must appear in the Note column")
+}
+
+// A single plant's export is named after the plant; everything else is "all".
+func TestActivity_ExportFilename(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db)
+	fix := seedActivityHTTP(t, db)
+	testutil.MustExec(t, db, "UPDATE plant SET name = 'Blue Dream #2' WHERE id = $1", fix.PlantID)
+
+	testutil.SeedAdmin(t, db, "name-pw")
+	c := server.LoginAsAdmin(t, "name-pw")
+
+	for path, want := range map[string]string{
+		"/activities/export/csv?plant_id=" + strconv.FormatInt(fix.PlantID, 10): `filename="isley-activities-blue-dream-2-`,
+		"/activities/export/csv?plant_id=999999":                                `filename="isley-activities-plant-999999-`,
+		"/activities/export/csv":                                                `filename="isley-activities-all-`,
+	} {
+		resp := c.Get(path)
+		testutil.DrainAndClose(resp)
+		require.Equal(t, http.StatusOK, resp.StatusCode, path)
+		assert.Contains(t, resp.Header.Get("Content-Disposition"), want, path)
+	}
 }

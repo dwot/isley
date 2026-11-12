@@ -1,361 +1,196 @@
 package handlers
 
 import (
-	"database/sql"
-	"isley/logger"
-	"isley/model"
-	"isley/model/types"
-	"isley/utils"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+
+	"isley/model/types"
+	"isley/service"
+	"isley/utils"
 )
 
-// GetLineage returns direct parents for a strain
-func GetLineage(db *sql.DB, strainID int) []types.StrainLineage {
-	fieldLogger := logger.Log.WithField("func", "GetLineage")
-
-	rows, err := db.Query(`
-		SELECT sl.id, sl.strain_id, sl.parent_name, sl.parent_strain_id
-		FROM strain_lineage sl
-		WHERE sl.strain_id = $1
-		ORDER BY sl.parent_name ASC`, strainID)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to query lineage")
-		return nil
-	}
-	defer rows.Close()
-
-	var lineage []types.StrainLineage
-	for rows.Next() {
-		var l types.StrainLineage
-		err = rows.Scan(&l.ID, &l.StrainID, &l.ParentName, &l.ParentStrainID)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to scan lineage row")
-			return nil
-		}
-		lineage = append(lineage, l)
-	}
-	return lineage
-}
-
-// GetAncestryTree recursively builds the full ancestry tree for a strain
-func GetAncestryTree(db *sql.DB, strainID int, depth int) []types.StrainLineage {
-	if depth > MaxAncestryDepth {
-		return nil // safety limit to prevent infinite recursion
-	}
-
-	parents := GetLineage(db, strainID)
-	if parents == nil {
-		return nil
-	}
-
-	for i := range parents {
-		if parents[i].ParentStrainID != nil {
-			parents[i].Children = GetAncestryTree(db, *parents[i].ParentStrainID, depth+1)
+// toLineageTree maps an ancestry onto the tree the strain page draws.
+func toLineageTree(strainID int, nodes []service.AncestryNode) []types.StrainLineage {
+	out := make([]types.StrainLineage, len(nodes))
+	for i, n := range nodes {
+		out[i] = types.StrainLineage{ID: n.ID, StrainID: strainID, ParentName: n.ParentName}
+		if n.Parent != nil {
+			pid := n.Parent.ID
+			out[i].ParentStrainID = &pid
+			if len(n.Parents) > 0 {
+				out[i].Children = toLineageTree(pid, n.Parents)
+			}
 		}
 	}
-	return parents
+	return out
 }
 
-// GetLineageHandler returns the lineage JSON for a strain
+// GetLineageHandler returns a strain's ancestry: its parents, each with
+// theirs under "children".
 func GetLineageHandler(c *gin.Context) {
 	strainID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		apiBadRequest(c, "api_invalid_strain_id")
 		return
 	}
-
-	db := DBFromContext(c)
-	tree := GetAncestryTree(db, strainID, 0)
-	if tree == nil {
-		tree = []types.StrainLineage{} // return empty array, not null
+	nodes, err := ServicesFromContext(c).Strains.Ancestry(c.Request.Context(), strainID)
+	if err != nil {
+		apiServiceError(c, err, "api_internal_error")
+		return
 	}
-	c.JSON(http.StatusOK, tree)
+	c.JSON(http.StatusOK, toLineageTree(strainID, nodes))
 }
 
-// AddLineageHandler adds a parent to a strain's lineage
-func AddLineageHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "AddLineageHandler")
+type lineageRequest struct {
+	ParentName     string `json:"parent_name"`
+	ParentStrainID *int   `json:"parent_strain_id"`
+}
 
+func (r lineageRequest) input() service.ParentInput {
+	return service.ParentInput{Name: r.ParentName, StrainID: r.ParentStrainID}
+}
+
+// requireParentName keeps the form's rule that a parent always has a name.
+func requireParentName(c *gin.Context, name string) bool {
+	if err := utils.ValidateRequiredString("parent_name", name, utils.MaxNameLength); err != nil {
+		apiBadRequest(c, err.Error())
+		return false
+	}
+	return true
+}
+
+// AddLineageHandler adds a parent to a strain.
+func AddLineageHandler(c *gin.Context) {
 	strainID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		apiBadRequest(c, "api_invalid_strain_id")
 		return
 	}
-
-	var req struct {
-		ParentName     string `json:"parent_name"`
-		ParentStrainID *int   `json:"parent_strain_id"`
-	}
-
+	var req lineageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		apiBadRequest(c, "api_invalid_request")
 		return
 	}
-
-	if err := utils.ValidateRequiredString("parent_name", req.ParentName, utils.MaxNameLength); err != nil {
-		apiBadRequest(c, err.Error())
+	if !requireParentName(c, req.ParentName) {
 		return
 	}
-
-	db := DBFromContext(c)
-
-	var id int
-	err = db.QueryRow(`
-		INSERT INTO strain_lineage (strain_id, parent_name, parent_strain_id)
-		VALUES ($1, $2, $3) RETURNING id`,
-		strainID, req.ParentName, req.ParentStrainID).Scan(&id)
+	e, err := ServicesFromContext(c).Strains.AddParent(c.Request.Context(), strainID, req.input())
 	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to add lineage entry")
-		apiInternalError(c, "api_failed_to_add_lineage")
+		apiServiceError(c, err, "api_failed_to_add_lineage")
 		return
 	}
-
-	c.JSON(http.StatusCreated, gin.H{"id": id})
+	c.JSON(http.StatusCreated, gin.H{"id": e.ID})
 }
 
-// DeleteLineageHandler removes a lineage entry
+// DeleteLineageHandler removes a parent.
 func DeleteLineageHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "DeleteLineageHandler")
-
 	lineageID, err := strconv.Atoi(c.Param("lineageID"))
 	if err != nil {
 		apiBadRequest(c, "api_invalid_lineage_id")
 		return
 	}
-
-	db := DBFromContext(c)
-
-	result, err := db.Exec(`DELETE FROM strain_lineage WHERE id = $1`, lineageID)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete lineage entry")
-		apiInternalError(c, "api_failed_to_delete_lineage")
+	if err := ServicesFromContext(c).Strains.DeleteParent(c.Request.Context(), lineageID); err != nil {
+		apiServiceError(c, err, "api_failed_to_delete_lineage")
 		return
 	}
-
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
-		apiNotFound(c, "api_lineage_not_found")
-		return
-	}
-
 	apiOK(c, "api_lineage_deleted")
 }
 
-// UpdateLineageHandler updates a lineage entry (e.g., link/unlink parent strain)
+// UpdateLineageHandler changes a parent (its name, or the strain it links to).
 func UpdateLineageHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "UpdateLineageHandler")
-
 	lineageID, err := strconv.Atoi(c.Param("lineageID"))
 	if err != nil {
 		apiBadRequest(c, "api_invalid_lineage_id")
 		return
 	}
-
-	var req struct {
-		ParentName     string `json:"parent_name"`
-		ParentStrainID *int   `json:"parent_strain_id"`
-	}
-
+	var req lineageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		apiBadRequest(c, "api_invalid_request")
 		return
 	}
-
-	if err := utils.ValidateRequiredString("parent_name", req.ParentName, utils.MaxNameLength); err != nil {
-		apiBadRequest(c, err.Error())
+	if !requireParentName(c, req.ParentName) {
 		return
 	}
-
-	db := DBFromContext(c)
-
-	_, err = db.Exec(`
-		UPDATE strain_lineage
-		SET parent_name = $1, parent_strain_id = $2
-		WHERE id = $3`,
-		req.ParentName, req.ParentStrainID, lineageID)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to update lineage entry")
-		apiInternalError(c, "api_failed_to_update_lineage")
+	if _, err := ServicesFromContext(c).Strains.UpdateParent(c.Request.Context(), lineageID, req.input()); err != nil {
+		apiServiceError(c, err, "api_failed_to_update_lineage")
 		return
 	}
-
 	apiOK(c, "api_lineage_updated")
 }
 
-// SetLineageHandler replaces all lineage entries for a strain (bulk operation)
+// SetLineageHandler replaces a strain's parents. Rows left blank in the
+// form are skipped.
 func SetLineageHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "SetLineageHandler")
-
 	strainID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		apiBadRequest(c, "api_invalid_strain_id")
 		return
 	}
-
 	var req struct {
-		Parents []struct {
-			ParentName     string `json:"parent_name"`
-			ParentStrainID *int   `json:"parent_strain_id"`
-		} `json:"parents"`
+		Parents []lineageRequest `json:"parents"`
 	}
-
 	if err := c.ShouldBindJSON(&req); err != nil {
 		apiBadRequest(c, "api_invalid_request")
 		return
 	}
-
-	db := DBFromContext(c)
-
-	tx, err := db.Begin()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to begin transaction")
-		apiInternalError(c, "api_internal_error")
-		return
-	}
-
-	// Delete existing lineage
-	_, err = tx.Exec(`DELETE FROM strain_lineage WHERE strain_id = $1`, strainID)
-	if err != nil {
-		tx.Rollback()
-		fieldLogger.WithError(err).Error("Failed to clear existing lineage")
-		apiInternalError(c, "api_failed_to_update_lineage")
-		return
-	}
-
-	// Insert new entries
+	parents := make([]service.ParentInput, 0, len(req.Parents))
 	for _, p := range req.Parents {
-		if err := utils.ValidateRequiredString("parent_name", p.ParentName, utils.MaxNameLength); err != nil {
-			continue // skip entries with empty or invalid names
-		}
-		_, err = tx.Exec(`
-			INSERT INTO strain_lineage (strain_id, parent_name, parent_strain_id)
-			VALUES ($1, $2, $3)`,
-			strainID, p.ParentName, p.ParentStrainID)
-		if err != nil {
-			tx.Rollback()
-			fieldLogger.WithError(err).Error("Failed to insert lineage entry")
-			apiInternalError(c, "api_failed_to_add_lineage")
-			return
+		if strings.TrimSpace(p.ParentName) != "" {
+			parents = append(parents, p.input())
 		}
 	}
-
-	if err = tx.Commit(); err != nil {
-		fieldLogger.WithError(err).Error("Failed to commit lineage transaction")
-		apiInternalError(c, "api_internal_error")
+	if _, err := ServicesFromContext(c).Strains.SetLineage(c.Request.Context(), strainID, parents); err != nil {
+		apiServiceError(c, err, "api_failed_to_update_lineage")
 		return
 	}
-
 	apiOK(c, "api_lineage_updated")
 }
 
-// GetDescendants returns strains that have the given strain as a parent,
-// including the other parent names and breeder for each descendant.
-func GetDescendants(db *sql.DB, strainID int) []gin.H {
-	fieldLogger := logger.Log.WithField("func", "GetDescendants")
-
-	// string_agg is PostgreSQL-only; SQLite uses GROUP_CONCAT.
-	aggExpr := "GROUP_CONCAT(sl2.parent_name, ', ')"
-	if model.IsPostgres() {
-		aggExpr = "string_agg(sl2.parent_name, ', ' ORDER BY sl2.parent_name)"
-	}
-
-	rows, err := db.Query(`
-		SELECT DISTINCT s.id, s.name, b.name as breeder,
-			COALESCE((
-				SELECT `+aggExpr+`
-				FROM strain_lineage sl2
-				WHERE sl2.strain_id = s.id
-				AND (sl2.parent_strain_id IS NULL OR sl2.parent_strain_id != $1)
-			), '') as other_parents
-		FROM strain_lineage sl
-		JOIN strain s ON sl.strain_id = s.id
-		JOIN breeder b ON s.breeder_id = b.id
-		WHERE sl.parent_strain_id = $1
-		ORDER BY s.name ASC`, strainID)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to query descendants")
-		return nil
-	}
-	defer rows.Close()
-
-	var results []gin.H
-	for rows.Next() {
-		var id int
-		var name, breeder, otherParents string
-		if err := rows.Scan(&id, &name, &breeder, &otherParents); err != nil {
-			fieldLogger.WithError(err).Error("Failed to scan descendant row")
-			continue
-		}
-		results = append(results, gin.H{
-			"id":            id,
-			"name":          name,
-			"breeder":       breeder,
-			"other_parents": otherParents,
-		})
-	}
-	return results
-}
-
-// GetDescendantsHandler returns strains that list this strain as a parent
+// GetDescendantsHandler lists the strains that name this one as a parent,
+// with their other parents.
 func GetDescendantsHandler(c *gin.Context) {
 	strainID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		apiBadRequest(c, "api_invalid_strain_id")
 		return
 	}
-
-	db := DBFromContext(c)
-	descendants := GetDescendants(db, strainID)
-	if descendants == nil {
-		descendants = []gin.H{}
+	ds, err := ServicesFromContext(c).Strains.Descendants(c.Request.Context(), strainID)
+	if err != nil {
+		apiServiceError(c, err, "api_internal_error")
+		return
 	}
-	c.JSON(http.StatusOK, descendants)
+	out := make([]gin.H, len(ds))
+	for i, d := range ds {
+		out[i] = gin.H{
+			"id": d.ID, "name": d.Name, "breeder": d.Breeder.Name,
+			"other_parents": strings.Join(d.OtherParents, ", "),
+		}
+	}
+	c.JSON(http.StatusOK, out)
 }
 
-// LookupStrainByName finds strains whose name matches a search query (for autocomplete)
+// LookupStrainByName finds up to 10 strains whose name contains q, for the
+// parent picker.
 func LookupStrainByName(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "LookupStrainByName")
-
 	query := c.Query("q")
 	if query == "" {
-		c.JSON(http.StatusOK, []types.Strain{})
+		c.JSON(http.StatusOK, []gin.H{})
 		return
 	}
 	if len(query) > utils.MaxNameLength {
 		query = query[:utils.MaxNameLength]
 	}
-
-	db := DBFromContext(c)
-
-	rows, err := db.Query(`
-		SELECT s.id, s.name, b.name as breeder
-		FROM strain s
-		JOIN breeder b ON s.breeder_id = b.id
-		WHERE LOWER(s.name) LIKE LOWER('%' || $1 || '%')
-		ORDER BY s.name ASC
-		LIMIT 10`, query)
+	strains, _, err := ServicesFromContext(c).Strains.List(c.Request.Context(), service.StrainFilter{Query: query, Limit: 10})
 	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to search strains")
-		apiInternalError(c, "api_internal_error")
+		apiServiceError(c, err, "api_internal_error")
 		return
 	}
-	defer rows.Close()
-
-	var results []gin.H
-	for rows.Next() {
-		var id int
-		var name, breeder string
-		if err := rows.Scan(&id, &name, &breeder); err != nil {
-			continue
-		}
-		results = append(results, gin.H{"id": id, "name": name, "breeder": breeder})
+	out := make([]gin.H, len(strains))
+	for i, st := range strains {
+		out[i] = gin.H{"id": st.ID, "name": st.Name, "breeder": st.Breeder.Name}
 	}
-
-	if results == nil {
-		results = []gin.H{}
-	}
-	c.JSON(http.StatusOK, results)
+	c.JSON(http.StatusOK, out)
 }

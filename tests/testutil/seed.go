@@ -100,17 +100,25 @@ func UpsertSetting(t *testing.T, db *sql.DB, name, value string) {
 }
 
 // SeedAPIKey hashes plaintext with handlers.HashAPIKey, inserts the resulting
-// hash into the api_keys table, and returns plaintext so the caller can pass it
-// back through the X-API-KEY header.
+// hash into the api_keys table with the admin scope (full access, like every
+// key that existed before scoped keys), and returns plaintext so the caller
+// can pass it back through the X-API-KEY header.
 func SeedAPIKey(t *testing.T, db *sql.DB, plaintext string) string {
+	t.Helper()
+	return SeedAPIKeyWithScopes(t, db, plaintext, "admin")
+}
+
+// SeedAPIKeyWithScopes is SeedAPIKey with explicit scopes, in the stored
+// comma-separated form (e.g. "read" or "write,ingest").
+func SeedAPIKeyWithScopes(t *testing.T, db *sql.DB, plaintext, scopes string) string {
 	t.Helper()
 	prefix := plaintext
 	if len(prefix) > 8 {
 		prefix = prefix[:8]
 	}
 	_, err := db.Exec(
-		`INSERT INTO api_keys (name, key_hash, prefix) VALUES ($1, $2, $3)`,
-		"test key", handlers.HashAPIKey(plaintext), prefix,
+		`INSERT INTO api_keys (name, key_hash, prefix, scopes) VALUES ($1, $2, $3, $4)`,
+		"test key", handlers.HashAPIKey(plaintext), prefix, scopes,
 	)
 	require.NoError(t, err)
 	return plaintext
@@ -147,8 +155,8 @@ func SeedZone(t *testing.T, db *sql.DB, name string) int {
 func SeedPlant(t *testing.T, db *sql.DB, name string, strainID, zoneID int) int {
 	t.Helper()
 	return insertReturnID(t, db,
-		`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
-		 VALUES ($1, $2, $3, '', 0, '2026-01-01', '[]')`,
+		`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt)
+		 VALUES ($1, $2, $3, '', 0, '2026-01-01')`,
 		name, zoneID, strainID,
 	)
 }
@@ -195,23 +203,6 @@ func SeedSmokeReport(t *testing.T, db *sql.DB, plantID, rating int, scores map[i
 		`INSERT INTO smoke_report (plant_id, report_date, consumption_method, rating, description)
 		 VALUES ($1, '2026-06-01 12:00:00', '', $2, '')`,
 		plantID, rating,
-	)
-	for criterionID, value := range scores {
-		MustExec(t, db,
-			`INSERT INTO smoke_report_score (report_id, criterion_id, value) VALUES ($1, $2, $3)`,
-			reportID, criterionID, value)
-	}
-	return reportID
-}
-
-// SeedSmokeReportAt is SeedSmokeReport with an explicit report_date, for
-// tests that assert ordering or "most recent report wins" behaviour.
-func SeedSmokeReportAt(t *testing.T, db *sql.DB, plantID, rating int, when time.Time, scores map[int]int) int {
-	t.Helper()
-	reportID := insertReturnID(t, db,
-		`INSERT INTO smoke_report (plant_id, report_date, consumption_method, rating, description)
-		 VALUES ($1, $2, '', $3, '')`,
-		plantID, when.Format("2006-01-02 15:04:05"), rating,
 	)
 	for criterionID, value := range scores {
 		MustExec(t, db,

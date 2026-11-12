@@ -8,88 +8,12 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"isley/logger"
+
+	"github.com/gin-gonic/gin"
 )
-
-// rateLimitEntry tracks the request count and window start for a single key.
-type rateLimitEntry struct {
-	count     int
-	windowEnd time.Time
-}
-
-// RateLimiter provides a simple fixed-window rate limiter keyed by client
-// identifier (IP address or API key).
-type RateLimiter struct {
-	mu        sync.Mutex
-	entries   map[string]*rateLimitEntry
-	limit     int
-	window    time.Duration
-	lastClean time.Time
-}
-
-// NewRateLimiter creates a rate limiter that allows `limit` requests per
-// `window` duration for each unique key.
-func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
-	return &RateLimiter{
-		entries:   make(map[string]*rateLimitEntry),
-		limit:     limit,
-		window:    window,
-		lastClean: time.Now(),
-	}
-}
-
-// cleanup removes expired entries. Called under lock periodically.
-func (rl *RateLimiter) cleanup() {
-	now := time.Now()
-	// Only clean every window duration to avoid doing this on every request
-	if now.Sub(rl.lastClean) < rl.window {
-		return
-	}
-	for key, entry := range rl.entries {
-		if now.After(entry.windowEnd) {
-			delete(rl.entries, key)
-		}
-	}
-	rl.lastClean = now
-}
-
-// Allow checks whether the given key is within the rate limit. Returns true
-// if the request is allowed.
-func (rl *RateLimiter) Allow(key string) bool {
-	ok, _ := rl.AllowN(key, 1)
-	return ok
-}
-
-// AllowN counts n requests against the key at once (a batch ingest counts
-// each reading). When the key is over its limit it also returns how long
-// until the current window ends.
-func (rl *RateLimiter) AllowN(key string, n int) (bool, time.Duration) {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-
-	rl.cleanup()
-
-	now := time.Now()
-	entry, exists := rl.entries[key]
-
-	if !exists || now.After(entry.windowEnd) {
-		// New window
-		entry = &rateLimitEntry{windowEnd: now.Add(rl.window)}
-		rl.entries[key] = entry
-	}
-
-	// Only charge the window when the call fits. Charging a rejected call
-	// would let one oversized batch lock the key out until the window ends.
-	if entry.count+n > rl.limit {
-		return false, entry.windowEnd.Sub(now)
-	}
-	entry.count += n
-	return true, 0
-}
 
 // ingestRateKey is the limiter key for an ingest request: the API key when
 // one is sent, otherwise the client IP. logKey is safe to log.

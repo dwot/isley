@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"strconv"
@@ -142,7 +143,7 @@ func TestActivityFlags_LoadPlantActivitiesPopulatesFlags(t *testing.T) {
 	testutil.SeedActivity(t, db, plantID, waterID, when)
 	testutil.SeedActivity(t, db, plantID, feedID, when.Add(24*time.Hour))
 
-	plant := handlers.GetPlant(db, strconv.Itoa(plantID))
+	plant := handlers.GetPlant(context.Background(), testutil.NewServices(t, db), strconv.Itoa(plantID))
 	require.GreaterOrEqual(t, len(plant.Activities), 2, "GetPlant should return both seeded activities")
 
 	var sawWatering, sawFeeding bool
@@ -185,7 +186,7 @@ func TestActivityFlags_DeriveActivityDatesUsesFlagsNotIDs(t *testing.T) {
 	testutil.SeedActivity(t, db, plantID, waterID, day1)
 	testutil.SeedActivity(t, db, plantID, soakID, day5)
 
-	plant := handlers.GetPlant(db, strconv.Itoa(plantID))
+	plant := handlers.GetPlant(context.Background(), testutil.NewServices(t, db), strconv.Itoa(plantID))
 	assert.Equal(t, day5.Format("2006-01-02"), plant.LastWaterDate.Format("2006-01-02"),
 		"LastWaterDate must come from the most recent IS_WATERING-flagged activity, not from name='Water' / a hardcoded ID")
 }
@@ -211,7 +212,7 @@ func TestActivityFlags_DashboardUsesFlagsNotName(t *testing.T) {
 	// would now go to zero. Because is_watering is still TRUE, it stays > 0.
 	testutil.MustExec(t, db, `UPDATE activity SET name = 'H2O Renamed' WHERE id = $1`, waterID)
 
-	plants := handlers.GetLivingPlants(db)
+	plants := handlers.GetLivingPlants(context.Background(), testutil.NewServices(t, db))
 	require.NotEmpty(t, plants, "GetLivingPlants must return the seeded plant")
 
 	var found bool

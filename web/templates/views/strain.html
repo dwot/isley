@@ -173,9 +173,9 @@
     var currentStrainID = {{ .strain.ID }};
     var currentStrainName = "{{ .strain.Name | js }}";
 </script>
-<script src="/static/js/strain-lineage.js"></script>
-<script src="/static/js/strain-descendants.js"></script>
-<script src="/static/js/strain-smoke-summary.js"></script>
+<script src="{{ asset "/static/js/strain-lineage.js" }}"></script>
+<script src="{{ asset "/static/js/strain-descendants.js" }}"></script>
+<script src="{{ asset "/static/js/strain-smoke-summary.js" }}"></script>
 {{ template "common/footer.html" .}}
 
 {{ end }}

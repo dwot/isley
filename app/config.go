@@ -9,9 +9,13 @@ package app
 import (
 	"database/sql"
 	"io/fs"
+	"time"
 
+	"isley/chrono"
 	"isley/config"
 	"isley/handlers"
+	"isley/ratelimit"
+	"isley/service"
 )
 
 // Config bundles everything NewEngine needs. Each caller (production
@@ -127,7 +131,7 @@ type Config struct {
 	// drive the 429 branch (or sidestep it). Production leaves this nil
 	// and NewEngine constructs a default service with the documented
 	// limits (60/min ingest, MaxLoginAttempts/min login).
-	RateLimiterService *handlers.RateLimiterService
+	RateLimiterService *ratelimit.Service
 
 	// SensorCacheService, if non-nil, is the per-engine service that
 	// owns the grouped-sensor and per-query LRU chart caches. Tests
@@ -137,4 +141,24 @@ type Config struct {
 	// service whose grouped TTL closure reads from the engine's
 	// *config.Store.
 	SensorCacheService *handlers.SensorCacheService
+
+	// Dialect is the database DB is. Empty means the model package's
+	// driver setting (what InitDB chose); main and tests that build an
+	// engine over a specific database should set it.
+	Dialect service.Dialect
+
+	// ReleaseVersion is the bare release number from VERSION (e.g.
+	// "2.5.4"), reported by /api/v1/instance. Version is the display
+	// string the pages show. Empty means use Version.
+	ReleaseVersion string
+
+	// Clock is what the service layer and /api/v1 use for "now". Nil
+	// means the real clock; tests pass chrono.Fixed.
+	Clock chrono.Clock
+
+	// ServerTimeZone is the zone the database stamped CURRENT_TIMESTAMP in
+	// before sessions were pinned to UTC (model.ServerTimeZone). The UTC
+	// conversion reads system stamps in it. Nil means ask the connection,
+	// which is right when it isn't pinned or the server is UTC.
+	ServerTimeZone *time.Location
 }

@@ -97,6 +97,9 @@ test-postgres:
   services:
     - name: postgres:16
       alias: postgres
+      # Parallel test packages each open several databases; the default
+      # 100 connections ran out on runners with many cores.
+      command: ["postgres", "-c", "max_connections=500"]
   variables:
     POSTGRES_PASSWORD: test
     POSTGRES_DB: postgres
@@ -131,7 +134,7 @@ test-postgres:
     # one package — every Postgres test in the watcher and handlers
     # packages added by docs/TEST_PLAN_2.md Phase 7 carries "Postgres"
     # in its function name so this filter still picks them up.
-    - go test -race -tags=integration_postgres -coverpkg=./... -coverprofile=coverage-postgres.out -run Postgres -timeout=20m ./tests/integration/... ./model/... ./handlers/... ./watcher/...
+    - go test -race -tags=integration_postgres -coverpkg=./... -coverprofile=coverage-postgres.out -run Postgres -timeout=20m ./tests/integration/... ./model/... ./handlers/... ./watcher/... ./service/... ./apiv1/... ./mcpserver/...
     - go tool cover -func=coverage-postgres.out | tail -1
     # docs/TEST_PLAN_2.md Phase 1: this floor was originally set when
     # `test-postgres` only exercised smoke + migrations +
@@ -159,7 +162,7 @@ build-dev:
     name: gcr.io/kaniko-project/executor:v1.23.0-debug
     entrypoint: [""]
   rules:
-    - if: '$CI_COMMIT_BRANCH == "dev"'
+    - if: '$CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "next"'
   before_script:
     - mkdir -p /kaniko/.docker
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(echo -n "$CI_REGISTRY_USER:$CI_REGISTRY_PASSWORD" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
@@ -168,7 +171,7 @@ build-dev:
     - /kaniko/executor
       --context "$CI_PROJECT_DIR"
       --dockerfile "$CI_PROJECT_DIR/Dockerfile"
-      --destination "$CI_REGISTRY_IMAGE:dev"
+      --destination "$CI_REGISTRY_IMAGE:$CI_COMMIT_BRANCH"
       --digest-file=image_digest.txt
   artifacts:
     paths:
@@ -179,7 +182,7 @@ sign-dev:
   stage: sign
   image: alpine:3.23
   rules:
-    - if: '$CI_COMMIT_BRANCH == "dev"'
+    - if: '$CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "next"'
   before_script:
     - apk add cosign
     # Login to the registry so cosign can push the signature

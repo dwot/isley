@@ -40,26 +40,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // Format a Date as a local datetime-local string (YYYY-MM-DDTHH:MM:SS)
-    // without converting to UTC (unlike toISOString which shifts timezone).
-    function toLocalDateTimeString(d) {
-        const pad = (n) => String(n).padStart(2, '0');
-        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    }
-
     // Populate the day/time spans under each ribbon step
     function populateDateTimeSpans(dateEl, dateObj) {
         const daySpan = dateEl.querySelector('.status-date-day');
         const timeSpan = dateEl.querySelector('.status-date-time');
         if (!daySpan || !timeSpan) return;
         if (dateObj && !isNaN(dateObj.getTime())) {
-            try {
-                daySpan.textContent = dateObj.toLocaleDateString();
-                timeSpan.textContent = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            } catch (e) {
-                daySpan.textContent = dateObj.toLocaleString();
-                timeSpan.textContent = '';
-            }
+            daySpan.textContent = IsleyTime.formatDate(dateObj);
+            timeSpan.textContent = IsleyTime.formatTime(dateObj);
             return;
         }
         daySpan.textContent = '';
@@ -238,28 +226,25 @@ document.addEventListener("DOMContentLoaded", () => {
                     if (rightHist) { rightDate = new Date(rightHist.date || rightHist.Date); break; }
                 }
 
-                let placeholderDate;
+                let placeholder;
                 if (leftDate && rightDate) {
-                    const mid = new Date((leftDate.getTime() + rightDate.getTime()) / 2);
-                    placeholderDate = toLocalDateTimeString(mid);
+                    placeholder = new Date((leftDate.getTime() + rightDate.getTime()) / 2);
                 } else if (leftDate) {
-                    const d = new Date(leftDate.getTime() + 3600*1000);
-                    placeholderDate = toLocalDateTimeString(d);
+                    placeholder = new Date(leftDate.getTime() + 3600*1000);
                 } else if (rightDate) {
-                    const d = new Date(rightDate.getTime() - 3600*1000);
-                    placeholderDate = toLocalDateTimeString(d);
+                    placeholder = new Date(rightDate.getTime() - 3600*1000);
                 } else {
-                    placeholderDate = toLocalDateTimeString(new Date());
+                    placeholder = new Date();
                 }
+                const placeholderDate = IsleyTime.toInput(placeholder);
                 
                 try {
                     const res = await window.postStatus(plantId, sid, placeholderDate);
                     const newId = res && res.id ? res.id : 0;
-                    reachedByStatusId[sid] = { id: newId, status: el.dataset.statusName, date: placeholderDate, status_id: sid };
+                    reachedByStatusId[sid] = { id: newId, status: el.dataset.statusName, date: placeholder.toISOString(), status_id: sid };
 
                      // Update UI: show date and mark as past
-                     const d = new Date(placeholderDate);
-                     if (!isNaN(d.getTime())) populateDateTimeSpans(dateEl, d);
+                     populateDateTimeSpans(dateEl, placeholder);
                      el.classList.add('status-past');
                      el.classList.remove('status-future', 'text-muted');
 
@@ -330,8 +315,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const editDateInput = document.getElementById('editStatusDate');
             if (!statusIdInput || !editDateInput) { uiMessages.showToast(uiMessages.t('edit_modal_inputs_not_found') || 'Edit modal inputs not found', 'danger'); return; }
             statusIdInput.value = statusObj.id || statusObj.ID;
-            const d = new Date(statusObj.date || statusObj.Date);
-            editDateInput.value = toLocalDateTimeString(d);
+            editDateInput.value = IsleyTime.toInput(statusObj.date || statusObj.Date);
             new bootstrap.Modal(editModalEl).show();
         } catch (e) {
             console.error('Failed to open edit status modal', e);

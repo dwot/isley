@@ -48,16 +48,6 @@ func UploadDirFromContext(c *gin.Context) string {
 	return DefaultUploadDir
 }
 
-// StreamDirFromContext returns the per-engine stream-snapshot root
-// AddStreamHandler writes its initial GrabWebcamImage output into.
-func StreamDirFromContext(c *gin.Context) string {
-	v, _ := c.Get(contextKeyStreamDir)
-	if s, ok := v.(string); ok && s != "" {
-		return s
-	}
-	return DefaultStreamDir(UploadDirFromContext(c))
-}
-
 // LogsDirFromContext returns the per-engine logs root GetLogs and
 // DownloadLogs read app.log / access.log from.
 func LogsDirFromContext(c *gin.Context) string {

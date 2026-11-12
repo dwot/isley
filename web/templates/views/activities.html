@@ -165,16 +165,10 @@ document.addEventListener("DOMContentLoaded", () => {
         if (activity) data = data.filter(a => a.activity_name === activity);
         if (zone) data = data.filter(a => a.zone_name === zone);
 
-        // Date range filter
-        if (fromStr) {
-            const fromDate = new Date(fromStr);
-            data = data.filter(a => new Date(a.date) >= fromDate);
-        }
-        if (toStr) {
-            const toDate = new Date(toStr);
-            toDate.setHours(23, 59, 59, 999);
-            data = data.filter(a => new Date(a.date) <= toDate);
-        }
+        // Date range filter: whole days in the instance zone, both ends
+        // included, as the export and the API count them.
+        if (fromStr) data = data.filter(a => IsleyTime.dayOf(a.date) >= fromStr);
+        if (toStr) data = data.filter(a => IsleyTime.dayOf(a.date) <= toStr);
 
         // Sort by table header or default to date descending
         let { key: sortKey, asc: sortAsc } = sortableTable.getSort();
@@ -214,8 +208,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // ----- Format date helper -----
     function formatDateTime(dateStr) {
-        const date = new Date(dateStr);
-        return date.toLocaleString();
+        return IsleyTime.formatDateTime(dateStr);
     }
 
     // ----- Render table -----
@@ -238,6 +231,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // ----- Update export links -----
     function updateExportLinks(data) {
+        if (!exportCsv || !exportXlsx) return; // guests can't export
         const query = new URLSearchParams();
         if (searchInput.value) query.append("q", searchInput.value);
         if (filterPlant.value) {

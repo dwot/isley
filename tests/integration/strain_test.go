@@ -558,8 +558,8 @@ func TestBreeder_DeleteCascadesStrainsAndPlants(t *testing.T) {
 	testutil.MustExec(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	                    VALUES (1, 'Doomed Strain', 1, 50, 50, 0, '', 0)`)
 	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
-	testutil.MustExec(t, db, `INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
-	                    VALUES ('Doomed Plant', 1, 1, '', 0, '2026-01-01', '[]')`)
+	testutil.MustExec(t, db, `INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt)
+	                    VALUES ('Doomed Plant', 1, 1, '', 0, '2026-01-01')`)
 
 	const plaintext = "test-breeder-key"
 	testutil.SeedAPIKey(t, db, plaintext)
@@ -574,4 +574,66 @@ func TestBreeder_DeleteCascadesStrainsAndPlants(t *testing.T) {
 		require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM `+table).Scan(&n))
 		assert.Zerof(t, n, "%s should be empty after breeder delete cascade", table)
 	}
+}
+
+// A strain that still has plants is refused rather than leaving them
+// without a strain.
+func TestStrain_DeleteInUseRefused(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db)
+	apiKey := seedBreederWithKey(t, db)
+	strainID := testutil.SeedStrain(t, db, 1, "Busy")
+	testutil.SeedPlant(t, db, "P", strainID, testutil.SeedZone(t, db, "Z"))
+
+	c := server.NewClient(t)
+	resp := c.APIDelete(t, "/strains/"+strconv.Itoa(strainID), apiKey)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	var body struct {
+		Error string `json:"error"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	assert.Contains(t, body.Error, "plants")
+	var n int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM strain WHERE id = $1`, strainID).Scan(&n))
+	assert.Equal(t, 1, n)
+}
+
+func TestBreeder_AddRejectsDuplicateName(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db)
+	apiKey := seedBreederWithKey(t, db)
+
+	c := server.NewClient(t)
+	resp := c.APIPostJSON(t, "/breeders", apiKey, map[string]string{"breeder_name": "acme genetics"})
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	var n int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM breeder`).Scan(&n))
+	assert.Equal(t, 1, n)
+}
+
+// A strain added with a "new" breeder that already exists joins that
+// breeder instead of making a second one.
+func TestStrain_AddNewBreederReusesExisting(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db)
+	apiKey := seedBreederWithKey(t, db)
+
+	c := server.NewClient(t)
+	resp := c.APIPostJSON(t, "/strains", apiKey, map[string]interface{}{
+		"name": "Reuse", "breeder_id": nil, "new_breeder": "ACME GENETICS", "indica": 50, "sativa": 50,
+	})
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	var n int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM breeder`).Scan(&n))
+	assert.Equal(t, 1, n)
 }
