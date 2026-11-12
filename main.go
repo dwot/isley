@@ -17,10 +17,12 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"isley/app"
+	"isley/cannadb"
 	"isley/config"
 	"isley/handlers"
 	"isley/logger"
 	"isley/model"
+	"isley/service"
 	"isley/utils"
 	"isley/watcher"
 )
@@ -49,7 +51,7 @@ func main() {
 
 	// Expose the bare version to handlers for outbound User-Agent strings
 	// (e.g. the CannaDB import client).
-	handlers.Version = getVersion()
+	cannadb.Version = getVersion()
 
 	port := os.Getenv("ISLEY_PORT")
 	if port == "" {
@@ -102,21 +104,6 @@ func main() {
 	// for in-flight iterations to complete before exiting.
 	var bgWG sync.WaitGroup
 
-	w := watcher.New(db, configStore)
-
-	// Prune old sensor data once before the watcher loop kicks in.
-	if err := w.PruneSensorData(); err != nil {
-		logger.Log.WithError(err).Error("Initial sensor data prune failed")
-	} else {
-		logger.Log.Info("Initial sensor data prune completed")
-	}
-
-	bgWG.Add(1)
-	go func() {
-		defer bgWG.Done()
-		w.Run(ctx)
-	}()
-
 	// Resolve session secret. If unset, generate a random one and warn — sessions
 	// will not survive a restart.
 	sessionSecret := []byte(os.Getenv("ISLEY_SESSION_SECRET"))
@@ -147,6 +134,13 @@ func main() {
 		}
 	}
 
+	// The zone the database stamped times in before sessions were pinned
+	// to UTC; the one-time UTC conversion needs it.
+	serverZone, err := model.ServerTimeZone(context.Background())
+	if err != nil {
+		logger.Log.WithError(err).Fatal("Failed to read the database server's time zone")
+	}
+
 	engineCfg := app.ResolvePathDefaults(app.Config{
 		DB:                    db,
 		Assets:                embeddedFiles,
@@ -160,11 +154,31 @@ func main() {
 		TrustedProxies:        trustedProxies,
 		DataDir:               "data",
 		ConfigStore:           configStore,
+		Dialect:               service.Dialect(model.GetDriver()),
+		ReleaseVersion:        getVersion(),
+		ServerTimeZone:        serverZone,
 	})
-	engine, err := app.NewEngine(engineCfg)
+	engine, services, err := app.NewEngineAndServices(engineCfg)
 	if err != nil {
 		logger.Log.WithError(err).Fatal("Failed to construct HTTP engine")
 	}
+
+	// The watcher records through the engine's services, so new sensors
+	// and readings follow the same clock, zones and caches.
+	w := watcher.New(db, configStore, services.Sensors)
+
+	// Prune old sensor data once before the watcher loop kicks in.
+	if err := w.PruneSensorData(); err != nil {
+		logger.Log.WithError(err).Error("Initial sensor data prune failed")
+	} else {
+		logger.Log.Info("Initial sensor data prune completed")
+	}
+
+	bgWG.Add(1)
+	go func() {
+		defer bgWG.Done()
+		w.Run(ctx)
+	}()
 
 	grabber := watcher.NewGrabber(configStore, engineCfg.FrameDir)
 	bgWG.Add(1)

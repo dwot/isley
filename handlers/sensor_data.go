@@ -1,245 +1,131 @@
 package handlers
 
 import (
-	"database/sql"
-	"fmt"
-	"isley/logger"
-	"isley/model/types"
-	"isley/utils"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
+
+	"isley/chrono"
+	"isley/logger"
+	"isley/model/types"
+	"isley/service"
 )
 
+// ChartHandler serves a sensor's history to the graph page: either the
+// last `minutes`, or `start` to `end` (dates or date-times in the instance
+// zone; an end given as a date takes in that whole day). Ranges over 24
+// hours come back as hourly averages (id 0), shorter ones as raw readings.
 func ChartHandler(c *gin.Context) {
-	sensorLogger := logger.Log.WithField("handler", "ChartHandler")
-
 	sensor := c.Query("sensor")
 	timeMinutes := c.Query("minutes")
 	startDate := c.Query("start")
 	endDate := c.Query("end")
 
-	sensorLogger = sensorLogger.WithFields(logrus.Fields{
-		"sensor":      sensor,
-		"timeMinutes": timeMinutes,
-		"startDate":   startDate,
-		"endDate":     endDate,
-	})
-
 	if sensor == "" {
-		sensorLogger.Error("Sensor parameter is required")
 		apiBadRequest(c, "api_sensor_param_required")
+		return
+	}
+	sensorID, err := strconv.Atoi(sensor)
+	if err != nil {
+		apiBadRequest(c, "api_sensor_param_required")
+		return
+	}
+
+	svc := ServicesFromContext(c)
+	zones := svc.TimeZones()
+	var from, to time.Time
+	switch {
+	case startDate != "" && endDate != "":
+		var errFrom, errTo error
+		from, errFrom = chartTime(zones, startDate, false)
+		to, errTo = chartTime(zones, endDate, true)
+		if errFrom != nil || errTo != nil {
+			apiBadRequest(c, "api_sensor_dates_required")
+			return
+		}
+	case timeMinutes != "":
+		minutes, err := strconv.Atoi(timeMinutes)
+		// At most as far back as the hourly history can answer in one go;
+		// this also keeps the duration from overflowing.
+		if err != nil || minutes <= 0 || minutes > service.MaxBuckets*60 {
+			apiBadRequest(c, "api_sensor_dates_required")
+			return
+		}
+		to = zones.Now(svc.Clock())
+		from = to.Add(-time.Duration(minutes) * time.Minute)
+	default:
+		apiBadRequest(c, "api_sensor_dates_required")
 		return
 	}
 
 	cacheKey := generateCacheKey(sensor, timeMinutes, startDate, endDate)
 	cache := SensorCacheServiceFromContext(c)
-
-	cachedData, cachedAt, found := cache.DataGet(cacheKey)
 	pollInterval := ConfigStoreFromContext(c).PollingInterval()
-	if found && time.Since(cachedAt) < time.Duration(pollInterval/10)*time.Second {
-		sensorLogger.Info("Serving data from cache")
-		c.JSON(http.StatusOK, cachedData)
+	if cached, cachedAt, found := cache.DataGet(cacheKey); found &&
+		time.Since(cachedAt) < time.Duration(pollInterval/10)*time.Second {
+		c.JSON(http.StatusOK, cached)
 		return
 	}
 
-	var sensorData []types.SensorData
-	var err error
-
-	db := DBFromContext(c)
-
-	if startDate != "" && endDate != "" {
-		sensorData, err = querySensorHistoryByDateRange(db, sensor, startDate, endDate)
-	} else if timeMinutes != "" {
-		sensorData, err = querySensorHistoryByTime(db, sensor, timeMinutes)
-	} else {
-		sensorLogger.Error("Invalid query parameters: Either minutes or start/end dates must be provided")
-		apiBadRequest(c, "api_sensor_dates_required")
-		return
-	}
-
+	data, err := chartData(c, svc, sensorID, from, to)
 	if err != nil {
-		sensorLogger.WithError(err).Error("Failed to query sensor data")
+		if service.IsKind(err, service.KindNotFound) || service.IsKind(err, service.KindInvalid) {
+			apiServiceError(c, err, "api_sensor_query_failed")
+			return
+		}
+		logger.Log.WithError(err).WithField("sensor", sensorID).Error("Failed to query sensor data")
 		apiInternalError(c, "api_sensor_query_failed")
 		return
 	}
-
-	cache.DataPut(cacheKey, sensorData)
-
-	sensorLogger.Info("Returning queried sensor data")
-	c.JSON(http.StatusOK, sensorData)
+	cache.DataPut(cacheKey, data)
+	c.JSON(http.StatusOK, data)
 }
 
-func querySensorHistoryByTime(db *sql.DB, sensor string, timeMinutes string) ([]types.SensorData, error) {
-	sensorLogger := logger.Log.WithFields(logrus.Fields{
-		"function":    "querySensorHistoryByTime",
-		"sensor":      sensor,
-		"timeMinutes": timeMinutes,
-	})
-	var sensorData []types.SensorData
-
-	sensorInt, err := strconv.Atoi(sensor)
+func chartData(c *gin.Context, svc *service.Services, sensorID int, from, to time.Time) ([]types.SensorData, error) {
+	ctx := c.Request.Context()
+	sn, err := svc.Sensors.Get(ctx, sensorID)
 	if err != nil {
-		sensorLogger.WithError(err).Error("Failed to convert sensor to integer")
-		return sensorData, err
+		return nil, err
 	}
-	timeMinutesInt, err := strconv.Atoi(timeMinutes)
-	if err != nil {
-		sensorLogger.WithError(err).Error("Failed to convert timeMinutes to integer")
-		return sensorData, err
-	}
-
-	// For ranges >24 hours, use the hourly rollup table for much better performance
-	if timeMinutesInt > RollupThresholdMinutes {
-		timeThreshold := time.Now().In(time.UTC).Add(-time.Duration(timeMinutesInt) * time.Minute).Format(utils.LayoutDB)
-		query := fmt.Sprintf(`SELECT 0, sd.sensor_id, sd.avg_val, sd.bucket, s.name
-			FROM sensor_data_hourly sd
-			LEFT OUTER JOIN sensors s ON s.id = sd.sensor_id
-			WHERE sd.sensor_id = $1 AND sd.bucket > $2
-			ORDER BY sd.bucket
-			LIMIT %d`, MaxRawDataRows)
-		rows, err := db.Query(query, sensorInt, timeThreshold)
+	out := []types.SensorData{}
+	if to.Sub(from) > RollupThresholdHours*time.Hour {
+		buckets, err := svc.Sensors.Buckets(ctx, sensorID, from, to, time.Hour)
 		if err != nil {
-			sensorLogger.WithError(err).Error("Failed to execute rollup query")
-			return sensorData, err
+			return nil, err
 		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var record types.SensorData
-			if err := rows.Scan(&record.ID, &record.SensorID, &record.Value, &record.CreateDT, &record.SensorName); err != nil {
-				sensorLogger.WithError(err).Error("Failed to scan rollup row")
-				return sensorData, err
-			}
-			record.CreateDT = record.CreateDT.Local()
-			sensorData = append(sensorData, record)
+		for _, b := range buckets {
+			out = append(out, types.SensorData{SensorID: sensorID, SensorName: sn.Name, Value: b.Avg, CreateDT: b.Start})
 		}
-
-		sensorLogger.WithField("source", "rollup").Info("Query completed successfully")
-		return sensorData, nil
+		return out, nil
 	}
-
-	// For ranges ≤24 hours, use raw sensor_data for full resolution
-	timeThreshold := time.Now().In(time.UTC).Add(-time.Duration(timeMinutesInt) * time.Minute).Format(utils.LayoutDB)
-	query := fmt.Sprintf("SELECT sd.id, sd.sensor_id, sd.value, sd.create_dt, s.name FROM sensor_data sd left outer join sensors s on s.id = sd.sensor_id WHERE sd.sensor_id = $1 AND sd.create_dt > $2 ORDER BY sd.create_dt LIMIT %d", MaxRawDataRows)
-	rows, err := db.Query(query, sensorInt, timeThreshold)
+	points, _, err := svc.Sensors.Raw(ctx, sensorID, from, to, 0, MaxRawDataRows)
 	if err != nil {
-		sensorLogger.WithError(err).Error("Failed to execute query")
-		return sensorData, err
+		return nil, err
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var record types.SensorData
-		if err := rows.Scan(&record.ID, &record.SensorID, &record.Value, &record.CreateDT, &record.SensorName); err != nil {
-			sensorLogger.WithError(err).Error("Failed to scan row")
-			return sensorData, err
-		}
-		record.CreateDT = record.CreateDT.Local()
-		sensorData = append(sensorData, record)
+	for _, p := range points {
+		out = append(out, types.SensorData{ID: uint(p.ID), SensorID: sensorID, SensorName: sn.Name, Value: p.Value, CreateDT: p.At})
 	}
-
-	sensorLogger.Info("Query completed successfully")
-	return sensorData, nil
+	return out, nil
 }
 
-// Query sensor data by custom date range
-func querySensorHistoryByDateRange(db *sql.DB, sensor string, startDate string, endDate string) ([]types.SensorData, error) {
-	sensorLogger := logger.Log.WithFields(logrus.Fields{
-		"function":  "querySensorHistoryByDateRange",
-		"sensor":    sensor,
-		"startDate": startDate,
-		"endDate":   endDate,
-	})
-
-	var sensorData []types.SensorData
-
-	// Convert sensor ID to integer
-	sensorInt, err := strconv.Atoi(sensor)
-	if err != nil {
-		sensorLogger.WithError(err).Error(err)
-		return sensorData, err
-	}
-
-	//Convert startDate and endDate strings from Local to UTC and back to strings
-	startDateUTC, err := timeConversion(startDate)
-	if err != nil {
-		sensorLogger.WithError(err).Error(err)
-		return sensorData, err
-	}
-	endDateUTC, err := timeConversion(endDate)
-	if err != nil {
-		sensorLogger.WithError(err).Error(err)
-		return sensorData, err
-	}
-
-	// Determine if the date range spans more than 24 hours — if so, use rollups
-	startParsed, _ := time.Parse(utils.LayoutDB, startDateUTC)
-	endParsed, _ := time.Parse(utils.LayoutDB, endDateUTC)
-	rangeHours := endParsed.Sub(startParsed).Hours()
-
-	if rangeHours > RollupThresholdHours {
-		query := fmt.Sprintf(`SELECT 0, sd.sensor_id, sd.avg_val, sd.bucket, s.name
-			FROM sensor_data_hourly sd
-			LEFT OUTER JOIN sensors s ON s.id = sd.sensor_id
-			WHERE sd.sensor_id = $1 AND sd.bucket BETWEEN $2 AND $3
-			ORDER BY sd.bucket
-			LIMIT %d`, MaxRawDataRows)
-		rows, err := db.Query(query, sensorInt, startDateUTC, endDateUTC)
+// chartTime reads a range end from the graph page. A bare date is
+// midnight, or the next midnight when it ends the range.
+func chartTime(zones *chrono.Zones, s string, end bool) (time.Time, error) {
+	s = strings.TrimSpace(s)
+	if len(s) == len(chrono.DateLayout) {
+		d, err := chrono.ParseDate(s)
 		if err != nil {
-			sensorLogger.WithError(err).Error(err)
-			return sensorData, err
+			return time.Time{}, err
 		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var record types.SensorData
-			if err := rows.Scan(&record.ID, &record.SensorID, &record.Value, &record.CreateDT, &record.SensorName); err != nil {
-				sensorLogger.WithError(err).Error(err)
-				return sensorData, err
-			}
-			record.CreateDT = record.CreateDT.Local()
-			sensorData = append(sensorData, record)
+		if end {
+			d = d.AddDays(1)
 		}
-
-		return sensorData, nil
+		return time.Date(d.Year, d.Month, d.Day, 0, 0, 0, 0, zones.Instance()), nil
 	}
-
-	// For short ranges (≤24h), use raw sensor_data for full resolution
-	query := fmt.Sprintf("SELECT sd.id, sd.sensor_id, sd.value, sd.create_dt, s.name FROM sensor_data sd left outer join sensors s on s.id = sd.sensor_id WHERE sd.sensor_id = $1 AND sd.create_dt BETWEEN $2 AND $3 ORDER BY sd.create_dt LIMIT %d", MaxRawDataRows)
-	rows, err := db.Query(query, sensorInt, startDateUTC, endDateUTC)
-	if err != nil {
-		sensorLogger.WithError(err).Error(err)
-		return sensorData, err
-	}
-	defer rows.Close()
-
-	// Parse query results
-	for rows.Next() {
-		var record types.SensorData
-		if err := rows.Scan(&record.ID, &record.SensorID, &record.Value, &record.CreateDT, &record.SensorName); err != nil {
-			sensorLogger.WithError(err).Error(err)
-			return sensorData, err
-		}
-		record.CreateDT = record.CreateDT.Local()
-		sensorData = append(sensorData, record)
-	}
-
-	return sensorData, nil
-}
-
-func timeConversion(date string) (string, error) {
-	if len(date) == 10 {
-		date += " 00:00:00"
-	}
-	t, err := time.Parse(utils.LayoutDB, date)
-	if err != nil {
-		return date, err
-	}
-	return t.UTC().Format(utils.LayoutDB), nil
+	return zones.ParseInput(s)
 }
 
 func generateCacheKey(sensor, timeMinutes, startDate, endDate string) string {

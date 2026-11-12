@@ -275,8 +275,8 @@ func TestIsPostgresEmpty_FalseAfterMigrations(t *testing.T) {
 	).Scan(&strainID))
 
 	_, err := pg.Exec(
-		`INSERT INTO plant (name, description, clone, strain_id, sensors)
-		 VALUES ($1, '', 0, $2, '[]')`, "Sentinel", strainID,
+		`INSERT INTO plant (name, description, clone, strain_id)
+		 VALUES ($1, '', 0, $2)`, "Sentinel", strainID,
 	)
 	require.NoError(t, err)
 
@@ -304,45 +304,6 @@ func TestIsPostgresEmpty_ErrorWhenSchemaMissing(t *testing.T) {
 // ----------------------------------------------------------------------------
 // listSQLiteTables
 // ----------------------------------------------------------------------------
-
-// TestListSQLiteTables_KnownSchema asserts listSQLiteTables returns every
-// user table in a freshly migrated SQLite DB, and excludes both the
-// sqlite_* internals and the schema_migrations bookkeeping table.
-func TestListSQLiteTables_KnownSchema(t *testing.T) {
-	t.Parallel()
-	initTestLogger()
-
-	db := freshSQLite(t)
-	require.NoError(t, applySQLiteMigrations(t, db))
-
-	got, err := listSQLiteTables(db)
-	require.NoError(t, err)
-
-	gotSet := make(map[string]bool, len(got))
-	for _, n := range got {
-		gotSet[n] = true
-	}
-
-	want := []string{
-		"activity", "breeder", "metric",
-		"plant", "plant_activity", "plant_images",
-		"plant_measurements", "plant_status", "plant_status_log",
-		"rolling_averages", "sensor_data", "sensor_data_hourly",
-		"sensors", "settings", "strain", "strain_lineage",
-		"streams", "zones",
-	}
-	for _, name := range want {
-		assert.Truef(t, gotSet[name], "expected table %q in listSQLiteTables; got %v", name, got)
-	}
-
-	// Filter assertions: must NOT include schema_migrations or any
-	// sqlite_* internal table.
-	assert.False(t, gotSet["schema_migrations"], "listSQLiteTables must filter schema_migrations")
-	for _, name := range got {
-		assert.Falsef(t, strings.HasPrefix(name, "sqlite_"),
-			"listSQLiteTables must filter sqlite_* tables; saw %q", name)
-	}
-}
 
 // ----------------------------------------------------------------------------
 // hasSerialID
@@ -410,8 +371,8 @@ func TestCopyTableData_HappyPath(t *testing.T) {
 	// Use NULL zone_id to exercise the null path through the scan loop.
 	// harvest_weight covers REAL/NUMERIC; start_dt covers TIMESTAMP.
 	mustExecSQL(t, sqliteDB,
-		`INSERT INTO plant (id, name, description, clone, strain_id, zone_id, start_dt, sensors, harvest_weight)
-		 VALUES (1, 'Roundtrip Plant', 'mixed-type test row', 0, 1, NULL, '2026-04-26 10:30:00', '[]', 12.34)`)
+		`INSERT INTO plant (id, name, description, clone, strain_id, zone_id, start_dt, harvest_weight)
+		 VALUES (1, 'Roundtrip Plant', 'mixed-type test row', 0, 1, NULL, '2026-04-26 10:30:00', 12.34)`)
 
 	// Copy in dependency order. Each call exercises copyTableData the
 	// way the production migration does, but one table at a time.
@@ -426,13 +387,12 @@ func TestCopyTableData_HappyPath(t *testing.T) {
 		gotClone         int
 		gotStrainID      int
 		gotZoneID        sql.NullInt64
-		gotSensors       string
 		gotHarvestWeight float64
 	)
 	err := pg.QueryRow(
-		`SELECT id, name, description, clone, strain_id, zone_id, sensors, harvest_weight
+		`SELECT id, name, description, clone, strain_id, zone_id, harvest_weight
 		 FROM plant WHERE id = 1`,
-	).Scan(&gotID, &gotName, &gotDescription, &gotClone, &gotStrainID, &gotZoneID, &gotSensors, &gotHarvestWeight)
+	).Scan(&gotID, &gotName, &gotDescription, &gotClone, &gotStrainID, &gotZoneID, &gotHarvestWeight)
 	require.NoError(t, err, "copied plant row must be readable from PG")
 
 	assert.Equal(t, 1, gotID)
@@ -441,7 +401,6 @@ func TestCopyTableData_HappyPath(t *testing.T) {
 	assert.Equal(t, 0, gotClone)
 	assert.Equal(t, 1, gotStrainID)
 	assert.False(t, gotZoneID.Valid, "NULL zone_id must remain NULL after copy")
-	assert.Equal(t, "[]", gotSensors)
 	assert.InDelta(t, 12.34, gotHarvestWeight, 0.001,
 		"REAL/NUMERIC harvest_weight must survive the round-trip")
 
@@ -450,8 +409,8 @@ func TestCopyTableData_HappyPath(t *testing.T) {
 	// id; it must succeed and pick id > 1.
 	var nextID int
 	require.NoError(t, pg.QueryRow(
-		`INSERT INTO plant (name, description, clone, strain_id, sensors)
-		 VALUES ('seq-check', '', 0, 1, '[]') RETURNING id`,
+		`INSERT INTO plant (name, description, clone, strain_id)
+		 VALUES ('seq-check', '', 0, 1) RETURNING id`,
 	).Scan(&nextID),
 		"PG sequence must advance past the highest copied id; otherwise we'd collide")
 	assert.Greater(t, nextID, 1, "next sequence value must be past the migrated row's id")
@@ -597,8 +556,8 @@ func seedConflictFixture(t *testing.T, db *sql.DB) {
 	mustExecSQL(t, db, `INSERT INTO breeder (id, name) VALUES (1, 'Test Breeder')`)
 	mustExecSQL(t, db, `INSERT INTO strain (id, name, sativa, indica, autoflower, description, seed_count, breeder_id)
 		VALUES (1, 'Test Strain', 50, 50, 0, '', 5, 1)`)
-	mustExecSQL(t, db, `INSERT INTO plant (id, name, description, clone, strain_id, zone_id, start_dt, sensors)
-		VALUES (1, 'Test Plant', '', 0, 1, 1, '2026-04-26 10:00:00', '[]')`)
+	mustExecSQL(t, db, `INSERT INTO plant (id, name, description, clone, strain_id, zone_id, start_dt)
+		VALUES (1, 'Test Plant', '', 0, 1, 1, '2026-04-26 10:00:00')`)
 	mustExecSQL(t, db, `INSERT INTO plant_status_log (id, plant_id, status_id, date)
 		VALUES (1, 1, 1, '2026-04-26 10:00:00')`)
 	mustExecSQL(t, db, `INSERT INTO plant_measurements (id, plant_id, metric_id, value, date)
@@ -682,8 +641,8 @@ func TestMigrateSqliteToPostgres_EndToEnd(t *testing.T) {
 	// value past the migrated row's id.
 	var nextPlantID int
 	require.NoError(t, pg.QueryRow(
-		`INSERT INTO plant (name, description, clone, strain_id, sensors)
-		 VALUES ('post-migration', '', 0, 1, '[]') RETURNING id`,
+		`INSERT INTO plant (name, description, clone, strain_id)
+		 VALUES ('post-migration', '', 0, 1) RETURNING id`,
 	).Scan(&nextPlantID))
 	assert.Greater(t, nextPlantID, 1,
 		"setval after migration must advance the id sequence past the migrated row")
@@ -735,8 +694,8 @@ func TestMigrateSqliteToPostgres_SmokeReportTablesPostgres(t *testing.T) {
 	mustExecSQL(t, sqliteDB, `INSERT INTO breeder (id, name) VALUES (1, 'Smoke Breeder')`)
 	mustExecSQL(t, sqliteDB, `INSERT INTO strain (id, name, sativa, indica, autoflower, description, seed_count, breeder_id)
 		VALUES (1, 'Smoke Strain', 50, 50, 0, '', 5, 1)`)
-	mustExecSQL(t, sqliteDB, `INSERT INTO plant (id, name, description, clone, strain_id, sensors)
-		VALUES (1, 'Smoke Plant', '', 0, 1, '[]')`)
+	mustExecSQL(t, sqliteDB, `INSERT INTO plant (id, name, description, clone, strain_id)
+		VALUES (1, 'Smoke Plant', '', 0, 1)`)
 
 	// A criterion beyond the five migration-seeded defaults (both sides
 	// already agree on ids 1-5) so smoke_report_criterion's copy has to move

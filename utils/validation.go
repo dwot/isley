@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
-	"time"
 )
 
 // schemePrefix matches a leading "scheme:" per RFC 3986
@@ -43,21 +42,6 @@ func ValidateRequiredString(field, value string, maxLen int) error {
 		return fmt.Errorf("%s is required", field)
 	}
 	return ValidateStringLength(field, value, maxLen)
-}
-
-// ValidateDate parses a date string emitted by the UI's <input type=date> or
-// <input type=datetime-local> controls. Empty input is allowed; pair with
-// ValidateRequiredString when the field is required.
-func ValidateDate(field, value string) error {
-	if strings.TrimSpace(value) == "" {
-		return nil
-	}
-	for _, layout := range []string{LayoutDate, LayoutDateTimeLocal, layoutDateTimeLocalNoSeconds, LayoutDB, time.RFC3339} {
-		if _, err := time.Parse(layout, value); err == nil {
-			return nil
-		}
-	}
-	return fmt.Errorf("%s is not a valid date", field)
 }
 
 // ValidateFiniteFloat64 checks that a float64 value is finite (not NaN or Inf).

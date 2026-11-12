@@ -77,8 +77,8 @@ func TestZone_DeleteCascadesPlantsSensorsStreams(t *testing.T) {
 	testutil.MustExec(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	                    VALUES (1, 'S', 1, 50, 50, 0, '', 0)`)
 	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Doomed Zone')`)
-	testutil.MustExec(t, db, `INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
-	                    VALUES ('Plant in zone', 1, 1, '', 0, '2026-01-01', '[]')`)
+	testutil.MustExec(t, db, `INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt)
+	                    VALUES ('Plant in zone', 1, 1, '', 0, '2026-01-01')`)
 	testutil.MustExec(t, db, `INSERT INTO sensors (name, zone_id, source, device, type) VALUES ('Sensor in zone', 1, 'src', 'D', 'temp')`)
 	testutil.MustExec(t, db, `INSERT INTO streams (name, url, zone_id, visible) VALUES ('Stream in zone', 'http://example/stream', 1, 1)`)
 
@@ -235,8 +235,8 @@ func TestActivity_DeleteCascadesPlantActivity(t *testing.T) {
 	testutil.MustExec(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	                    VALUES (1, 'S', 1, 50, 50, 0, '', 0)`)
 	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
-	testutil.MustExec(t, db, `INSERT INTO plant (id, name, zone_id, strain_id, description, clone, start_dt, sensors)
-	                    VALUES (1, 'P', 1, 1, '', 0, '2026-01-01', '[]')`)
+	testutil.MustExec(t, db, `INSERT INTO plant (id, name, zone_id, strain_id, description, clone, start_dt)
+	                    VALUES (1, 'P', 1, 1, '', 0, '2026-01-01')`)
 
 	c := server.NewClient(t)
 	resp := c.APIPostJSON(t, "/activities", apiKey, map[string]interface{}{"activity_name": "Defoliate"})

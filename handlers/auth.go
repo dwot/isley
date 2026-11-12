@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"isley/logger"
+	"isley/scope"
 	"isley/utils"
 	"net/http"
 	"os"
@@ -198,7 +199,7 @@ func AuthMiddlewareApi() gin.HandlerFunc {
 			// legacy SHA-256, and plaintext matches, and records last_used.
 			db := DBFromContext(c)
 
-			valid, err := VerifyAPIKey(db, apiKey)
+			key, err := VerifyAPIKey(db, apiKey)
 			if err != nil {
 				logger.Log.WithError(err).Error("Error validating API key")
 				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
@@ -206,12 +207,13 @@ func AuthMiddlewareApi() gin.HandlerFunc {
 				})
 				return
 			}
-			if !valid {
+			if key == nil {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 					"error": "Invalid API key",
 				})
 				return
 			}
+			c.Set(contextKeyAPIKey, key)
 
 		} else if loggedIn == nil || !loggedIn.(bool) {
 			// If no API key is provided, check session for logged_in status
@@ -221,6 +223,40 @@ func AuthMiddlewareApi() gin.HandlerFunc {
 			return
 		}
 
+		c.Next()
+	}
+}
+
+// contextKeyAPIKey is where AuthMiddlewareApi stores the *AuthenticatedKey of
+// a request authenticated by API key. Session-authenticated requests have none.
+const contextKeyAPIKey = "api_key"
+
+// APIKeyFromContext returns the key that authenticated this request, or nil
+// when the request was authenticated by a browser session.
+func APIKeyFromContext(c *gin.Context) *AuthenticatedKey {
+	if v, ok := c.Get(contextKeyAPIKey); ok {
+		if key, ok := v.(*AuthenticatedKey); ok {
+			return key
+		}
+	}
+	return nil
+}
+
+// RequireKeyScope rejects requests authenticated by an API key that lacks the
+// required scope, with 403 and code insufficient_scope. Requests authenticated
+// by a browser session pass: a logged-in user can already do everything. Use
+// it after AuthMiddlewareApi.
+func RequireKeyScope(required scope.Scope) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		key := APIKeyFromContext(c)
+		if key != nil && !key.Scopes.Allows(required) {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error":    T(c, "api_insufficient_scope"),
+				"code":     "insufficient_scope",
+				"required": string(required),
+			})
+			return
+		}
 		c.Next()
 	}
 }

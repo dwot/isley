@@ -71,10 +71,12 @@ func TestOverlayHTTP_IncludesLivingPlantWithLinkedSensor(t *testing.T) {
 	exec(`INSERT INTO sensor_data (sensor_id, value) VALUES (1, 22.5)`)
 
 	// Plant linked to sensor 1.
-	exec(`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
-	      VALUES ('Overlay Plant', 1, 1, '', 0, '2026-01-01', '[1]')`)
+	exec(`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt)
+	      VALUES ('Overlay Plant', 1, 1, '', 0, '2026-01-01')`)
 	var plantID int
 	require.NoError(t, db.QueryRow(`SELECT id FROM plant WHERE name = 'Overlay Plant'`).Scan(&plantID))
+
+	exec(`INSERT INTO plant_sensor (plant_id, sensor_id, position) VALUES ($1, 1, 0)`, plantID)
 
 	// Active status so GetLivingPlants picks it up.
 	var vegID int

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestIsZeroDate(t *testing.T) {
@@ -31,39 +30,6 @@ func TestIsZeroDate(t *testing.T) {
 	}
 }
 
-// TestAsLocal_PreservesWallClockDigits confirms AsLocal keeps the
-// wall-clock components verbatim while swapping the location to
-// time.Local. SQL drivers tag DB strings with UTC even though they
-// represent local-time digits; this function is what bridges that gap.
-func TestAsLocal_PreservesWallClockDigits(t *testing.T) {
-	t.Parallel()
-
-	// A time tagged as UTC, intended to be interpreted as local.
-	source := time.Date(2026, 4, 25, 14, 30, 45, 12345, time.UTC)
-	got := AsLocal(source)
-
-	assert.Equal(t, time.Local, got.Location(), "tag must be flipped to time.Local")
-	assert.Equal(t, source.Year(), got.Year())
-	assert.Equal(t, source.Month(), got.Month())
-	assert.Equal(t, source.Day(), got.Day())
-	assert.Equal(t, source.Hour(), got.Hour())
-	assert.Equal(t, source.Minute(), got.Minute())
-	assert.Equal(t, source.Second(), got.Second())
-	assert.Equal(t, source.Nanosecond(), got.Nanosecond())
-}
-
-func TestAsLocal_AlreadyLocalIsNoOp(t *testing.T) {
-	t.Parallel()
-
-	source := time.Date(2026, 4, 25, 14, 30, 45, 0, time.Local)
-	got := AsLocal(source)
-	assert.True(t, source.Equal(got),
-		"input already tagged time.Local should produce an equal time")
-	assert.Equal(t, time.Local, got.Location())
-}
-
-// TestLayoutConstants_AreParseable acts as a smoke check on the
-// formatting constants — all four must be parseable by time.Parse.
 func TestLayoutConstants_AreParseable(t *testing.T) {
 	t.Parallel()
 
@@ -83,54 +49,6 @@ func TestLayoutConstants_AreParseable(t *testing.T) {
 			if assert.NoError(t, err) {
 				assert.False(t, parsed.IsZero())
 			}
-		})
-	}
-}
-
-// TestParseFlexibleDate_AcceptsUISubmittedFormats confirms the layout list
-// mirrors ValidateDate's: a date that passes validation must always be
-// parsable here too.
-func TestParseFlexibleDate_AcceptsUISubmittedFormats(t *testing.T) {
-	t.Parallel()
-
-	for _, in := range []string{"2026-08-12", "2026-08-12T14:30", "2026-08-12 14:30:00"} {
-		got, err := ParseFlexibleDate(in)
-		require.NoErrorf(t, err, "should parse %q", in)
-		assert.Equal(t, 2026, got.Year())
-		assert.Equal(t, time.August, got.Month())
-		assert.Equal(t, 12, got.Day())
-	}
-
-	_, err := ParseFlexibleDate("not a date")
-	assert.Error(t, err)
-}
-
-// TestPlantAge_CountsCalendarDays pins the definition shared by the plant
-// list and the plant page (#243): the start date is Day 1 and the count
-// rolls over at midnight, not 24h after the start time.
-func TestPlantAge_CountsCalendarDays(t *testing.T) {
-	t.Parallel()
-	at := func(y int, m time.Month, d, h, min int) time.Time {
-		return time.Date(y, m, d, h, min, 0, 0, time.Local)
-	}
-	cases := []struct {
-		name      string
-		start     time.Time
-		now       time.Time
-		day, week int
-	}{
-		{"same day", at(2026, 10, 1, 8, 0), at(2026, 10, 1, 23, 0), 1, 1},
-		{"next day before start time", at(2026, 10, 1, 23, 59), at(2026, 10, 2, 0, 1), 2, 1},
-		{"day 7 is still week 1", at(2026, 10, 1, 23, 59), at(2026, 10, 7, 12, 0), 7, 1},
-		{"day 8 starts week 2", at(2026, 10, 1, 23, 59), at(2026, 10, 8, 0, 0), 8, 2},
-		{"across DST change", at(2026, 3, 1, 12, 0), at(2026, 3, 15, 12, 0), 15, 3},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			day, week := PlantAge(tc.start, tc.now)
-			assert.Equal(t, tc.day, day, "day")
-			assert.Equal(t, tc.week, week, "week")
 		})
 	}
 }

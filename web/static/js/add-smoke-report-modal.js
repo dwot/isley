@@ -5,8 +5,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const modalEl = document.getElementById("addSmokeReportModal");
 
     modalEl.addEventListener("show.bs.modal", () => {
-        document.getElementById("smokeReportDate").value =
-            new Date().toISOString().slice(0, 10);
+        // Today in the instance zone; toISOString() would give the UTC
+        // date, which is tomorrow every evening west of Greenwich.
+        document.getElementById("smokeReportDate").value = IsleyTime.today();
     });
 
     // form.reset() unchecks the radios but cannot repaint the stars, since the

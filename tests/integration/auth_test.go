@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"isley/handlers"
+	"isley/ratelimit"
 	"isley/tests/testutil"
 )
 
@@ -91,9 +92,9 @@ func TestAuth_LoginRateLimiter(t *testing.T) {
 	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	rls := handlers.NewRateLimiterService(
+	rls := ratelimit.NewService(
 		nil,
-		handlers.NewLoginRateLimiter(handlers.MaxLoginAttempts, 10*time.Minute),
+		ratelimit.NewLogin(ratelimit.MaxLoginAttempts, 10*time.Minute),
 	)
 	server := testutil.NewTestServer(t, db, testutil.WithRateLimiterService(rls))
 	testutil.SeedAdmin(t, db, "the-real-password")
@@ -105,10 +106,10 @@ func TestAuth_LoginRateLimiter(t *testing.T) {
 
 	// MaxLoginAttempts wrong-password POSTs should each return 401 —
 	// CSRF passes, auth fails.
-	for i := 0; i < handlers.MaxLoginAttempts; i++ {
+	for i := 0; i < ratelimit.MaxLoginAttempts; i++ {
 		resp := c.PostForm("/login", loginForm("admin", "wrong", token))
 		resp.Body.Close()
-		require.Equalf(t, http.StatusUnauthorized, resp.StatusCode, "POST %d/%d should be 401", i+1, handlers.MaxLoginAttempts)
+		require.Equalf(t, http.StatusUnauthorized, resp.StatusCode, "POST %d/%d should be 401", i+1, ratelimit.MaxLoginAttempts)
 	}
 
 	// The next POST trips the limiter.
@@ -302,6 +303,6 @@ func TestAuth_APIKey_RejectsNoCredentials(t *testing.T) {
 // need full control over what is stored.
 func seedHashedAPIKey(t *testing.T, db *sql.DB, hashed string) {
 	t.Helper()
-	_, err := db.Exec(`INSERT INTO api_keys (name, key_hash) VALUES ($1, $2)`, "test key", hashed)
+	_, err := db.Exec(`INSERT INTO api_keys (name, key_hash, scopes) VALUES ($1, $2, 'admin')`, "test key", hashed)
 	require.NoError(t, err)
 }

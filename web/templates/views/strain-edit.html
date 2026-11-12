@@ -109,6 +109,15 @@
                                 </select>
                             </div>
 
+                            <!-- Feminized -->
+                            <div class="col-md-6">
+                                <label for="editFeminized" class="form-label required">{{ .lcl.feminized }}</label>
+                                <select class="form-select" id="editFeminized" required>
+                                    <option value="true" {{ if .strain.Feminized }}selected{{ end }}>{{ .lcl.yes }}</option>
+                                    <option value="false" {{ if not .strain.Feminized }}selected{{ end }}>{{ .lcl.no }}</option>
+                                </select>
+                            </div>
+
                             <!-- Cycle Time -->
                             <div class="col-md-6">
                                 <label for="editCycleTime" class="form-label required">{{ .lcl.cycle_time }}</label>
@@ -194,8 +203,8 @@
 <script nonce="{{ .cspNonce }}">
     var currentStrainID = {{ .strain.ID }};
 </script>
-<script src="/static/js/strain-edit.js"></script>
-<script src="/static/js/strain-lineage-edit.js"></script>
+<script src="{{ asset "/static/js/strain-edit.js" }}"></script>
+<script src="{{ asset "/static/js/strain-lineage-edit.js" }}"></script>
 {{ template "common/footer.html" .}}
 
 {{ end }}

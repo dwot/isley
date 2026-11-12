@@ -129,7 +129,7 @@ func (s *SensorCacheService) DataPut(key string, data []types.SensorData) {
 	}
 	s.data[key] = sensorDataEntry{
 		data:      data,
-		timestamp: time.Now().In(time.Local),
+		timestamp: time.Now(),
 	}
 	for len(s.data) > s.dataMaxSize {
 		oldest := s.dataOrder[0]

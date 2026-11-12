@@ -26,6 +26,7 @@ var conflictKeys = map[string]string{
 	"strain":                 "id",
 	"plant_status":           "id",
 	"plant":                  "id",
+	"plant_sensor":           "plant_id, sensor_id",
 	"plant_status_log":       "id",
 	"metric":                 "id",
 	"plant_measurements":     "id",
@@ -43,7 +44,7 @@ var conflictKeys = map[string]string{
 }
 
 var boolToIntFields = map[string][]string{
-	"strain": {"autoflower"},
+	"strain": {"autoflower", "feminized"},
 }
 
 var orderedTables = []string{
@@ -59,6 +60,7 @@ var orderedTables = []string{
 	// that rebuilds automatically on the first sensor_data insert after migration.
 	"plant_status",
 	"plant",
+	"plant_sensor", // After plant and sensors
 	"plant_status_log",
 	"metric",
 	"plant_measurements",
@@ -96,30 +98,23 @@ func MigrateSqliteToPostgres(sqlitePath string, pg *sql.DB) error {
 		}
 	}
 
+	// A SQLite database that predates the UTC conversion carries system
+	// stamps in UTC (SQLite's CURRENT_TIMESTAMP), whatever this Postgres
+	// server's zone is. Leave that note for the conversion, which runs at
+	// startup (service.EnsureUTCStorage reads time_storage_system_zone).
+	if _, err := tx.Exec(`
+		INSERT INTO settings (name, value)
+		SELECT 'time_storage_system_zone', 'UTC'
+		WHERE NOT EXISTS (SELECT 1 FROM settings WHERE name IN ('time_storage', 'time_storage_system_zone'))`); err != nil {
+		return fmt.Errorf("record copied time storage: %w", err)
+	}
+
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit migration transaction: %w", err)
 	}
 
 	logger.Log.Info("SQLite-to-PostgreSQL migration committed successfully")
 	return nil
-}
-
-func listSQLiteTables(db *sql.DB) ([]string, error) {
-	tables := []string{}
-	rows, err := db.Query(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name <> 'schema_migrations'`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, err
-		}
-		tables = append(tables, name)
-	}
-	return tables, nil
 }
 
 func copyTableData(src *sql.DB, dest dbExecutor, table string) error {

@@ -82,6 +82,10 @@ type Plant struct {
 	Autoflower     bool                 `json:"autoflower"`
 	ParentID       uint                 `json:"parent_id"`
 	ParentName     string               `json:"parent_name"`
+	// StageDays maps a status name to the days spent in it; GrowDays is the
+	// timeline's total. Both come from service.PlantDetail.
+	StageDays map[string]int `json:"stage_days"`
+	GrowDays  int            `json:"grow_days"`
 }
 
 // PlantImage represents the structure of the plant_images table
@@ -118,19 +122,6 @@ type PlantListResponse struct {
 	EstHarvestDate        time.Time `json:"est_harvest_date"`
 	Autoflower            bool      `json:"autoflower"`
 	HarvestDate           time.Time `json:"harvest_date"`
-}
-
-type Sensor struct {
-	ID         int    `json:"id"`
-	Name       string `json:"name"`
-	Zone       string `json:"zone"`
-	Source     string `json:"source"`
-	Device     string `json:"device"`
-	Type       string `json:"type"`
-	Visibility string `json:"visibility"`
-	Unit       string `json:"unit"`
-	CreateDT   string `json:"create_dt"`
-	UpdateDT   string `json:"update_dt"`
 }
 
 // SensorData defines the structure for the sensor_data table
@@ -174,6 +165,7 @@ type Settings struct {
 	APIKey             string `json:"api_key"`
 	// New: allow disabling API ingest from settings form
 	DisableAPIIngest    bool   `json:"disable_api_ingest"`
+	MCPEnabled          bool   `json:"mcp_enabled"`
 	SensorRetentionDays string `json:"sensor_retention_days"`
 	LogLevel            string `json:"log_level"`
 	MaxBackupSizeMB     string `json:"max_backup_size_mb"`
@@ -205,6 +197,7 @@ type SettingsData struct {
 	APIKey             string             `json:"api_key"`
 	// New: reflect whether API ingest is enabled (true) or disabled (false)
 	APIIngestEnabled    bool   `json:"api_ingest_enabled"`
+	MCPEnabled          bool   `json:"mcp_enabled"`
 	SensorRetentionDays int    `json:"sensor_retention_days"`
 	LogLevel            string `json:"log_level"`
 	MaxBackupSizeMB     int    `json:"max_backup_size_mb"`
@@ -228,6 +221,7 @@ type Strain struct {
 	Indica           int    `json:"indica"`
 	Sativa           int    `json:"sativa"`
 	Autoflower       bool   `json:"autoflower"`
+	Feminized        bool   `json:"feminized"`
 	Description      string `json:"description"`
 	SeedCount        int    `json:"seed_count"`
 	CycleTime        int    `json:"cycle_time"`

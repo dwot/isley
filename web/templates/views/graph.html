@@ -3,10 +3,10 @@
 
 {{ template "common/header.html" . }}
 <meta http-equiv="refresh" content="300">
-<script src="/static/vendor/chartjs/chart.umd.min.js"></script>
-<script src="/static/vendor/chartjs/chartjs-adapter-date-fns.bundle.min.js"></script>
-<script src="/static/vendor/chartjs/chartjs-plugin-zoom.min.js"></script>
-<script src="/static/js/graph.js"></script>
+<script src="{{ asset "/static/vendor/chartjs/chart.umd.min.js" }}"></script>
+<script src="{{ asset "/static/js/chart-zone-adapter.js" }}"></script>
+<script src="{{ asset "/static/vendor/chartjs/chartjs-plugin-zoom.min.js" }}"></script>
+<script src="{{ asset "/static/js/graph.js" }}"></script>
 {{ template "common/header2.html" . }}
 
 <div class="container">

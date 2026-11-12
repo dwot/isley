@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"errors"
 	"net/http"
 	"strconv"
@@ -9,8 +8,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"isley/cannadb"
 	"isley/logger"
-	"isley/model/types"
+	"isley/service"
 )
 
 // ---------------------------------------------------------------------------
@@ -60,7 +60,7 @@ func CannadbSearchHandler(c *gin.Context) {
 	}
 
 	baseURL := ConfigStoreFromContext(c).CannadbBaseURL()
-	results, err := cannadbSearchStrains(baseURL, query, limit)
+	results, err := cannadb.SearchStrains(baseURL, query, limit)
 	if err != nil {
 		respondCannadbError(c, err, "api_cannadb_search_failed")
 		return
@@ -104,11 +104,8 @@ func CannadbImportHandler(c *gin.Context) {
 		return
 	}
 
-	db := DBFromContext(c)
-	store := ConfigStoreFromContext(c)
-	baseURL := store.CannadbBaseURL()
-
-	rec, val, err := cannadbGetStrain(baseURL, req.URI)
+	baseURL := ConfigStoreFromContext(c).CannadbBaseURL()
+	rec, val, err := cannadb.GetStrain(baseURL, req.URI)
 	if err != nil {
 		respondCannadbError(c, err, "api_cannadb_import_failed")
 		return
@@ -117,38 +114,26 @@ func CannadbImportHandler(c *gin.Context) {
 		apiInternalError(c, "api_cannadb_import_failed")
 		return
 	}
-
-	// Resolve + upsert the breeder first so the strain FK resolves locally.
-	breederID, err := importCannadbBreeder(db, baseURL, val)
+	breeder, err := cannadbBreeder(baseURL, val)
 	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to resolve breeder")
+		respondCannadbError(c, err, "api_cannadb_import_failed")
+		return
+	}
+	in := mapCannadbStrain(rec, val)
+	in.Breeder = breeder
+
+	strain, err := ServicesFromContext(c).Strains.ImportCannadb(c.Request.Context(), in)
+	if err != nil {
+		fieldLogger.WithError(err).Error("Failed to import strain")
 		apiInternalError(c, "api_cannadb_import_failed")
 		return
 	}
 
-	strain := mapCannadbStrain(rec, val)
-
-	strainID, err := upsertCannadbStrain(db, breederID, strain)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to upsert strain")
-		apiInternalError(c, "api_cannadb_import_failed")
-		return
-	}
-
-	if err := replaceCannadbLineage(db, strainID, val.ParentNames); err != nil {
-		// Lineage is best-effort; log but don't fail the import.
-		fieldLogger.WithError(err).Warn("Failed to import lineage")
-	}
-
-	// Refresh in-memory caches so the UI reflects the import immediately.
-	store.SetBreeders(GetBreeders(db))
-	store.SetStrains(GetStrains(db))
-
-	fieldLogger.WithField("strain_id", strainID).WithField("uri", req.URI).Info("Imported strain from CannaDB")
+	fieldLogger.WithField("strain_id", strain.ID).WithField("uri", req.URI).Info("Imported strain from CannaDB")
 	c.JSON(http.StatusOK, gin.H{
-		"id":          strainID,
+		"id":          strain.ID,
 		"name":        strain.Name,
-		"cannadb_url": cannadbWebURL(req.URI),
+		"cannadb_url": cannadb.WebURL(req.URI),
 		"message":     T(c, "api_cannadb_imported"),
 	})
 }
@@ -157,22 +142,15 @@ func CannadbImportHandler(c *gin.Context) {
 // Mapping + persistence helpers
 // ---------------------------------------------------------------------------
 
-// mapCannadbStrain converts a CannaDB strain record into Isley's Strain,
-// applying the field transforms from the integration plan (§1).
-func mapCannadbStrain(rec *cannadbRecord, val *cannadbStrainValue) types.Strain {
+// mapCannadbStrain converts a CannaDB strain record into the service's
+// import, applying the field transforms from the integration plan (§1).
+func mapCannadbStrain(rec *cannadb.Record, val *cannadb.StrainValue) service.CannadbStrain {
 	// indicaSativa: 0 = pure indica, 100 = pure sativa. Default 50/50 when
 	// absent. Isley requires indica + sativa == 100.
 	sativa := 50
 	if val.IndicaSativa != nil {
-		sativa = *val.IndicaSativa
-		if sativa < 0 {
-			sativa = 0
-		}
-		if sativa > 100 {
-			sativa = 100
-		}
+		sativa = min(max(*val.IndicaSativa, 0), 100)
 	}
-	indica := 100 - sativa
 
 	// cycleTime is a {min,max} in whole days; Isley stores a single int.
 	// Prefer max, fall back to min.
@@ -185,162 +163,47 @@ func mapCannadbStrain(rec *cannadbRecord, val *cannadbStrainValue) types.Strain 
 		}
 	}
 
-	return types.Strain{
+	return service.CannadbStrain{
+		URI:              rec.URI,
+		IndexedAt:        rec.IndexedAt,
 		Name:             val.Name,
-		Indica:           indica,
-		Sativa:           sativa,
+		IndicaPct:        100 - sativa,
+		SativaPct:        sativa,
 		Autoflower:       val.Autoflower,
-		Description:      val.Description, // markdown, stored raw
+		CycleTimeDays:    cycleTime,
 		ShortDescription: val.ShortDescription,
-		CycleTime:        cycleTime,
-		Url:              val.SourceURL,
-		CannadbURI:       rec.URI,
-		CannadbIndexedAt: rec.IndexedAt,
+		Description:      val.Description, // markdown, stored raw
+		URL:              val.SourceURL,
+		ParentNames:      val.ParentNames,
 	}
 }
 
-// importCannadbBreeder resolves the strain's breeder (full record when a
-// breeder AT-URI is present, else the breederName fallback) and upserts it
-// locally, returning the local breeder id.
-func importCannadbBreeder(db *sql.DB, baseURL string, val *cannadbStrainValue) (int, error) {
-	name := strings.TrimSpace(val.BreederName)
-	breederURI := ""
-	indexedAt := ""
-
-	if val.Breeder != "" {
-		rec, bval, err := cannadbGetBreeder(baseURL, val.Breeder)
-		if err != nil {
-			// A breeder ref can be absent or (rarely) unresolvable — fall back
-			// to breederName on RecordNotFound, surface other errors.
-			var apiErr *cannadbError
-			if !errors.As(err, &apiErr) || apiErr.HTTPStatus != http.StatusNotFound {
-				return 0, err
-			}
-		} else if strings.TrimSpace(bval.Name) != "" {
-			name = strings.TrimSpace(bval.Name)
-			breederURI = rec.URI
-			indexedAt = rec.IndexedAt
-		}
+// cannadbBreeder resolves the strain's breeder: its full record when the
+// strain links one, else the breederName fallback.
+func cannadbBreeder(baseURL string, val *cannadb.StrainValue) (service.CannadbBreeder, error) {
+	b := service.CannadbBreeder{Name: strings.TrimSpace(val.BreederName)}
+	if val.Breeder == "" {
+		return b, nil
 	}
-
-	if name == "" {
-		name = "Unknown Breeder"
-	}
-
-	return upsertCannadbBreeder(db, name, breederURI, indexedAt)
-}
-
-// upsertCannadbBreeder finds an existing breeder by CannaDB URI, then by name,
-// inserting a new one if neither matches. Returns the breeder id.
-func upsertCannadbBreeder(db *sql.DB, name, uri, indexedAt string) (int, error) {
-	var id int
-
-	if uri != "" {
-		err := db.QueryRow("SELECT id FROM breeder WHERE cannadb_uri = $1", uri).Scan(&id)
-		if err == nil {
-			_, uerr := db.Exec("UPDATE breeder SET name = $1, cannadb_indexed_at = $2 WHERE id = $3", name, indexedAt, id)
-			return id, uerr
-		}
-		if !errors.Is(err, sql.ErrNoRows) {
-			return 0, err
-		}
-	}
-
-	// Match an existing breeder by name (case-insensitive) to avoid duplicates
-	// when the user already added it manually.
-	err := db.QueryRow("SELECT id FROM breeder WHERE LOWER(name) = LOWER($1)", name).Scan(&id)
-	if err == nil {
-		if uri != "" {
-			_, uerr := db.Exec("UPDATE breeder SET cannadb_uri = $1, cannadb_indexed_at = $2 WHERE id = $3", uri, indexedAt, id)
-			return id, uerr
-		}
-		return id, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return 0, err
-	}
-
-	// Insert new. nullableStr keeps cannadb_uri NULL (not "") so the partial
-	// unique index doesn't collide across manually-added breeders.
-	err = db.QueryRow(
-		"INSERT INTO breeder (name, cannadb_uri, cannadb_indexed_at) VALUES ($1, $2, $3) RETURNING id",
-		name, nullableStr(uri), nullableStr(indexedAt),
-	).Scan(&id)
-	return id, err
-}
-
-// upsertCannadbStrain inserts a new strain or updates the existing one keyed
-// on cannadb_uri. Returns the strain id.
-func upsertCannadbStrain(db *sql.DB, breederID int, s types.Strain) (int, error) {
-	autoflower := 0
-	if s.Autoflower {
-		autoflower = 1
-	}
-
-	var id int
-	err := db.QueryRow("SELECT id FROM strain WHERE cannadb_uri = $1", s.CannadbURI).Scan(&id)
-	switch {
-	case err == nil:
-		_, uerr := db.Exec(`
-			UPDATE strain
-			SET name = $1, breeder_id = $2, indica = $3, sativa = $4, autoflower = $5,
-			    description = $6, short_desc = $7, cycle_time = $8, url = $9, cannadb_indexed_at = $10
-			WHERE id = $11`,
-			s.Name, breederID, s.Indica, s.Sativa, autoflower,
-			s.Description, s.ShortDescription, s.CycleTime, s.Url, s.CannadbIndexedAt, id)
-		return id, uerr
-	case errors.Is(err, sql.ErrNoRows):
-		ierr := db.QueryRow(`
-			INSERT INTO strain (name, breeder_id, indica, sativa, autoflower, seed_count,
-			                    description, short_desc, cycle_time, url, cannadb_uri, cannadb_indexed_at)
-			VALUES ($1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $11) RETURNING id`,
-			s.Name, breederID, s.Indica, s.Sativa, autoflower,
-			s.Description, s.ShortDescription, s.CycleTime, s.Url, s.CannadbURI, nullableStr(s.CannadbIndexedAt)).Scan(&id)
-		return id, ierr
-	default:
-		return 0, err
-	}
-}
-
-// replaceCannadbLineage rewrites the strain's lineage from the CannaDB
-// parentNames (display fallbacks). Parent strains are not recursively imported
-// in v1, so parent_strain_id is left NULL.
-func replaceCannadbLineage(db *sql.DB, strainID int, parentNames []string) error {
-	tx, err := db.Begin()
+	rec, bval, err := cannadb.GetBreeder(baseURL, val.Breeder)
 	if err != nil {
-		return err
-	}
-	if _, err := tx.Exec("DELETE FROM strain_lineage WHERE strain_id = $1", strainID); err != nil {
-		tx.Rollback()
-		return err
-	}
-	for _, name := range parentNames {
-		name = strings.TrimSpace(name)
-		if name == "" {
-			continue
+		// A breeder ref can be (rarely) unresolvable: fall back to the
+		// name on RecordNotFound, surface other errors.
+		var apiErr *cannadb.Error
+		if errors.As(err, &apiErr) && apiErr.HTTPStatus == http.StatusNotFound {
+			return b, nil
 		}
-		if _, err := tx.Exec(
-			"INSERT INTO strain_lineage (strain_id, parent_name, parent_strain_id) VALUES ($1, $2, NULL)",
-			strainID, name); err != nil {
-			tx.Rollback()
-			return err
-		}
+		return b, err
 	}
-	return tx.Commit()
-}
-
-// nullableStr returns nil for empty strings so NULL is stored instead of "",
-// keeping the partial-unique cannadb_uri index well-behaved.
-func nullableStr(s string) interface{} {
-	if s == "" {
-		return nil
+	if name := strings.TrimSpace(bval.Name); name != "" {
+		b = service.CannadbBreeder{Name: name, URI: rec.URI, IndexedAt: rec.IndexedAt}
 	}
-	return s
+	return b, nil
 }
 
 // respondCannadbError maps a client error to an appropriate API response.
 func respondCannadbError(c *gin.Context, err error, fallbackKey string) {
-	var apiErr *cannadbError
+	var apiErr *cannadb.Error
 	if errors.As(err, &apiErr) {
 		switch {
 		case apiErr.Code == "RecordNotFound" || apiErr.HTTPStatus == http.StatusNotFound:

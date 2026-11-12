@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Isley API v1</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
+    --code-bg: #f6f8fa; --link: #0969da; --accent: #2e7d32;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #30363d;
+      --code-bg: #161b22; --link: #4493f8; --accent: #66bb6a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { margin: 0 0 4px; font-size: 2rem; }
+  h1 span { color: var(--accent); }
+  h2 { margin-top: 2.5rem; padding-bottom: 6px; border-bottom: 1px solid var(--line); font-size: 1.4rem; }
+  h3 { margin-top: 1.75rem; font-size: 1.1rem; }
+  a { color: var(--link); }
+  p.lead { color: var(--muted); margin-top: 0; }
+  code { font: 0.9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg);
+    padding: 0.1em 0.35em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px;
+    overflow-x: auto; line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: 0.85rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  nav { margin: 1.5rem 0; padding: 12px 16px; border: 1px solid var(--line); border-radius: 6px; }
+  nav ol { margin: 0; padding-left: 1.2rem; columns: 2; }
+  @media (max-width: 600px) { nav ol { columns: 1; } }
+  .note { border-left: 4px solid var(--accent); padding: 4px 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+<h1>Isley <span>API v1</span></h1>
+<p class="lead">A JSON API for your grow journal: plants, strains, zones, sensors and everything you log against them.</p>
+
+<p>This page is the guide. The full reference, every endpoint, field and error, is the OpenAPI 3.1 document at
+<a href="/api/v1/openapi.yaml"><code>/api/v1/openapi.yaml</code></a>. Load it into any OpenAPI tool (Swagger
+Editor, Postman, Insomnia, an SDK generator) for a browsable reference.</p>
+
+<nav>
+<ol>
+  <li><a href="#start">Getting started</a></li>
+  <li><a href="#keys">Keys and access</a></li>
+  <li><a href="#conventions">Conventions</a></li>
+  <li><a href="#times">Dates and times</a></li>
+  <li><a href="#errors">Errors</a></li>
+  <li><a href="#pages">Lists and paging</a></li>
+  <li><a href="#retries">Safe retries</a></li>
+  <li><a href="#recipes">Recipes</a></li>
+  <li><a href="#mcp">AI assistants (MCP)</a></li>
+</ol>
+</nav>
+
+<h2 id="start">Getting started</h2>
+<p>Create a key in <strong>Settings → API</strong> and pick what it may do. Then ask the instance about itself:</p>
+<pre><code>export ISLEY=https://isley.example
+export ISLEY_KEY=...   # the key, shown once when you create it
+
+curl -H "Authorization: Bearer $ISLEY_KEY" $ISLEY/api/v1/instance</code></pre>
+<pre><code>{
+  "version": "2.6.0",
+  "time_zone": "America/New_York",
+  "now": "2026-11-11T22:28:49-05:00",
+  "guest_mode": false,
+  "features": {"ac_infinity": true, "ecowitt": false, "sensor_ingest": true,
+               "cannadb": false, "stream_capture": false, "mcp": true},
+  "api": {"key_name": "my script", "scopes": ["write"]}
+}</code></pre>
+<p><code>time_zone</code> is the zone your times are read and written in (see <a href="#times">Dates and times</a>),
+and <code>api.scopes</code> is what this key may do.</p>
+
+<h2 id="keys">Keys and access</h2>
+<p>Every request needs a key, sent as <code>Authorization: Bearer &lt;key&gt;</code>. <code>X-API-KEY: &lt;key&gt;</code>
+is accepted too, for older clients. A logged-in browser session doesn't count, and guest mode doesn't open the API.</p>
+<table>
+  <tr><th>Access</th><th>Can</th></tr>
+  <tr><td><code>read</code></td><td>Read everything.</td></tr>
+  <tr><td><code>write</code></td><td>Read, and record: create and edit plants, log activities and measurements, add
+    images and smoke reports, edit strains and breeders, adjust seed counts.</td></tr>
+  <tr><td><code>admin</code></td><td>Everything, including deleting plants, strains and breeders, and managing zones,
+    sensors and streams.</td></tr>
+  <tr><td><code>ingest</code></td><td>Push sensor readings to <code>/api/sensors/ingest</code>. Separate from the
+    levels above; a key can have both.</td></tr>
+</table>
+<p>A missing or unknown key gets <code>401 unauthorized</code>. A key without the access a request needs gets
+<code>403 insufficient_scope</code>, with the access it needed in <code>details.required</code>. Writes are logged
+on the server with the key's name, so give each script or device its own key.</p>
+
+<h2 id="conventions">Conventions</h2>
+<ul>
+  <li>JSON in and out (<code>Content-Type: application/json</code>), except image uploads, which are
+    <code>multipart/form-data</code>.</li>
+  <li>Resources are plural nouns: <code>GET /plants</code>, <code>GET /plants/{id}</code>, <code>POST /plants</code>,
+    <code>PATCH /plants/{id}</code>, <code>DELETE /plants/{id}</code>. Things that belong to a plant live under it
+    (<code>/plants/{id}/activities</code>). Actions that aren't plain edits get their own resource, such as
+    <code>POST /plants/{id}/status</code>.</li>
+  <li><code>PATCH</code> changes only the fields you send. Sending <code>null</code> clears a field that may be
+    empty.</li>
+  <li>Creating returns <code>201</code> with the new resource and a <code>Location</code> header; editing returns
+    <code>200</code> with the resource as it now stands. No second call is needed to read it back.</li>
+  <li>References carry names as well as ids, such as <code>"zone": {"id": 2, "name": "Tent"}</code>, so you can show
+    them without another call.</li>
+  <li>Numbers with units say so in the field name (<code>harvest_weight_g</code>) or carry a <code>unit</code> field
+    (sensors, measurements).</li>
+  <li>Plant age, days since watering and feeding, day of flower and the estimated harvest are worked out by the
+    server, in the instance zone. Don't recompute them.</li>
+</ul>
+
+<h2 id="times">Dates and times</h2>
+<ul>
+  <li><strong>Instants</strong> (when something happened) are RFC 3339 with an offset:
+    <code>2026-11-11T21:00:00-05:00</code>. Responses always use the instance zone's offset.</li>
+  <li>An instant you send <strong>without an offset</strong> (<code>2026-11-11T21:00</code>) is read in the instance
+    zone. Send an offset or <code>Z</code> if you mean another zone.</li>
+  <li><strong>Calendar days</strong> (a plant's <code>start_date</code>, an image's day) are plain
+    <code>YYYY-MM-DD</code>. They have no time and are never shifted.</li>
+  <li>A plant's start day is day 1, and week 1 is days 1–7.</li>
+  <li>Day filters such as <code>GET /activities?from=2026-11-10&amp;to=2026-11-10</code> mean whole days in the
+    instance zone, both ends included.</li>
+</ul>
+
+<h2 id="errors">Errors</h2>
+<p>Every error has the same shape. <code>code</code> is stable and meant for programs; <code>message</code> is for
+people.</p>
+<pre><code>HTTP/1.1 404 Not Found
+{"error": {"code": "plant_not_found", "message": "plant 999 does not exist"}}
+
+HTTP/1.1 400 Bad Request
+{"error": {"code": "invalid_request", "message": "the request has invalid fields",
+           "details": {"fields": {"activity_type_id": "99 does not exist"}}}}</code></pre>
+<table>
+  <tr><th>Status</th><th>Codes</th></tr>
+  <tr><td>400</td><td><code>invalid_request</code>: <code>details.fields</code> names each bad field.</td></tr>
+  <tr><td>401 / 403</td><td><code>unauthorized</code>, <code>insufficient_scope</code></td></tr>
+  <tr><td>404</td><td><code>plant_not_found</code>, <code>strain_not_found</code>, ... and <code>not_found</code>
+    for an unknown path</td></tr>
+  <tr><td>409</td><td>The request conflicts with what's stored, for example <code>name_taken</code>,
+    <code>zone_not_empty</code> or <code>idempotency_key_reused</code></td></tr>
+  <tr><td>413</td><td><code>payload_too_large</code></td></tr>
+  <tr><td>500 / 503</td><td><code>internal_error</code>, <code>unavailable</code>. Retrying later is safe for reads,
+    and for writes sent with an <code>Idempotency-Key</code>.</td></tr>
+</table>
+
+<h2 id="pages">Lists and paging</h2>
+<p>Lists answer <code>{"items": [...], "next_cursor": "..."}</code>. Ask for up to 200 at a time with
+<code>limit</code> (default 50). While <code>next_cursor</code> isn't <code>null</code>, pass it back as
+<code>cursor</code> for the next page. Cursors are opaque: don't build or edit them.</p>
+<pre><code>curl -H "Authorization: Bearer $ISLEY_KEY" "$ISLEY/api/v1/plants?phase=growing&amp;limit=100"
+curl -H "Authorization: Bearer $ISLEY_KEY" "$ISLEY/api/v1/plants?phase=growing&amp;limit=100&amp;cursor=eyJhZnRlcl9pZCI6MTAwfQ"</code></pre>
+
+<h2 id="retries">Safe retries</h2>
+<p>A script on a flaky connection can't tell whether a POST that timed out was recorded. Send an
+<code>Idempotency-Key</code> header (any unique string up to 255 characters, such as a UUID) with each POST. If you
+retry with the same key and the same body, you get the first response back, marked
+<code>Idempotent-Replayed: true</code>, and nothing is recorded twice. Reusing a key for a different request gets
+<code>409 idempotency_key_reused</code>. Keys are remembered for 24 hours, per API key.</p>
+<pre><code>curl -H "Authorization: Bearer $ISLEY_KEY" -H "Content-Type: application/json" \
+     -H "Idempotency-Key: 3f6c1d0e-water-2026-11-11" \
+     -d '{"activity_type_id": 1, "note": "250 ml"}' \
+     $ISLEY/api/v1/plants/12/activities</code></pre>
+
+<h2 id="recipes">Recipes</h2>
+
+<h3>What's growing, and when was it last watered?</h3>
+<pre><code>curl -H "Authorization: Bearer $ISLEY_KEY" "$ISLEY/api/v1/plants?phase=growing"</code></pre>
+<p>Each plant carries <code>age</code> (<code>day</code>, <code>week</code>), <code>status</code>,
+<code>days_since_watered</code>, <code>days_since_fed</code>, <code>flower</code> (with its day count) and
+<code>estimated_harvest_date</code>. <code>GET /plants/{id}</code> adds the status history, days per stage, sensors
+with their latest readings, and recent activities and measurements.</p>
+
+<h3>Log a watering</h3>
+<p>Find the activity type ids once with <code>GET /activity-types</code> (Water, Feed and Note are built in; types
+you added in Settings are there too).</p>
+<pre><code>curl -H "Authorization: Bearer $ISLEY_KEY" -H "Content-Type: application/json" \
+     -d '{"activity_type_id": 1, "note": "250 ml, pH 6.3", "at": "2026-11-11T21:00"}' \
+     $ISLEY/api/v1/plants/12/activities</code></pre>
+<pre><code>{"id": 8, "plant": {"id": 12, "name": "Agent Test"}, "activity_type": {"id": 1, "name": "Water"},
+ "note": "250 ml, pH 6.3", "at": "2026-11-11T21:00:00-05:00",
+ "is_watering": true, "is_feeding": false, "measurements": []}</code></pre>
+<p>Leave out <code>at</code> to mean now. To water a whole tent in one call, use
+<code>POST /activities/bulk</code> with <code>"plant_ids": [12, 13, 14]</code>. An activity type that records
+amounts takes them as <code>"measurements": [{"metric_id": 3, "value": 250}]</code>.</p>
+
+<h3>Record a measurement</h3>
+<pre><code>curl -H "Authorization: Bearer $ISLEY_KEY" -H "Content-Type: application/json" \
+     -d '{"metric_id": 1, "value": 31.5}' \
+     $ISLEY/api/v1/plants/12/measurements</code></pre>
+<p><code>GET /metrics</code> lists the metrics and their units.</p>
+
+<h3>Move a plant to flower</h3>
+<pre><code>curl -H "Authorization: Bearer $ISLEY_KEY" -H "Content-Type: application/json" \
+     -d '{"status_id": 5, "at": "2026-11-11T08:00"}' \
+     $ISLEY/api/v1/plants/12/status</code></pre>
+<p>It answers <code>201</code> with the new status entry, or <code>200</code> with <code>"changed": false</code> if the
+plant already had that status. Status ids are in <code>GET /statuses</code>. Record a harvest weight with
+<code>PATCH /plants/{id}</code> and <code>{"harvest_weight_g": 112.5}</code>.</p>
+
+<h3>Start a plant</h3>
+<pre><code>curl -H "Authorization: Bearer $ISLEY_KEY" -H "Content-Type: application/json" \
+     -d '{"name": "Lady 3", "strain_id": 4, "zone_id": 2, "status_id": 3,
+          "start_date": "2026-11-11", "decrement_seed_count": true}' \
+     $ISLEY/api/v1/plants</code></pre>
+
+<h3>How did the tent do overnight?</h3>
+<p>Find the zone's sensors with <code>GET /zones/{id}</code>, then summarise one over a range. The <code>bucket</code>
+can be a size (<code>15m</code>, <code>1h</code>, <code>1d</code>) or <code>raw</code> for every reading. Leave it
+out and a size is picked for the range.</p>
+<pre><code>curl -H "Authorization: Bearer $ISLEY_KEY" \
+     "$ISLEY/api/v1/sensors/2/data?from=2026-11-10T20:00&amp;to=2026-11-11T08:00&amp;bucket=1h"</code></pre>
+<pre><code>{"sensor": {"id": 2, "name": "Tent Temperature", "type": "Temperature", "unit": "°F"},
+ "from": "2026-11-10T20:00:00-05:00", "to": "2026-11-11T08:00:00-05:00", "bucket": "1h",
+ "items": [{"start": "2026-11-10T20:00:00-05:00", "min": 69.5, "avg": 69.96, "max": 70.44, "count": 12}, ...],
+ "next_cursor": null}</code></pre>
+<p>Fans, lights and other on/off ports also report <code>on_fraction</code> (the share of readings that were on) and
+<code>starts</code> (how often they switched on) per bucket.</p>
+
+<h3>Add a pack of seeds</h3>
+<pre><code>curl -H "Authorization: Bearer $ISLEY_KEY" -H "Content-Type: application/json" \
+     -d '{"delta": 10}' $ISLEY/api/v1/strains/4/seed-count</code></pre>
+<p>A <code>delta</code> adds or removes seeds without overwriting a change someone else made at the same time. The
+count never goes below 0.</p>
+
+<h3>Upload a photo</h3>
+<pre><code>curl -H "Authorization: Bearer $ISLEY_KEY" \
+     -F "image=@canopy.jpg" -F "taken_on=2026-11-11" -F "description=week 3 of flower" \
+     $ISLEY/api/v1/plants/12/images</code></pre>
+<p>One JPEG, PNG, GIF or WebP per request.</p>
+
+<h2 id="mcp">AI assistants (MCP)</h2>
+<p>Isley can also serve AI assistants such as Claude over the Model Context Protocol, at <code>/mcp</code>. Turn on
+<strong>Enable MCP server</strong> in Settings → API, then connect with a key. The assistant gets that key's access:
+a read key can answer questions, and a write key can also log waterings and start plants. There are no delete
+tools.</p>
+<pre><code>claude mcp add --transport http isley $ISLEY/mcp --header "Authorization: Bearer $ISLEY_KEY"</code></pre>
+<p class="note">The README has the Claude Desktop setup and the list of tools.</p>
+</main>
+</body>
+</html>

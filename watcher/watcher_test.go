@@ -53,6 +53,7 @@ func newTestWatcher(t *testing.T, db *sql.DB) *Watcher {
 	t.Helper()
 	return &Watcher{
 		DB:                db,
+		Sensors:           testutil.NewServices(t, db).Sensors,
 		HTTP:              http.DefaultClient,
 		ACIBaseURL:        "http://localhost-not-used",
 		Logger:            logger.Log,
@@ -300,9 +301,9 @@ func TestPollEcoWitt_CommonList(t *testing.T) {
 
 	outTempID := seedSensor(t, db, "ecowitt", u.Host, "Common.0x02")
 	outHumiID := seedSensor(t, db, "ecowitt", u.Host, "Common.0x07")
-	windID    := seedSensor(t, db, "ecowitt", u.Host, "Common.0x0b")
-	uviID     := seedSensor(t, db, "ecowitt", u.Host, "Common.0x17")
-	dewID     := seedSensor(t, db, "ecowitt", u.Host, "Common.0x03") // decimal id "3" in fixture
+	windID := seedSensor(t, db, "ecowitt", u.Host, "Common.0x0b")
+	uviID := seedSensor(t, db, "ecowitt", u.Host, "Common.0x17")
+	dewID := seedSensor(t, db, "ecowitt", u.Host, "Common.0x03") // decimal id "3" in fixture
 
 	w := newTestWatcher(t, db)
 	w.PollEcoWitt(context.Background(), u.Host)

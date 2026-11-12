@@ -1,11 +1,12 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
-	"encoding/json"
 	"isley/logger"
 	"isley/model"
 	"isley/model/types"
+	"isley/service"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -17,8 +18,8 @@ import (
 func GetOverlayData(c *gin.Context) {
 	db := DBFromContext(c)
 	c.JSON(http.StatusOK, gin.H{
-		"plants":  GetOverlayPlants(db),
-		"sensors": GetGroupedSensorsWithLatestReading(db, SensorCacheServiceFromContext(c)),
+		"plants":  GetOverlayPlants(c.Request.Context(), ServicesFromContext(c), db),
+		"sensors": GetGroupedSensorsWithLatestReading(c.Request.Context(), ServicesFromContext(c), SensorCacheServiceFromContext(c)),
 	})
 }
 
@@ -40,10 +41,10 @@ type OverlayPlantResponse struct {
 
 // GetOverlayPlants returns living plants with their linked sensor readings embedded.
 // Uses two batch queries instead of per-plant/per-sensor queries to avoid N+1.
-func GetOverlayPlants(db *sql.DB) []OverlayPlantResponse {
+func GetOverlayPlants(ctx context.Context, svc *service.Services, db *sql.DB) []OverlayPlantResponse {
 	fieldLogger := logger.Log.WithField("func", "GetOverlayPlants")
 
-	living := GetLivingPlants(db)
+	living := GetLivingPlants(ctx, svc)
 	if len(living) == 0 {
 		return []OverlayPlantResponse{}
 	}
@@ -53,39 +54,19 @@ func GetOverlayPlants(db *sql.DB) []OverlayPlantResponse {
 		driver = "postgres"
 	}
 
-	// --- Batch query 1: fetch sensor ID lists for all living plants ---
-	plantIDs := make([]interface{}, len(living))
+	// --- Batch query 1: the sensors linked to each living plant ---
+	plantIDs := make([]int, len(living))
 	for i, p := range living {
 		plantIDs[i] = p.ID
 	}
-	inClause, inArgs := model.BuildInClause(driver, plantIDs)
-
-	plantRows, err := db.Query("SELECT id, sensors FROM plant WHERE id IN "+inClause, inArgs...)
+	plantSensorMap, err := svc.Plants.LinkedSensors(ctx, plantIDs)
 	if err != nil {
-		fieldLogger.WithError(err).Error("Error batch-fetching plant sensors")
+		fieldLogger.WithError(err).Error("Error fetching plant sensor links")
 		return wrapPlantsNoSensors(living)
 	}
-	defer plantRows.Close()
-
-	plantSensorMap := make(map[int][]int) // plantID → []sensorID
 	sensorIDSet := make(map[int]struct{})
-	for plantRows.Next() {
-		var plantID int
-		var sensorsJSON sql.NullString
-		if err := plantRows.Scan(&plantID, &sensorsJSON); err != nil {
-			fieldLogger.WithError(err).WithField("plant_id", plantID).Error("Error scanning plant sensors")
-			continue
-		}
-		if !sensorsJSON.Valid || sensorsJSON.String == "" || sensorsJSON.String == "null" {
-			continue
-		}
-		var sensorIDs []int
-		if err := json.Unmarshal([]byte(sensorsJSON.String), &sensorIDs); err != nil {
-			fieldLogger.WithError(err).WithField("plant_id", plantID).Error("Error parsing sensor IDs JSON")
-			continue
-		}
-		plantSensorMap[plantID] = sensorIDs
-		for _, sid := range sensorIDs {
+	for _, ids := range plantSensorMap {
+		for _, sid := range ids {
 			sensorIDSet[sid] = struct{}{}
 		}
 	}

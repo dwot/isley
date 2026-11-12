@@ -36,6 +36,7 @@ type Store struct {
 	streamGrabInterval int
 	apiKey             string
 	apiIngestEnabled   int
+	mcpEnabled         int
 	logLevel           string
 	maxBackupSize      int64
 	timezone           string
@@ -187,6 +188,20 @@ func (s *Store) SetAPIIngestEnabled(v int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.apiIngestEnabled = v
+}
+
+// MCPEnabled reports whether the MCP server at /mcp answers (1) or not (0,
+// the default).
+func (s *Store) MCPEnabled() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.mcpEnabled
+}
+
+func (s *Store) SetMCPEnabled(v int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.mcpEnabled = v
 }
 
 func (s *Store) CannadbEnabled() int {

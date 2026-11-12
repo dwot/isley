@@ -390,8 +390,8 @@ func TestStrainHTTP_PlantsByStrain_HappyPath(t *testing.T) {
 	testutil.MustExec(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	          VALUES (1, 'S', 1, 50, 50, 0, '', 0)`)
 	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
-	testutil.MustExec(t, db, `INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
-	          VALUES ('Plant1', 1, 1, '', 0, '2026-01-01', '[]')`)
+	testutil.MustExec(t, db, `INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt)
+	          VALUES ('Plant1', 1, 1, '', 0, '2026-01-01')`)
 
 	c := server.NewClient(t)
 	resp := c.Get("/plants/by-strain/1")
@@ -440,4 +440,60 @@ func TestStrainHTTP_OutOfStock_SmokeReturnsArray(t *testing.T) {
 	resp := c.Get("/strains/out-of-stock")
 	defer testutil.DrainAndClose(resp)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+// TestStrainHTTP_Feminized: the strain form sets feminized; a form that
+// leaves it out (the plant page's quick-add modal) gets a feminized strain,
+// and an edit that leaves it out keeps what the strain had.
+func TestStrainHTTP_Feminized(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db)
+	const apiKey = "strain-fem-key"
+	testutil.SeedAPIKey(t, db, apiKey)
+	breeder := testutil.SeedBreeder(t, db, "Fem Breeder")
+	c := server.NewClient(t)
+
+	send := func(method, path string, body map[string]interface{}) *http.Response {
+		resp, err := c.Do(testutil.APIReq(t, method, c.BaseURL+path, apiKey, testutil.JSONBody(t, body), "application/json"))
+		require.NoError(t, err)
+		return resp
+	}
+	form := func(name string, extra map[string]interface{}) map[string]interface{} {
+		f := map[string]interface{}{"name": name, "breeder_id": breeder, "indica": 50, "sativa": 50, "seed_count": 1}
+		for k, v := range extra {
+			f[k] = v
+		}
+		return f
+	}
+	feminized := func(id int) bool {
+		var v bool
+		require.NoError(t, db.QueryRow(`SELECT feminized FROM strain WHERE id = $1`, id).Scan(&v))
+		return v
+	}
+	create := func(body map[string]interface{}) int {
+		resp := send(http.MethodPost, "/strains", body)
+		defer testutil.DrainAndClose(resp)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
+		var got struct {
+			ID int `json:"id"`
+		}
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
+		return got.ID
+	}
+
+	assert.True(t, feminized(create(form("Quick", nil))), "left out: feminized")
+	reg := create(form("Reg", map[string]interface{}{"feminized": false}))
+	assert.False(t, feminized(reg))
+
+	resp := send(http.MethodPut, "/strains/"+strconv.Itoa(reg), form("Reg", map[string]interface{}{"seed_count": 4}))
+	testutil.DrainAndClose(resp)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.False(t, feminized(reg), "an edit that leaves it out keeps it")
+
+	resp = send(http.MethodPut, "/strains/"+strconv.Itoa(reg), form("Reg", map[string]interface{}{"feminized": true}))
+	testutil.DrainAndClose(resp)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.True(t, feminized(reg))
 }

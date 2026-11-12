@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"isley/chrono"
 	"isley/model/types"
 )
 
@@ -37,44 +38,28 @@ func TestGenerateCacheKey(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// timeConversion
+// chartTime
 // ---------------------------------------------------------------------------
 
-func TestTimeConversion(t *testing.T) {
+// Range ends from the graph page are wall times in the instance zone; a
+// date that ends the range takes in that whole day.
+func TestChartTime(t *testing.T) {
 	t.Parallel()
+	ny, err := time.LoadLocation("America/New_York")
+	require.NoError(t, err)
+	zones := chrono.NewZones(func() string { return "America/New_York" }, time.UTC)
 
-	t.Run("date-only is padded to midnight then converted to UTC", func(t *testing.T) {
-		t.Parallel()
-		got, err := timeConversion("2026-04-25")
-		require.NoError(t, err)
-		// Input is parsed as UTC by time.Parse(LayoutDB, ...), so the
-		// UTC-formatted output is identical to the parsed input.
-		assert.Equal(t, "2026-04-25 00:00:00", got)
-	})
-
-	t.Run("datetime input is converted to UTC", func(t *testing.T) {
-		t.Parallel()
-		got, err := timeConversion("2026-04-25 10:30:00")
-		require.NoError(t, err)
-		assert.Equal(t, "2026-04-25 10:30:00", got, "input is already in LayoutDB form, UTC normalization is a no-op")
-	})
-
-	t.Run("invalid input returns error", func(t *testing.T) {
-		t.Parallel()
-		// Inputs of length 10 get padded with " 00:00:00" before
-		// parsing, so the returned string on error reflects the
-		// post-padding form. We only assert the error is returned —
-		// the exact value of the returned string is an implementation
-		// detail callers shouldn't rely on.
-		_, err := timeConversion("not-a-date")
-		assert.Error(t, err)
-	})
-
-	t.Run("non-10-char invalid input returns error", func(t *testing.T) {
-		t.Parallel()
-		_, err := timeConversion("totally bogus value")
-		assert.Error(t, err)
-	})
+	got, err := chartTime(zones, "2026-11-10", false)
+	require.NoError(t, err)
+	assert.Equal(t, time.Date(2026, 11, 10, 0, 0, 0, 0, ny), got)
+	got, err = chartTime(zones, "2026-11-10", true)
+	require.NoError(t, err)
+	assert.Equal(t, time.Date(2026, 11, 11, 0, 0, 0, 0, ny), got)
+	got, err = chartTime(zones, "2026-11-10T08:30", true)
+	require.NoError(t, err)
+	assert.True(t, time.Date(2026, 11, 10, 13, 30, 0, 0, time.UTC).Equal(got))
+	_, err = chartTime(zones, "not-a-date", false)
+	assert.Error(t, err)
 }
 
 // ---------------------------------------------------------------------------

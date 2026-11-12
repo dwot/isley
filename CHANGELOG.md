@@ -32,6 +32,113 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [2.6.0] - 2026-11-12
+
+A versioned REST API and an MCP server for AI assistants, times stored in
+UTC, and a long list of fixes, several of them to backups and sensor graphs.
+
+**Before upgrading:**
+- **Take a backup.** On first start Isley converts stored times to UTC, once
+  and one way (#141), and applies migrations 024–030. To go back to 2.5.x,
+  restore that backup: an older version won't start on the newer schema.
+- **Existing API keys become admin keys**, so current integrations keep
+  working. Narrow them in Settings → API.
+- **Day counts change slightly:** the first day of flower is now day 1, and
+  "days since watered/fed" counts calendar days.
+
+### Added
+
+- **API v1** at `/api/v1`, with a guide at `/api/v1/docs` and an OpenAPI 3.1
+  description at `/api/v1/openapi.yaml`. It covers plants (with status
+  history, sensors and server-worked day counts), activities and
+  measurements, images, strains, breeders and lineage, zones, sensors and
+  their history (raw or bucketed), streams, smoke reports, and the lookups
+  needed to create things. Lists are paged, errors share one shape, and
+  POSTs take an `Idempotency-Key` so a retry doesn't log the watering twice.
+- **Scoped API keys:** read, write or admin, plus a separate permission to
+  push sensor readings. New keys default to read only. API v1 writes are
+  logged with the key's name.
+- **An MCP server** at `/mcp`, off until enabled in Settings → API. A read
+  key gets tools to look at plants, strains, zones and summarised sensor
+  history; a write key can also start plants, log activities and
+  measurements, change status, adjust seed counts and link sensors. No
+  delete tools. The README shows how to connect Claude Code and Claude
+  Desktop.
+- **Feminized/regular strains:** a filter, sort options, a column and badges
+  on the strains list, the field on the strain page and forms, and in API
+  v1. Existing strains default to feminized. (#271, thanks @platentgrows)
+- `scripts/smoke-api.sh`, a read-only check of an instance's API and MCP
+  server.
+
+### Changed
+
+- **Times are stored in UTC (#141).** Pages and the API show the same times
+  as before, but the server's own time zone (`TZ`) no longer shifts
+  anything, and pages show and fill in times in the instance's zone from
+  Settings, not the browser's. Restoring an older backup converts it the
+  same way.
+- Plant day counts agree everywhere: the start day is Day 1, days in flower
+  count the same way, "days since watered/fed" counts calendar days, and the
+  plant timeline shows whole days per stage. A plant's start is a calendar
+  day.
+- Sensors linked to a plant live in their own table (migration 025); links
+  to sensors that no longer exist are dropped.
+- Duplicate breeders (names differing only in case or spaces) are merged on
+  upgrade, and breeder names are unique from then on (migration 027).
+- Sensor graphs place their gridlines in the instance's zone, and short
+  ranges get labels every few minutes.
+- Backups include the hourly sensor summary, so a restore keeps graph
+  history older than the sensor retention period, and record the real
+  Isley version.
+- API keys are checked once a minute rather than on every request, so
+  scripts making many calls stay fast; revoking or changing a key still
+  takes effect at once.
+- Static files are linked by a hash of their content, so browsers pick up a
+  new version straight after an upgrade.
+- Stricter handling throughout: editing or deleting something that doesn't
+  exist answers 404 instead of reporting success; multi-image uploads and
+  CannaDB imports are all or nothing; a strain with plants can't be
+  deleted, and no strain can be its own ancestor; deleting a plant or image
+  removes its files.
+- Go module bumps: modernc.org/sqlite 1.62.0, excelize 2.11.1 (a tagged
+  release again), gin-contrib/sessions 1.1.4; cosign-installer 4.1.3.
+
+### Fixed
+
+- **Sensor graphs over a day showed wrong values:** the hourly summary held
+  a few minutes' average instead of the hour's. Migration 028 recomputes
+  every hour that still has its readings.
+- **Backups couldn't be restored on Postgres** when a zone had VPD sensors
+  chosen.
+- **Restoring a large backup took hours** on Postgres and far longer on
+  SQLite, the time growing with the square of the readings. A backup with
+  4.6 million readings now restores in about a minute on Postgres. SQLite's
+  rolling average no longer reads a sensor's whole history for each new
+  reading (migration 029).
+- Sensor retention on SQLite, and backups limited to the last N days,
+  compared local time with UTC readings and cut off hours early or late.
+- A zone's VPD kept being recorded from a sensor that had stopped
+  reporting.
+- Sensors not in a zone were missing from the sensors page.
+- Adding or editing a camera stream failed with "invalid payload".
+- Turning off API ingest didn't survive a restart.
+- In guest mode the activity log failed to load.
+- The "log an activity on several plants" button on a strain's page opened
+  with nothing to pick.
+- "Estimated Harvest Date 0001-01-01" for an autoflower with no cycle time.
+- The photo overlay counted Day 0 and Week 0 for the start day.
+- A failed restore now explains itself in your language and names the
+  table it stopped on.
+- Saving Settings writes every setting in one go and reloads once.
+
+### Security
+
+- An uploaded image is stored with the extension of its actual type, so a
+  picture named `.html` can't be served as a web page.
+- The CSRF check covers PATCH requests too.
+- The web UI's own endpoints (settings, deletes, backups, restore) need an
+  admin key, and sensor ingest needs the ingest permission.
+
 ## [2.5.4] - 2026-11-09
 
 ### Added

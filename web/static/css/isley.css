@@ -845,21 +845,24 @@ header .nav-link.active::after {
 }
 
 /* Strain type badges */
-.strain-badge-auto {
-    background: linear-gradient(135deg, #f59e0b, #d97706);
+.strain-badge-auto, .strain-badge-photo, .strain-badge-feminized, .strain-badge-regular {
     color: #fff;
     font-size: 0.85rem;
     padding: 0.4em 1em;
     border-radius: 999px;
     font-weight: 600;
 }
+.strain-badge-auto {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+}
 .strain-badge-photo {
     background: linear-gradient(135deg, #10b981, #059669);
-    color: #fff;
-    font-size: 0.85rem;
-    padding: 0.4em 1em;
-    border-radius: 999px;
-    font-weight: 600;
+}
+.strain-badge-feminized {
+    background: linear-gradient(135deg, #ec4899, #db2777);
+}
+.strain-badge-regular {
+    background: linear-gradient(135deg, #64748b, #475569);
 }
 
 /* Indica/Sativa gradient ratio bar */
@@ -1246,7 +1249,9 @@ header .nav-link.active::after {
     flex-shrink: 0;
 }
 .sc-meta-left .strain-badge-auto,
-.sc-meta-left .strain-badge-photo {
+.sc-meta-left .strain-badge-photo,
+.sc-meta-left .strain-badge-feminized,
+.sc-meta-left .strain-badge-regular {
     font-size: 0.7rem;
     padding: 0.2em 0.6em;
 }

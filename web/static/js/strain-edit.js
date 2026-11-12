@@ -110,6 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 indica: parseInt(editIndicaSativaSlider.value, 10),
                 sativa: 100 - parseInt(editIndicaSativaSlider.value, 10),
                 autoflower: document.getElementById("editAutoflower").value === "true",
+                feminized: document.getElementById("editFeminized").value === "true",
                 seed_count: parseInt(document.getElementById("editSeedCount").value, 10),
                 description: descriptionTextarea.value,
                 short_desc: document.getElementById("editStrainShortDescription").value,
@@ -159,14 +160,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const doDelete = () => {
                 fetch(`/strains/${strainId}`, { method: "DELETE" })
-                    .then(response => {
-                        if (!response.ok) throw new Error("Failed to delete strain");
+                    .then(async response => {
+                        if (!response.ok) {
+                            // The server says why (a strain with plants can't go).
+                            let serverMsg = "";
+                            try { const data = await response.json(); serverMsg = (data && data.error) || ""; } catch (e) {}
+                            throw new Error(serverMsg);
+                        }
                         window.location.href = "/strains";
                     })
                     .catch(error => {
                         console.error("Error deleting strain:", error);
                         if (typeof uiMessages !== 'undefined') {
-                            uiMessages.showToast(uiMessages.t('delete_error') || 'Delete failed', 'danger');
+                            uiMessages.showToast(error.message || uiMessages.t('delete_error') || 'Delete failed', 'danger');
                         }
                     });
             };

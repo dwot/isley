@@ -3,24 +3,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const statusForm = document.getElementById("editStatusForm");
     const deleteStatusButton = document.getElementById("deleteStatus");
 
-    // Format a Date as a local datetime-local string (YYYY-MM-DDTHH:MM:SS)
-    // without converting to UTC (unlike toISOString which shifts timezone).
-    function toLocalDateTimeString(d) {
-        const pad = (n) => String(n).padStart(2, '0');
-        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    }
-
     document.querySelectorAll(".status-row").forEach(row => {
         row.addEventListener("click", () => {
             const statusData = JSON.parse(row.getAttribute("data-status"));
 
             document.getElementById("statusId").value = statusData.id;
-            const date = new Date(statusData.date);
-            document.getElementById("editStatusDate").value = toLocalDateTimeString(date);
+            document.getElementById("editStatusDate").value = IsleyTime.toInput(statusData.date);
 
             // Disable delete if this is the only status for the plant
             const totalStatuses = document.querySelectorAll('.status-row').length;
-            if (totalStatuses <= 1) {
+            if (!deleteStatusButton) {
+                // Guests have no Delete button.
+            } else if (totalStatuses <= 1) {
                 deleteStatusButton.disabled = true;
                 deleteStatusButton.title = uiMessages.t('cannot_delete_last_status') || 'Cannot delete the last status entry for this plant';
             } else {
@@ -50,7 +44,8 @@ document.addEventListener("DOMContentLoaded", () => {
             .catch(() => uiMessages.showToast(uiMessages.t('failed_to_update_status'), 'danger'));
     });
 
-    deleteStatusButton.addEventListener("click", () => {
+    // Only logged-in users get a Delete button.
+    if (deleteStatusButton) deleteStatusButton.addEventListener("click", () => {
         if (deleteStatusButton.disabled) {
             uiMessages.showToast(uiMessages.t('cannot_delete_last_status') || 'Cannot delete the last status entry for this plant', 'warning');
             return;

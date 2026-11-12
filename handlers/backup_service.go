@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"sync"
 
@@ -21,6 +22,7 @@ const contextKeyBackupService = "backupService"
 type BackupService struct {
 	db      *sql.DB
 	dataDir string
+	version string
 
 	mu      sync.Mutex
 	backup  BackupStatus
@@ -36,6 +38,18 @@ func NewBackupService(db *sql.DB, dataDir string) *BackupService {
 		dataDir = "data"
 	}
 	return &BackupService{db: db, dataDir: dataDir}
+}
+
+// SetVersion sets the release version written into backup manifests. Call
+// it before the service is shared; it is read without the lock.
+func (s *BackupService) SetVersion(v string) { s.version = v }
+
+// Version is the release version backups record, or "unknown".
+func (s *BackupService) Version() string {
+	if s.version == "" {
+		return "unknown"
+	}
+	return s.version
 }
 
 // DB returns the *sql.DB the service was constructed with. The async
@@ -125,6 +139,11 @@ func (s *BackupService) CompleteRestore(tables, files int, err error) {
 	s.restore.InProgress = false
 	if err != nil {
 		s.restore.Error = err.Error()
+		s.restore.ErrorKey, s.restore.ErrorDetail = "", ""
+		var f *restoreFailure
+		if errors.As(err, &f) {
+			s.restore.ErrorKey, s.restore.ErrorDetail = f.key, f.detail
+		}
 		return
 	}
 	s.restore.Phase = "complete"

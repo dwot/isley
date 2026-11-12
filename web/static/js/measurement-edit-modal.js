@@ -3,20 +3,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const measurementForm = document.getElementById("editMeasurementForm");
     const deleteMeasurementButton = document.getElementById("deleteMeasurement");
 
-    // Format a Date as a local datetime-local string (YYYY-MM-DDTHH:MM:SS)
-    // without converting to UTC (unlike toISOString which shifts timezone).
-    function toLocalDateTimeString(d) {
-        const pad = (n) => String(n).padStart(2, '0');
-        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    }
-
     document.querySelectorAll(".measurement-row").forEach(row => {
         row.addEventListener("click", () => {
             const measurementData = JSON.parse(row.getAttribute("data-measurement"));
 
             document.getElementById("measurementId").value = measurementData.id;
-            const date = new Date(measurementData.date);
-            document.getElementById("editMeasurementDate").value = toLocalDateTimeString(date);
+            document.getElementById("editMeasurementDate").value = IsleyTime.toInput(measurementData.date);
             document.getElementById("editMeasurementValue").value = measurementData.value;
 
             editMeasurementModal.show();
@@ -42,7 +34,8 @@ document.addEventListener("DOMContentLoaded", () => {
             .catch(err => uiMessages.showToast(uiMessages.t('failed_to_update_measurement'), 'danger'));
     });
 
-    deleteMeasurementButton.addEventListener("click", () => {
+    // Only logged-in users get a Delete button.
+    if (deleteMeasurementButton) deleteMeasurementButton.addEventListener("click", () => {
         const measurementId = document.getElementById("measurementId").value;
 
         uiMessages.confirmDelete(uiMessages.t('confirm_delete_measurement', 'Are you sure you want to delete this measurement?'), uiMessages.t('delete_measurement', 'Delete Measurement')).then(confirmed => {

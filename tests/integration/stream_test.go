@@ -220,3 +220,52 @@ func TestStream_GetByZoneGroupsByZone(t *testing.T) {
 	assert.Equal(t, "Cam A", got["Z"][0]["name"])
 	assert.Equal(t, "Cam B", got["Zone B"][0]["name"])
 }
+
+// The settings page sends its select values as strings ("1", "true");
+// they used to fail to bind, so adding or editing a stream from the page
+// never worked.
+func TestStream_FormStringValuesAccepted(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db, testutil.WithStreamDir(t.TempDir()))
+	fix := seedStreamHTTP(t, db)
+
+	c := server.NewClient(t)
+	resp := c.APIPostJSON(t, "/streams", fix.APIKey, map[string]interface{}{
+		"stream_name": "Form cam", "url": fix.URL, "zone_id": "1", "visible": "false",
+	})
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	var created struct {
+		ID int `json:"id"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&created))
+
+	upd := apiPutJSON(t, c, "/streams/"+strconv.Itoa(created.ID), fix.APIKey, map[string]interface{}{
+		"stream_name": "Renamed", "url": fix.URL, "zone_id": "1", "visible": "true",
+	})
+	defer upd.Body.Close()
+	require.Equal(t, http.StatusOK, upd.StatusCode)
+
+	var name string
+	var visible bool
+	require.NoError(t, db.QueryRow(`SELECT name, visible FROM streams WHERE id = $1`, created.ID).Scan(&name, &visible))
+	assert.Equal(t, "Renamed", name)
+	assert.True(t, visible)
+}
+
+func TestStream_UpdateMissingIs404(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db, testutil.WithStreamDir(t.TempDir()))
+	fix := seedStreamHTTP(t, db)
+
+	c := server.NewClient(t)
+	resp := apiPutJSON(t, c, "/streams/9999", fix.APIKey, map[string]interface{}{
+		"stream_name": "x", "url": fix.URL, "zone_id": 1, "visible": true,
+	})
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}

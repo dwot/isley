@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"isley/config"
-	"isley/handlers"
 	"isley/model/types"
+	"isley/ratelimit"
 	"isley/tests/testutil"
 )
 
@@ -356,7 +356,7 @@ func TestSensorIngest_BatchCountsEachReadingTowardRateLimit(t *testing.T) {
 	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	limits := handlers.NewRateLimiterService(handlers.NewRateLimiter(3, time.Minute), nil)
+	limits := ratelimit.NewService(ratelimit.New(3, time.Minute), nil)
 	server := testutil.NewTestServer(t, db,
 		testutil.WithConfigStore(storeWithAPIIngest(1)),
 		testutil.WithRateLimiterService(limits))
@@ -547,4 +547,26 @@ func insertReadingAt(t *testing.T, db *sql.DB, sensorID int, value float64, ts t
 		ts.Format("2006-01-02 15:04:05"), id,
 	)
 	require.NoError(t, err)
+}
+
+// minutes is capped at what the hourly history can answer (5,000 hours);
+// a huge value used to overflow the duration.
+func TestChartHandler_RejectsHugeMinutes(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db, testutil.WithConfigStore(storeWithPollingInterval(60)))
+	testutil.MustExec(t, db, `INSERT INTO sensors (id, name, source, device, type) VALUES (1, 'T', 'src', 'D', 'temp')`)
+
+	testutil.SeedAdmin(t, db, "chart-pw-huge")
+	c := server.LoginAsAdmin(t, "chart-pw-huge")
+	for minutes, want := range map[string]int{
+		"300000":              http.StatusOK,
+		"300001":              http.StatusBadRequest,
+		"9223372036854775807": http.StatusBadRequest,
+	} {
+		resp := c.Get("/sensorData?sensor=1&minutes=" + minutes)
+		testutil.DrainAndClose(resp)
+		assert.Equal(t, want, resp.StatusCode, minutes)
+	}
 }

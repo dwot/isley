@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -23,9 +24,15 @@ import (
 	"github.com/russross/blackfriday/v2"
 	"github.com/sirupsen/logrus"
 
+	"isley/apiv1"
+	"isley/chrono"
 	"isley/config"
 	"isley/handlers"
 	"isley/logger"
+	"isley/mcpserver"
+	"isley/model"
+	"isley/ratelimit"
+	"isley/service"
 	"isley/utils"
 )
 
@@ -63,14 +70,22 @@ func ResolvePathDefaults(cfg Config) Config {
 // services or the HTTP listener; callers own those. The returned engine
 // is safe to mount on httptest.NewServer in tests.
 func NewEngine(cfg Config) (*gin.Engine, error) {
+	r, _, err := NewEngineAndServices(cfg)
+	return r, err
+}
+
+// NewEngineAndServices is NewEngine that also returns the service layer
+// the engine was built with, for background work (the sensor watcher)
+// that should share its caches and clock.
+func NewEngineAndServices(cfg Config) (*gin.Engine, *service.Services, error) {
 	if cfg.DB == nil {
-		return nil, fmt.Errorf("app.NewEngine: cfg.DB is required")
+		return nil, nil, fmt.Errorf("app.NewEngine: cfg.DB is required")
 	}
 	if cfg.Assets == nil {
-		return nil, fmt.Errorf("app.NewEngine: cfg.Assets is required")
+		return nil, nil, fmt.Errorf("app.NewEngine: cfg.Assets is required")
 	}
 	if len(cfg.SessionSecret) < 32 {
-		return nil, fmt.Errorf("app.NewEngine: cfg.SessionSecret must be at least 32 bytes (got %d)", len(cfg.SessionSecret))
+		return nil, nil, fmt.Errorf("app.NewEngine: cfg.SessionSecret must be at least 32 bytes (got %d)", len(cfg.SessionSecret))
 	}
 
 	cfg = ResolvePathDefaults(cfg)
@@ -84,7 +99,7 @@ func NewEngine(cfg Config) (*gin.Engine, error) {
 
 	if len(cfg.TrustedProxies) > 0 {
 		if err := r.SetTrustedProxies(cfg.TrustedProxies); err != nil {
-			return nil, fmt.Errorf("set trusted proxies: %w", err)
+			return nil, nil, fmt.Errorf("set trusted proxies: %w", err)
 		}
 	} else {
 		// Explicitly trust no one when empty — Gin's default trusts all
@@ -97,9 +112,9 @@ func NewEngine(cfg Config) (*gin.Engine, error) {
 	r.Use(securityHeadersMiddleware(configStore, hstsHeaderValue(cfg)))
 	r.Use(currentPathMiddleware())
 
-	templ, err := parseTemplates(cfg.Assets, configStore)
+	templ, err := parseTemplates(cfg.Assets, configStore, cfg.Clock)
 	if err != nil {
-		return nil, fmt.Errorf("parse templates: %w", err)
+		return nil, nil, fmt.Errorf("parse templates: %w", err)
 	}
 	r.SetHTMLTemplate(templ)
 
@@ -122,11 +137,12 @@ func NewEngine(cfg Config) (*gin.Engine, error) {
 	if backupSvc == nil {
 		backupSvc = handlers.NewBackupService(cfg.DB, cfg.DataDir)
 	}
+	backupSvc.SetVersion(releaseVersion(cfg))
 	r.Use(backupServiceMiddleware(backupSvc))
 
 	rateLimiterSvc := cfg.RateLimiterService
 	if rateLimiterSvc == nil {
-		rateLimiterSvc = handlers.NewRateLimiterService(nil, nil)
+		rateLimiterSvc = ratelimit.NewService(nil, nil)
 	}
 	r.Use(rateLimiterServiceMiddleware(rateLimiterSvc))
 
@@ -139,11 +155,128 @@ func NewEngine(cfg Config) (*gin.Engine, error) {
 	}
 	r.Use(sensorCacheServiceMiddleware(sensorCacheSvc))
 
+	services, err := newServices(cfg, configStore, sensorCacheSvc)
+	if err != nil {
+		return nil, nil, err
+	}
+	r.Use(func(c *gin.Context) {
+		handlers.SetServicesOnContext(c, services)
+		c.Next()
+	})
+
 	registerPublicRoutes(r, cfg)
 	registerProtectedRoutes(r, cfg)
 	registerAPIRoutes(r)
 
-	return r, nil
+	apiv1.Register(r, services, apiKeyVerifier(cfg.DB))
+	r.Any(mcpserver.Path, gin.WrapH(mcpserver.Handler(services, mcpKeyVerifier(cfg.DB), mcpserver.Options{
+		Version: releaseVersion(cfg),
+		Enabled: func() bool { return configStore.MCPEnabled() == 1 },
+	})))
+
+	r.NoRoute(func(c *gin.Context) {
+		if apiv1.IsAPIPath(c.Request.URL.Path) {
+			apiv1.NotFound(c)
+			return
+		}
+		c.String(http.StatusNotFound, "404 page not found")
+	})
+
+	return r, services, nil
+}
+
+// newServices builds the service layer for this engine: the dialect, the
+// clock, and the time-zone boundary (instance zone from the timezone
+// setting, system zone detected from the database).
+func newServices(cfg Config, store *config.Store, sensorCache *handlers.SensorCacheService) (*service.Services, error) {
+	dialect := cfg.Dialect
+	if dialect == "" {
+		d, err := service.ParseDialect(model.GetDriver())
+		if err != nil {
+			return nil, fmt.Errorf("app.NewEngine: set cfg.Dialect: %w", err)
+		}
+		dialect = d
+	}
+	clock := cfg.Clock
+	if clock == nil {
+		clock = chrono.System()
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	systemZone := cfg.ServerTimeZone
+	if systemZone == nil {
+		var err error
+		if systemZone, err = chrono.SystemZone(ctx, cfg.DB, dialect.IsPostgres()); err != nil {
+			return nil, fmt.Errorf("app.NewEngine: %w", err)
+		}
+	}
+	// Stored times move to UTC once (#141 Phase 2). Wall times were written
+	// in the instance zone, which is also how they have been read, so the
+	// pages and the API show the same times after as before.
+	wallZone := chrono.NewZones(store.Timezone, nil).Instance()
+	// No deadline: on a large database the conversion takes as long as it
+	// takes, once.
+	convStart := time.Now()
+	converted, err := service.EnsureUTCStorage(context.Background(), cfg.DB, dialect, wallZone, systemZone)
+	if err != nil {
+		return nil, fmt.Errorf("app.NewEngine: %w", err)
+	}
+	if converted {
+		logger.Log.WithField("took", time.Since(convStart).String()).Info("UTC conversion finished")
+	}
+
+	return service.New(service.Deps{
+		Version: releaseVersion(cfg),
+		DB:      cfg.DB,
+		Dialect: dialect,
+		Clock:   clock,
+		Zones:   chrono.NewUTCZones(store.Timezone),
+		Store:   store,
+		// Resolved by NewEngine before this runs.
+		UploadDir: cfg.UploadDir,
+		StreamDir: cfg.StreamDir,
+		SensorsChanged: func() {
+			sensorCache.GroupedReset()
+			sensorCache.DataReset()
+		},
+	})
+}
+
+// apiKeyVerifier adapts the API key check to /api/v1.
+func apiKeyVerifier(db *sql.DB) apiv1.KeyVerifier {
+	return func(_ context.Context, plaintext string) (*apiv1.Key, error) {
+		key, err := handlers.VerifyAPIKey(db, plaintext)
+		if err != nil || key == nil {
+			return nil, err
+		}
+		return &apiv1.Key{ID: key.ID, Name: key.Name, Scopes: key.Scopes}, nil
+	}
+}
+
+// releaseVersion is the version Isley reports to clients.
+func releaseVersion(cfg Config) string {
+	if cfg.ReleaseVersion != "" {
+		return cfg.ReleaseVersion
+	}
+	return cfg.Version
+}
+
+// mcpKeyVerifier adapts the API key check to /mcp.
+func mcpKeyVerifier(db *sql.DB) mcpserver.KeyVerifier {
+	return func(_ context.Context, plaintext string) (*mcpserver.Key, error) {
+		key, err := handlers.VerifyAPIKey(db, plaintext)
+		if err != nil || key == nil {
+			return nil, err
+		}
+		return &mcpserver.Key{ID: key.ID, Name: key.Name, Scopes: key.Scopes}, nil
+	}
+}
+
+// keyOnlyPath reports whether path is served by API key alone, never a
+// browser session: /api/v1 and /mcp.
+func keyOnlyPath(path string) bool {
+	return apiv1.IsAPIPath(path) || mcpserver.IsPath(path)
 }
 
 // ---------------------------------------------------------------------------
@@ -222,12 +355,20 @@ func currentPathMiddleware() gin.HandlerFunc {
 }
 
 // csrfMiddleware issues a per-session token and validates it on
-// POST/PUT/DELETE. Pure API-key clients (no browser session) are exempt — they
+// POST/PUT/PATCH/DELETE. Pure API-key clients (no browser session) are exempt — they
 // carry no token and can't be driven cross-site. A logged-in session must
 // always present its token, even when an X-API-KEY header is also set, so the
 // session-gated endpoints can't bypass CSRF by attaching a key header.
+//
+// /api/v1 and /mcp are skipped entirely: they authenticate by API key only
+// and never look at the session, so there is nothing for a cross-site
+// request to ride on, and API responses shouldn't set session cookies.
 func csrfMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if keyOnlyPath(c.Request.URL.Path) {
+			c.Next()
+			return
+		}
 		session := sessions.Default(c)
 
 		token, _ := session.Get("csrf_token").(string)
@@ -238,7 +379,7 @@ func csrfMiddleware() gin.HandlerFunc {
 		}
 		c.Set("csrf_token", token)
 
-		if c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "DELETE" {
+		if c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "PATCH" || c.Request.Method == "DELETE" {
 			loggedIn, _ := session.Get("logged_in").(bool)
 			if !loggedIn && c.GetHeader("X-API-KEY") != "" {
 				c.Next()
@@ -281,11 +422,11 @@ func backupServiceMiddleware(svc *handlers.BackupService) gin.HandlerFunc {
 }
 
 // rateLimiterServiceMiddleware injects the per-engine
-// *handlers.RateLimiterService into the Gin context. The ingest
+// *ratelimit.Service into the Gin context. The ingest
 // middleware and the /login handler resolve the active limiter from
 // context, which is what lets every test construct its own service
 // (and therefore call t.Parallel() without colliding on counter state).
-func rateLimiterServiceMiddleware(svc *handlers.RateLimiterService) gin.HandlerFunc {
+func rateLimiterServiceMiddleware(svc *ratelimit.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		handlers.SetRateLimiterServiceOnContext(c, svc)
 		c.Next()
@@ -356,28 +497,42 @@ func pathDirsMiddleware(uploadDir, streamDir, logsDir string) gin.HandlerFunc {
 // Templates and static assets
 // ---------------------------------------------------------------------------
 
-func parseTemplates(assets fs.FS, store *config.Store) (*template.Template, error) {
-	funcMap := buildFuncMap(store)
+func parseTemplates(assets fs.FS, store *config.Store, clock chrono.Clock) (*template.Template, error) {
+	funcMap := buildFuncMap(store, clock)
+	funcMap["asset"] = assetURL(assets)
 	return template.New("").Funcs(funcMap).ParseFS(assets, "web/templates/**/*.html")
 }
 
-func buildFuncMap(store *config.Store) template.FuncMap {
-	// configuredLocation returns the Store's configured *time.Location,
-	// falling back to nil when none is set or the value doesn't parse.
-	// Closing over the per-engine Store keeps the helper deterministic
-	// in tests that construct their own engine and timezone.
-	configuredLocation := func() *time.Location {
-		tz := store.Timezone()
-		if tz == "" {
-			return nil
+// assetURL returns the "asset" template function: a /static/ path with a
+// short hash of the file's content, "/static/js/x.js?v=1a2b3c4d". A
+// changed file gets a new URL, so browsers never run a stale copy after an
+// upgrade, and a versioned URL can be cached for good. Hashes are computed
+// once per path; the bundle can't change while the process runs.
+func assetURL(assets fs.FS) func(string) string {
+	var hashes sync.Map // path -> versioned URL
+	return func(path string) string {
+		if v, ok := hashes.Load(path); ok {
+			return v.(string)
 		}
-		loc, err := time.LoadLocation(tz)
+		data, err := fs.ReadFile(assets, "web"+path)
 		if err != nil {
-			return nil
+			logger.Log.WithField("path", path).Warn("asset: no such static file")
+			return path
 		}
-		return loc
+		sum := sha256.Sum256(data)
+		url := fmt.Sprintf("%s?v=%x", path, sum[:4])
+		hashes.Store(path, url)
+		return url
 	}
+}
 
+func buildFuncMap(store *config.Store, clock chrono.Clock) template.FuncMap {
+	if clock == nil {
+		clock = chrono.System()
+	}
+	// Templates show times in the instance zone, decided by the same
+	// boundary the services use. Only the instance side is needed here.
+	zones := chrono.NewZones(store.Timezone, nil)
 	return template.FuncMap{
 		"upper":     strings.ToUpper,
 		"lower":     strings.ToLower,
@@ -397,22 +552,13 @@ func buildFuncMap(store *config.Store) template.FuncMap {
 			return string(a)
 		},
 		"formatDateTimeLocal": func(t time.Time) string {
-			if loc := configuredLocation(); loc != nil {
-				return t.In(loc).Format(utils.LayoutDateTimeLocal)
-			}
-			return t.Local().Format(utils.LayoutDateTimeLocal)
+			return t.In(zones.Instance()).Format(utils.LayoutDateTimeLocal)
 		},
 		"formatDate": func(t time.Time) string {
-			if loc := configuredLocation(); loc != nil {
-				return t.In(loc).Format(utils.LayoutDate)
-			}
-			return t.Format(utils.LayoutDate)
+			return t.In(zones.Instance()).Format(utils.LayoutDate)
 		},
 		"formatDateTime": func(t time.Time) string {
-			if loc := configuredLocation(); loc != nil {
-				return t.In(loc).Format(utils.LayoutDateTime)
-			}
-			return t.Format(utils.LayoutDateTime)
+			return t.In(zones.Instance()).Format(utils.LayoutDateTime)
 		},
 		"isZeroDate": func(t time.Time) bool {
 			return utils.IsZeroDate(t)
@@ -449,12 +595,10 @@ func buildFuncMap(store *config.Store) template.FuncMap {
 			}
 			return t
 		},
-		"now": func() time.Time {
-			if loc := configuredLocation(); loc != nil {
-				return time.Now().In(loc)
-			}
-			return time.Now()
-		},
+		"now": func() time.Time { return zones.Now(clock) },
+		// instanceZone names the zone pages show and read times in, for
+		// isley-time.js.
+		"instanceZone": func() string { return zones.Instance().String() },
 		"markdownify": func(t string) template.HTML {
 			unsafe := blackfriday.Run([]byte(t))
 			safe := bluemonday.UGCPolicy().SanitizeBytes(unsafe)
@@ -466,22 +610,6 @@ func buildFuncMap(store *config.Store) template.FuncMap {
 		},
 		"linebreaks": func(s string) template.HTML {
 			return template.HTML(strings.ReplaceAll(template.HTMLEscapeString(s), "\n", "<br>"))
-		},
-		"formatStringDate": func(s string) string {
-			for _, layout := range []string{time.RFC3339, utils.LayoutDB, utils.LayoutDateTimeLocal, utils.LayoutDate} {
-				if t, err := time.Parse(layout, s); err == nil {
-					return t.Local().Format(utils.LayoutDateTime)
-				}
-			}
-			return s
-		},
-		"formatStringDateOnly": func(s string) string {
-			for _, layout := range []string{time.RFC3339, utils.LayoutDB, utils.LayoutDateTimeLocal, utils.LayoutDate} {
-				if t, err := time.Parse(layout, s); err == nil {
-					return t.Local().Format(utils.LayoutDate)
-				}
-			}
-			return s
 		},
 	}
 }
@@ -521,7 +649,13 @@ func serveEmbeddedAsset(assets fs.FS, root string) gin.HandlerFunc {
 		}
 		h := c.Writer.Header()
 		h.Set("ETag", etag.(string))
-		h.Set("Cache-Control", fmt.Sprintf("public, max-age=%d", int(staticCacheMaxAge.Seconds())))
+		if c.Query("v") != "" {
+			// A versioned URL from the asset template function: its
+			// content never changes.
+			h.Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			h.Set("Cache-Control", fmt.Sprintf("public, max-age=%d", int(staticCacheMaxAge.Seconds())))
+		}
 		// ServeContent handles Range, If-None-Match and If-Modified-Since,
 		// and sets Content-Type from the extension and Last-Modified from
 		// the modtime.

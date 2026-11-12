@@ -220,6 +220,30 @@ color: #0d6efd; /* Primary color */
 
                     <!-- Add a new key -->
                     <label for="newApiKeyName" class="form-label">{{ .lcl.api_key_add }}</label>
+                    <div class="d-flex flex-wrap align-items-center gap-3 mb-2" style="max-width: 480px;">
+                        <select class="form-select form-select-sm w-auto" id="newApiKeyLevel" aria-label="{{ .lcl.api_key_col_access }}">
+                            <option value="read" selected>{{ .lcl.api_key_level_read }}</option>
+                            <option value="write">{{ .lcl.api_key_level_write }}</option>
+                            <option value="admin">{{ .lcl.api_key_level_admin }}</option>
+                            <option value="">{{ .lcl.api_key_level_none }}</option>
+                        </select>
+                        <div class="form-check mb-0">
+                            <input class="form-check-input" type="checkbox" id="newApiKeyIngest">
+                            <label class="form-check-label small" for="newApiKeyIngest">{{ .lcl.api_key_ingest_label }}</label>
+                        </div>
+                    </div>
+                    <dl class="row small text-muted mb-2 gx-2" style="max-width: 480px;">
+                        <dt class="col-sm-4 fw-semibold">{{ .lcl.api_key_level_read }}</dt>
+                        <dd class="col-sm-8 mb-1">{{ .lcl.api_key_help_read }}</dd>
+                        <dt class="col-sm-4 fw-semibold">{{ .lcl.api_key_level_write }}</dt>
+                        <dd class="col-sm-8 mb-1">{{ .lcl.api_key_help_write }}</dd>
+                        <dt class="col-sm-4 fw-semibold">{{ .lcl.api_key_level_admin }}</dt>
+                        <dd class="col-sm-8 mb-1">{{ .lcl.api_key_help_admin }}</dd>
+                        <dt class="col-sm-4 fw-semibold">{{ .lcl.api_key_level_none }}</dt>
+                        <dd class="col-sm-8 mb-1">{{ .lcl.api_key_help_none }}</dd>
+                        <dt class="col-sm-4 fw-semibold">{{ .lcl.api_key_ingest_label }}</dt>
+                        <dd class="col-sm-8 mb-0">{{ .lcl.api_key_help_ingest }}</dd>
+                    </dl>
                     <div class="input-group input-group-sm mb-2" style="max-width: 480px;">
                         <input type="text" class="form-control" id="newApiKeyName"
                                placeholder="{{ .lcl.api_key_name_placeholder }}" maxlength="255"
@@ -264,6 +288,17 @@ color: #0d6efd; /* Primary color */
                     <small class="text-muted d-block mt-2">
                         {{ .lcl.disable_api_ingest_desc }}
                     </small>
+
+                    <div class="form-check form-switch mt-3">
+                        <input class="form-check-input" type="checkbox" id="mcpEnabled" name="mcp_enabled" form="settingsForm" {{ if .settings.MCPEnabled }}checked{{ end }}>
+                        <label class="form-check-label" for="mcpEnabled">{{ .lcl.mcp_enabled }}</label>
+                    </div>
+                    <small class="text-muted d-block mt-2">
+                        {{ .lcl.mcp_enabled_desc }} <code>/mcp</code>
+                    </small>
+                    <p class="mt-3 mb-0">
+                        <a href="/api/v1/docs" target="_blank" rel="noopener"><i class="fa fa-book me-1"></i>{{ .lcl.api_docs_link }}</a>
+                    </p>
 
                     <div class="text-end mt-3">
                         <button type="submit" form="settingsForm" class="btn btn-primary px-4">{{ .lcl.save_settings }}</button>
@@ -1299,6 +1334,12 @@ color: #0d6efd; /* Primary color */
         if (copyBtn) copyBtn.addEventListener("click", copyAPIKey);
         const keysList = document.getElementById("apiKeysList");
         if (keysList) keysList.addEventListener("click", onAPIKeyAction);
+        if (keysList) keysList.addEventListener("change", onAPIKeyAccessChange);
+        const newKeyLevel = document.getElementById("newApiKeyLevel");
+        const newKeyIngest = document.getElementById("newApiKeyIngest");
+        if (newKeyLevel && newKeyIngest) {
+            newKeyLevel.addEventListener("change", () => syncIngestBox(newKeyLevel, newKeyIngest));
+        }
 
         // Update display when slider is adjusted
         pollingSlider.addEventListener("input", () => {
@@ -1336,9 +1377,9 @@ color: #0d6efd; /* Primary color */
             // Construct the payload
             const payload = {
                 stream_name: streamName,
-                zone_id: streamZone,
+                zone_id: parseInt(streamZone, 10),
                 url: streamURL,
-                visible: streamVisibility,
+                visible: streamVisibility === "true",
             };
 
             // Send POST request to /streams
@@ -1636,6 +1677,7 @@ color: #0d6efd; /* Primary color */
                 stream_grab_interval: streamGrabInterval.toString(),
                 api_key: "",
                 disable_api_ingest: document.getElementById("disableApiIngest").checked,
+                mcp_enabled: document.getElementById("mcpEnabled").checked,
                 sensor_retention_days: document.getElementById("sensorRetentionDays").value,
                 log_level: document.getElementById("logLevel").value,
                 max_backup_size_mb: document.getElementById("maxBackupSizeMB").value,
@@ -1832,9 +1874,9 @@ color: #0d6efd; /* Primary color */
             const streamId = document.getElementById("streamId").value;
             const payload = {
                 stream_name: document.getElementById("editStreamName").value,
-                zone_id: document.getElementById("editStreamZone").value,
+                zone_id: parseInt(document.getElementById("editStreamZone").value, 10),
                 url: document.getElementById("editStreamURL").value,
-                visible: document.getElementById("editStreamVisibility").value,
+                visible: document.getElementById("editStreamVisibility").value === "true",
             };
 
             fetch(`/streams/${streamId}`, {
@@ -1842,9 +1884,12 @@ color: #0d6efd; /* Primary color */
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             })
-                .then(response => response.json())
-                .then(() => reloadKeepingPlace())
-                .catch(err => uiMessages.showToast(uiMessages.t('failed_to_update_stream'), 'danger'));
+                .then(async response => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) throw new Error(data.error || '');
+                    reloadKeepingPlace();
+                })
+                .catch(err => uiMessages.showToast(err.message || uiMessages.t('failed_to_update_stream'), 'danger'));
         });
 
         deleteStreamButton.addEventListener("click", () => {
@@ -1977,11 +2022,10 @@ color: #0d6efd; /* Primary color */
                 },
                 body: JSON.stringify(payload),
             })
-                .then((response) => {
-                    if (!response.ok) {
-                        throw new Error("{{ .lcl.failed_to_add_breeder }}");
-                    }
-                    return response.json();
+                .then(async (response) => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) throw new Error(data.error || '');
+                    return data;
                 })
                 .then((data) => {
                     // Success: Close modal and reload page
@@ -1991,7 +2035,7 @@ color: #0d6efd; /* Primary color */
                 })
                 .catch((error) => {
                     console.error("Error:", error);
-                    uiMessages.showToast(uiMessages.t('failed_to_add_breeder'), 'danger');
+                    uiMessages.showToast(error.message || uiMessages.t('failed_to_add_breeder'), 'danger');
                 });
         });
     });
@@ -2024,9 +2068,12 @@ color: #0d6efd; /* Primary color */
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             })
-                .then(response => response.json())
-                .then(() => reloadKeepingPlace())
-                .catch(err => uiMessages.showToast(uiMessages.t('failed_to_update_breeder'), 'danger'));
+                .then(async response => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) throw new Error(data.error || '');
+                    reloadKeepingPlace();
+                })
+                .catch(err => uiMessages.showToast(err.message || uiMessages.t('failed_to_update_breeder'), 'danger'));
         });
 
         deleteBreederButton.addEventListener("click", () => {
@@ -2141,6 +2188,7 @@ color: #0d6efd; /* Primary color */
         [
             uiMessages.t('api_key_col_name') || 'Name',
             uiMessages.t('api_key_col_key') || 'Key',
+            uiMessages.t('api_key_col_access') || 'Access',
             uiMessages.t('api_key_col_last_used') || 'Last used',
             ''
         ].forEach(label => {
@@ -2179,6 +2227,8 @@ color: #0d6efd; /* Primary color */
         }
         tr.appendChild(keyTd);
 
+        tr.appendChild(buildAPIKeyAccessCell(key));
+
         const usedTd = document.createElement('td');
         usedTd.className = 'small text-muted';
         usedTd.textContent = key.last_used ? formatTimestamp(key.last_used)
@@ -2212,6 +2262,121 @@ color: #0d6efd; /* Primary color */
         return tr;
     }
 
+    // A key's scopes are an access level (read < write < admin) plus,
+    // separately, sensor ingest. Admin includes ingest, so the ingest box is
+    // shown ticked and locked while admin is selected.
+    const API_KEY_LEVELS = ['read', 'write', 'admin'];
+
+    function scopesToControls(scopes) {
+        const list = scopes || [];
+        const level = list.find(s => API_KEY_LEVELS.includes(s)) || '';
+        return { level: level, ingest: level === 'admin' || list.includes('ingest') };
+    }
+
+    function controlsToScopes(level, ingest) {
+        const scopes = [];
+        if (level) scopes.push(level);
+        if (ingest && level !== 'admin') scopes.push('ingest');
+        return scopes;
+    }
+
+    function syncIngestBox(levelSelect, ingestBox) {
+        if (levelSelect.value === 'admin') {
+            ingestBox.checked = true;
+            ingestBox.disabled = true;
+        } else if (ingestBox.disabled) {
+            // Leaving admin: ingest was only implied, so clear it.
+            ingestBox.checked = false;
+            ingestBox.disabled = false;
+        }
+    }
+
+    function buildLevelSelect(selected) {
+        const select = document.createElement('select');
+        select.className = 'form-select form-select-sm w-auto';
+        [
+            ['read', uiMessages.t('api_key_level_read') || 'Read only'],
+            ['write', uiMessages.t('api_key_level_write') || 'Read and write'],
+            ['admin', uiMessages.t('api_key_level_admin') || 'Admin (full access)'],
+            ['', uiMessages.t('api_key_level_none') || 'No data access'],
+        ].forEach(([value, label]) => {
+            const opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = label;
+            opt.selected = value === selected;
+            select.appendChild(opt);
+        });
+        return select;
+    }
+
+    function buildAPIKeyAccessCell(key) {
+        const td = document.createElement('td');
+        const wrap = document.createElement('div');
+        wrap.className = 'd-flex flex-wrap align-items-center gap-2';
+        wrap.dataset.keyId = key.id;
+
+        const current = scopesToControls(key.scopes);
+        const select = buildLevelSelect(current.level);
+        select.dataset.role = 'level';
+        select.setAttribute('aria-label', (uiMessages.t('api_key_col_access') || 'Access') + ': ' + key.name);
+        wrap.appendChild(select);
+
+        const check = document.createElement('div');
+        check.className = 'form-check mb-0';
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.className = 'form-check-input';
+        box.id = 'apiKeyIngest-' + key.id;
+        box.dataset.role = 'ingest';
+        box.checked = current.ingest;
+        box.disabled = current.level === 'admin';
+        const label = document.createElement('label');
+        label.className = 'form-check-label small';
+        label.htmlFor = box.id;
+        label.textContent = uiMessages.t('api_key_ingest_label') || 'Sensor ingest';
+        check.appendChild(box);
+        check.appendChild(label);
+        wrap.appendChild(check);
+
+        td.appendChild(wrap);
+        return td;
+    }
+
+    // Saves a key's access as soon as its level or ingest box changes. The
+    // list is reloaded on failure so the controls show what is stored.
+    function onAPIKeyAccessChange(e) {
+        const wrap = e.target.closest('[data-key-id]');
+        if (!wrap) return;
+        const select = wrap.querySelector('[data-role="level"]');
+        const box = wrap.querySelector('[data-role="ingest"]');
+        if (e.target === select) syncIngestBox(select, box);
+
+        const scopes = controlsToScopes(select.value, box.checked);
+        if (!scopes.length) {
+            uiMessages.showToast(uiMessages.t('api_invalid_api_key_scopes') || 'Choose what the key may do.', 'warning');
+            loadAPIKeys();
+            return;
+        }
+        fetch('/settings/api-keys/' + encodeURIComponent(wrap.dataset.keyId) + '/scopes', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ scopes: scopes })
+        })
+            .then(r => r.json().then(data => ({ ok: r.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    uiMessages.showToast(data.error || uiMessages.t('failed_to_update_api_key_scopes') || "Failed to change the key's access.", 'danger');
+                    loadAPIKeys();
+                    return;
+                }
+                uiMessages.showToast(data.message || uiMessages.t('api_api_key_scopes_updated') || 'API key access updated.', 'success');
+            })
+            .catch(() => {
+                uiMessages.showToast(uiMessages.t('failed_to_update_api_key_scopes') || "Failed to change the key's access.", 'danger');
+                loadAPIKeys();
+            });
+    }
+
     // Delegated handler for the regenerate/revoke buttons in the key list.
     function onAPIKeyAction(e) {
         const btn = e.target.closest('button[data-action]');
@@ -2229,10 +2394,18 @@ color: #0d6efd; /* Primary color */
             uiMessages.showToast(uiMessages.t('api_key_name_required') || 'Enter a name for the key.', 'warning');
             return;
         }
+        const scopes = controlsToScopes(
+            document.getElementById('newApiKeyLevel').value,
+            document.getElementById('newApiKeyIngest').checked
+        );
+        if (!scopes.length) {
+            uiMessages.showToast(uiMessages.t('api_invalid_api_key_scopes') || 'Choose what the key may do.', 'warning');
+            return;
+        }
         fetch('/settings/api-keys', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: name })
+            body: JSON.stringify({ name: name, scopes: scopes })
         })
             .then(r => r.json().then(data => ({ ok: r.ok, data })))
             .then(({ ok, data }) => {
@@ -2314,10 +2487,9 @@ color: #0d6efd; /* Primary color */
     }
 
     // Render a stored timestamp (RFC3339 or "YYYY-MM-DD HH:MM:SS" UTC) in the
-    // viewer's locale, falling back to the raw value if it can't be parsed.
+    // instance zone, falling back to the raw value if it can't be parsed.
     function formatTimestamp(value) {
-        const parsed = new Date(value.includes('T') ? value : value.replace(' ', 'T') + 'Z');
-        return isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+        return IsleyTime.formatDateTime(value.includes('T') ? value : value.replace(' ', 'T') + 'Z') || value;
     }
 
     function copyAPIKey() {
@@ -2497,7 +2669,7 @@ color: #0d6efd; /* Primary color */
                 listBody.innerHTML = "";
                 backups.forEach(b => {
                     const tr = document.createElement("tr");
-                    const created = new Date(b.created_at).toLocaleString();
+                    const created = IsleyTime.formatDateTime(b.created_at) || b.created_at;
                     tr.innerHTML =
                         '<td><code style="font-size:0.8rem">' + b.name + '</code></td>' +
                         '<td>' + b.size_mb + ' MB</td>' +
@@ -2644,7 +2816,13 @@ color: #0d6efd; /* Primary color */
                 if (status.error) {
                     progress.style.display = "none";
                     result.style.display = "block";
-                    result.innerHTML = '<div class="alert alert-danger mb-0">' + bkT.restoreFailed + status.error + '</div>';
+                    // Translated when the server sent a key; text, not HTML.
+                    let reason = status.error_key ? uiMessages.t(status.error_key, '') : '';
+                    if (reason && status.error_detail) reason += ': ' + status.error_detail;
+                    const alert = document.createElement('div');
+                    alert.className = 'alert alert-danger mb-0';
+                    alert.textContent = bkT.restoreFailed + (reason || status.error);
+                    result.replaceChildren(alert);
                     importBtn.disabled = false;
                     return;
                 }
@@ -2806,7 +2984,7 @@ color: #0d6efd; /* Primary color */
 
 </script>
 
-<script src="/static/js/smoke-criteria.js"></script>
+<script src="{{ asset "/static/js/smoke-criteria.js" }}"></script>
 
 <!--Embed the footer.html template at this location-->
 {{ template "common/footer.html" .}}

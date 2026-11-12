@@ -5,13 +5,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const activityTypeSelect = document.getElementById("editActivityType");
     const measurementsContainer = document.getElementById("editActivityMeasurements");
 
-    // Format a Date as a local datetime-local string (YYYY-MM-DDTHH:MM:SS)
-    // without converting to UTC (unlike toISOString which shifts timezone).
-    function toLocalDateTimeString(d) {
-        const pad = (n) => String(n).padStart(2, '0');
-        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    }
-
     async function updateMeasurementInputs(existingValues) {
         const links = activityMetrics.getLinksFromSelect(activityTypeSelect);
         await activityMetrics.renderInputs(measurementsContainer, links, existingValues);
@@ -28,8 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const activityData = JSON.parse(row.getAttribute("data-activity"));
 
             document.getElementById("activityId").value = activityData.id;
-            const date = new Date(activityData.date);
-            document.getElementById("editActivityDate").value = toLocalDateTimeString(date);
+            document.getElementById("editActivityDate").value = IsleyTime.toInput(activityData.date);
             document.getElementById("editActivityType").value = activityData.activity_id;
             document.getElementById("editActivityNote").value = activityData.note;
 
@@ -67,7 +59,8 @@ document.addEventListener("DOMContentLoaded", () => {
             .catch(err => uiMessages.showToast(uiMessages.t('failed_to_update_activity'), 'danger'));
     });
 
-    deleteActivityButton.addEventListener("click", () => {
+    // Only logged-in users get a Delete button.
+    if (deleteActivityButton) deleteActivityButton.addEventListener("click", () => {
         const activityId = document.getElementById("activityId").value;
 
         uiMessages.confirmDelete(uiMessages.t('confirm_delete_activity', 'Are you sure you want to delete this activity?'), uiMessages.t('delete_activity', 'Delete Activity')).then(confirmed => {

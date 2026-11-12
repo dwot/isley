@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"context"
 	"database/sql"
 	"strconv"
 	"testing"
@@ -13,70 +14,6 @@ import (
 	"isley/tests/testutil"
 	"isley/utils"
 )
-
-// External package — handlers_test — to avoid the
-// handlers→app→handlers cycle that arises when handlers' internal
-// _test.go files import tests/testutil.
-
-// ---------------------------------------------------------------------------
-// Reference-table getters (rely on default seed data baked into migrations)
-// ---------------------------------------------------------------------------
-
-func TestGetActivities_DefaultSeed(t *testing.T) {
-	t.Parallel()
-
-	db := testutil.NewTestDB(t)
-
-	// Migration 001 inserts Water/Feed/Note as built-ins.
-	got := handlers.GetActivities(db)
-	assert.GreaterOrEqual(t, len(got), 3, "default seed should produce ≥3 activities")
-
-	names := map[string]bool{}
-	for _, a := range got {
-		names[a.Name] = true
-	}
-	for _, want := range []string{"Water", "Feed", "Note"} {
-		assert.Truef(t, names[want], "missing default activity %q", want)
-	}
-}
-
-func TestGetMetrics_DefaultSeed(t *testing.T) {
-	t.Parallel()
-
-	db := testutil.NewTestDB(t)
-
-	got := handlers.GetMetrics(db)
-	assert.GreaterOrEqual(t, len(got), 1)
-
-	hasHeight := false
-	for _, m := range got {
-		if m.Name == "Height" {
-			hasHeight = true
-			assert.Equal(t, "in", m.Unit)
-		}
-	}
-	assert.True(t, hasHeight, "default Height metric should be present")
-}
-
-func TestGetStatuses_OrderedByStatusOrder(t *testing.T) {
-	t.Parallel()
-
-	db := testutil.NewTestDB(t)
-
-	got := handlers.GetStatuses(db)
-	require.NotEmpty(t, got)
-
-	// Migration 004 sets explicit status_order values; the query orders by
-	// that column, so Germinating should come before Planted, Planted
-	// before Seedling, etc.
-	want := []string{"Germinating", "Planted", "Seedling", "Veg", "Flower"}
-	if len(got) < len(want) {
-		t.Fatalf("expected at least %d statuses, got %d", len(want), len(got))
-	}
-	for i, w := range want {
-		assert.Equalf(t, w, got[i].Status, "status_order index %d", i)
-	}
-}
 
 // ---------------------------------------------------------------------------
 // DeletePlantById — must remove plant + every child row
@@ -104,7 +41,7 @@ func TestDeletePlantById_RemovesChildren(t *testing.T) {
 			"%s should have one row before delete", table)
 	}
 
-	require.NoError(t, handlers.DeletePlantById(db, idStr(plantID)))
+	require.NoError(t, handlers.DeletePlantById(context.Background(), testutil.NewServices(t, db), int(plantID)))
 
 	// Plant gone.
 	var n int
@@ -135,7 +72,7 @@ func TestGetPlant_PopulatesFields(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	got := handlers.GetPlant(db, idStr(plantID))
+	got := handlers.GetPlant(context.Background(), testutil.NewServices(t, db), idStr(plantID))
 
 	assert.Equal(t, uint(plantID), got.ID)
 	assert.Equal(t, "Test Plant", got.Name)
@@ -153,7 +90,7 @@ func TestGetPlant_UnknownIDReturnsZeroValue(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	// No rows inserted; GetPlant on a missing ID logs and returns the
 	// zero value of types.Plant (current code path).
-	got := handlers.GetPlant(db, "9999")
+	got := handlers.GetPlant(context.Background(), testutil.NewServices(t, db), "9999")
 	assert.Zero(t, got.ID, "unknown id should yield zero-value plant")
 }
 
@@ -173,19 +110,20 @@ func assertPlantAgeAgrees(t *testing.T, db *sql.DB) {
 	zoneID := testutil.SeedZone(t, db, "Z")
 	plantID := testutil.SeedPlant(t, db, "P", strainID, zoneID)
 
-	now := time.Now()
-	start := time.Date(now.Year(), now.Month(), now.Day()-6, 23, 59, 59, 0, time.Local)
+	// The services under test run the instance in UTC.
+	now := time.Now().UTC()
+	start := time.Date(now.Year(), now.Month(), now.Day()-6, 23, 59, 59, 0, time.UTC)
 	testutil.MustExec(t, db, `UPDATE plant SET start_dt = $1 WHERE id = $2`,
 		start.Format(utils.LayoutDB), plantID)
 	testutil.MustExec(t, db,
 		`INSERT INTO plant_status_log (plant_id, status_id, date) VALUES ($1, $2, $3)`,
 		plantID, statusIDByName(t, db, "Veg"), start.Format(utils.LayoutDB))
 
-	page := handlers.GetPlant(db, strconv.Itoa(plantID))
+	page := handlers.GetPlant(context.Background(), testutil.NewServices(t, db), strconv.Itoa(plantID))
 	assert.Equal(t, 7, page.CurrentDay, "plant page day")
 	assert.Equal(t, 1, page.CurrentWeek, "plant page week")
 
-	list := handlers.GetLivingPlants(db)
+	list := handlers.GetLivingPlants(context.Background(), testutil.NewServices(t, db))
 	require.Len(t, list, 1)
 	assert.Equal(t, 7, list[0].CurrentDay, "plants list day")
 	assert.Equal(t, 1, list[0].CurrentWeek, "plants list week")
@@ -204,8 +142,8 @@ func seedPlantTree(t *testing.T, db *sql.DB) int64 {
 	testutil.MustExec(t, db, `INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count)
 	          VALUES (1, 'Test Strain', 1, 50, 50, 0, '', 0)`)
 	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Test Zone')`)
-	res, err := db.Exec(`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
-	                 VALUES ('Test Plant', 1, 1, '', 0, '2026-01-01', '[]')`)
+	res, err := db.Exec(`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt)
+	                 VALUES ('Test Plant', 1, 1, '', 0, '2026-01-01')`)
 	require.NoError(t, err)
 	id, err := res.LastInsertId()
 	require.NoError(t, err)

@@ -31,6 +31,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	migratesqlite "github.com/golang-migrate/migrate/v4/database/sqlite"
@@ -398,3 +399,300 @@ func sortedCopy(in []string) []string {
 
 // _ keeps strings imported in case future edits drop the only call site.
 var _ = strings.ToLower
+
+// TestMigration024_ExistingKeysBecomeAdmin checks the scoped-keys upgrade:
+// every key that existed before 024 could do everything, so it becomes
+// admin; keys inserted afterwards without scopes get the safe default, read.
+func TestMigration024_ExistingKeysBecomeAdmin(t *testing.T) {
+	initTestLogger()
+	db := freshSQLite(t)
+
+	src, err := iofs.New(MigrationsFS, "migrations/sqlite")
+	require.NoError(t, err)
+	drv, err := migratesqlite.WithInstance(db, &migratesqlite.Config{})
+	require.NoError(t, err)
+	m, err := migrate.NewWithInstance("iofs", src, "sqlite", drv)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Migrate(23))
+	_, err = db.Exec(`INSERT INTO api_keys (name, key_hash, prefix) VALUES ('Existing', 'h', 'p')`)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Migrate(24))
+	var scopes string
+	require.NoError(t, db.QueryRow(`SELECT scopes FROM api_keys WHERE name = 'Existing'`).Scan(&scopes))
+	assert.Equal(t, "admin", scopes)
+
+	_, err = db.Exec(`INSERT INTO api_keys (name, key_hash, prefix) VALUES ('Later', 'h2', 'p2')`)
+	require.NoError(t, err)
+	require.NoError(t, db.QueryRow(`SELECT scopes FROM api_keys WHERE name = 'Later'`).Scan(&scopes))
+	assert.Equal(t, "read", scopes)
+
+	// And back down again.
+	require.NoError(t, m.Migrate(23))
+}
+
+// TestMigration025_PlantSensorLinks checks that the JSON sensor links move
+// to plant_sensor in order, dropping duplicates, dangling ids and junk,
+// and that the down migration rebuilds the JSON.
+func TestMigration025_PlantSensorLinks(t *testing.T) {
+	t.Parallel()
+	initTestLogger()
+	db := freshSQLite(t)
+
+	src, err := iofs.New(MigrationsFS, "migrations/sqlite")
+	require.NoError(t, err)
+	drv, err := migratesqlite.WithInstance(db, &migratesqlite.Config{})
+	require.NoError(t, err)
+	m, err := migrate.NewWithInstance("iofs", src, "sqlite", drv)
+	require.NoError(t, err)
+	require.NoError(t, m.Migrate(24))
+
+	seedPlantSensorLinks(t, db)
+	require.NoError(t, m.Migrate(25))
+	assertPlantSensorLinks(t, db)
+
+	require.NoError(t, m.Migrate(24))
+	var links string
+	require.NoError(t, db.QueryRow(`SELECT sensors FROM plant WHERE name = 'A'`).Scan(&links))
+	assert.Equal(t, "[2,1]", links)
+	require.NoError(t, m.Migrate(25))
+	assertPlantSensorLinks(t, db)
+}
+
+// seedPlantSensorLinks needs schema 24: plant A links sensors 2, 1, 2
+// (duplicate) and 99 (gone); B has junk; C has none.
+func seedPlantSensorLinks(t *testing.T, db *sql.DB) {
+	t.Helper()
+	for _, q := range []string{
+		`INSERT INTO breeder (id, name) VALUES (1, 'B')`,
+		`INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count) VALUES (1, 'S', 1, 50, 50, 0, '', 0)`,
+		`INSERT INTO sensors (id, name, source, device, type) VALUES (1, 's1', 'x', 'd', 't1'), (2, 's2', 'x', 'd', 't2')`,
+		`INSERT INTO plant (name, description, clone, strain_id, sensors) VALUES ('A', '', 0, 1, '[2, 1, 2, 99]')`,
+		`INSERT INTO plant (name, description, clone, strain_id, sensors) VALUES ('B', '', 0, 1, 'not json')`,
+		`INSERT INTO plant (name, description, clone, strain_id, sensors) VALUES ('C', '', 0, 1, '[]')`,
+	} {
+		_, err := db.Exec(q)
+		require.NoError(t, err, q)
+	}
+}
+
+func assertPlantSensorLinks(t *testing.T, db *sql.DB) {
+	t.Helper()
+	rows, err := db.Query(`SELECT p.name, ps.sensor_id FROM plant_sensor ps JOIN plant p ON p.id = ps.plant_id ORDER BY p.name, ps.position`)
+	require.NoError(t, err)
+	defer rows.Close()
+	var got []string
+	for rows.Next() {
+		var name string
+		var sensor int
+		require.NoError(t, rows.Scan(&name, &sensor))
+		got = append(got, fmt.Sprintf("%s:%d", name, sensor))
+	}
+	assert.Equal(t, []string{"A:2", "A:1"}, got)
+	_, err = db.Exec(`SELECT sensors FROM plant`)
+	assert.Error(t, err, "plant.sensors is dropped")
+}
+
+// TestMigration027_MergeDuplicateBreeders checks that breeders differing
+// only in case or spaces merge into the oldest, with their strains and a
+// CannaDB link, and that the name index then refuses new duplicates.
+func TestMigration027_MergeDuplicateBreeders(t *testing.T) {
+	t.Parallel()
+	initTestLogger()
+	db := freshSQLite(t)
+
+	src, err := iofs.New(MigrationsFS, "migrations/sqlite")
+	require.NoError(t, err)
+	drv, err := migratesqlite.WithInstance(db, &migratesqlite.Config{})
+	require.NoError(t, err)
+	m, err := migrate.NewWithInstance("iofs", src, "sqlite", drv)
+	require.NoError(t, err)
+	require.NoError(t, m.Migrate(26))
+
+	seedDuplicateBreeders(t, db)
+	require.NoError(t, m.Migrate(27))
+	assertBreedersMerged(t, db)
+
+	require.NoError(t, m.Migrate(26))
+	require.NoError(t, m.Migrate(27))
+}
+
+// seedDuplicateBreeders needs schema 26: Mephisto (1) has duplicates
+// "mephisto " (2, with a CannaDB link) and "MEPHISTO" (3); Ethos (4) has
+// a duplicate "ethos" (5); both Ethos rows are linked, so 4 keeps its own.
+func seedDuplicateBreeders(t *testing.T, db *sql.DB) {
+	t.Helper()
+	for _, q := range []string{
+		`INSERT INTO breeder (id, name) VALUES (1, 'Mephisto')`,
+		`INSERT INTO breeder (id, name, cannadb_uri, cannadb_indexed_at) VALUES (2, 'mephisto ', 'at://m', '2026-01-01')`,
+		`INSERT INTO breeder (id, name) VALUES (3, 'MEPHISTO')`,
+		`INSERT INTO breeder (id, name, cannadb_uri) VALUES (4, 'Ethos', 'at://e1')`,
+		`INSERT INTO breeder (id, name, cannadb_uri) VALUES (5, 'ethos', 'at://e2')`,
+		`INSERT INTO breeder (id, name) VALUES (6, 'Solo')`,
+		`INSERT INTO strain (id, name, breeder_id, sativa, indica, autoflower, description, seed_count) VALUES
+			(1, 'A', 1, 50, 50, 0, '', 0), (2, 'B', 2, 50, 50, 0, '', 0), (3, 'C', 3, 50, 50, 0, '', 0),
+			(4, 'D', 5, 50, 50, 0, '', 0), (5, 'E', 6, 50, 50, 0, '', 0)`,
+	} {
+		_, err := db.Exec(q)
+		require.NoError(t, err, q)
+	}
+}
+
+func assertBreedersMerged(t *testing.T, db *sql.DB) {
+	t.Helper()
+	rows, err := db.Query(`SELECT id, name, COALESCE(cannadb_uri, ''), COALESCE(cannadb_indexed_at, '') FROM breeder ORDER BY id`)
+	require.NoError(t, err)
+	var got []string
+	for rows.Next() {
+		var id int
+		var name, uri, at string
+		require.NoError(t, rows.Scan(&id, &name, &uri, &at))
+		got = append(got, fmt.Sprintf("%d %s %s %s", id, name, uri, strings.TrimSpace(at)))
+	}
+	require.NoError(t, rows.Err())
+	rows.Close()
+	assert.Equal(t, []string{"1 Mephisto at://m 2026-01-01", "4 Ethos at://e1 ", "6 Solo  "}, got)
+
+	rows, err = db.Query(`SELECT id, breeder_id FROM strain ORDER BY id`)
+	require.NoError(t, err)
+	strains := map[int]int{}
+	for rows.Next() {
+		var id, b int
+		require.NoError(t, rows.Scan(&id, &b))
+		strains[id] = b
+	}
+	rows.Close()
+	assert.Equal(t, map[int]int{1: 1, 2: 1, 3: 1, 4: 4, 5: 6}, strains)
+
+	_, err = db.Exec(`INSERT INTO breeder (id, name) VALUES (100, 'SOLO')`)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "idx_breeder_name_lower")
+	_, err = db.Exec(`INSERT INTO breeder (id, name) VALUES (101, 'Solo Two')`)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO breeder (id, name) VALUES (102, 'SOLO')`)
+	assert.Error(t, err, "the name index refuses a new duplicate")
+}
+
+// TestMigration028_RepairHourlyRollup checks that hours with their readings
+// are recomputed, while the earliest (pruned) hour and older history stay.
+func TestMigration028_RepairHourlyRollup(t *testing.T) {
+	t.Parallel()
+	initTestLogger()
+	db := freshSQLite(t)
+
+	src, err := iofs.New(MigrationsFS, "migrations/sqlite")
+	require.NoError(t, err)
+	drv, err := migratesqlite.WithInstance(db, &migratesqlite.Config{})
+	require.NoError(t, err)
+	m, err := migrate.NewWithInstance("iofs", src, "sqlite", drv)
+	require.NoError(t, err)
+	require.NoError(t, m.Migrate(27))
+
+	seedShortRollup(t, db)
+	require.NoError(t, m.Migrate(28))
+	assertRollupRepaired(t, db)
+	require.NoError(t, m.Migrate(27))
+	require.NoError(t, m.Migrate(28))
+}
+
+// seedShortRollup needs schema 27. Readings run from 10:40 (pruning cut the
+// 10:00 hour) to 12:50. The rollup has an old hour with no readings left,
+// a short 10:00 row, a short 11:00 row and no 12:00 row.
+func seedShortRollup(t *testing.T, db *sql.DB) {
+	t.Helper()
+	q := []string{
+		`INSERT INTO sensors (id, name, source, device, type) VALUES (1, 's', 'x', 'd', 't')`,
+		`INSERT INTO sensor_data (sensor_id, value, create_dt) VALUES
+			(1, 1, '2026-11-10 10:40:00'), (1, 3, '2026-11-10 10:50:00'),
+			(1, 10, '2026-11-10 11:10:00'), (1, 20, '2026-11-10 11:30:00'), (1, 30, '2026-11-10 11:50:00'),
+			(1, 5, '2026-11-10 12:50:00')`,
+		`INSERT INTO sensor_data_hourly (sensor_id, bucket, min_val, max_val, avg_val, sample_count) VALUES
+			(1, '2026-06-01 00:00:00', 7, 7, 7, 60),
+			(1, '2026-11-10 10:00:00', 0, 4, 2, 60),
+			(1, '2026-11-10 11:00:00', 30, 30, 30, 1)`,
+	}
+	for _, s := range q {
+		_, err := db.Exec(s)
+		require.NoError(t, err, s)
+	}
+}
+
+func assertRollupRepaired(t *testing.T, db *sql.DB) {
+	t.Helper()
+	rows, err := db.Query(`SELECT bucket, avg_val, sample_count FROM sensor_data_hourly WHERE sensor_id = 1 ORDER BY bucket`)
+	require.NoError(t, err)
+	defer rows.Close()
+	var got []string
+	for rows.Next() {
+		var bucket time.Time
+		var avg float64
+		var n int
+		require.NoError(t, rows.Scan(&bucket, &avg, &n))
+		got = append(got, fmt.Sprintf("%s avg=%g n=%d", bucket.Format("2006-01-02 15:04"), avg, n))
+	}
+	require.NoError(t, rows.Err())
+	assert.Equal(t, []string{
+		"2026-06-01 00:00 avg=7 n=60", // history beyond the readings: kept
+		"2026-11-10 10:00 avg=2 n=60", // the pruned hour: left alone
+		"2026-11-10 11:00 avg=20 n=3", // recomputed whole
+		"2026-11-10 12:00 avg=5 n=1",  // filled in
+	}, got)
+}
+
+// TestMigration029_RollingAvgTrigger: the rewritten trigger leaves the same
+// rolling average as the window version it replaces (the mean of the 16
+// readings before the newest), including for a late reading, and no longer
+// scans the sensor's whole history.
+func TestMigration029_RollingAvgTrigger(t *testing.T) {
+	t.Parallel()
+	initTestLogger()
+
+	averages := func(version uint) (map[int]float64, string) {
+		db := freshSQLite(t)
+		src, err := iofs.New(MigrationsFS, "migrations/sqlite")
+		require.NoError(t, err)
+		drv, err := migratesqlite.WithInstance(db, &migratesqlite.Config{})
+		require.NoError(t, err)
+		m, err := migrate.NewWithInstance("iofs", src, "sqlite", drv)
+		require.NoError(t, err)
+		require.NoError(t, m.Migrate(version))
+
+		_, err = db.Exec(`INSERT INTO sensors (id, name, source, device, type) VALUES (1, 'a', 'x', 'd', 't'), (2, 'b', 'x', 'd', 't'), (3, 'c', 'x', 'd', 't')`)
+		require.NoError(t, err)
+		for i := 1; i <= 20; i++ {
+			for s := 1; s <= 2; s++ {
+				_, err := db.Exec(`INSERT INTO sensor_data (sensor_id, value, create_dt) VALUES ($1, $2, $3)`,
+					s, (s-1)*100+i, fmt.Sprintf("2026-11-10 00:%02d:00", i))
+				require.NoError(t, err)
+			}
+		}
+		// A late reading for sensor 2, older than its newest.
+		_, err = db.Exec(`INSERT INTO sensor_data (sensor_id, value, create_dt) VALUES (2, 1000, '2026-11-10 00:00:30')`)
+		require.NoError(t, err)
+		// A sensor with a single reading has no average yet.
+		_, err = db.Exec(`INSERT INTO sensor_data (sensor_id, value, create_dt) VALUES (3, 5, '2026-11-10 00:01:00')`)
+		require.NoError(t, err)
+
+		got := map[int]float64{}
+		rows, err := db.Query(`SELECT sensor_id, COALESCE(avg_value, -1) FROM rolling_averages`)
+		require.NoError(t, err)
+		defer rows.Close()
+		for rows.Next() {
+			var id int
+			var v float64
+			require.NoError(t, rows.Scan(&id, &v))
+			got[id] = v
+		}
+		var ddl string
+		require.NoError(t, db.QueryRow(`SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = 'update_rolling_avg'`).Scan(&ddl))
+		return got, ddl
+	}
+
+	before, oldDDL := averages(28)
+	after, newDDL := averages(29)
+	assert.Equal(t, map[int]float64{1: 11.5, 2: 111.5, 3: -1}, after)
+	assert.Equal(t, before, after, "same averages as the trigger it replaces")
+	assert.Contains(t, oldDDL, "OVER")
+	assert.Contains(t, newDDL, "LIMIT 16 OFFSET 1")
+}

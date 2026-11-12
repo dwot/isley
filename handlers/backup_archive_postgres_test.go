@@ -25,7 +25,6 @@ package handlers_test
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,59 +34,6 @@ import (
 	"isley/tests/testutil"
 )
 
-// jsonNum is a small helper for building row-maps that mirror what
-// ParseBackupArchive returns: numeric columns come back as json.Number
-// because the parser uses json.Decoder with UseNumber.
-func jsonNum(s string) json.Number { return json.Number(s) }
-
-// samplePayloadForPostgres mirrors the seedSampleData fixture used in
-// backup_archive_test.go but as a hand-built BackupPayload. Same shape:
-// settings, zones, sensors, sensor_data, breeder, strain. Lets the
-// Postgres apply path exercise multi-table FK ordering, sequence reset,
-// and constraint deferral without depending on a SQLite source DB.
-func samplePayloadForPostgres() handlers.BackupPayload {
-	return handlers.BackupPayload{
-		Settings: []map[string]interface{}{
-			{"id": jsonNum("1"), "name": "canary", "value": "green"},
-			{"id": jsonNum("2"), "name": "polling_interval", "value": "60"},
-		},
-		Zones: []map[string]interface{}{
-			{"id": jsonNum("1"), "name": "Tent A"},
-		},
-		Sensors: []map[string]interface{}{
-			{
-				"id":         jsonNum("1"),
-				"name":       "Tent A Temp",
-				"zone_id":    jsonNum("1"),
-				"source":     "acinfinity",
-				"device":     "DEV1",
-				"type":       "ACI.tempC",
-				"unit":       "C",
-				"visibility": "zone_plant",
-			},
-		},
-		SensorData: []map[string]interface{}{
-			{"id": jsonNum("1"), "sensor_id": jsonNum("1"), "value": jsonNum("21.0")},
-			{"id": jsonNum("2"), "sensor_id": jsonNum("1"), "value": jsonNum("22.5")},
-		},
-		Breeders: []map[string]interface{}{
-			{"id": jsonNum("1"), "name": "Acme Genetics"},
-		},
-		Strains: []map[string]interface{}{
-			{
-				"id":          jsonNum("1"),
-				"name":        "OG Test",
-				"sativa":      jsonNum("50"),
-				"indica":      jsonNum("50"),
-				"autoflower":  jsonNum("0"),
-				"description": "desc",
-				"seed_count":  jsonNum("5"),
-				"breeder_id":  jsonNum("1"),
-			},
-		},
-	}
-}
-
 // TestApplyBackupToDB_RoundTrip_Postgres exercises the Postgres branch of
 // ApplyBackupToDB end-to-end. A regression in the truncate ordering, the
 // CASCADE clause, or the constraint deferral would surface here as an
@@ -96,7 +42,7 @@ func TestApplyBackupToDB_RoundTrip_Postgres(t *testing.T) {
 	t.Parallel()
 
 	dst := testutil.NewTestPostgresDB(t)
-	payload := samplePayloadForPostgres()
+	payload := samplePayload()
 
 	require.NoError(t, handlers.ApplyBackupToDB(context.Background(), dst, payload))
 
@@ -118,6 +64,11 @@ func TestApplyBackupToDB_RoundTrip_Postgres(t *testing.T) {
 	require.NoError(t, dst.QueryRow(`SELECT value FROM settings WHERE name = 'canary'`).Scan(&v))
 	assert.Equal(t, "green", v)
 
+	var vpdTemp, vpdHum int
+	require.NoError(t, dst.QueryRow(`SELECT vpd_temp_sensor_id, vpd_humidity_sensor_id FROM zones WHERE id = 1`).Scan(&vpdTemp, &vpdHum))
+	assert.Equal(t, 1, vpdTemp, "the zone's VPD sensor links survive the restore")
+	assert.Equal(t, 1, vpdHum)
+
 	var name string
 	var breederID int
 	require.NoError(t, dst.QueryRow(`SELECT name, breeder_id FROM strain WHERE id = 1`).Scan(&name, &breederID))
@@ -138,7 +89,7 @@ func TestApplyBackupToDB_OverwritesExistingData_Postgres(t *testing.T) {
 	_, err := dst.Exec(`INSERT INTO settings (name, value) VALUES ('stale', 'should-be-gone')`)
 	require.NoError(t, err)
 
-	require.NoError(t, handlers.ApplyBackupToDB(context.Background(), dst, samplePayloadForPostgres()))
+	require.NoError(t, handlers.ApplyBackupToDB(context.Background(), dst, samplePayload()))
 
 	var staleCount int
 	require.NoError(t, dst.QueryRow(`SELECT COUNT(*) FROM settings WHERE name = 'stale'`).Scan(&staleCount))
@@ -156,7 +107,7 @@ func TestApplyBackupToDB_ResetsSequences_Postgres(t *testing.T) {
 	t.Parallel()
 
 	dst := testutil.NewTestPostgresDB(t)
-	require.NoError(t, handlers.ApplyBackupToDB(context.Background(), dst, samplePayloadForPostgres()))
+	require.NoError(t, handlers.ApplyBackupToDB(context.Background(), dst, samplePayload()))
 
 	// Insert without specifying id — should auto-assign past MAX(id)=1.
 	var newID int
@@ -170,7 +121,7 @@ func TestApplyBackupToDB_ResetsSequences_Postgres(t *testing.T) {
 // Postgres-dialect counterpart of
 // TestApplyBackupToDB_PreFeatureBackupPreservesSeededCriteria in
 // backup_archive_test.go (IMPORTANT 2 from the final whole-branch review).
-// samplePayloadForPostgres never sets SmokeCriteria, matching a backup
+// samplePayload never sets SmokeCriteria, matching a backup
 // produced before the smoke-report feature existed, so this exercises the
 // tablesToTruncate guard against a real TRUNCATE TABLE ... CASCADE rather
 // than SQLite's DELETE FROM.
@@ -183,9 +134,34 @@ func TestApplyBackupToDB_PreFeatureBackupPreservesSeededCriteriaPostgres(t *test
 	require.NoError(t, dst.QueryRow(`SELECT COUNT(*) FROM smoke_report_criterion`).Scan(&before))
 	require.Equal(t, 5, before, "fresh Postgres DB must start with the five migration-seeded criteria")
 
-	require.NoError(t, handlers.ApplyBackupToDB(context.Background(), dst, samplePayloadForPostgres()))
+	require.NoError(t, handlers.ApplyBackupToDB(context.Background(), dst, samplePayload()))
 
 	var after int
 	require.NoError(t, dst.QueryRow(`SELECT COUNT(*) FROM smoke_report_criterion`).Scan(&after))
 	assert.Equal(t, 5, after, "a payload with no smoke-report data must not empty the seeded criteria")
+}
+
+// TestApplyBackupToDB_RollingAverages_Postgres: the restore loads sensor_data
+// with the per-row rolling-average trigger off (it made prod-sized restores
+// take hours) and works the averages out once at the end.
+func TestApplyBackupToDB_RollingAverages_Postgres(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestPostgresDB(t)
+	require.NoError(t, handlers.ApplyBackupToDB(context.Background(), db, rollingAvgPayload()))
+	assertRollingAverages(t, db)
+}
+
+// TestPostgresBatchedRestore_RollingAverages covers the same for the batched
+// bulk load runRestore uses for sensor_data.
+func TestPostgresBatchedRestore_RollingAverages(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestPostgresDB(t)
+	p := rollingAvgPayload()
+	data := p.SensorData
+	p.SensorData = nil
+	require.NoError(t, handlers.ApplyBackupToDB(context.Background(), db, p))
+	require.NoError(t, handlers.InsertRowsBatchedForTest(db, "sensor_data", data))
+	assertRollingAverages(t, db)
 }

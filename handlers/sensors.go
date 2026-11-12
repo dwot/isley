@@ -2,15 +2,14 @@ package handlers
 
 import (
 	"bytes"
-	"database/sql"
+	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"isley/config"
 	"isley/logger"
-	"isley/model"
 	"isley/model/types"
+	"isley/ratelimit"
+	"isley/service"
 	"isley/utils"
 	"net"
 	"net/http"
@@ -18,61 +17,35 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/sirupsen/logrus"
 )
 
-func GetSensors(db *sql.DB) []map[string]interface{} {
-	fieldLogger := logger.Log.WithField("func", "GetSensors")
-
-	// Query for sensor data
-	rows, err := db.Query(`
-        SELECT 
-            s.id, s.name, z.name AS zone, s.source, s.device, s.type, s.visibility, s.create_dt, s.update_dt, s.zone_id, s.unit
-        FROM sensors s
-        LEFT JOIN zones z ON s.zone_id = z.id
-        ORDER BY s.source, s.device, s.type, s.name
-    `)
+// GetSensors lists every sensor for the sensor, settings and plant pages,
+// in the map shape their scripts read. A sensor with no zone has zone ""
+// and zone_id 0.
+func GetSensors(ctx context.Context, svc *service.Services) []map[string]interface{} {
+	sensors, _, err := svc.Sensors.List(ctx, service.SensorFilter{})
 	if err != nil {
-		fieldLogger.WithError(err).Error("Error querying sensors")
+		logger.Log.WithError(err).Error("Failed to list sensors")
 		return nil
 	}
-	defer rows.Close()
-
-	// Prepare the data structure
-	var sensors []map[string]interface{}
-
-	for rows.Next() {
-		var id, zoneId int
-		var name, zone, source, device, sensorType, createDT, updateDT, unit, visibility string
-
-		// Scan the row data
-		err := rows.Scan(&id, &name, &zone, &source, &device, &sensorType, &visibility, &createDT, &updateDT, &zoneId, &unit)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Error scanning row")
-			continue
+	out := make([]map[string]interface{}, len(sensors))
+	for i, sn := range sensors {
+		zone, zoneID := "", 0
+		if sn.Zone != nil {
+			zone, zoneID = sn.Zone.Name, sn.Zone.ID
 		}
-
-		// Build a map for each sensor
-		sensors = append(sensors, map[string]interface{}{
-			"id":         id,
-			"name":       name,
-			"zone":       zone,
-			"source":     source,
-			"device":     device,
-			"type":       sensorType,
-			"visibility": visibility,
-			"create_dt":  createDT,
-			"update_dt":  updateDT,
-			"zone_id":    zoneId,
-			"unit":       unit,
-		})
+		out[i] = map[string]interface{}{
+			"id": sn.ID, "name": sn.Name, "zone": zone, "zone_id": zoneID,
+			"source": sn.Source, "device": sn.Device, "type": sn.Type,
+			"visibility": sn.Visibility, "unit": sn.Unit,
+			"create_dt": sn.CreatedAt.Format(utils.LayoutDB),
+		}
 	}
-
-	return sensors
+	return out
 }
 
 func ScanACInfinitySensors(c *gin.Context) {
@@ -94,12 +67,13 @@ func ScanACInfinitySensors(c *gin.Context) {
 		apiBadRequest(c, err.Error())
 		return
 	}
-	db := DBFromContext(c)
+	sensors := ServicesFromContext(c).Sensors
 	store := ConfigStoreFromContext(c)
 
 	if input.ZoneID == nil && input.NewZone != "" {
 		// Insert a new zone into the database
-		zoneID, err := CreateNewZone(db, store, input.NewZone)
+		zone, err := ServicesFromContext(c).Zones.Create(c.Request.Context(), service.ZoneInput{Name: input.NewZone})
+		zoneID := zone.ID
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
 			apiInternalError(c, "api_zone_creation_failed")
@@ -157,17 +131,17 @@ func ScanACInfinitySensors(c *gin.Context) {
 			unit := "°F"
 
 			//Check to see if exists by type / device / source combo
-			checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
+			checkInsertSensor(sensors, source, device, sensorType, name, input.ZoneID, unit)
 
 			sensorType = "ACI.humidity"
 			name = "AC Infinity (" + device + ") Humidity"
 			unit = "%"
-			checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
+			checkInsertSensor(sensors, source, device, sensorType, name, input.ZoneID, unit)
 
 			sensorType = "ACI.tempC"
 			name = "AC Infinity (" + device + ") Temp"
 			unit = "°C"
-			checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
+			checkInsertSensor(sensors, source, device, sensorType, name, input.ZoneID, unit)
 
 			for _, sensor := range deviceData.DeviceInfo.Sensors {
 				sensorType := fmt.Sprintf("ACI.%d.%d", sensor.AccessPort, sensor.SensorType)
@@ -175,27 +149,27 @@ func ScanACInfinitySensors(c *gin.Context) {
 				case 0: //Inside Temp
 					name := "ACI (" + device + ") inside temp"
 					unit := "\u00b0F"
-					checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
+					checkInsertSensor(sensors, source, device, sensorType, name, input.ZoneID, unit)
 				case 2: //Inside Humidity
 					name := "ACI (" + device + ") inside humidity"
 					unit := "%"
-					checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
+					checkInsertSensor(sensors, source, device, sensorType, name, input.ZoneID, unit)
 				case 3: //Inside VPD
 					name := "ACI (" + device + ") inside VPD"
 					unit := "kPa"
-					checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
+					checkInsertSensor(sensors, source, device, sensorType, name, input.ZoneID, unit)
 				case 4: //Outside Temp
 					name := "ACI (" + device + ") outside temp"
 					unit := "\u00b0F"
-					checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
+					checkInsertSensor(sensors, source, device, sensorType, name, input.ZoneID, unit)
 				case 6: //Outside Humidity
 					name := "ACI (" + device + ") outside humidity"
 					unit := "%"
-					checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
+					checkInsertSensor(sensors, source, device, sensorType, name, input.ZoneID, unit)
 				case 7: //Outside VPD
 					name := "ACI (" + device + ") outside VPD"
 					unit := "kPa"
-					checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
+					checkInsertSensor(sensors, source, device, sensorType, name, input.ZoneID, unit)
 				default:
 					// Unknown sensorType: create a generic sensor so users can see and rename it.
 					// Determine a reasonable default unit:
@@ -219,7 +193,7 @@ func ScanACInfinitySensors(c *gin.Context) {
 					name := fmt.Sprintf("ACI (%s) sensor %d.%d", device, sensor.AccessPort, sensor.SensorType)
 					// Log for analytics so we can update mappings later
 					logger.Log.WithFields(logrus.Fields{"device": device, "accessPort": sensor.AccessPort, "sensorType": sensor.SensorType, "sensorUnit": sensor.SensorUnit}).Info("Discovered unknown ACI sensor type - inserting generic sensor")
-					checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
+					checkInsertSensor(sensors, source, device, sensorType, name, input.ZoneID, unit)
 				}
 			}
 
@@ -227,7 +201,7 @@ func ScanACInfinitySensors(c *gin.Context) {
 				sensorType := fmt.Sprintf("ACIP.%d", port.Port)
 				name := port.PortName
 				unit := "%"
-				checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
+				checkInsertSensor(sensors, source, device, sensorType, name, input.ZoneID, unit)
 			}
 		}
 	}
@@ -378,7 +352,7 @@ func DumpACInfinityJSON(c *gin.Context) {
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, MaxSensorScanResponseBytes))
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error reading response body")
-		apiInternalError(c, "api_error_reading_response")
+		apiError(c, http.StatusBadGateway, "api_error_reading_response")
 		return
 	}
 
@@ -477,12 +451,13 @@ func ScanEcoWittSensors(c *gin.Context) {
 		apiBadRequest(c, err.Error())
 		return
 	}
-	db := DBFromContext(c)
+	sensors := ServicesFromContext(c).Sensors
 	store := ConfigStoreFromContext(c)
 
 	if input.ZoneID == nil && input.NewZone != "" {
 		// Insert a new zone into the database
-		zoneID, err := CreateNewZone(db, store, input.NewZone)
+		zone, err := ServicesFromContext(c).Zones.Create(c.Request.Context(), service.ZoneInput{Name: input.NewZone})
+		zoneID := zone.ID
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to create new zone")
 			apiInternalError(c, "api_zone_creation_failed")
@@ -538,12 +513,12 @@ func ScanEcoWittSensors(c *gin.Context) {
 	source := "ecowitt"
 	name := "EC (" + input.ServerAddress + ") InTemp"
 	unit := "°F"
-	checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
+	checkInsertSensor(sensors, source, device, sensorType, name, input.ZoneID, unit)
 
 	sensorType = "WH25.InHumi"
 	name = "EC (" + input.ServerAddress + ") InHumi"
 	unit = "%"
-	checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
+	checkInsertSensor(sensors, source, device, sensorType, name, input.ZoneID, unit)
 
 	for _, ch := range apiResponse.CHSoil {
 		sensorType := "Soil." + ch.Channel
@@ -551,7 +526,7 @@ func ScanEcoWittSensors(c *gin.Context) {
 		source := "ecowitt"
 		name := ch.Name
 		unit := "%"
-		checkInsertSensor(db, source, device, sensorType, name, input.ZoneID, unit)
+		checkInsertSensor(sensors, source, device, sensorType, name, input.ZoneID, unit)
 	}
 
 	for _, ch := range apiResponse.CHAisle {
@@ -560,10 +535,10 @@ func ScanEcoWittSensors(c *gin.Context) {
 		if ch.Unit == "C" {
 			unit = "°C"
 		}
-		checkInsertSensor(db, source, device, sensorType,
+		checkInsertSensor(sensors, source, device, sensorType,
 			"EC ("+device+") Ch"+ch.Channel+" Temp", input.ZoneID, unit)
 		sensorType = "Aisle." + ch.Channel + ".Humi"
-		checkInsertSensor(db, source, device, sensorType,
+		checkInsertSensor(sensors, source, device, sensorType,
 			"EC ("+device+") Ch"+ch.Channel+" Humi", input.ZoneID, "%")
 	}
 
@@ -572,11 +547,11 @@ func ScanEcoWittSensors(c *gin.Context) {
 		if ch.Unit == "C" {
 			tempUnit = "°C"
 		}
-		checkInsertSensor(db, source, device, "SoilEC."+ch.Channel+".Moisture",
+		checkInsertSensor(sensors, source, device, "SoilEC."+ch.Channel+".Moisture",
 			"EC ("+device+") Ch"+ch.Channel+" Soil Moisture", input.ZoneID, "%")
-		checkInsertSensor(db, source, device, "SoilEC."+ch.Channel+".Temp",
+		checkInsertSensor(sensors, source, device, "SoilEC."+ch.Channel+".Temp",
 			"EC ("+device+") Ch"+ch.Channel+" Soil Temp", input.ZoneID, tempUnit)
-		checkInsertSensor(db, source, device, "SoilEC."+ch.Channel+".EC",
+		checkInsertSensor(sensors, source, device, "SoilEC."+ch.Channel+".EC",
 			"EC ("+device+") Ch"+ch.Channel+" Soil EC", input.ZoneID, "mS/cm")
 	}
 
@@ -594,13 +569,13 @@ func ScanEcoWittSensors(c *gin.Context) {
 		} else if item.Unit == "C" {
 			unit = "°C"
 		}
-		checkInsertSensor(db, source, device, meta.TypeKey,
+		checkInsertSensor(sensors, source, device, meta.TypeKey,
 			fmt.Sprintf(meta.Name, device), input.ZoneID, unit)
 	}
 
 	//Update ECOWitt sensors
 	//Set ECDevices
-	strECDevices, err := LoadEcDevices(db)
+	strECDevices, err := LoadEcDevices(DBFromContext(c))
 	if err == nil {
 		store.SetECDevices(strECDevices)
 	} else {
@@ -610,319 +585,50 @@ func ScanEcoWittSensors(c *gin.Context) {
 	apiOK(c, "api_ecowitt_sensors_scanned")
 }
 
-// sensorUpsertMu serializes the SELECT-then-INSERT pair used to look up
-// or create a sensor row by (source, device, type). Without this lock,
-// concurrent ingest calls for the same unknown sensor could each see
-// "not found" and each INSERT, creating duplicate rows. A single
-// process-wide mutex is sufficient: this app handles at most a few
-// sensor writes per second, so contention is negligible.
-var sensorUpsertMu sync.Mutex
-
-// findOrCreateSensor returns the id of the sensor matching
-// (source, device, type), creating it with the given attributes if it
-// does not exist. The lookup-then-insert is serialized via
-// sensorUpsertMu, which closes the TOCTOU race that allowed concurrent
-// ingest to create duplicate sensor rows.
-func findOrCreateSensor(db *sql.DB, name, source, device, sensorType string, zoneID *int, unit string) (int, error) {
-	sensorUpsertMu.Lock()
-	defer sensorUpsertMu.Unlock()
-
-	var id int
-	err := db.QueryRow(
-		`SELECT id FROM sensors WHERE source = $1 AND device = $2 AND type = $3`,
-		source, device, sensorType,
-	).Scan(&id)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = db.QueryRow(
-			`INSERT INTO sensors (name, source, device, type, zone_id, unit, visibility)
-             VALUES ($1, $2, $3, $4, $5, $6, 'zone_plant')
-             RETURNING id`,
-			name, source, device, sensorType, zoneID, unit,
-		).Scan(&id)
-	}
-	return id, err
-}
-
-// checkInsertSensor is a fire-and-forget wrapper around findOrCreateSensor
-// used by the AC Infinity / EcoWitt scan handlers, which discover many
-// sensors per call and don't need the resolved id. Routing through
-// findOrCreateSensor keeps the locked SELECT-then-INSERT path the only way
-// to register a new sensor row, closing the same TOCTOU window the ingest
-// path already addressed.
-func checkInsertSensor(db *sql.DB, source string, device string, sensorType string, name string, zoneId *int, unit string) {
-	if _, err := findOrCreateSensor(db, name, source, device, sensorType, zoneId, unit); err != nil {
+// findOrCreateSensor returns the id of the sensor (source, device, type),
+// registering it if needed. See service.RegisterSensor.
+// checkInsertSensor registers a sensor an integration scan found. Scans
+// find many sensors per call and don't need the ids.
+func checkInsertSensor(sensors *service.SensorService, source string, device string, sensorType string, name string, zoneId *int, unit string) {
+	if _, err := sensors.Register(context.Background(), service.SensorRegistration{
+		Name: name, Source: source, Device: device, Type: sensorType, ZoneID: zoneId, Unit: unit,
+	}); err != nil {
 		logger.Log.WithField("func", "checkInsertSensor").WithError(err).Error("Error registering sensor")
 	}
 }
 
-func GetZones(db *sql.DB) []types.Zone {
-	fieldLogger := logger.Log.WithField("func", "GetZones")
-
-	var zones []types.Zone
-	rows, err := db.Query("SELECT id, name, leaf_temp_offset, vpd_temp_sensor_id, vpd_humidity_sensor_id FROM zones")
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error querying zones")
-		return nil
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var zone types.Zone
-		var leafTempOffset sql.NullFloat64
-		var vpdTempSensorID sql.NullInt64
-		var vpdHumiditySensorID sql.NullInt64
-		if err := rows.Scan(&zone.ID, &zone.Name, &leafTempOffset, &vpdTempSensorID, &vpdHumiditySensorID); err != nil {
-			fieldLogger.WithError(err).Error("Error scanning row")
-			continue
-		}
-		if leafTempOffset.Valid {
-			zone.LeafTempOffset = &leafTempOffset.Float64
-		}
-		if vpdTempSensorID.Valid {
-			v := uint(vpdTempSensorID.Int64)
-			zone.VPDTempSensorID = &v
-		}
-		if vpdHumiditySensorID.Valid {
-			v := uint(vpdHumiditySensorID.Int64)
-			zone.VPDHumiditySensorID = &v
-		}
-		zones = append(zones, zone)
-	}
-
-	return zones
-}
-
-// CreateNewZone inserts a new zone and returns its id. If store is
-// non-nil it is refreshed from the DB so subsequent reads observe the
-// new row; tests that don't care about the in-memory side-effect may
-// pass nil.
-func CreateNewZone(db *sql.DB, store *config.Store, name string) (int, error) {
-	fieldLogger := logger.Log.WithField("func", "CreateNewZone")
-
-	var id int
-	err := db.QueryRow("INSERT INTO zones (name) VALUES ($1) RETURNING id", name).Scan(&id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error inserting new zone")
-		return 0, err
-	}
-
-	if store != nil {
-		store.SetZones(GetZones(db))
-	}
-
-	return id, nil
-}
-
-func GetGroupedSensorsWithLatestReading(db *sql.DB, cache *SensorCacheService) map[string]map[string][]map[string]interface{} {
-	fieldLogger := logger.Log.WithField("func", "GetGroupedSensorsWithLatestReading")
-
+// GetGroupedSensorsWithLatestReading returns the dashboard's sensors by
+// zone and device, cached for a fraction of the polling interval.
+func GetGroupedSensorsWithLatestReading(ctx context.Context, svc *service.Services, cache *SensorCacheService) map[string]map[string][]map[string]interface{} {
 	if cached, ok := cache.GroupedGet(); ok {
 		return cached
 	}
-
-	rows, err := db.Query(`SELECT
-    s.id AS sensor_id,
-    z.name AS zone_name,
-    s.device,
-    s.type,
-    s.name,
-    sd.value AS current_value,
-    s.unit,
-    --ra.avg_value AS rolling_avg,
-    CASE
-        WHEN sd.value > ra.avg_value THEN 'up'
-        WHEN sd.value < ra.avg_value THEN 'down'
-        ELSE 'flat'
-    END AS trend
-FROM sensors s
-JOIN zones z ON s.zone_id = z.id
-JOIN sensor_data sd ON s.id = sd.sensor_id
-LEFT JOIN rolling_averages ra ON ra.sensor_id = s.id
-WHERE sd.id = (
-    -- Latest reading per sensor. ORDER BY create_dt walks the
-    -- (sensor_id, create_dt) index from the top; MAX(id) made Postgres
-    -- scan the primary key backwards past every newer row from other
-    -- sensors, which took ~75ms+ for each sensor that had stopped reporting.
-    SELECT id FROM sensor_data WHERE sensor_id = s.id ORDER BY create_dt DESC LIMIT 1
-)
-AND s.visibility IN ('zone_plant', 'zone')
-ORDER BY z.name, s.device, s.type;
-
-`)
+	sensors, err := svc.Sensors.Dashboard(ctx)
 	if err != nil {
-		fieldLogger.WithError(err).Error("Error querying sensors")
+		logger.Log.WithError(err).Error("Failed to load dashboard sensors")
 		return nil
 	}
-	defer rows.Close()
-
-	// Create a new cache map
-	newCache := make(map[string]map[string][]map[string]interface{})
-
-	for rows.Next() {
-		var zoneName, device, sensorType, sensorName, unit string
-		var value float64
-		var id int
-		var trend string
-
-		if err := rows.Scan(&id, &zoneName, &device, &sensorType, &sensorName, &value, &unit, &trend); err != nil {
-			fieldLogger.WithError(err).Error("Error scanning row")
-			continue
+	grouped := make(map[string]map[string][]map[string]interface{})
+	for _, d := range sensors {
+		if grouped[d.Zone] == nil {
+			grouped[d.Zone] = make(map[string][]map[string]interface{})
 		}
-
-		// Initialize grouping maps if necessary
-		if _, ok := newCache[zoneName]; !ok {
-			newCache[zoneName] = make(map[string][]map[string]interface{})
+		entry := map[string]interface{}{
+			"type": d.Type, "name": d.Name, "value": d.Value, "id": d.ID, "unit": d.Unit, "trend": d.Trend,
 		}
-
-		newCache[zoneName][device] = append(newCache[zoneName][device], map[string]interface{}{
-			"type":  sensorType,
-			"name":  sensorName,
-			"value": value,
-			"id":    id,
-			"unit":  unit,
-			"trend": trend, // "up","down","flat"
-		})
+		if d.PlantName != "" {
+			entry["plant_name"] = d.PlantName
+		}
+		grouped[d.Zone][d.Device] = append(grouped[d.Zone][d.Device], entry)
 	}
-
-	// --- Enrich sensors with active plant names ---
-	// Build a sensorID → plant name lookup from active plants only.
-	// A plant is "active" when its most recent status belongs to an active
-	// plant_status (active = 1). Sensors linked to terminal/inactive plants
-	// will not show the plant name on the dashboard.
-	sensorPlantMap := buildActivePlantSensorMap(db, fieldLogger)
-	for _, devices := range newCache {
-		for _, sensors := range devices {
-			for _, sensor := range sensors {
-				sID, ok := sensor["id"].(int)
-				if ok {
-					if plantName, found := sensorPlantMap[sID]; found {
-						sensor["plant_name"] = plantName
-					}
-				}
-			}
-		}
-	}
-
-	cache.GroupedPut(newCache)
-
-	return newCache
-}
-
-// buildActivePlantSensorMap returns a map of sensor ID → plant name for all
-// sensors that are directly linked to an active plant (most recent status has
-// plant_status.active = 1). This is used to enrich the dashboard display with
-// plant names for plant-specific sensors like soil probes.
-func buildActivePlantSensorMap(db *sql.DB, fieldLogger *logrus.Entry) map[int]string {
-	result := make(map[int]string)
-
-	// Subquery approach: for each plant, check if its latest status is active,
-	// then return plant name + sensors JSON. Works across both Postgres and SQLite.
-	var orderExpr string
-	if model.IsPostgres() {
-		orderExpr = "EXTRACT(EPOCH FROM psl.date)"
-	} else {
-		orderExpr = "strftime('%s', psl.date)"
-	}
-
-	query := fmt.Sprintf(`
-		SELECT p.id, p.name, p.sensors
-		FROM plant p
-		WHERE (
-			SELECT ps.active
-			FROM plant_status_log psl
-			JOIN plant_status ps ON psl.status_id = ps.id
-			WHERE psl.plant_id = p.id
-			ORDER BY %s DESC
-			LIMIT 1
-		) = 1
-		AND p.sensors IS NOT NULL
-		AND p.sensors != '[]'
-	`, orderExpr)
-
-	rows, err := db.Query(query)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error querying active plants for sensor map")
-		return result
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var plantID int
-		var plantName, sensorsJSON string
-		if err := rows.Scan(&plantID, &plantName, &sensorsJSON); err != nil {
-			fieldLogger.WithError(err).Error("Error scanning active plant sensor row")
-			continue
-		}
-
-		var sensorIDs []int
-		if err := json.Unmarshal([]byte(sensorsJSON), &sensorIDs); err != nil {
-			fieldLogger.WithError(err).Error("Error unmarshalling plant sensors JSON")
-			continue
-		}
-
-		for _, sid := range sensorIDs {
-			// If multiple active plants link the same sensor, last one wins.
-			// In practice soil sensors are 1:1 with plants.
-			result[sid] = plantName
-		}
-	}
-
-	return result
-}
-
-func GetGroupedSensors(db *sql.DB) map[string]map[string]map[string][]types.Sensor {
-	fieldLogger := logger.Log.WithField("func", "GetGroupedSensors")
-
-	rows, err := db.Query(`
-        SELECT 
-            s.name, 
-            z.name AS zone_name, 
-            s.device, 
-            s.type, 
-            s.source, 
-            s.unit
-        FROM sensors s
-        JOIN zones z ON s.zone_id = z.id
-        WHERE s.visibility IN ('zone_plant', 'zone')
-        ORDER BY z.name, s.device, s.type, s.name
-    `)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error querying sensors")
-		return nil
-	}
-	defer rows.Close()
-
-	grouped := make(map[string]map[string]map[string][]types.Sensor)
-
-	for rows.Next() {
-		var sensor types.Sensor
-		var zoneName, deviceType string
-
-		if err := rows.Scan(&sensor.Name, &zoneName, &sensor.Device, &deviceType, &sensor.Source, &sensor.Unit); err != nil {
-			fieldLogger.WithError(err).Error("Error scanning row")
-			continue
-		}
-
-		// Initialize grouping maps if necessary
-		if _, ok := grouped[zoneName]; !ok {
-			grouped[zoneName] = make(map[string]map[string][]types.Sensor)
-		}
-		if _, ok := grouped[zoneName][sensor.Device]; !ok {
-			grouped[zoneName][sensor.Device] = make(map[string][]types.Sensor)
-		}
-
-		// Add sensor to the appropriate group
-		grouped[zoneName][sensor.Device][deviceType] = append(grouped[zoneName][sensor.Device][deviceType], sensor)
-	}
-
+	cache.GroupedPut(grouped)
 	return grouped
 }
 
+// EditSensor saves the sensor form: name, zone (0 for none), unit and
+// visibility. Source, device and type identify the sensor to its
+// integration and never change.
 func EditSensor(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "EditSensor")
-	// Note: source, device, and type are the immutable identity key used for
-	// matching incoming sensor data. They must never be changed after creation
-	// to avoid silently breaking data ingestion.
 	var input struct {
 		ID         int    `json:"id"`
 		Name       string `json:"name"`
@@ -930,108 +636,42 @@ func EditSensor(c *gin.Context) {
 		ZoneID     int    `json:"zone_id"`
 		Unit       string `json:"unit"`
 	}
-
 	if err := c.ShouldBindJSON(&input); err != nil {
-		fieldLogger.WithError(err).Error("Invalid input")
 		apiBadRequest(c, "api_invalid_input")
 		return
 	}
-
-	// Validate string lengths
-	if err := utils.ValidateStringLength("name", input.Name, utils.MaxNameLength); err != nil {
-		apiBadRequest(c, err.Error())
+	var zoneID *int
+	if input.ZoneID > 0 {
+		zoneID = &input.ZoneID
+	}
+	if _, err := ServicesFromContext(c).Sensors.Update(c.Request.Context(), input.ID, service.SensorUpdate{
+		Name:       service.Put(&input.Name),
+		ZoneID:     service.Put(zoneID),
+		Unit:       service.Put(&input.Unit),
+		Visibility: service.Put(&input.Visibility),
+	}); err != nil {
+		if e, ok := service.AsError(err); ok && e.Fields["visibility"] != "" {
+			apiBadRequest(c, "api_invalid_visibility")
+			return
+		}
+		apiServiceError(c, err, "api_failed_to_update_sensor")
 		return
 	}
-	if err := utils.ValidateStringLength("unit", input.Unit, utils.MaxUnitLength); err != nil {
-		apiBadRequest(c, err.Error())
-		return
-	}
-
-	// Validate visibility value
-	validVisibility := map[string]bool{"zone_plant": true, "zone": true, "plant": true, "hide": true}
-	if !validVisibility[input.Visibility] {
-		apiBadRequest(c, "api_invalid_visibility")
-		return
-	}
-
-	db := DBFromContext(c)
-
-	_, err := db.Exec("UPDATE sensors SET name = $1, visibility = $2, zone_id = $3, unit = $4 WHERE id = $5",
-		input.Name, input.Visibility, input.ZoneID, input.Unit, input.ID)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error updating sensor")
-		apiInternalError(c, "api_failed_to_update_sensor")
-		return
-	}
-
 	apiOK(c, "api_sensor_updated")
 }
 
+// DeleteSensor deletes a sensor and its readings.
 func DeleteSensor(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "DeleteSensor")
-	sensorID := c.Param("id")
-
-	db := DBFromContext(c)
-	err := DeleteSensorByID(db, sensorID)
+	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		fieldLogger.WithError(err).Error("Error deleting sensor")
-		apiInternalError(c, "api_failed_to_delete_sensor")
+		apiBadRequest(c, "api_invalid_input")
 		return
 	}
-
+	if err := ServicesFromContext(c).Sensors.Delete(c.Request.Context(), id); err != nil {
+		apiServiceError(c, err, "api_failed_to_delete_sensor")
+		return
+	}
 	apiOK(c, "api_sensor_deleted")
-}
-
-func DeleteSensorByID(db *sql.DB, id string) error {
-	fieldLogger := logger.Log.WithField("func", "DeleteSensorByID")
-
-	// Delete the sensor and everything that references it in a single
-	// transaction. sensor_data_hourly and rolling_averages both carry a
-	// sensor_id referencing sensors(id) (the former with a FK and no
-	// ON DELETE CASCADE), so the final DELETE FROM sensors fails unless
-	// those rows are purged first. Wrapping the deletes in a transaction
-	// keeps the rows consistent if any single statement fails.
-	tx, err := db.Begin()
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error beginning delete transaction")
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck // no-op once the tx is committed
-
-	stmts := []struct {
-		desc  string
-		query string
-	}{
-		{"sensor data", "DELETE FROM sensor_data WHERE sensor_id = $1"},
-		{"sensor hourly rollups", "DELETE FROM sensor_data_hourly WHERE sensor_id = $1"},
-		{"sensor rolling averages", "DELETE FROM rolling_averages WHERE sensor_id = $1"},
-		{"sensor", "DELETE FROM sensors WHERE id = $1"},
-	}
-	for _, s := range stmts {
-		if _, err := tx.Exec(s.query, id); err != nil {
-			fieldLogger.WithError(err).Errorf("Error deleting %s", s.desc)
-			return err
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		fieldLogger.WithError(err).Error("Error committing sensor delete")
-		return err
-	}
-	return nil
-}
-
-func GetSensorName(db *sql.DB, id string) string {
-	fieldLogger := logger.Log.WithField("func", "GetSensorName")
-
-	var name string
-	err := db.QueryRow("SELECT name FROM sensors WHERE id = $1", id).Scan(&name)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error querying sensor name")
-		return ""
-	}
-
-	return name
 }
 
 // ValidateServerAddress ensures the input is a valid private IP or hostname
@@ -1068,7 +708,7 @@ type SensorDataPayload struct {
 const (
 	// maxIngestBatch caps the readings one request may carry. It equals the
 	// per-minute ingest allowance so that a full batch can actually succeed.
-	maxIngestBatch = defaultIngestPerMinute
+	maxIngestBatch = ratelimit.IngestPerMinute
 	// maxIngestBodyBytes bounds the body before parsing; a full batch with
 	// maximum-length names still fits.
 	maxIngestBodyBytes = 256 << 10
@@ -1130,28 +770,25 @@ func validateIngestPayload(p *SensorDataPayload) error {
 
 // resolveIngestSensor finds or creates the reading's zone (when new_zone is
 // given) and its sensor. On failure it returns a translation key.
-func resolveIngestSensor(db *sql.DB, store *config.Store, p SensorDataPayload) (int, string) {
+func resolveIngestSensor(ctx context.Context, svc *service.Services, p SensorDataPayload) (int, string) {
 	fieldLogger := logger.Log.WithField("func", "resolveIngestSensor")
 
 	zoneID := p.ZoneID
 	if zoneID == nil && p.NewZone != "" {
 		// Try to find an existing zone with the given new_zone name first
-		if existingZoneID, err := GetZoneIDByName(db, p.NewZone); err == nil && existingZoneID != 0 {
-			zoneID = &existingZoneID
-		} else {
-			newID, err := CreateNewZone(db, store, p.NewZone)
-			if err != nil {
-				fieldLogger.WithError(err).Error("Failed to create new zone")
-				return 0, "api_zone_creation_failed"
-			}
-			zoneID = &newID
+		zone, err := svc.Zones.FindOrCreate(ctx, p.NewZone)
+		if err != nil {
+			fieldLogger.WithError(err).Error("Failed to create new zone")
+			return 0, "api_zone_creation_failed"
 		}
+		zoneID = &zone.ID
 	}
 
-	// findOrCreateSensor serializes the SELECT-then-INSERT to prevent
-	// concurrent ingests of an unknown sensor from each creating a
-	// duplicate row.
-	sensorID, err := findOrCreateSensor(db, p.Name, p.Source, p.Device, p.Type, zoneID, p.Unit)
+	// Register serializes the SELECT-then-INSERT so concurrent ingests of
+	// an unknown sensor don't each create it.
+	sensorID, err := svc.Sensors.Register(ctx, service.SensorRegistration{
+		Name: p.Name, Source: p.Source, Device: p.Device, Type: p.Type, ZoneID: zoneID, Unit: p.Unit,
+	})
 	if err != nil {
 		fieldLogger.WithError(err).Error("Error upserting sensor")
 		return 0, "api_failed_to_create_sensor"
@@ -1159,31 +796,6 @@ func resolveIngestSensor(db *sql.DB, store *config.Store, p SensorDataPayload) (
 	return sensorID, ""
 }
 
-// insertReadings stores the readings; a batch goes in one transaction so it
-// lands whole or not at all, with one timestamp for all of its readings.
-func insertReadings(db *sql.DB, sensorIDs []int, payloads []SensorDataPayload) error {
-	const insert = "INSERT INTO sensor_data (sensor_id, value) VALUES ($1, $2)"
-	if len(payloads) == 1 {
-		_, err := db.Exec(insert, sensorIDs[0], *payloads[0].Value)
-		return err
-	}
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	for i, p := range payloads {
-		if _, err := tx.Exec(insert, sensorIDs[i], *p.Value); err != nil {
-			_ = tx.Rollback()
-			return err
-		}
-	}
-	return tx.Commit()
-}
-
-// IngestSensorData stores readings pushed by external devices. The body is
-// one reading (a JSON object) or a batch (a JSON array of up to
-// maxIngestBatch readings). A batch is validated as a whole before anything
-// is written, and each of its readings counts toward the ingest rate limit.
 func IngestSensorData(c *gin.Context) {
 	fieldLogger := logger.Log.WithField("func", "IngestSensorData")
 
@@ -1233,18 +845,21 @@ func IngestSensorData(c *gin.Context) {
 		}
 	}
 
-	db := DBFromContext(c)
+	svc := ServicesFromContext(c)
 	sensorIDs := make([]int, len(payloads))
+	readings := make([]service.NewReading, len(payloads))
 	for i, p := range payloads {
-		id, errKey := resolveIngestSensor(db, store, p)
+		id, errKey := resolveIngestSensor(c.Request.Context(), svc, p)
 		if errKey != "" {
 			apiInternalError(c, errKey)
 			return
 		}
 		sensorIDs[i] = id
+		readings[i] = service.NewReading{SensorID: id, Value: *p.Value}
 	}
 
-	if err := insertReadings(db, sensorIDs, payloads); err != nil {
+	// A batch lands whole or not at all.
+	if err := svc.Sensors.Record(c.Request.Context(), readings); err != nil {
 		fieldLogger.WithError(err).Error("Error inserting sensor data")
 		apiInternalError(c, "api_failed_to_save_sensor_data")
 		return
@@ -1261,20 +876,4 @@ func IngestSensorData(c *gin.Context) {
 		"message":   T(c, "api_sensor_data_ingested"),
 		"sensor_id": sensorIDs[0],
 	})
-}
-
-func GetZoneIDByName(db *sql.DB, zoneName string) (int, error) {
-	fieldLogger := logger.Log.WithField("func", "GetZoneIDByName")
-
-	var zoneID int
-	err := db.QueryRow("SELECT id FROM zones WHERE name = $1", zoneName).Scan(&zoneID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return 0, nil // No zone found
-		}
-		fieldLogger.WithError(err).Error("Error querying zone ID")
-		return 0, err
-	}
-
-	return zoneID, nil
 }

@@ -134,9 +134,6 @@ const (
 // ---------------------------------------------------------------------------
 
 const (
-	// MaxLoginAttempts is the number of failed login attempts within the
-	// rate-limit window before further attempts are blocked.
-	MaxLoginAttempts = 5
 	// MinPasswordLength is the minimum acceptable password length.
 	MinPasswordLength = 8
 	// MaxACIPasswordLength is the max password length accepted by the
@@ -148,16 +145,6 @@ const (
 	// ACISuccessCode is the HTTP-level success code returned by the
 	// AC Infinity API (inside the JSON response body, not the HTTP status).
 	ACISuccessCode = 200
-	// SmokeRatingMin and SmokeRatingMax bound both the overall rating of a
-	// smoke report and each per-criterion score. The scale is fixed at 1–5
-	// across every criterion so scores stay comparable between harvests.
-	SmokeRatingMin = 1
-	SmokeRatingMax = 5
-	// MaxSmokeCriterionNameLength bounds a tasting criterion's label.
-	MaxSmokeCriterionNameLength = 50
-	// MaxConsumptionMethodLength bounds the free-text consumption method
-	// recorded on a smoke report (joint, bong, vaporizer…).
-	MaxConsumptionMethodLength = 100
 )
 
 // ---------------------------------------------------------------------------
@@ -169,8 +156,6 @@ const (
 	// (10 MB). Larger requests spill to disk during parse — use MaxBytesReader
 	// on the request body for an actual upload cap.
 	MaxMultipartFormSize = 10 << 20
-	// MaxPlantImageFileSize bounds a single uploaded plant image (50 MB).
-	MaxPlantImageFileSize = 50 << 20
 	// MaxPlantImageRequestSize bounds the total multi-image upload request body
 	// (250 MB), enough for several large photos in one go.
 	MaxPlantImageRequestSize = 250 << 20

@@ -1,128 +1,79 @@
 package handlers
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
-	"isley/logger"
-	"isley/utils"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
+
+	"isley/service"
 )
 
-// CreatePlantMeasurement adds a new sensor data record
+// CreatePlantMeasurement handles POST /plantMeasurement.
 func CreatePlantMeasurement(c *gin.Context) {
-	fieldLogger := logger.Log.WithFields(logrus.Fields{
-		"handler": "CreatePlantMeasurement",
-	})
-
-	var input struct {
+	var in struct {
 		PlantID  int     `json:"plant_id"`
 		MetricID int     `json:"metric_id"`
 		Value    float64 `json:"value"`
-		Date     string  `json:"date"` // YYYY-MM-DD format
+		Date     string  `json:"date"`
 	}
-
-	// Bind JSON payload
-	if err := c.ShouldBindJSON(&input); err != nil {
-		fieldLogger.WithError(err).Error("Invalid input")
+	if err := c.ShouldBindJSON(&in); err != nil {
 		apiBadRequest(c, "api_invalid_input")
 		return
 	}
-
-	if err := utils.ValidateFiniteFloat64("value", input.Value); err != nil {
-		apiBadRequest(c, err.Error())
+	svc := ServicesFromContext(c)
+	at, ok := parseFormTime(svc, in.Date)
+	if !ok {
+		apiBadRequest(c, "date is not a valid date")
 		return
 	}
-	if err := utils.ValidateDate("date", input.Date); err != nil {
-		apiBadRequest(c, err.Error())
+	input := service.MeasurementInput{MetricID: in.MetricID, Value: in.Value}
+	if at != nil {
+		input.At = *at
+	}
+	if _, err := svc.Measurements.Create(c.Request.Context(), in.PlantID, input); err != nil {
+		apiServiceError(c, err, "api_failed_to_save_measurement")
 		return
 	}
-
-	fieldLogger = fieldLogger.WithFields(logrus.Fields{
-		"plant_id":  input.PlantID,
-		"metric_id": input.MetricID,
-		"value":     input.Value,
-		"date":      input.Date,
-	})
-
-	// Init the db
-	db := DBFromContext(c)
-
-	_, err := db.Exec("INSERT INTO plant_measurements (plant_id, metric_id, value, date) VALUES ($1, $2, $3, $4)",
-		input.PlantID, input.MetricID, input.Value, input.Date)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to insert measurement into database")
-		apiInternalError(c, "api_failed_to_save_measurement")
-		return
-	}
-
-	fieldLogger.Info("Plant measurement created successfully")
-	c.JSON(http.StatusCreated, input)
+	c.JSON(http.StatusCreated, in)
 }
 
+// EditMeasurement handles POST /plantMeasurement/edit.
 func EditMeasurement(c *gin.Context) {
-	fieldLogger := logger.Log.WithFields(logrus.Fields{
-		"handler": "EditMeasurement",
-	})
-
-	var input struct {
-		ID    uint    `json:"id"`
+	var in struct {
+		ID    int     `json:"id"`
 		Date  string  `json:"date"`
 		Value float64 `json:"value"`
 	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		fieldLogger.WithError(err).Error("Invalid input")
+	if err := c.ShouldBindJSON(&in); err != nil {
 		apiBadRequest(c, "api_invalid_input")
 		return
 	}
-
-	if err := utils.ValidateFiniteFloat64("value", input.Value); err != nil {
-		apiBadRequest(c, err.Error())
+	svc := ServicesFromContext(c)
+	at, ok := parseFormTime(svc, in.Date)
+	if !ok {
+		apiBadRequest(c, "date is not a valid date")
 		return
 	}
-	if err := utils.ValidateDate("date", input.Date); err != nil {
-		apiBadRequest(c, err.Error())
+	upd := service.MeasurementUpdate{Value: service.Put(&in.Value)}
+	if at != nil {
+		upd.At = service.Put(at)
+	}
+	if _, err := svc.Measurements.Update(c.Request.Context(), in.ID, upd); err != nil {
+		apiServiceError(c, err, "api_failed_to_update_measurement")
 		return
 	}
-
-	fieldLogger = fieldLogger.WithFields(logrus.Fields{
-		"id":    input.ID,
-		"date":  input.Date,
-		"value": input.Value,
-	})
-
-	db := DBFromContext(c)
-
-	query := `UPDATE plant_measurements SET date = $1, value = $2 WHERE id = $3`
-	_, err := db.Exec(query, input.Date, input.Value, input.ID)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to update measurement in database")
-		apiInternalError(c, "api_failed_to_update_measurement")
-		return
-	}
-
-	fieldLogger.Info("Measurement updated successfully")
 	apiOK(c, "api_measurement_updated")
 }
 
+// DeleteMeasurement handles DELETE /plantMeasurement/delete/:id.
 func DeleteMeasurement(c *gin.Context) {
-	fieldLogger := logger.Log.WithFields(logrus.Fields{
-		"handler": "DeleteMeasurement",
-	})
-
-	id := c.Param("id")
-	fieldLogger = fieldLogger.WithField("id", id)
-
-	db := DBFromContext(c)
-
-	query := `DELETE FROM plant_measurements WHERE id = $1`
-	_, err := db.Exec(query, id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete measurement from database")
-		apiInternalError(c, "api_failed_to_delete_measurement")
+	id, ok := pathID(c)
+	if !ok {
 		return
 	}
-
-	fieldLogger.Info("Measurement deleted successfully")
+	if err := ServicesFromContext(c).Measurements.Delete(c.Request.Context(), id); err != nil {
+		apiServiceError(c, err, "api_failed_to_delete_measurement")
+		return
+	}
 	apiOK(c, "api_measurement_deleted")
 }

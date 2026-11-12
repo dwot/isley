@@ -6,7 +6,6 @@ package testutil
 // tests/fixtures/ so the same payload can be reused across test files.
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,14 +25,4 @@ func MustReadFixture(t *testing.T, path string) []byte {
 	data, err := os.ReadFile(full)
 	require.NoErrorf(t, err, "MustReadFixture: read %s", full)
 	return data
-}
-
-// MustLoadJSONFixture is a typed convenience wrapper for the
-// JSON-shaped fixtures. T is the target struct or map type.
-func MustLoadJSONFixture[T any](t *testing.T, path string) T {
-	t.Helper()
-	var out T
-	require.NoError(t, json.Unmarshal(MustReadFixture(t, path), &out),
-		"MustLoadJSONFixture: decode %s", path)
-	return out
 }

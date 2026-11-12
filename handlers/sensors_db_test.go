@@ -1,7 +1,7 @@
 package handlers_test
 
 import (
-	"database/sql"
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,115 +22,42 @@ func TestGetSensors_OrderedAndShaped(t *testing.T) {
 	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Tent A')`)
 	testutil.MustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type, unit) VALUES (1, 'Temp Probe', 1, 'acinfinity', 'AAA', 'temp', 'C')`)
 	testutil.MustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type, unit) VALUES (2, 'Soil Probe', 1, 'ecowitt', 'BBB', 'humi', '%')`)
+	// Ingest without a zone creates sensors like this one; they used to be
+	// dropped from the list.
+	testutil.MustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type, unit) VALUES (3, 'Loose', NULL, 'custom', 'CCC', 'temp', 'F')`)
 
-	got := handlers.GetSensors(db)
-	require.Len(t, got, 2)
+	got := handlers.GetSensors(context.Background(), testutil.NewServices(t, db))
+	require.Len(t, got, 3)
 
-	// Ordering: source ASC, then device ASC. acinfinity < ecowitt.
+	// Ordering: source, then device.
 	assert.Equal(t, "acinfinity", got[0]["source"])
-	assert.Equal(t, "ecowitt", got[1]["source"])
+	assert.Equal(t, "custom", got[1]["source"])
+	assert.Equal(t, "ecowitt", got[2]["source"])
 
-	// Shape spot-checks.
 	first := got[0]
 	assert.Equal(t, "Temp Probe", first["name"])
 	assert.Equal(t, "Tent A", first["zone"])
+	assert.Equal(t, 1, first["zone_id"])
 	assert.Equal(t, "AAA", first["device"])
 	assert.Equal(t, "temp", first["type"])
 	assert.Equal(t, "C", first["unit"])
+	assert.Equal(t, "zone_plant", first["visibility"])
+
+	assert.Equal(t, "", got[1]["zone"])
+	assert.Equal(t, 0, got[1]["zone_id"])
 }
 
 func TestGetSensors_EmptyDB(t *testing.T) {
 	t.Parallel()
 
 	db := testutil.NewTestDB(t)
-	got := handlers.GetSensors(db)
+	got := handlers.GetSensors(context.Background(), testutil.NewServices(t, db))
 	assert.Empty(t, got)
-}
-
-// ---------------------------------------------------------------------------
-// GetZones / CreateNewZone / GetZoneIDByName
-// ---------------------------------------------------------------------------
-
-func TestZoneHelpers_RoundTrip(t *testing.T) {
-	t.Parallel()
-
-	db := testutil.NewTestDB(t)
-
-	// Empty initially.
-	assert.Empty(t, handlers.GetZones(db))
-
-	id, err := handlers.CreateNewZone(db, nil, "Tent 1")
-	require.NoError(t, err)
-	assert.NotZero(t, id)
-
-	zones := handlers.GetZones(db)
-	require.Len(t, zones, 1)
-	assert.Equal(t, "Tent 1", zones[0].Name)
-
-	got, err := handlers.GetZoneIDByName(db, "Tent 1")
-	require.NoError(t, err)
-	assert.Equal(t, id, got)
-
-	// Missing name returns (0, nil) — sentinel value, not an error.
-	miss, err := handlers.GetZoneIDByName(db, "Missing")
-	require.NoError(t, err)
-	assert.Zero(t, miss)
-}
-
-// ---------------------------------------------------------------------------
-// DeleteSensorByID — must cascade sensor_data
-// ---------------------------------------------------------------------------
-
-func TestDeleteSensorByID_CascadesSensorData(t *testing.T) {
-	t.Parallel()
-
-	db := testutil.NewTestDB(t)
-	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
-	testutil.MustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type) VALUES (1, 'Doomed', 1, 'src', 'D', 'temp')`)
-	testutil.MustExec(t, db, `INSERT INTO sensor_data (sensor_id, value) VALUES (1, 1.0)`)
-	testutil.MustExec(t, db, `INSERT INTO sensor_data (sensor_id, value) VALUES (1, 2.0)`)
-	// sensor_data_hourly carries a FK to sensors(id) with no ON DELETE
-	// CASCADE; without purging it first the DELETE FROM sensors fails. This
-	// row is what makes the test exercise the #206 regression.
-	testutil.MustExec(t, db, `INSERT INTO sensor_data_hourly (sensor_id, bucket, min_val, max_val, avg_val, sample_count) VALUES (1, '2026-06-23 00:00:00', 1.0, 2.0, 1.5, 2)`)
-	// rolling_averages is populated automatically by the update_rolling_avg
-	// trigger on the sensor_data inserts above; assert it is purged too.
-
-	require.NoError(t, handlers.DeleteSensorByID(db, "1"))
-
-	var sensorCount, dataCount, hourlyCount, rollingCount int
-	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM sensors WHERE id = 1`).Scan(&sensorCount))
-	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM sensor_data WHERE sensor_id = 1`).Scan(&dataCount))
-	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM sensor_data_hourly WHERE sensor_id = 1`).Scan(&hourlyCount))
-	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM rolling_averages WHERE sensor_id = 1`).Scan(&rollingCount))
-	assert.Zero(t, sensorCount)
-	assert.Zero(t, dataCount, "DeleteSensorByID must purge sensor_data rows for the sensor")
-	assert.Zero(t, hourlyCount, "DeleteSensorByID must purge sensor_data_hourly rows for the sensor")
-	assert.Zero(t, rollingCount, "DeleteSensorByID must purge rolling_averages rows for the sensor")
-}
-
-// ---------------------------------------------------------------------------
-// GetSensorName
-// ---------------------------------------------------------------------------
-
-func TestGetSensorName(t *testing.T) {
-	t.Parallel()
-
-	db := testutil.NewTestDB(t)
-	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
-	testutil.MustExec(t, db, `INSERT INTO sensors (id, name, zone_id, source, device, type) VALUES (1, 'Tent Temp', 1, 'src', 'D', 'temp')`)
-
-	assert.Equal(t, "Tent Temp", handlers.GetSensorName(db, "1"))
-	assert.Equal(t, "", handlers.GetSensorName(db, "9999"), "missing id returns empty string")
 }
 
 // ---------------------------------------------------------------------------
 // ValidateServerAddress (pure)
 // ---------------------------------------------------------------------------
-
-// kept as a *_db_test.go file rather than its own *_test.go to avoid
-// the per-package dance of remembering which file is in which package.
-func _validateServerAddressNoteForFutureMaintainers() {} //nolint:unused
 
 func TestValidateServerAddress_TableDriven(t *testing.T) {
 	t.Parallel()
@@ -161,7 +88,3 @@ func TestValidateServerAddress_TableDriven(t *testing.T) {
 		})
 	}
 }
-
-// Compile-time assertion that GetSensorName takes a *sql.DB so the
-// unit test signature stays in lockstep with the production function.
-var _ func(*sql.DB, string) string = handlers.GetSensorName

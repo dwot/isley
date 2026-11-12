@@ -23,9 +23,8 @@ import (
 
 	"isley/config"
 	"isley/logger"
-	"isley/model"
 	"isley/model/types"
-	"isley/utils"
+	"isley/service"
 )
 
 const (
@@ -62,7 +61,9 @@ type HTTPDoer interface {
 // invoked on every iteration so a Watcher built from the per-engine
 // *config.Store stays current with runtime settings changes.
 type Watcher struct {
-	DB         *sql.DB
+	DB *sql.DB
+	// Sensors records readings, prunes, rolls up and derives VPD.
+	Sensors    *service.SensorService
 	HTTP       HTTPDoer
 	ACIBaseURL string
 	Logger     *logrus.Logger
@@ -81,9 +82,10 @@ type Watcher struct {
 // and a default HTTP client. Production code (main.go) calls this with
 // the engine's Store; tests typically construct a Watcher literal so
 // each field can be controlled.
-func New(db *sql.DB, store *config.Store) *Watcher {
+func New(db *sql.DB, store *config.Store, sensors *service.SensorService) *Watcher {
 	return &Watcher{
 		DB:         db,
+		Sensors:    sensors,
 		HTTP:       &http.Client{Timeout: httpClientTimeout},
 		ACIBaseURL: defaultACIBaseURL,
 		Logger:     logger.Log,
@@ -307,7 +309,8 @@ func (w *Watcher) PollACI(ctx context.Context, token string) {
 // tracking specific sensors. Non-numeric values are also silently
 // skipped after logging.
 func (w *Watcher) addSensorData(source string, device string, key string, value string) {
-	if _, err := strconv.ParseFloat(value, 64); err != nil {
+	v, err := strconv.ParseFloat(value, 64)
+	if err != nil {
 		w.Logger.WithFields(logrus.Fields{
 			"source": source,
 			"device": device,
@@ -317,24 +320,13 @@ func (w *Watcher) addSensorData(source string, device string, key string, value 
 		}).Error("Error parsing sensor value")
 		return
 	}
-
-	var sensorID int
-	err := w.DB.QueryRow("SELECT id FROM sensors WHERE source = $1 AND device = $2 AND type = $3", source, device, key).Scan(&sensorID)
-	if err != nil {
-		w.Logger.WithFields(logrus.Fields{
-			"source": source,
-			"device": device,
-			"type":   key,
-		}).Debug("Sensor not tracked, skipping")
-		return
-	}
-
-	if _, err := w.DB.Exec("INSERT INTO sensor_data (sensor_id, value) VALUES ($1, $2)", sensorID, value); err != nil {
-		w.Logger.WithFields(logrus.Fields{
-			"sensorID": sensorID,
-			"value":    value,
-			"error":    err,
-		}).Error("Error writing sensor data to database")
+	tracked, err := w.Sensors.RecordByIdentity(context.Background(), source, device, key, v)
+	fields := logrus.Fields{"source": source, "device": device, "type": key}
+	switch {
+	case err != nil:
+		w.Logger.WithFields(fields).WithError(err).Error("Error writing sensor data to database")
+	case !tracked:
+		w.Logger.WithFields(fields).Debug("Sensor not tracked, skipping")
 	}
 }
 
@@ -343,40 +335,23 @@ func (w *Watcher) addSensorData(source string, device string, key string, value 
 // method returns nil. SQLite databases additionally run VACUUM,
 // ANALYZE, and PRAGMA optimize after the delete so the file shrinks.
 func (w *Watcher) PruneSensorData() error {
-	w.Logger.Info("Pruning old sensor data")
 	days := w.SensorRetention()
 	if days <= 0 {
 		w.Logger.Info("Sensor data pruning is disabled (sensor_retention_days = 0)")
 		return nil
 	}
-
-	var pruneQuery string
-	if model.IsPostgres() {
-		pruneQuery = fmt.Sprintf("DELETE FROM sensor_data WHERE create_dt < NOW() - INTERVAL '%d days'", days)
-	} else {
-		pruneQuery = fmt.Sprintf("DELETE FROM sensor_data WHERE create_dt < datetime('now', 'localtime', '-%d days')", days)
-	}
-	if _, err := w.DB.Exec(pruneQuery); err != nil {
+	ctx := context.Background()
+	n, err := w.Sensors.Prune(ctx, days)
+	if err != nil {
 		w.Logger.WithError(err).Error("Error pruning sensor data")
 		return err
 	}
 	// rolling_averages is not pruned — it's a trigger-maintained cache with only
 	// one row per sensor, so it stays small and self-maintaining.
-
-	if model.IsSQLite() {
-		if _, err := w.DB.Exec("VACUUM"); err != nil {
-			w.Logger.WithError(err).Warn("SQLite VACUUM failed")
-		}
-		if _, err := w.DB.Exec("ANALYZE"); err != nil {
-			w.Logger.WithError(err).Warn("SQLite ANALYZE failed")
-		}
-		if _, err := w.DB.Exec("PRAGMA optimize"); err != nil {
-			w.Logger.WithError(err).Warn("SQLite PRAGMA optimize failed")
-		}
-		w.Logger.Info("SQLite post-prune maintenance completed")
+	if err := w.Sensors.Maintain(ctx); err != nil {
+		w.Logger.WithError(err).Warn("Post-prune maintenance failed")
 	}
-
-	w.Logger.WithField("days", days).Info("Sensor data pruned")
+	w.Logger.WithFields(logrus.Fields{"days": days, "deleted": n}).Info("Sensor data pruned")
 	return nil
 }
 
@@ -435,112 +410,21 @@ func ecToMilliSiemens(v string) string {
 // computeZoneVPD calculates and stores derived VPD sensor readings for every
 // zone that has VPD enabled (leaf_temp_offset IS NOT NULL) and both source
 // sensor IDs configured. It is called once per poll cycle, after device polling.
-func (w *Watcher) computeZoneVPD(_ context.Context) {
-	fieldLogger := w.Logger.WithField("func", "computeZoneVPD")
-
-	// Load all zones that have VPD configured
-	rows, err := w.DB.Query(`
-		SELECT id, leaf_temp_offset, vpd_temp_sensor_id, vpd_humidity_sensor_id
-		FROM zones
-		WHERE leaf_temp_offset IS NOT NULL
-		  AND vpd_temp_sensor_id IS NOT NULL
-		  AND vpd_humidity_sensor_id IS NOT NULL`)
+func (w *Watcher) computeZoneVPD(ctx context.Context) {
+	// An input reading older than three polls (at least five minutes)
+	// means that sensor has stopped; VPD from it would be stale.
+	maxAge := 3 * w.PollingInterval()
+	if maxAge < 5*time.Minute {
+		maxAge = 5 * time.Minute
+	}
+	results, err := w.Sensors.ComputeZoneVPD(ctx, maxAge)
 	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to query VPD-enabled zones")
+		w.Logger.WithError(err).Error("Failed to compute zone VPD")
 		return
 	}
-	defer rows.Close()
-
-	type vpdZone struct {
-		ID                  int
-		LeafTempOffset      float64
-		VPDTempSensorID     int
-		VPDHumiditySensorID int
-	}
-
-	var zones []vpdZone
-	for rows.Next() {
-		var z vpdZone
-		if err := rows.Scan(&z.ID, &z.LeafTempOffset, &z.VPDTempSensorID, &z.VPDHumiditySensorID); err != nil {
-			fieldLogger.WithError(err).Error("Failed to scan VPD zone row")
-			continue
-		}
-		zones = append(zones, z)
-	}
-	rows.Close()
-
-	for _, z := range zones {
-		// Read the latest value and unit for the temperature sensor
-		var tempValue float64
-		var tempUnit string
-		err := w.DB.QueryRow(`
-			SELECT sd.value, s.unit
-			FROM sensor_data sd
-			JOIN sensors s ON s.id = sd.sensor_id
-			WHERE sd.sensor_id = $1
-			ORDER BY sd.id DESC LIMIT 1`, z.VPDTempSensorID).Scan(&tempValue, &tempUnit)
-		if err != nil {
-			fieldLogger.WithFields(logrus.Fields{"zone_id": z.ID, "sensor_id": z.VPDTempSensorID}).
-				Debug("No temperature reading for VPD zone, skipping")
-			continue
-		}
-
-		// Read the latest humidity value
-		var humValue float64
-		err = w.DB.QueryRow(`
-			SELECT value FROM sensor_data
-			WHERE sensor_id = $1
-			ORDER BY id DESC LIMIT 1`, z.VPDHumiditySensorID).Scan(&humValue)
-		if err != nil {
-			fieldLogger.WithFields(logrus.Fields{"zone_id": z.ID, "sensor_id": z.VPDHumiditySensorID}).
-				Debug("No humidity reading for VPD zone, skipping")
-			continue
-		}
-
-		// The offset is stored in °F as a temperature *delta*, so it always
-		// converts to a °C delta by *5/9 (no -32: it is a difference, not an
-		// absolute temperature). The air temperature is converted to °C only
-		// when the source sensor does not report Celsius.
-		airTempC := tempValue
-		if !utils.IsCelsius(tempUnit) {
-			airTempC = utils.FahrenheitToCelsius(tempValue)
-		}
-		leafOffsetC := z.LeafTempOffset * 5.0 / 9.0
-
-		vpd := utils.VPD(airTempC, humValue, leafOffsetC)
-
-		// Ensure the derived VPD sensor row exists for this zone
-		zoneIDStr := strconv.Itoa(z.ID)
-		sensorName := "VPD (Zone " + zoneIDStr + ")"
-		var vpdSensorID int
-		err = w.DB.QueryRow(
-			`SELECT id FROM sensors WHERE source = $1 AND device = $2 AND type = $3`,
-			"derived", zoneIDStr, "VPD",
-		).Scan(&vpdSensorID)
-		if err == sql.ErrNoRows {
-			// Create the derived VPD sensor
-			err = w.DB.QueryRow(
-				`INSERT INTO sensors (name, source, device, type, zone_id, unit, visibility)
-                 VALUES ($1, $2, $3, $4, $5, $6, 'zone_plant')
-                 RETURNING id`,
-				sensorName, "derived", zoneIDStr, "VPD", z.ID, "kPa",
-			).Scan(&vpdSensorID)
-			if err != nil {
-				fieldLogger.WithError(err).WithField("zone_id", z.ID).Error("Failed to create derived VPD sensor")
-				continue
-			}
-			fieldLogger.WithField("zone_id", z.ID).Info("Created derived VPD sensor")
-		} else if err != nil {
-			fieldLogger.WithError(err).WithField("zone_id", z.ID).Error("Failed to look up derived VPD sensor")
-			continue
-		}
-
-		// Insert the computed VPD reading
-		if _, err := w.DB.Exec(
-			"INSERT INTO sensor_data (sensor_id, value) VALUES ($1, $2)",
-			vpdSensorID, vpd,
-		); err != nil {
-			fieldLogger.WithError(err).WithField("zone_id", z.ID).Error("Failed to insert VPD sensor data")
+	for _, r := range results {
+		if r.Skipped != "" {
+			w.Logger.WithFields(logrus.Fields{"zone_id": r.ZoneID, "reason": r.Skipped}).Debug("Skipped zone VPD")
 		}
 	}
 }

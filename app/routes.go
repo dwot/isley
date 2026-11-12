@@ -11,6 +11,7 @@ import (
 	"isley/handlers"
 	"isley/logger"
 	"isley/routes"
+	"isley/scope"
 	"isley/utils"
 )
 
@@ -84,10 +85,19 @@ func registerProtectedRoutes(r *gin.Engine, cfg Config) {
 
 // registerAPIRoutes wires the AuthMiddlewareApi-gated routes (browser
 // session OR X-API-KEY).
+//
+// The legacy endpoints in AddProtectedApiRoutes are the web UI's own and can
+// change settings, delete data and restore backups, so a key needs the admin
+// scope to use them. Narrower keys are for the external endpoints (ingest,
+// overlay), which check their own scope per route.
 func registerAPIRoutes(r *gin.Engine) {
 	apiProtected := r.Group("/")
 	apiProtected.Use(handlers.AuthMiddlewareApi())
-	routes.AddProtectedApiRoutes(apiProtected)
+
+	legacy := apiProtected.Group("/")
+	legacy.Use(handlers.RequireKeyScope(scope.Admin))
+	routes.AddProtectedApiRoutes(legacy)
+
 	routes.AddExternalApiRoutes(apiProtected)
 }
 

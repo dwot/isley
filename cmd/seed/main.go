@@ -565,7 +565,8 @@ func insertSensorData(
 		VALUES ($1, $2, $3)`,
 		sensorID,
 		value,
-		recordedAt.Format(utils.LayoutDB),
+		// Readings are stamped in UTC, as CURRENT_TIMESTAMP stamps them.
+		recordedAt.UTC().Format(utils.LayoutDB),
 	)
 
 	return err

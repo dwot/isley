@@ -31,15 +31,15 @@
 <div id="uiToastContainer" class="position-fixed bottom-0 end-0 p-3" style="z-index: 1080; pointer-events: none;"></div>
 
 <!-- Bootstrap core JavaScript -->
-<script src="/static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="{{ asset "/static/vendor/bootstrap/bootstrap.bundle.min.js" }}"></script>
 <!-- UI messages helper (toasts + confirm modal + i18n fetch) -->
-<script src="/static/js/ui-messages.js"></script>
+<script src="{{ asset "/static/js/ui-messages.js" }}"></script>
 <!-- Form UX helpers (submit spinner + inline validation) -->
-<script src="/static/js/form-helpers.js"></script>
+<script src="{{ asset "/static/js/form-helpers.js" }}"></script>
 <!-- Activity metric input helpers -->
-<script src="/static/js/activity-metrics.js"></script>
+<script src="{{ asset "/static/js/activity-metrics.js" }}"></script>
 <!-- Accessible focus trapping for all Bootstrap modals -->
-<script src="/static/js/focus-trap.js"></script>
+<script src="{{ asset "/static/js/focus-trap.js" }}"></script>
 <!-- Global modal backdrop cleanup: Bootstrap's backdrop can linger when
      the page reloads while a modal fade-out animation is in progress.
      This listener removes any orphaned backdrops on every modal close. -->

@@ -61,10 +61,25 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (minutes === null) return 'hour';
-        if (minutes <= 30) return 'minute';
+        if (minutes <= 3 * 60) return 'minute';
         if (minutes <= 24 * 60) return 'hour';
-        if (minutes <= 7 * 24 * 60) return 'day';
         return 'day';
+    };
+
+    // Minute ticks on round minutes of the instance zone's clock (:00, :10,
+    // ...), spaced for about eight across what's visible, so zooming in
+    // keeps them readable. Chart.js would otherwise tick every minute from
+    // the range's start and thin them out, landing on :36, :46...
+    const MINUTE_STEPS = [1, 2, 5, 10, 15, 30, 60];
+    const roundMinuteTicks = (scale) => {
+        const span = (scale.max - scale.min) / 60000;
+        const step = MINUTE_STEPS.find(s => span / s <= 8) || 60;
+        const ticks = [];
+        // The hour starts on :00 in the instance zone, also in a :30 zone.
+        for (let t = IsleyChartZone.startOf(scale.min, 'hour'); t <= scale.max; t += step * 60000) {
+            if (t >= scale.min) ticks.push({ value: t });
+        }
+        scale.ticks = ticks;
     };
 
     const fetchAndRenderData = (queryParams) => {
@@ -122,12 +137,6 @@ document.addEventListener("DOMContentLoaded", () => {
                             mode: 'index',
                             intersect: false,
                             callbacks: {
-                                title: (items) => {
-                                    if (!items || items.length === 0) return '';
-                                    const d = items[0].parsed.x;
-                                    const date = (typeof d === 'number') ? new Date(d) : new Date(d);
-                                    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
-                                },
                                 label: (context) => {
                                     const label = context.dataset.label || '';
                                     const value = context.parsed.y;
@@ -147,16 +156,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     scales: {
                         x: {
                             type: 'time',
-                            time: {
-                                unit: timeUnit,
-                                tooltipFormat: 'PP p', // adapter will format nicely (date-fns style)
-                                displayFormats: {
-                                    minute: 'MMM d, h:mm a',
-                                    hour: 'MMM d, h a',
-                                    day: 'MMM d',
-                                    month: 'MMM yyyy'
-                                }
-                            },
+                            // chart-zone-adapter.js places and labels the
+                            // ticks (and the tooltip time) in the instance zone.
+                            time: { unit: timeUnit },
+                            afterBuildTicks: timeUnit === 'minute' ? roundMinuteTicks : undefined,
                             title: { display: true, text: 'Date / Time' },
                             ticks: { autoSkip: true, maxRotation: 0, autoSkipPadding: 10 },
                             grid: { color: 'rgba(255,255,255,0.05)' }

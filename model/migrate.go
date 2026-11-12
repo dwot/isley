@@ -1,19 +1,21 @@
 package model
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"fmt"
+	"isley/logger"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/database/sqlite"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/lib/pq"
-	"isley/logger"
 	_ "modernc.org/sqlite"
-	"os"
-	"strings"
-	"time"
 )
 
 //go:embed migrations/sqlite/*.sql migrations/postgres/*.sql
@@ -42,19 +44,9 @@ func InitDB() {
 	switch driver {
 	case "postgres":
 		logger.Log.Info("Using Postgres driver")
-		pgSSLMode := os.Getenv("ISLEY_DB_SSLMODE")
-		if pgSSLMode == "" {
-			pgSSLMode = "disable"
-		}
-		dsn = fmt.Sprintf(
-			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-			os.Getenv("ISLEY_DB_HOST"),
-			os.Getenv("ISLEY_DB_PORT"),
-			os.Getenv("ISLEY_DB_USER"),
-			os.Getenv("ISLEY_DB_PASSWORD"),
-			os.Getenv("ISLEY_DB_NAME"),
-			pgSSLMode,
-		)
+		// Sessions stamp CURRENT_TIMESTAMP in UTC, whatever the
+		// server's zone (#141 Phase 2).
+		dsn = postgresDSN() + " timezone=UTC"
 	case "sqlite", "":
 		logger.Log.Info("Using Sqlite driver")
 		dsn = DbPath()
@@ -158,19 +150,7 @@ func MigrateDB() {
 	dsn := ""
 	switch driver {
 	case "postgres":
-		pgSSLMode2 := os.Getenv("ISLEY_DB_SSLMODE")
-		if pgSSLMode2 == "" {
-			pgSSLMode2 = "disable"
-		}
-		dsn = fmt.Sprintf(
-			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-			os.Getenv("ISLEY_DB_HOST"),
-			os.Getenv("ISLEY_DB_PORT"),
-			os.Getenv("ISLEY_DB_USER"),
-			os.Getenv("ISLEY_DB_PASSWORD"),
-			os.Getenv("ISLEY_DB_NAME"),
-			pgSSLMode2,
-		)
+		dsn = postgresDSN() + " timezone=UTC"
 	case "sqlite":
 		dsn = DbPath()
 	default:
@@ -333,4 +313,41 @@ func BuildInClause(driver string, items []interface{}) (string, []interface{}) {
 	}
 
 	return "(" + strings.Join(placeholders, ", ") + ")", args
+}
+
+// postgresDSN builds the libpq connection string from the ISLEY_DB_*
+// environment, without a session time zone.
+func postgresDSN() string {
+	sslMode := os.Getenv("ISLEY_DB_SSLMODE")
+	if sslMode == "" {
+		sslMode = "disable"
+	}
+	return fmt.Sprintf(
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		os.Getenv("ISLEY_DB_HOST"),
+		os.Getenv("ISLEY_DB_PORT"),
+		os.Getenv("ISLEY_DB_USER"),
+		os.Getenv("ISLEY_DB_PASSWORD"),
+		os.Getenv("ISLEY_DB_NAME"),
+		sslMode,
+	)
+}
+
+// ServerTimeZone returns the zone the database stamped CURRENT_TIMESTAMP in
+// before Isley pinned its sessions to UTC: UTC for SQLite, the server's
+// default TimeZone for Postgres (read on a connection without the pin).
+func ServerTimeZone(ctx context.Context) (*time.Location, error) {
+	if !IsPostgres() {
+		return time.UTC, nil
+	}
+	conn, err := sql.Open("postgres", postgresDSN())
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+	var name string
+	if err := conn.QueryRowContext(ctx, "SHOW TIME ZONE").Scan(&name); err != nil {
+		return nil, fmt.Errorf("read Postgres time zone: %w", err)
+	}
+	return time.LoadLocation(name)
 }

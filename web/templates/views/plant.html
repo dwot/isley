@@ -112,8 +112,8 @@
                  data-status-history='{{ json .plant.StatusHistory }}'
                  data-logged-in="{{ .loggedIn }}"
                  data-current-stage="{{ .plant.Status }}"
-                 data-start-date="{{ .plant.StartDT }}"
-                 data-harvest-date="{{ .plant.HarvestDate }}"
+                 data-stage-days='{{ json .plant.StageDays }}'
+                 data-grow-days="{{ .plant.GrowDays }}"
                  data-days-label="{{ .lcl.title_days }}">
                 <div class="card-body px-3 py-3">
                     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -291,7 +291,7 @@
                         {{ end }}
 
                         {{ if and (ne .plant.Status "Success") (ne .plant.Status "Drying") (ne .plant.Status "Curing") (ne .plant.Status "Dead") }}
-                            {{ if or (eq .plant.Autoflower true) (not (isZeroDate .plant.EstHarvestDate)) }}
+                            {{ if not (isZeroDate .plant.EstHarvestDate) }}
                             <li>
                                 <span class="strain-info-label"><i class="fa-solid fa-hourglass-half me-2"></i>{{ .lcl.est_harvest_date }}</span>
                                 <span class="strain-info-value">{{ formatDate .plant.EstHarvestDate }}</span>
@@ -433,10 +433,10 @@
 {{ template "modals/smoke-report-edit-modal.html" . }}
 <!-- star-rating.js defines window.starRating, which the two modal scripts call
      to read and prefill their star groups — it must load before them. -->
-<script src="/static/js/star-rating.js"></script>
-<script src="/static/js/smoke-report-list.js"></script>
-<script src="/static/js/add-smoke-report-modal.js"></script>
-<script src="/static/js/smoke-report-edit-modal.js"></script>
+<script src="{{ asset "/static/js/star-rating.js" }}"></script>
+<script src="{{ asset "/static/js/smoke-report-list.js" }}"></script>
+<script src="{{ asset "/static/js/add-smoke-report-modal.js" }}"></script>
+<script src="{{ asset "/static/js/smoke-report-edit-modal.js" }}"></script>
 {{ end }}
 
 <script nonce="{{ .cspNonce }}">
@@ -449,7 +449,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const loggedIn = card.dataset.loggedIn === "true";
     const currentStatusId = parseInt(card.dataset.currentStatusId || "0", 10);
     const daysLabel = card.dataset.daysLabel || "Days";
-    const msPerDay = 1000 * 60 * 60 * 24;
 
     function safeParseJSON(raw) {
         try {
@@ -467,49 +466,20 @@ document.addEventListener("DOMContentLoaded", () => {
         if (sid && !reachedByStatusId[sid]) reachedByStatusId[sid] = s;
     });
 
-    const parsedStages = statusHistory
-        .filter(item => item && (item.status || item.Status) && (item.date || item.Date))
-        .map(item => ({ status: item.status || item.Status, date: new Date(item.date || item.Date) }))
-        .filter(item => !isNaN(item.date.getTime()))
-        .sort((a, b) => a.date - b.date);
-
-    const stages = [];
-    parsedStages.forEach(s => {
-        if (!stages.length || stages[stages.length - 1].status !== s.status) stages.push(s);
-    });
-
     const statusOptions = Array.from(document.querySelectorAll("#plantStatusData .status-option"));
     let currentStepIndex = -1;
     statusOptions.forEach((el, idx) => {
         if (parseInt(el.dataset.statusId, 10) === currentStatusId) currentStepIndex = idx;
     });
 
-    const now = new Date();
+    // Day counts come from the server (service.PlantDetail), so the
+    // timeline agrees with the plant's Day and the dashboard cards.
     const currentStage = card.dataset.currentStage || "";
     const isTerminalPlant = /^(dead|success)$/i.test(currentStage);
     const plantIsDead = /^dead$/i.test(currentStage);
-    // For terminal plants, cap the end date at the terminal status entry
-    const terminalDate = isTerminalPlant && stages.length
-        ? stages[stages.length - 1].date : null;
-    const segments = stages.map((stage, i) => {
-        const start = stage.date;
-        const end = i + 1 < stages.length ? stages[i + 1].date : (terminalDate || now);
-        return { status: stage.status, start, end, duration: Math.max(0, (end - start) / msPerDay) };
-    });
-
-    // Total days: start→harvest if harvested, start→dead if dead, start→now otherwise
-    const plantStartDate = new Date(card.dataset.startDate);
-    const harvestDate = new Date(card.dataset.harvestDate);
-    const hasHarvest = !isNaN(harvestDate.getTime()) && harvestDate.getFullYear() > 1;
-    const deadDate = (plantIsDead && stages.length) ? stages[stages.length - 1].date : null;
-
-    let totalEndDate = now;
-    if (hasHarvest) totalEndDate = harvestDate;
-    else if (deadDate) totalEndDate = deadDate;
-
-    const totalDays = !isNaN(plantStartDate.getTime())
-        ? Math.max(0, (totalEndDate - plantStartDate) / msPerDay)
-        : segments.reduce((sum, s) => sum + s.duration, 0);
+    let stageDays = {};
+    try { stageDays = JSON.parse(card.dataset.stageDays || "{}") || {}; } catch (e) { stageDays = {}; }
+    const totalDays = parseInt(card.dataset.growDays || "0", 10);
 
     // Helpers
     function stageIcon(name) {
@@ -527,18 +497,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function formatDays(d) {
-        if (!Number.isFinite(d) || d <= 0) return "0";
-        const r = d < 10 ? Math.round(d * 10) / 10 : Math.round(d);
-        return Number.isInteger(r) ? `${r}` : r.toFixed(1);
-    }
-
-    function formatDateShort(d) {
-        return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-    }
-
-    function toLocalDateTimeString(d) {
-        const pad = n => String(n).padStart(2, "0");
-        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        return Number.isFinite(d) && d > 0 ? `${d}` : "0";
     }
 
     // Total days
@@ -557,7 +516,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const name = opt.dataset.statusName;
         const label = opt.dataset.statusLabel;
         const idx = parseInt(opt.dataset.statusIndex, 10);
-        const segment = segments.find(s => s.status === name);
+        const days = stageDays[name] || 0;
         const reached = !!reachedByStatusId[sid];
         const isCurrent = idx === currentStepIndex;
         const isFuture = idx > currentStepIndex && currentStepIndex >= 0;
@@ -595,13 +554,13 @@ document.addEventListener("DOMContentLoaded", () => {
         // Day pill (only if this stage was reached and has duration)
         const meta = document.createElement("div");
         meta.className = "htl-meta";
-        if (segment && segment.duration > 0) {
-            meta.innerHTML = `<span class="htl-days">${formatDays(segment.duration)}d</span>`;
+        if (days > 0) {
+            meta.innerHTML = `<span class="htl-days">${formatDays(days)}d</span>`;
         } else if (reached) {
             const hist = reachedByStatusId[sid];
-            const d = new Date(hist.date || hist.Date);
-            if (!isNaN(d.getTime())) {
-                meta.innerHTML = `<span class="htl-date">${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>`;
+            const shown = IsleyTime.formatDate(hist.date || hist.Date, { month: "short", day: "numeric" });
+            if (shown) {
+                meta.innerHTML = `<span class="htl-date">${shown}</span>`;
             }
         }
 
@@ -657,8 +616,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const editDateInput = document.getElementById("editStatusDate");
             if (!statusIdInput || !editDateInput) return;
             statusIdInput.value = statusObj.id || statusObj.ID;
-            const d = new Date(statusObj.date || statusObj.Date);
-            editDateInput.value = toLocalDateTimeString(d);
+            editDateInput.value = IsleyTime.toInput(statusObj.date || statusObj.Date);
             new bootstrap.Modal(editModalEl).show();
         } catch (e) {
             console.error("Failed to open edit status modal", e);
@@ -710,10 +668,7 @@ document.addEventListener("DOMContentLoaded", () => {
             // entries are sorted newest-first from the server
             const latest = entries[0];
             const latestVal = latest.value ?? latest.Value;
-            const latestDate = new Date(latest.date || latest.Date);
-            const dateStr = !isNaN(latestDate.getTime())
-                ? latestDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
-                : "";
+            const dateStr = IsleyTime.formatDate(latest.date || latest.Date, { month: "short", day: "numeric", year: "numeric" });
 
             const row = document.createElement("div");
             row.className = "pm-group";
@@ -738,10 +693,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 entries.forEach((m, idx) => {
                     const mVal = m.value ?? m.Value;
-                    const mDate = new Date(m.date || m.Date);
-                    const mDateStr = !isNaN(mDate.getTime())
-                        ? mDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
-                        : "";
+                    const mDateStr = IsleyTime.formatDate(m.date || m.Date, { month: "short", day: "numeric", year: "numeric" });
                     const hRow = document.createElement("div");
                     hRow.className = "pm-history-row clickable-row measurement-row";
                     hRow.dataset.measurement = JSON.stringify(m);

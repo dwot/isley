@@ -15,9 +15,11 @@ import (
 	"strings"
 	"time"
 
+	"isley/chrono"
 	"isley/config"
 	"isley/logger"
 	"isley/model"
+	"isley/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -41,29 +43,35 @@ type BackupManifest struct {
 // inside the archive. Each key is a table name mapped to a slice of
 // row-maps so the format is driver-agnostic.
 type BackupPayload struct {
-	Manifest       BackupManifest           `json:"manifest"`
-	Settings       []map[string]interface{} `json:"settings"`
-	APIKeys        []map[string]interface{} `json:"api_keys"`
-	Zones          []map[string]interface{} `json:"zones"`
-	Breeders       []map[string]interface{} `json:"breeder"`
-	Sensors        []map[string]interface{} `json:"sensors"`
-	SensorData     []map[string]interface{} `json:"sensor_data"`
-	RollingAvgs    []map[string]interface{} `json:"rolling_averages"`
-	Strains        []map[string]interface{} `json:"strain"`
-	StrainLineage  []map[string]interface{} `json:"strain_lineage"`
-	PlantStatuses  []map[string]interface{} `json:"plant_status"`
-	Plants         []map[string]interface{} `json:"plant"`
-	PlantStatusLog []map[string]interface{} `json:"plant_status_log"`
-	Metrics        []map[string]interface{} `json:"metric"`
-	ActivityMetric []map[string]interface{} `json:"activity_metric"`
-	PlantMeasure   []map[string]interface{} `json:"plant_measurements"`
-	Activities     []map[string]interface{} `json:"activity"`
-	PlantActivity  []map[string]interface{} `json:"plant_activity"`
-	PlantImages    []map[string]interface{} `json:"plant_images"`
-	Streams        []map[string]interface{} `json:"streams"`
-	SmokeCriteria  []map[string]interface{} `json:"smoke_report_criterion"`
-	SmokeReports   []map[string]interface{} `json:"smoke_report"`
-	SmokeScores    []map[string]interface{} `json:"smoke_report_score"`
+	Manifest   BackupManifest           `json:"manifest"`
+	Settings   []map[string]interface{} `json:"settings"`
+	APIKeys    []map[string]interface{} `json:"api_keys"`
+	Zones      []map[string]interface{} `json:"zones"`
+	Breeders   []map[string]interface{} `json:"breeder"`
+	Sensors    []map[string]interface{} `json:"sensors"`
+	SensorData []map[string]interface{} `json:"sensor_data"`
+	// SensorDataHourly is the hourly rollup. It outlives raw readings
+	// (retention prunes those), so it is the only record of older history.
+	// Archives before 2.6 don't have it; the rollup is then rebuilt from the
+	// raw readings.
+	SensorDataHourly []map[string]interface{} `json:"sensor_data_hourly"`
+	RollingAvgs      []map[string]interface{} `json:"rolling_averages"`
+	Strains          []map[string]interface{} `json:"strain"`
+	StrainLineage    []map[string]interface{} `json:"strain_lineage"`
+	PlantStatuses    []map[string]interface{} `json:"plant_status"`
+	Plants           []map[string]interface{} `json:"plant"`
+	PlantSensors     []map[string]interface{} `json:"plant_sensor"`
+	PlantStatusLog   []map[string]interface{} `json:"plant_status_log"`
+	Metrics          []map[string]interface{} `json:"metric"`
+	ActivityMetric   []map[string]interface{} `json:"activity_metric"`
+	PlantMeasure     []map[string]interface{} `json:"plant_measurements"`
+	Activities       []map[string]interface{} `json:"activity"`
+	PlantActivity    []map[string]interface{} `json:"plant_activity"`
+	PlantImages      []map[string]interface{} `json:"plant_images"`
+	Streams          []map[string]interface{} `json:"streams"`
+	SmokeCriteria    []map[string]interface{} `json:"smoke_report_criterion"`
+	SmokeReports     []map[string]interface{} `json:"smoke_report"`
+	SmokeScores      []map[string]interface{} `json:"smoke_report_score"`
 }
 
 // BackupFileInfo is returned by the list endpoint.
@@ -91,8 +99,45 @@ type RestoreStatus struct {
 	TablesLeft   int    `json:"tables_left,omitempty"`   // remaining tables to restore
 	TotalTables  int    `json:"total_tables,omitempty"`  // total tables with data
 	Error        string `json:"error,omitempty"`
-	Tables       int    `json:"tables,omitempty"` // final count on completion
-	Files        int    `json:"files,omitempty"`  // final count on completion
+	// ErrorKey is the translation key for Error, when there is one; the
+	// page shows the translation and falls back to Error.
+	ErrorKey string `json:"error_key,omitempty"`
+	// ErrorDetail is what the error is about, e.g. the table being restored.
+	ErrorDetail string `json:"error_detail,omitempty"`
+	Tables      int    `json:"tables,omitempty"` // final count on completion
+	Files       int    `json:"files,omitempty"`  // final count on completion
+}
+
+// restoreFailure is a restore error the user sees: a translation key, the
+// English message, and what it was about (a table name, or "").
+type restoreFailure struct {
+	key, message, detail string
+}
+
+func (e *restoreFailure) Error() string {
+	if e.detail != "" {
+		return e.message + ": " + e.detail
+	}
+	return e.message
+}
+
+// restoreMessages are the English messages for restoreFailure keys; the
+// translations live in utils/locales under the same keys.
+var restoreMessages = map[string]string{
+	"backup_err_close_db":      "Failed to close current database",
+	"backup_err_write_db":      "Failed to write database file",
+	"backup_err_convert_times": "Failed to convert restored times",
+	"backup_err_db_handle":     "Failed to get database handle",
+	"backup_err_pin_conn":      "Failed to pin database connection",
+	"backup_err_begin_tx":      "Failed to begin transaction",
+	"backup_err_truncate":      "Failed to empty a table",
+	"backup_err_insert":        "Failed to restore a table",
+	"backup_err_commit":        "Failed to commit reference data",
+	"backup_err_bulk_insert":   "Failed to restore a table's rows",
+}
+
+func restoreFailed(key, detail string) error {
+	return &restoreFailure{key: key, message: restoreMessages[key], detail: detail}
 }
 
 // insertBatchSize controls how many rows are packed into each multi-row
@@ -149,20 +194,15 @@ func GetRestoreStatus(c *gin.Context) {
 // runBackup does the actual work of dumping the DB and writing the zip.
 // The archive contents are produced by BuildBackupArchive (which is
 // unit-tested directly); runBackup adds the production-only concerns:
-// reading the VERSION file, naming the output, and writing it under
+// the release version, naming the output, and writing it under
 // <DataDir>/backups/. Returns the produced filename (empty on error).
 func runBackup(svc *BackupService, includeImages bool, sensorDays int) (string, error) {
 	fieldLogger := logger.Log.WithField("handler", "runBackup")
 
-	version := "unknown"
-	if v, err := os.ReadFile("VERSION"); err == nil {
-		version = strings.TrimSpace(string(v))
-	}
-
 	archive, manifest, err := BuildBackupArchive(svc.DB(), BuildArchiveOptions{
 		IncludeImages: includeImages,
 		SensorDays:    sensorDays,
-		Version:       version,
+		Version:       svc.Version(),
 		UploadsDir:    "uploads",
 	})
 	if err != nil {
@@ -196,16 +236,17 @@ func runBackup(svc *BackupService, includeImages bool, sensorDays int) (string, 
 	return filename, nil
 }
 
-// dumpTableFiltered dumps sensor_data rows from the last N days only.
-func dumpTableFiltered(db *sql.DB, table string, days int) ([]map[string]interface{}, error) {
-	var query string
-	if model.IsPostgres() {
-		query = fmt.Sprintf("SELECT * FROM %s WHERE create_dt >= NOW() - INTERVAL '%d days'", table, days)
-	} else {
-		query = fmt.Sprintf("SELECT * FROM %s WHERE create_dt >= datetime('now', 'localtime', '-%d days')", table, days)
+// dumpTableFiltered dumps the rows of a sensor table stamped at or after
+// since. The bound is written in the zone the database stamps rows in.
+func dumpTableFiltered(db *sql.DB, table string, since time.Time) ([]map[string]interface{}, error) {
+	loc, err := chrono.SystemZone(context.Background(), db, model.IsPostgres())
+	if err != nil {
+		return nil, err
 	}
+	query := fmt.Sprintf("SELECT * FROM %s WHERE create_dt >= $1", table)
+	bound := chrono.NewZones(nil, loc).ToSystem(since)
 
-	rows, err := db.Query(query) //nolint:gosec
+	rows, err := db.Query(query, bound) //nolint:gosec
 	if err != nil {
 		return nil, err
 	}
@@ -423,10 +464,14 @@ func runSQLiteFileRestore(svc *BackupService, data []byte, store *config.Store) 
 		dbFile = "data/isley.db"
 	}
 
-	// Close the current database connection so we can replace the file
+	// Close the current database connection so we can replace the file.
+	// Cached key checks belong to the old database.
+	if oldDB, err := model.GetDB(); err == nil {
+		ForgetVerifiedKeys(oldDB)
+	}
 	if err := model.CloseDB(); err != nil {
 		fieldLogger.WithError(err).Error("Failed to close current database")
-		runErr = fmt.Errorf("Failed to close current database")
+		runErr = restoreFailed("backup_err_close_db", "")
 		return
 	}
 
@@ -437,7 +482,7 @@ func runSQLiteFileRestore(svc *BackupService, data []byte, store *config.Store) 
 	// Write the new database file
 	if err := os.WriteFile(dbFile, data, 0644); err != nil {
 		fieldLogger.WithError(err).Error("Failed to write new database file")
-		runErr = fmt.Errorf("Failed to write database file")
+		runErr = restoreFailed("backup_err_write_db", "")
 		// Try to reopen the old DB (may fail if we partially wrote)
 		model.InitDB()
 		return
@@ -450,6 +495,11 @@ func runSQLiteFileRestore(svc *BackupService, data []byte, store *config.Store) 
 	// Reload in-memory config from the newly reopened DB.
 	if reopenedDB, dbErr := model.GetDB(); dbErr == nil {
 		LoadSettings(reopenedDB, store)
+		if err := convertRestoredTimes(reopenedDB, store); err != nil {
+			fieldLogger.WithError(err).Error("Failed to convert restored times to UTC")
+			runErr = restoreFailed("backup_err_convert_times", "")
+			return
+		}
 	} else {
 		fieldLogger.WithError(dbErr).Error("Failed to obtain DB after reopen for LoadSettings")
 	}
@@ -465,7 +515,8 @@ func runSQLiteFileRestore(svc *BackupService, data []byte, store *config.Store) 
 // These are inserted in batches (separate transactions) rather than in one
 // giant transaction, so the SQLite write lock is released periodically.
 var largeTables = map[string]bool{
-	"sensor_data": true,
+	"sensor_data":        true,
+	"sensor_data_hourly": true,
 }
 
 // ImportBackup accepts a .zip archive (produced by CreateBackup), kicks off
@@ -559,6 +610,7 @@ func ImportBackup(c *gin.Context) {
 	if skipSensor {
 		fieldLogger.Info("User opted to skip sensor_data import")
 		payload.SensorData = nil
+		payload.SensorDataHourly = nil
 	}
 
 	// Launch the restore in a background goroutine and return 202.
@@ -574,6 +626,7 @@ func ImportBackup(c *gin.Context) {
 // runRestore performs the actual database restore work in a background goroutine.
 func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBackupSize int64, store *config.Store) {
 	fieldLogger := logger.Log.WithField("handler", "runRestore")
+	upgradeLegacyPayload(&payload)
 
 	var (
 		filesRestored int
@@ -592,7 +645,7 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 	db := svc.DB()
 	if db == nil {
 		fieldLogger.Error("BackupService has no DB handle")
-		runErr = fmt.Errorf("Failed to get database handle")
+		runErr = restoreFailed("backup_err_db_handle", "")
 		return
 	}
 
@@ -607,7 +660,9 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 		"plant_images",
 		"streams",
 		"strain_lineage",
+		"plant_sensor",
 		"plant",
+		"sensor_data_hourly",
 		"sensor_data",
 		"rolling_averages",
 		"sensors",
@@ -622,6 +677,8 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 		"settings",
 	}
 
+	zones, zoneLinks := splitZoneVPDLinks(payload.Zones)
+
 	// Tables in insertion order (parents first).
 	insertOrder := []struct {
 		name string
@@ -629,7 +686,7 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 	}{
 		{"settings", payload.Settings},
 		{"api_keys", payload.APIKeys},
-		{"zones", payload.Zones},
+		{"zones", zones},
 		{"breeder", payload.Breeders},
 		{"plant_status", payload.PlantStatuses},
 		{"metric", payload.Metrics},
@@ -637,10 +694,12 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 		{"activity_metric", payload.ActivityMetric},
 		{"sensors", payload.Sensors},
 		{"sensor_data", payload.SensorData},
+		{"sensor_data_hourly", payload.SensorDataHourly},
 		{"rolling_averages", payload.RollingAvgs},
 		{"strain", payload.Strains},
 		{"strain_lineage", payload.StrainLineage},
 		{"plant", payload.Plants},
+		{"plant_sensor", payload.PlantSensors},
 		{"plant_status_log", payload.PlantStatusLog},
 		{"plant_measurements", payload.PlantMeasure},
 		{"plant_activity", payload.PlantActivity},
@@ -678,7 +737,7 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 		conn, err := db.Conn(ctx)
 		if err != nil {
 			fieldLogger.WithError(err).Error("Failed to pin SQLite connection")
-			runErr = fmt.Errorf("Failed to pin database connection")
+			runErr = restoreFailed("backup_err_pin_conn", "")
 			return
 		}
 		defer conn.Close()
@@ -698,6 +757,12 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 			conn.ExecContext(ctx, "PRAGMA synchronous = FULL")
 			conn.ExecContext(ctx, "PRAGMA journal_mode = WAL")
 		}()
+		restoreFKs, err := sqliteForeignKeysOff(ctx, conn)
+		if err != nil {
+			fieldLogger.WithError(err).Warn("Could not disable FK checks")
+		} else {
+			defer restoreFKs()
+		}
 	} else {
 		exec = db
 	}
@@ -708,17 +773,13 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 	tx, err := exec.BeginTx(ctx, nil)
 	if err != nil {
 		fieldLogger.WithError(err).Error("Failed to begin transaction")
-		runErr = fmt.Errorf("Failed to begin transaction")
+		runErr = restoreFailed("backup_err_begin_tx", "")
 		return
 	}
 
 	if model.IsPostgres() {
 		if _, err := tx.Exec("SET CONSTRAINTS ALL DEFERRED"); err != nil {
 			fieldLogger.WithError(err).Warn("Could not defer constraints (non-fatal)")
-		}
-	} else {
-		if _, err := tx.Exec("PRAGMA foreign_keys = OFF"); err != nil {
-			fieldLogger.WithError(err).Warn("Could not disable FK checks")
 		}
 	}
 
@@ -732,7 +793,7 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 		if _, err := tx.Exec(stmt); err != nil {
 			tx.Rollback()
 			fieldLogger.WithError(err).Errorf("Failed to truncate %s", tbl)
-			runErr = fmt.Errorf("Failed to truncate %s", tbl)
+			runErr = restoreFailed("backup_err_truncate", tbl)
 			return
 		}
 	}
@@ -750,21 +811,21 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 		if err := insertRows(tx, tbl.name, tbl.rows); err != nil {
 			tx.Rollback()
 			fieldLogger.WithError(err).Errorf("Failed to insert into %s", tbl.name)
-			runErr = fmt.Errorf("Failed to insert into %s", tbl.name)
+			runErr = restoreFailed("backup_err_insert", tbl.name)
 			return
 		}
 		fieldLogger.Infof("Restored %d rows into %s", len(tbl.rows), tbl.name)
 	}
-
-	if model.IsSQLite() {
-		if _, err := tx.Exec("PRAGMA foreign_keys = ON"); err != nil {
-			fieldLogger.WithError(err).Warn("Could not re-enable FK checks")
-		}
+	if err := restoreZoneVPDLinks(tx, zoneLinks); err != nil {
+		tx.Rollback()
+		fieldLogger.WithError(err).Error("Failed to link zones to their VPD sensors")
+		runErr = restoreFailed("backup_err_insert", "zones")
+		return
 	}
 
 	if err := tx.Commit(); err != nil {
 		fieldLogger.WithError(err).Error("Failed to commit reference data transaction")
-		runErr = fmt.Errorf("Failed to commit reference data")
+		runErr = restoreFailed("backup_err_commit", "")
 		return
 	}
 	fieldLogger.Info("Reference data restored, starting bulk data import")
@@ -802,7 +863,7 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 
 		if err := insertRowsBatchedWithProgress(ctx, svc, exec, tbl.name, tbl.rows, insertBatchSize, remaining, totalTablesWithData); err != nil {
 			fieldLogger.WithError(err).Errorf("Failed to bulk insert into %s", tbl.name)
-			runErr = fmt.Errorf("Failed to bulk insert into %s", tbl.name)
+			runErr = restoreFailed("backup_err_bulk_insert", tbl.name)
 			return
 		}
 		fieldLogger.Infof("Restored %d rows into %s (batched)", len(tbl.rows), tbl.name)
@@ -937,8 +998,29 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 
 	fieldLogger.Infof("Restore complete: %d files extracted", filesRestored)
 
-	// Reload in-memory config from the newly restored DB.
+	// Reload in-memory config from the newly restored DB. The restore
+	// replaced api_keys, so cached key checks no longer hold.
+	ForgetVerifiedKeys(db)
 	LoadSettings(db, store)
+	if err := convertRestoredTimes(db, store); err != nil {
+		fieldLogger.WithError(err).Error("Failed to convert restored times to UTC")
+		runErr = restoreFailed("backup_err_convert_times", "")
+	}
+}
+
+// convertRestoredTimes brings restored data to UTC storage. An archive made
+// after the conversion carries the time_storage setting, and this does
+// nothing; an older one is converted: wall times from its instance zone
+// (just restored with its settings), system stamps from UTC, which is what
+// SQLite and a default Postgres stamp in.
+func convertRestoredTimes(db *sql.DB, store *config.Store) error {
+	dialect := service.SQLite
+	if model.IsPostgres() {
+		dialect = service.Postgres
+	}
+	wall := chrono.NewZones(store.Timezone, nil).Instance()
+	_, err := service.EnsureUTCStorage(context.Background(), db, dialect, wall, time.UTC)
+	return err
 }
 
 // ---------------------------------------------------------------------------
@@ -1094,46 +1176,6 @@ func insertRows(tx *sql.Tx, table string, rows []map[string]interface{}) error {
 	return nil
 }
 
-// insertRowsBatched inserts rows using multi-row INSERT statements in chunks,
-// each in its own transaction. The write lock is released between batches.
-func insertRowsBatched(db *sql.DB, table string, rows []map[string]interface{}, batchSize int) error {
-	if len(rows) == 0 {
-		return nil
-	}
-
-	cols := columnsFromRow(rows[0])
-	totalRows := len(rows)
-	totalBatches := (totalRows + batchSize - 1) / batchSize
-
-	for i := 0; i < totalRows; i += batchSize {
-		end := i + batchSize
-		if end > totalRows {
-			end = totalRows
-		}
-		batch := rows[i:end]
-		batchNum := i/batchSize + 1
-
-		stmt, allVals := buildMultiRowInsert(table, cols, batch)
-
-		tx, err := db.Begin()
-		if err != nil {
-			return fmt.Errorf("begin batch %d: %w", batchNum, err)
-		}
-
-		if _, err := tx.Exec(stmt, allVals...); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("insert into %s batch %d: %w", table, batchNum, err)
-		}
-
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit batch %d: %w", batchNum, err)
-		}
-
-		logger.Log.Infof("  %s: batch %d/%d (%d rows)", table, batchNum, totalBatches, len(batch))
-	}
-	return nil
-}
-
 // bulkInserter is the minimal interface needed for batched inserts — satisfied
 // by both *sql.DB and *sql.Conn so we can pin a connection for SQLite.
 type bulkInserter interface {
@@ -1164,6 +1206,13 @@ func insertRowsBatchedWithProgress(ctx context.Context, svc *BackupService, exec
 	if err != nil {
 		return fmt.Errorf("begin bulk insert: %w", err)
 	}
+	resumeRollingAvg := func() error { return nil }
+	if table == "sensor_data" {
+		if resumeRollingAvg, err = pauseRollingAvgTrigger(tx); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
 
 	for i := 0; i < totalRows; i += batchSize {
 		end := i + batchSize
@@ -1183,6 +1232,10 @@ func insertRowsBatchedWithProgress(ctx context.Context, svc *BackupService, exec
 
 		logger.Log.Infof("  %s: batch %d/%d (%d rows)", table, batchNum, totalBatches, len(batch))
 	}
+	if err := resumeRollingAvg(); err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit bulk insert: %w", err)
@@ -1199,6 +1252,13 @@ func insertRowsPreparedWithProgress(ctx context.Context, svc *BackupService, exe
 	tx, err := exec.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin prepared insert: %w", err)
+	}
+	resumeRollingAvg := func() error { return nil }
+	if table == "sensor_data" {
+		if resumeRollingAvg, err = pauseRollingAvgTrigger(tx); err != nil {
+			tx.Rollback()
+			return err
+		}
 	}
 
 	stmt := buildInsertStmt(table, cols)
@@ -1228,6 +1288,10 @@ func insertRowsPreparedWithProgress(ctx context.Context, svc *BackupService, exe
 		}
 	}
 
+	if err := resumeRollingAvg(); err != nil {
+		tx.Rollback()
+		return err
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit prepared insert: %w", err)
 	}

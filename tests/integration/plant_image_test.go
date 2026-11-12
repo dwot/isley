@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -255,4 +256,68 @@ func TestPlantImage_DeleteBadID(t *testing.T) {
 	resp := c.APIDelete(t, "/plant/images/not-a-number/delete", fix.APIKey)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+// One bad file in a batch means none of the batch is kept.
+func TestPlantImage_UploadBatchIsAllOrNone(t *testing.T) {
+	t.Parallel()
+
+	uploadDir := t.TempDir()
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db, testutil.WithUploadDir(uploadDir))
+	fix := seedPlantImageHTTP(t, db)
+
+	c := server.NewClient(t)
+	resp := uploadImages(t, c, fix.PlantID, fix.APIKey, []multipartFile{
+		{name: "good.jpg", body: jpegMagic},
+		{name: "bad.jpg", body: []byte("plain text")},
+	})
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	var n int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM plant_images`).Scan(&n))
+	assert.Zero(t, n)
+	entries, _ := os.ReadDir(filepath.Join(uploadDir, "plants"))
+	assert.Empty(t, entries, "no file is left behind")
+}
+
+// The stored extension follows the content, so a picture named .html is
+// still served as a picture.
+func TestPlantImage_ExtensionFollowsContent(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db, testutil.WithUploadDir(t.TempDir()))
+	fix := seedPlantImageHTTP(t, db)
+
+	c := server.NewClient(t)
+	resp := uploadImages(t, c, fix.PlantID, fix.APIKey, []multipartFile{{name: "page.html", body: pngMagic}})
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var path string
+	require.NoError(t, db.QueryRow(`SELECT image_path FROM plant_images`).Scan(&path))
+	assert.Equal(t, ".png", filepath.Ext(path))
+}
+
+func TestPlantImage_DeletingPlantRemovesFiles(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db, testutil.WithUploadDir(t.TempDir()))
+	fix := seedPlantImageHTTP(t, db)
+
+	c := server.NewClient(t)
+	up := uploadImages(t, c, fix.PlantID, fix.APIKey, []multipartFile{{name: "a.jpg", body: jpegMagic}})
+	require.Equal(t, http.StatusOK, up.StatusCode)
+	up.Body.Close()
+	var path string
+	require.NoError(t, db.QueryRow(`SELECT image_path FROM plant_images`).Scan(&path))
+	require.FileExists(t, path)
+
+	resp := c.APIDelete(t, "/plant/delete/"+strconv.FormatInt(fix.PlantID, 10), fix.APIKey)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.NoFileExists(t, path)
 }

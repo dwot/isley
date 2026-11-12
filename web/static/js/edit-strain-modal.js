@@ -169,15 +169,18 @@ document.addEventListener("DOMContentLoaded", () => {
         uiMessages.confirmDelete(uiMessages.t('confirm_delete_strain', 'Are you sure you want to delete this strain?'), uiMessages.t('delete_strain', 'Delete Strain')).then(confirmed => {
             if (!confirmed) return;
             fetch(`/strains/${strainId}`, { method: "DELETE" })
-                .then(response => {
-                    if (!response.ok) throw new Error("{{ .lcl.delete_fail }}");
-
-                    // ✅ Redirect only after successful deletion
+                .then(async response => {
+                    if (!response.ok) {
+                        // The server says why (a strain with plants can't go).
+                        let serverMsg = "";
+                        try { const data = await response.json(); serverMsg = (data && data.error) || ""; } catch (e) {}
+                        throw new Error(serverMsg);
+                    }
                     window.location.href = "/strains";
                 })
                 .catch(error => {
                     console.error("Error deleting strain:", error);
-                    uiMessages.showToast(uiMessages.t('delete_error') || 'Delete failed', 'danger');
+                    uiMessages.showToast(error.message || uiMessages.t('delete_error') || 'Delete failed', 'danger');
                 });
         });
     });

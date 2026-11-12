@@ -1,193 +1,165 @@
 package handlers
 
 import (
-	"database/sql"
-	"fmt"
-	"isley/logger"
-	"isley/model/types"
-	"isley/utils"
+	"context"
+	"encoding/json"
 	"net/http"
-	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+
+	"isley/logger"
+	"isley/model/types"
+	"isley/service"
+	"isley/utils"
 )
 
-func GetStreams(db *sql.DB) []types.Stream {
-	streams := []types.Stream{}
-	fieldLogger := logger.Log.WithField("func", "GetStreams")
-	rows, err := db.Query("SELECT s.id, s.name, url, zone_id, visible, z.name as zone_name FROM streams s left outer join zones z on s.zone_id = z.id")
+// GetStreams lists every stream for the settings page.
+func GetStreams(ctx context.Context, svc *service.Services) []types.Stream {
+	streams, err := svc.Streams.List(ctx, 0)
 	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to read stream")
-		return streams
+		logger.Log.WithError(err).Error("Failed to list streams")
+		return []types.Stream{}
 	}
-	defer rows.Close()
+	return toTypeStreams(streams)
+}
 
-	stream := types.Stream{}
-	for rows.Next() {
-		var id, zoneID uint
-		var visible bool
-		var name, url, zoneName string
-		err = rows.Scan(&id, &name, &url, &zoneID, &visible, &zoneName)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to read stream")
-			continue
+func toTypeStreams(streams []service.Stream) []types.Stream {
+	out := make([]types.Stream, len(streams))
+	for i, st := range streams {
+		out[i] = types.Stream{
+			ID: uint(st.ID), Name: st.Name, URL: st.URL, ZoneID: uint(st.Zone.ID),
+			ZoneName: st.Zone.Name, Visible: st.Visible,
 		}
-		stream = types.Stream{ID: id, Name: name, URL: url, ZoneID: zoneID, ZoneName: zoneName, Visible: visible}
-		streams = append(streams, stream)
 	}
+	return out
+}
 
-	return streams
+// formInt and formBool read a JSON number or boolean, or the string a
+// form select sends ("3", "true").
+type formInt int
+
+func (f *formInt) UnmarshalJSON(b []byte) error {
+	var n int
+	if err := json.Unmarshal(b, &n); err == nil {
+		*f = formInt(n)
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil {
+		return err
+	}
+	*f = formInt(n)
+	return nil
+}
+
+type formBool bool
+
+func (f *formBool) UnmarshalJSON(b []byte) error {
+	var v bool
+	if err := json.Unmarshal(b, &v); err == nil {
+		*f = formBool(v)
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	v, err := strconv.ParseBool(strings.TrimSpace(s))
+	if err != nil {
+		return err
+	}
+	*f = formBool(v)
+	return nil
+}
+
+type streamRequest struct {
+	Name    string   `json:"stream_name"`
+	URL     string   `json:"url"`
+	ZoneID  formInt  `json:"zone_id"`
+	Visible formBool `json:"visible"`
+}
+
+// streamsResponse answers with the whole list, which the settings page
+// redraws from.
+func streamsResponse(c *gin.Context) []types.Stream {
+	return GetStreams(c.Request.Context(), ServicesFromContext(c))
 }
 
 func AddStreamHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "AddStreamHandler")
-	var stream struct {
-		Name    string `json:"stream_name"`
-		URL     string `json:"url"`
-		ZoneID  string `json:"zone_id"`
-		Visible bool   `json:"visible"`
-	}
-	if err := c.ShouldBindJSON(&stream); err != nil {
-		fieldLogger.WithError(err).Error("Failed to add stream")
+	var req streamRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
-	if err := utils.ValidateRequiredString("stream_name", stream.Name, utils.MaxNameLength); err != nil {
-		apiBadRequest(c, err.Error())
-		return
-	}
-	if err := utils.ValidateStreamURL(stream.URL); err != nil {
-		apiBadRequest(c, err.Error())
-		return
-	}
-
-	// Add stream to database
-	db := DBFromContext(c)
-
-	// Insert new stream and return new id
-	var id int
-	err := db.QueryRow("INSERT INTO streams (name, url, zone_id, visible) VALUES ($1, $2, $3, $4) RETURNING id", stream.Name, stream.URL, stream.ZoneID, stream.Visible).Scan(&id)
+	svc := ServicesFromContext(c)
+	st, err := svc.Streams.Create(c.Request.Context(), service.StreamInput{
+		Name: req.Name, URL: req.URL, ZoneID: int(req.ZoneID), Visible: bool(req.Visible),
+	})
 	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to add stream")
-		apiInternalError(c, "api_failed_to_add_stream")
+		apiServiceError(c, err, "api_failed_to_add_stream")
 		return
 	}
-
-	streams := GetStreams(db)
-	ConfigStoreFromContext(c).SetStreams(streams)
-
-	latestFileName := fmt.Sprintf("stream_%d_latest%s", id, filepath.Ext(".jpg"))
-	latestSavePath := filepath.Join(StreamDirFromContext(c), latestFileName)
-	utils.GrabWebcamImage(stream.URL, latestSavePath)
-
-	c.JSON(http.StatusCreated, gin.H{"id": id, "streams": streams})
+	// A first frame now, so the dashboard has something before the
+	// grabber's next round.
+	if err := utils.GrabWebcamImage(st.URL, svc.Streams.LatestFramePath(st.ID)); err != nil {
+		logger.Log.WithError(err).WithField("stream", st.ID).Warn("Failed to grab first stream frame")
+	}
+	c.JSON(http.StatusCreated, gin.H{"id": st.ID, "streams": streamsResponse(c)})
 }
 
 func UpdateStreamHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "UpdateStreamHandler")
-	id := c.Param("id")
-	var stream struct {
-		Name    string `json:"stream_name"`
-		URL     string `json:"url"`
-		ZoneID  int    `json:"zone_id"`
-		Visible bool   `json:"visible"`
-	}
-	if err := c.ShouldBindJSON(&stream); err != nil {
-		fieldLogger.WithError(err).Error("Failed to update stream")
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
 		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
-	if err := utils.ValidateRequiredString("stream_name", stream.Name, utils.MaxNameLength); err != nil {
-		apiBadRequest(c, err.Error())
+	var req streamRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
-	if err := utils.ValidateStreamURL(stream.URL); err != nil {
-		apiBadRequest(c, err.Error())
+	zoneID, visible := int(req.ZoneID), bool(req.Visible)
+	if _, err := ServicesFromContext(c).Streams.Update(c.Request.Context(), id, service.StreamUpdate{
+		Name: service.Put(&req.Name), URL: service.Put(&req.URL),
+		ZoneID: service.Put(&zoneID), Visible: service.Put(&visible),
+	}); err != nil {
+		apiServiceError(c, err, "api_failed_to_update_stream")
 		return
 	}
-
-	// Update stream in database
-	db := DBFromContext(c)
-
-	//convert visible to int
-	var visibleInt int
-	if stream.Visible {
-		visibleInt = 1
-	} else {
-		visibleInt = 0
-	}
-
-	// Update stream in database
-	_, err := db.Exec("UPDATE streams SET name = $1, url = $2, zone_id = $3, visible = $4 WHERE id = $5", stream.Name, stream.URL, stream.ZoneID, visibleInt, id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to update stream")
-		apiInternalError(c, "api_failed_to_update_stream")
-		return
-	}
-
-	streams := GetStreams(db)
-	ConfigStoreFromContext(c).SetStreams(streams)
-
-	c.JSON(http.StatusOK, gin.H{"message": T(c, "api_stream_updated"), "streams": streams})
+	c.JSON(http.StatusOK, gin.H{"message": T(c, "api_stream_updated"), "streams": streamsResponse(c)})
 }
 
 func DeleteStreamHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "DeleteStreamHandler")
-	id := c.Param("id")
-
-	// Delete stream from database
-	db := DBFromContext(c)
-
-	// Delete stream from database
-	_, err := db.Exec("DELETE FROM streams WHERE id = $1", id)
+	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to delete stream")
-		apiInternalError(c, "api_failed_to_delete_stream")
+		apiBadRequest(c, "api_invalid_payload")
 		return
 	}
-
-	streams := GetStreams(db)
-	ConfigStoreFromContext(c).SetStreams(streams)
-
-	c.JSON(http.StatusOK, gin.H{"message": T(c, "api_stream_deleted"), "streams": streams})
+	if err := ServicesFromContext(c).Streams.Delete(c.Request.Context(), id); err != nil {
+		apiServiceError(c, err, "api_failed_to_delete_stream")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": T(c, "api_stream_deleted"), "streams": streamsResponse(c)})
 }
 
+// GetStreamsByZoneHandler serves the dashboard's streams keyed by zone name.
 func GetStreamsByZoneHandler(c *gin.Context) {
-	fieldLogger := logger.Log.WithField("func", "GetStreamsByZoneHandler")
-	db := DBFromContext(c)
-
-	rows, err := db.Query("SELECT s.id, s.name, s.url, z.name as zone_name, visible FROM streams s left outer join zones z on s.zone_id = z.id")
+	streams, err := ServicesFromContext(c).Streams.List(c.Request.Context(), 0)
 	if err != nil {
-		fieldLogger.WithError(err).Error("Failed to read streams")
-		apiInternalError(c, "api_failed_to_read_streams")
+		apiServiceError(c, err, "api_failed_to_read_streams")
 		return
 	}
-	defer rows.Close()
-
-	streamsByZone := make(map[string][]types.Stream)
-	for rows.Next() {
-		var id int
-		var name, url, zoneName string
-		var visible bool
-		err = rows.Scan(&id, &name, &url, &zoneName, &visible)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to read streams")
-			apiInternalError(c, "api_failed_to_read_streams")
-			return
-		}
-		streamsByZone[zoneName] = append(streamsByZone[zoneName], types.Stream{ID: uint(id), Name: name, URL: url, ZoneName: zoneName, Visible: visible})
+	byZone := make(map[string][]types.Stream)
+	for _, st := range toTypeStreams(streams) {
+		// The dashboard never had zone ids here.
+		st.ZoneID = 0
+		byZone[st.ZoneName] = append(byZone[st.ZoneName], st)
 	}
-
-	c.JSON(http.StatusOK, streamsByZone)
-}
-
-func DeleteStreamByID(db *sql.DB, id string) error {
-	fieldLogger := logger.Log.WithField("func", "DeleteStreamByID")
-
-	_, err := db.Exec("DELETE FROM streams WHERE id = $1", id)
-	if err != nil {
-		fieldLogger.WithError(err).Error("Error deleting sensor")
-		return err
-	}
-	return nil
+	c.JSON(http.StatusOK, byZone)
 }

@@ -153,10 +153,10 @@ func TestStreamHTTP_Update_RejectsBadURL(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// DeleteStreamHandler — no-op when row missing
+// DeleteStreamHandler — a stream that doesn't exist is a 404
 // ---------------------------------------------------------------------------
 
-func TestStreamHTTP_Delete_NoOpOnMissing(t *testing.T) {
+func TestStreamHTTP_Delete_MissingIs404(t *testing.T) {
 	t.Parallel()
 
 	db := testutil.NewTestDB(t)
@@ -169,7 +169,7 @@ func TestStreamHTTP_Delete_NoOpOnMissing(t *testing.T) {
 	resp, err := c.Do(testutil.APIReq(t, http.MethodDelete, c.BaseURL+"/streams/99999", apiKey, nil, ""))
 	require.NoError(t, err)
 	defer testutil.DrainAndClose(resp)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
 
 // ---------------------------------------------------------------------------

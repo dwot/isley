@@ -1,3 +1,10 @@
+// +parallel:serial: TestAppSmoke checks /health, whose database ping has a
+// 2-second budget. Run alongside the package's parallel tests under -race on
+// a busy CI runner, the whole request sometimes took longer than that
+// (seen on both runners once test databases became cheap to create and the
+// parallel tests packed tightly). Serial tests run before the parallel ones
+// start, so this one gets the process to itself.
+
 // Package integration holds the in-process integration tests built on
 // the tests/testutil harness from docs/TEST_PLAN.md.
 //
@@ -8,6 +15,7 @@
 package integration
 
 import (
+	"io"
 	"net/http"
 	"net/url"
 	"testing"
@@ -23,8 +31,6 @@ import (
 // unauthenticated /health probe, walks through the login flow with a
 // seeded admin, and confirms post-login navigation works.
 func TestAppSmoke(t *testing.T) {
-	t.Parallel()
-
 	db := testutil.NewTestDB(t)
 	server := testutil.NewTestServer(t, db)
 
@@ -32,7 +38,8 @@ func TestAppSmoke(t *testing.T) {
 		c := server.NewClient(t)
 		resp := c.Get("/health")
 		defer resp.Body.Close()
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		assert.Equal(t, http.StatusOK, resp.StatusCode, "%s", body)
 	})
 
 	t.Run("dashboard redirects to /login when unauthenticated", func(t *testing.T) {

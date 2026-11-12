@@ -2,6 +2,7 @@ package integration
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"io"
@@ -126,8 +127,8 @@ func TestPlant_DeleteRemovesRow(t *testing.T) {
 
 	// Insert a plant directly so we don't depend on the AddPlant flow.
 	res, err := db.Exec(
-		`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
-		 VALUES ('Doomed', 1, 1, '', 0, '2026-01-01', '[]')`,
+		`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt)
+		 VALUES ('Doomed', 1, 1, '', 0, '2026-01-01')`,
 	)
 	require.NoError(t, err)
 	plantID, err := res.LastInsertId()
@@ -161,14 +162,14 @@ func TestPlant_LivingPlantsLandsOnlyActiveStatuses(t *testing.T) {
 	testutil.MustExec(t, db, `INSERT INTO zones (id, name) VALUES (1, 'Z')`)
 
 	res, err := db.Exec(
-		`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
-		 VALUES ('Alive', 1, 1, '', 0, '2026-01-01', '[]')`,
+		`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt)
+		 VALUES ('Alive', 1, 1, '', 0, '2026-01-01')`,
 	)
 	require.NoError(t, err)
 	aliveID, _ := res.LastInsertId()
 	res, err = db.Exec(
-		`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt, sensors)
-		 VALUES ('Done', 1, 1, '', 0, '2026-01-01', '[]')`,
+		`INSERT INTO plant (name, zone_id, strain_id, description, clone, start_dt)
+		 VALUES ('Done', 1, 1, '', 0, '2026-01-01')`,
 	)
 	require.NoError(t, err)
 	doneID, _ := res.LastInsertId()
@@ -253,7 +254,7 @@ func TestGetAdjacentPlantIDs(t *testing.T) {
 		b := adjPlant(t, db, "B", "2026-02-01", "Veg", strainID, zoneID)
 		c := adjPlant(t, db, "C", "2026-03-01", "Veg", strainID, zoneID)
 
-		prev, next := handlers.GetAdjacentPlantIDs(db, b)
+		prev, next := handlers.GetAdjacentPlantIDs(context.Background(), testutil.NewServices(t, db), b)
 		assert.Equal(t, a, prev, "prev of B should be A")
 		assert.Equal(t, c, next, "next of B should be C")
 	})
@@ -268,7 +269,7 @@ func TestGetAdjacentPlantIDs(t *testing.T) {
 		a := adjPlant(t, db, "A", "2026-01-01", "Veg", strainID, zoneID)
 		b := adjPlant(t, db, "B", "2026-02-01", "Veg", strainID, zoneID)
 
-		prev, next := handlers.GetAdjacentPlantIDs(db, a)
+		prev, next := handlers.GetAdjacentPlantIDs(context.Background(), testutil.NewServices(t, db), a)
 		assert.Equal(t, 0, prev, "first plant has no prev")
 		assert.Equal(t, b, next)
 	})
@@ -283,7 +284,7 @@ func TestGetAdjacentPlantIDs(t *testing.T) {
 		b := adjPlant(t, db, "B", "2026-01-01", "Veg", strainID, zoneID)
 		c := adjPlant(t, db, "C", "2026-02-01", "Veg", strainID, zoneID)
 
-		prev, next := handlers.GetAdjacentPlantIDs(db, c)
+		prev, next := handlers.GetAdjacentPlantIDs(context.Background(), testutil.NewServices(t, db), c)
 		assert.Equal(t, b, prev)
 		assert.Equal(t, 0, next, "last plant has no next")
 	})
@@ -297,7 +298,7 @@ func TestGetAdjacentPlantIDs(t *testing.T) {
 
 		a := adjPlant(t, db, "A", "2026-01-01", "Veg", strainID, zoneID)
 
-		prev, next := handlers.GetAdjacentPlantIDs(db, a)
+		prev, next := handlers.GetAdjacentPlantIDs(context.Background(), testutil.NewServices(t, db), a)
 		assert.Equal(t, 0, prev)
 		assert.Equal(t, 0, next)
 	})
@@ -306,7 +307,7 @@ func TestGetAdjacentPlantIDs(t *testing.T) {
 		t.Parallel()
 		db := testutil.NewTestDB(t)
 
-		prev, next := handlers.GetAdjacentPlantIDs(db, 99999)
+		prev, next := handlers.GetAdjacentPlantIDs(context.Background(), testutil.NewServices(t, db), 99999)
 		assert.Equal(t, 0, prev)
 		assert.Equal(t, 0, next)
 	})
@@ -323,11 +324,11 @@ func TestGetAdjacentPlantIDs(t *testing.T) {
 		bb := adjPlant(t, db, "Bravo", "2026-01-01", "Veg", strainID, zoneID)
 		aa := adjPlant(t, db, "Alpha", "2026-01-01", "Veg", strainID, zoneID)
 
-		prev, next := handlers.GetAdjacentPlantIDs(db, aa)
+		prev, next := handlers.GetAdjacentPlantIDs(context.Background(), testutil.NewServices(t, db), aa)
 		assert.Equal(t, 0, prev, "Alpha (alphabetically first) should have no prev")
 		assert.Equal(t, bb, next, "next of Alpha should be Bravo")
 
-		prev, next = handlers.GetAdjacentPlantIDs(db, bb)
+		prev, next = handlers.GetAdjacentPlantIDs(context.Background(), testutil.NewServices(t, db), bb)
 		assert.Equal(t, aa, prev)
 		assert.Equal(t, 0, next)
 	})
@@ -345,7 +346,7 @@ func TestGetAdjacentPlantIDs(t *testing.T) {
 		_ = adjPlant(t, db, "Dead", "2025-12-01", "Success", strainID, zoneID)
 		living := adjPlant(t, db, "Living", "2026-01-01", "Veg", strainID, zoneID)
 
-		prev, next := handlers.GetAdjacentPlantIDs(db, living)
+		prev, next := handlers.GetAdjacentPlantIDs(context.Background(), testutil.NewServices(t, db), living)
 		assert.Equal(t, 0, prev, "living plant must not see the dead plant as prev")
 		assert.Equal(t, 0, next)
 	})
