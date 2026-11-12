@@ -20,6 +20,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [2.6.0] - 2026-11-12
+
 A versioned REST API and an MCP server for AI assistants, times stored in
 UTC, and a long list of fixes, several of them to backups and sensor graphs.
 
