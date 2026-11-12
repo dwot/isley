@@ -18,6 +18,32 @@ color: #0d6efd; /* Primary color */
 .border-start.border-4 { border-left-width: 4px !important; }
 .card-table .card-body { padding: 0; }
 .card-table .table { margin-bottom: 0; }
+.settings-table-scroll {
+    max-height: 400px;
+    overflow-y: auto;
+}
+.settings-table-scroll thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background-color: var(--color-table-header);
+}
+.settings-search-wrap {
+    position: relative;
+    max-width: 320px;
+}
+.settings-search-icon {
+    position: absolute;
+    left: 0.65rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-muted);
+    font-size: 0.8rem;
+    pointer-events: none;
+}
+.settings-search-wrap .form-control {
+    padding-left: 2rem;
+}
 </style>
 {{ template "common/header2.html" .}}
 <div class="container">
@@ -413,20 +439,33 @@ color: #0d6efd; /* Primary color */
                     </button>
                 </div>
                 <div class="card-body">
-                    <table class="table table-striped table-hover mb-0">
-                        <thead class="bg-themed">
-                        <tr>
-                            <th>{{ .lcl.breeder }}</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {{ range .breeders }}
-                        <tr class="clickable-row breeder-row" data-breeder-id="{{ .ID }}" data-breeder='{{ json . }}'>
-                            <td>{{ .Name }}</td>
-                        </tr>
-                        {{ end }}
-                        </tbody>
-                    </table>
+                    <div class="p-2 border-bottom">
+                        <div class="settings-search-wrap">
+                            <i class="fa-solid fa-search settings-search-icon"></i>
+                            <input type="text" class="form-control form-control-sm" id="searchBreeders"
+                                   placeholder="{{ .lcl.search_breeders }}..."
+                                   aria-label="{{ .lcl.search_breeders }}" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="settings-table-scroll">
+                        <table class="table table-striped table-hover mb-0" id="breederTable">
+                            <thead class="bg-themed">
+                            <tr>
+                                <th>{{ .lcl.breeder }}</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {{ range .breeders }}
+                            <tr class="clickable-row breeder-row" data-breeder-id="{{ .ID }}" data-breeder='{{ json . }}'>
+                                <td>{{ .Name }}</td>
+                            </tr>
+                            {{ end }}
+                            <tr id="noBreedersMatch" class="d-none">
+                                <td class="text-muted text-center py-3">{{ .lcl.no_breeders_match }}</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
@@ -2092,12 +2131,43 @@ color: #0d6efd; /* Primary color */
                         // and scroll position are untouched.
                         const row = document.querySelector(`.breeder-row[data-breeder-id="${breederId}"]`);
                         if (row) row.remove();
+                        const searchInput = document.getElementById("searchBreeders");
+                        if (searchInput) searchInput.dispatchEvent(new Event("input"));
                         editBreederModal.hide();
                         uiMessages.showToast(data.message || uiMessages.t('api_breeder_deleted', 'Breeder deleted'), 'success');
                     })
                     .catch(err => uiMessages.showToast(err.message || uiMessages.t('failed_to_delete_breeder', 'Failed to delete breeder. Please try again.'), 'danger'));
             });
         });
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const searchInput = document.getElementById("searchBreeders");
+        const breederTable = document.getElementById("breederTable");
+        const noMatchesRow = document.getElementById("noBreedersMatch");
+        if (!searchInput || !breederTable) return;
+
+        const applyBreederFilter = () => {
+            const query = searchInput.value.trim().toLowerCase();
+            const rows = breederTable.querySelectorAll(".breeder-row");
+            let visible = 0;
+
+            rows.forEach(row => {
+                const matches = query === "" ||
+                    (row.textContent || "").toLowerCase().includes(query);
+                row.classList.toggle("d-none", !matches);
+                if (matches) visible++;
+            });
+
+            if (noMatchesRow) {
+                noMatchesRow.classList.toggle(
+                    "d-none",
+                    visible > 0 || rows.length === 0
+                );
+            }
+        };
+
+        searchInput.addEventListener("input", debounce(applyBreederFilter, 150));
     });
 
     document.addEventListener("DOMContentLoaded", () => {
