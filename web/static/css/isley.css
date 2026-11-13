@@ -973,7 +973,8 @@ header .nav-link.active::after {
 .strains-search-wrap,
 .sensors-search-wrap,
 .plants-search-wrap,
-.activities-search-wrap {
+.activities-search-wrap,
+.settings-search-wrap {
     position: relative;
     flex: 1;
     min-width: 180px;
@@ -982,7 +983,8 @@ header .nav-link.active::after {
 .strains-search-icon,
 .sensors-search-icon,
 .plants-search-icon,
-.activities-search-icon {
+.activities-search-icon,
+.settings-search-icon {
     position: absolute;
     left: 0.65rem;
     top: 50%;
@@ -994,7 +996,8 @@ header .nav-link.active::after {
 .strains-search-wrap .form-control,
 .sensors-search-wrap .form-control,
 .plants-search-wrap .form-control,
-.activities-search-wrap .form-control {
+.activities-search-wrap .form-control,
+.settings-search-wrap .form-control {
     padding-left: 2rem;
     background: var(--color-input-bg);
     color: var(--color-input-fg);
