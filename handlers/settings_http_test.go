@@ -118,6 +118,7 @@ func TestSettingsHTTP_SaveSettings_HappyPath(t *testing.T) {
 		"sensor_retention_days": "90",
 		"log_level":             "info",
 		"timezone":              "America/Los_Angeles",
+		"weight_unit":           "oz",
 		"guest_mode":            false,
 	})
 	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings", apiKey, body, "application/json"))
@@ -126,7 +127,7 @@ func TestSettingsHTTP_SaveSettings_HappyPath(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// DB-level: each persisted key should now be readable.
-	for _, k := range []string{"polling_interval", "stream_grab_interval", "sensor_retention_days", "log_level", "timezone"} {
+	for _, k := range []string{"polling_interval", "stream_grab_interval", "sensor_retention_days", "log_level", "timezone", "weight_unit"} {
 		var v string
 		err := db.QueryRow(`SELECT value FROM settings WHERE name = $1`, k).Scan(&v)
 		require.NoErrorf(t, err, "setting %q must be persisted", k)
