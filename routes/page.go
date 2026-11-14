@@ -28,6 +28,7 @@ func page(c *gin.Context, version, template, title string, fields gin.H) {
 		"currentLanguage": lang,
 		"csrfToken":       c.GetString("csrf_token"),
 		"cspNonce":        c.GetString("cspNonce"),
+		"weightUnit":      handlers.ConfigStoreFromContext(c).WeightUnit(),
 	}
 	for k, v := range fields {
 		data[k] = v

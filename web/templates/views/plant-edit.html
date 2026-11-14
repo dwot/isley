@@ -135,10 +135,13 @@
 
                             <!-- Harvest Weight -->
                             <div class="col-md-6">
-                                <label for="harvestWeight" class="form-label">{{ .lcl.harvest_weight_g }}</label>
+                                <label for="harvestWeight" class="form-label">{{ .lcl.harvest_weight }}</label>
                                 <div class="input-group">
-                                    <input type="number" class="form-control" id="harvestWeight" value="{{ .plant.HarvestWeight }}" step="any">
-                                    <span class="input-group-text">{{ .lcl.title_grams }}</span>
+                                    <input type="number" class="form-control" id="harvestWeight" value="{{ weightValue .plant.HarvestWeight .weightUnit }}" step="any">
+                                    <select class="form-select" id="harvestWeightUnit" aria-label="{{ .lcl.settings_weight_unit }}" style="max-width: 80px">
+                                        <option value="g" {{ if eq .weightUnit "g" }}selected{{ end }}>g</option>
+                                        <option value="oz" {{ if eq .weightUnit "oz" }}selected{{ end }}>oz</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>

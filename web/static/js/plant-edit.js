@@ -8,6 +8,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const newBreederInput = document.getElementById("newBreederInput");
     const deletePlantButton = document.getElementById("deletePlantButton");
     const plantId = document.getElementById("plantId").value;
+    const harvestWeight = document.getElementById("harvestWeight");
+    const harvestWeightUnit = document.getElementById("harvestWeightUnit");
+
+    // Keep the same physical weight when the entry unit changes.
+    if (harvestWeight && harvestWeightUnit) {
+        let lastUnit = harvestWeightUnit.value;
+        harvestWeightUnit.addEventListener("change", () => {
+            harvestWeight.value = IsleyWeight.convert(harvestWeight.value, lastUnit, harvestWeightUnit.value);
+            lastUnit = harvestWeightUnit.value;
+        });
+    }
 
     // Initialize autocomplete on strain and zone selects
     const zoneAC = new IsleyAutocomplete(zoneSelect, {
@@ -62,7 +73,8 @@ document.addEventListener("DOMContentLoaded", () => {
             } : null,
             clone: document.getElementById("cloneCheckbox").checked,
             start_date: document.getElementById("startDate").value,
-            harvest_weight: parseFloat(document.getElementById("harvestWeight").value) || 0,
+            harvest_weight: parseFloat(harvestWeight.value) || 0,
+            harvest_weight_unit: harvestWeightUnit.value,
         };
 
         fetch("/plant", {

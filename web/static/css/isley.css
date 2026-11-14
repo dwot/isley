@@ -913,6 +913,36 @@ header .nav-link.active::after {
     text-align: right;
 }
 
+/* Click-to-convert harvest weight values */
+.isley-weight-toggle {
+    cursor: pointer;
+    display: inline-block;
+    padding: 0 0.15rem;
+    margin: 0 -0.15rem;
+    border-radius: 0.25rem;
+    text-decoration: underline dotted;
+    text-underline-offset: 0.2em;
+    user-select: none;
+    transition: background-color 140ms ease, color 140ms ease;
+}
+.isley-weight-toggle:hover,
+.isley-weight-toggle:focus-visible {
+    background-color: rgba(13, 110, 253, 0.12);
+    color: var(--color-accent);
+    outline: none;
+}
+.isley-weight-toggle:focus-visible {
+    box-shadow: 0 0 0 0.15rem rgba(13, 110, 253, 0.22);
+}
+.isley-weight-toggle[data-swapping="true"] {
+    pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+    .isley-weight-toggle {
+        transition: none;
+    }
+}
+
 /* Strain ratio section */
 .strain-ratio-section {
     padding: 0.5rem 0;

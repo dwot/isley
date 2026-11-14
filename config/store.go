@@ -42,6 +42,7 @@ type Store struct {
 	timezone           string
 	cannadbEnabled     int
 	cannadbBaseURL     string
+	weightUnit         string
 	smokeCriteria      []types.SmokeReportCriterion
 }
 
@@ -54,6 +55,7 @@ const (
 	defaultAPIIngestEnabled = 1
 	defaultLogLevel         = "info"
 	defaultMaxBackupSize    = int64(5 * 1024 * 1024 * 1024) // 5 GB
+	defaultWeightUnit       = "g"
 )
 
 // NewStore returns a Store seeded with the package-level defaults.
@@ -63,6 +65,7 @@ func NewStore() *Store {
 		apiIngestEnabled: defaultAPIIngestEnabled,
 		logLevel:         defaultLogLevel,
 		maxBackupSize:    defaultMaxBackupSize,
+		weightUnit:       defaultWeightUnit,
 	}
 }
 
@@ -262,6 +265,23 @@ func (s *Store) SetTimezone(v string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.timezone = v
+}
+
+// WeightUnit is the unit harvest weights are displayed and entered in by
+// default: "g" or "oz". The database always stores grams.
+func (s *Store) WeightUnit() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.weightUnit == "" {
+		return defaultWeightUnit
+	}
+	return s.weightUnit
+}
+
+func (s *Store) SetWeightUnit(v string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.weightUnit = v
 }
 
 // ----------------------------------------------------------------------

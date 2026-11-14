@@ -11,6 +11,7 @@ import (
 	"isley/logger"
 	"isley/model/types"
 	"isley/service"
+	"isley/utils"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -46,6 +47,9 @@ func SaveSettings(c *gin.Context) {
 		{"stream_grab_interval", settings.StreamGrabInterval},
 		{"sensor_retention_days", settings.SensorRetentionDays},
 		{"log_level", settings.LogLevel},
+		// Harvest weights are stored in grams; this only sets the unit the
+		// web UI displays and offers first in the plant forms.
+		{"weight_unit", utils.NormalizeWeightUnit(settings.WeightUnit)},
 		// Empty means the default api.cannadb.net endpoint.
 		{"cannadb.base_url", settings.Cannadb.BaseURL},
 		// Empty means the system zone.
@@ -123,7 +127,7 @@ func writeSetting(q execQuerier, name, value string) error {
 func GetSettings(db *sql.DB) types.SettingsData {
 	fieldLogger := logger.Log.WithField("func", "GetSettings")
 
-	settingsData := types.SettingsData{}
+	settingsData := types.SettingsData{WeightUnit: utils.WeightUnitGrams}
 
 	rows, err := db.Query("SELECT * FROM settings")
 	if err != nil {
@@ -178,6 +182,8 @@ func GetSettings(db *sql.DB) types.SettingsData {
 			settingsData.MaxBackupSizeMB, _ = strconv.Atoi(value)
 		case "timezone":
 			settingsData.Timezone = value
+		case "weight_unit":
+			settingsData.WeightUnit = utils.NormalizeWeightUnit(value)
 		default:
 			fieldLogger.WithField("name", name).Debug("Unrecognised setting skipped")
 		}
@@ -268,6 +274,9 @@ func LoadSettings(db *sql.DB, store *config.Store) {
 	}
 	if v, err := GetSetting(db, "timezone"); err == nil && v != "" {
 		store.SetTimezone(v)
+	}
+	if v, err := GetSetting(db, "weight_unit"); err == nil {
+		store.SetWeightUnit(utils.NormalizeWeightUnit(v))
 	}
 	if v, err := GetSetting(db, "log_level"); err == nil && v != "" {
 		store.SetLogLevel(v)
