@@ -306,7 +306,7 @@
                         </li>
                         <li>
                             <span class="strain-info-label"><i class="fa-solid fa-weight-scale me-2"></i>{{ .lcl.harvest_weight }}</span>
-                            <span class="strain-info-value">{{ .plant.HarvestWeight }} {{ .lcl.title_grams }}</span>
+                            <span class="strain-info-value isley-weight-toggle" role="button" tabindex="0" data-isley-weight data-grams="{{ .plant.HarvestWeight }}" data-unit="{{ .weightUnit }}" title="{{ .lcl.weight_toggle_hint }}">{{ weightValue .plant.HarvestWeight .weightUnit }} {{ .weightUnit }}</span>
                         </li>
                         {{ end }}
 

@@ -262,6 +262,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const headerActions = document.getElementById("dynamicHeaderActions");
 
     const canEdit = {{ if .loggedIn }}true{{ else }}false{{ end }};
+    const weightUnit = "{{ .weightUnit }}";
+    const weightToggleHint = "{{ .lcl.weight_toggle_hint }}";
     const statusOptionsRaw = {{ json .statuses }};
     const parsedStatusOptions = typeof statusOptionsRaw === "string"
         ? JSON.parse(statusOptionsRaw || "[]")
@@ -335,7 +337,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const sortIcon = ' <i class="fa-solid fa-sort ms-1 text-muted"></i>';
     function updateHeaders(view) {
         if (view === "harvested") {
-            headerDynamic1.innerHTML = "{{ .lcl.harvest_weight_g }}" + sortIcon;
+            headerDynamic1.innerHTML = "{{ .lcl.harvest_weight }}" + sortIcon;
             headerDynamic2.innerHTML = "{{ .lcl.harvest_date }}" + sortIcon;
             headerDynamic2.style.display = "";
             if (headerActions) headerActions.style.display = "";
@@ -485,10 +487,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // ----- Render card grid -----
+    function weightStat(grams) {
+        if (!grams) return "—";
+        return `<span class="isley-weight-toggle" role="button" tabindex="0" data-isley-weight data-grams="${grams}" data-unit="${weightUnit}" title="${esc(weightToggleHint)}">${IsleyWeight.format(grams, weightUnit)}</span>`;
+    }
+
     function renderCards(data) {
         cardsContainer.innerHTML = data.map(p => {
             const dayInfo = currentView === "harvested"
-                ? `<span class="pc-stat"><i class="fa-solid fa-weight-scale me-1"></i>${p.harvest_weight ? p.harvest_weight + "g" : "—"}</span>`
+                ? `<span class="pc-stat"><i class="fa-solid fa-weight-scale me-1"></i>${weightStat(p.harvest_weight)}</span>`
                 : currentView === "dead"
                 ? `<span class="pc-stat"><i class="fa-solid fa-calendar-xmark me-1"></i>${IsleyTime.formatDate(p.harvest_date) || "—"}</span>`
                 : `<span class="pc-stat"><i class="fa-solid fa-calendar-day me-1"></i>Day ${p.current_day || "—"}</span>
@@ -571,7 +578,7 @@ document.addEventListener("DOMContentLoaded", () => {
         tableBody.innerHTML = data.map(p => {
             let col1 = "", col2 = "";
             if (currentView === "harvested") {
-                col1 = p.harvest_weight ? `${p.harvest_weight}g` : "—";
+                col1 = weightStat(p.harvest_weight);
                 col2 = IsleyTime.formatDate(p.harvest_date) || "—";
             } else if (currentView === "dead") {
                 col1 = IsleyTime.formatDate(p.harvest_date) || "—";

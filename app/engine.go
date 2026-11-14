@@ -563,6 +563,11 @@ func buildFuncMap(store *config.Store, clock chrono.Clock) template.FuncMap {
 		"isZeroDate": func(t time.Time) bool {
 			return utils.IsZeroDate(t)
 		},
+		// weightValue renders a gram value (the storage unit) in the unit a
+		// page chose to display, e.g. 56.7 -> "2" for ounces.
+		"weightValue": func(grams float64, unit string) string {
+			return utils.FormatWeight(grams, unit)
+		},
 		"div": func(a, b int) int { return a / b },
 		"add": func(a, b int) int { return a + b },
 		"sub": func(a, b int) int { return a - b },
