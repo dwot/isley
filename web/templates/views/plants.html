@@ -486,12 +486,13 @@ document.addEventListener("DOMContentLoaded", () => {
         return `<span class="pc-status-badge ${cls}">${esc(status)}</span>`;
     }
 
-    // ----- Render card grid -----
+    // ----- Weight Display/Toggle -----
     function weightStat(grams) {
         if (!grams) return "—";
         return `<span class="isley-weight-toggle" role="button" tabindex="0" data-isley-weight data-grams="${grams}" data-unit="${weightUnit}" title="${esc(weightToggleHint)}">${IsleyWeight.format(grams, weightUnit)}</span>`;
     }
 
+    // ----- Render card grid -----
     function renderCards(data) {
         cardsContainer.innerHTML = data.map(p => {
             const dayInfo = currentView === "harvested"
