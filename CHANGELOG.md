@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Built with Go 1.27.4, which fixes a crash in Go's HTTP server when a request
+  body goes over its size limit while the response is being written
+  (CVE-2026-97054). Isley sets such limits on image uploads, sensor ingest
+  and the API.
+- `golang.org/x/crypto` updated to 0.59.0.
+
 ## [2.6.0] - 2026-11-12
 
 A versioned REST API and an MCP server for AI assistants, times stored in
