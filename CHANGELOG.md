@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Harvest weights can be shown and entered in grams or ounces. A new
+  **Weight Unit** setting picks the unit the plant forms and lists start
+  with, and clicking any displayed weight flips it between the two. Weights
+  are still stored in grams, so nothing changes until you change the
+  setting. (#274, thanks @platentgrows)
 - The breeder list in Settings → Tables scrolls inside its card and has a
   search box, so a long list no longer pushes the rest of the page down.
   The edit-breeder dialog has its title back. (#273, thanks @platentgrows)

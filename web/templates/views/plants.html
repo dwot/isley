@@ -3,7 +3,7 @@
 {{ template "common/header.html" .}}
 {{ template "common/header2.html" .}}
 
-<div class="container" id="plantsPage" data-can-edit="{{ if .loggedIn }}true{{ else }}false{{ end }}" data-statuses="{{ json .statuses }}">
+<div class="container" id="plantsPage" data-can-edit="{{ if .loggedIn }}true{{ else }}false{{ end }}" data-weight-unit="{{ .weightUnit }}" data-statuses="{{ json .statuses }}">
     <h1 class="visually-hidden">{{ .lcl.title_plants }}</h1>
 
     <!-- Top Controls Bar -->

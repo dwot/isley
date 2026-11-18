@@ -148,6 +148,7 @@ document.addEventListener("DOMContentLoaded", () => {
             log_level: document.getElementById("logLevel").value,
             max_backup_size_mb: document.getElementById("maxBackupSizeMB").value,
             timezone: document.getElementById("timezone").value,
+            weight_unit: document.getElementById("weightUnit").value,
         };
 
         // Send POST request to save settings

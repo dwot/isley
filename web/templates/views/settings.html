@@ -156,6 +156,16 @@
                         </small>
 
                         <hr class="my-3">
+                        <label for="weightUnit" class="form-label">{{ .lcl.settings_weight_unit }}</label>
+                        <select class="form-select" id="weightUnit" style="width:160px">
+                            <option value="g" {{ if eq .settings.WeightUnit "g" }}selected{{ end }}>{{ .lcl.weight_unit_grams }}</option>
+                            <option value="oz" {{ if eq .settings.WeightUnit "oz" }}selected{{ end }}>{{ .lcl.weight_unit_ounces }}</option>
+                        </select>
+                        <small class="text-muted d-block mt-2">
+                            {{ .lcl.settings_weight_unit_desc }}
+                        </small>
+
+                        <hr class="my-3">
                         <label for="timezone" class="form-label">{{ if .lcl.timezone_label }}{{ .lcl.timezone_label }}{{ else }}Timezone{{ end }}</label>
                         <select class="form-select" id="timezone" style="width:320px" data-saved="{{ .settings.Timezone }}">
                             <option value="">{{ if .lcl.timezone_use_system }}{{ .lcl.timezone_use_system }}{{ else }}Use system default{{ end }}</option>

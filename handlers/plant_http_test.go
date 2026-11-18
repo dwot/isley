@@ -133,6 +133,39 @@ func TestPlantHTTP_Update_HappyPath(t *testing.T) {
 	assert.Equal(t, "now with a description", desc)
 }
 
+// TestPlantHTTP_Update_ConvertsOuncesToGrams covers the web form's unit
+// selector: the UI may send ounces, but the database always stores grams.
+func TestPlantHTTP_Update_ConvertsOuncesToGrams(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db)
+	apiKey := plantTestSeed(t, db)
+
+	plantID := testutil.SeedPlant(t, db, "Weighed", 1, 1)
+
+	c := server.NewClient(t)
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/plant", apiKey,
+		testutil.JSONBody(t, map[string]interface{}{
+			"plant_id":            plantID,
+			"plant_name":          "Weighed",
+			"plant_description":   "",
+			"zone_id":             1,
+			"strain_id":           1,
+			"clone":               false,
+			"start_date":          "2026-01-01",
+			"harvest_weight":      2.0,
+			"harvest_weight_unit": "oz",
+		}), "application/json"))
+	require.NoError(t, err)
+	defer testutil.DrainAndClose(resp)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	var weight float64
+	require.NoError(t, db.QueryRow(`SELECT harvest_weight FROM plant WHERE id = $1`, plantID).Scan(&weight))
+	assert.InDelta(t, 56.69904625, weight, 1e-6, "2 oz is stored as grams")
+}
+
 func TestPlantHTTP_Update_RejectsLongDescription(t *testing.T) {
 	t.Parallel()
 
