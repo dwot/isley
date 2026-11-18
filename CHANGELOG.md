@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The breeder list in Settings → Tables scrolls inside its card and has a
+  search box, so a long list no longer pushes the rest of the page down.
+  The edit-breeder dialog has its title back. (#273, thanks @platentgrows)
 - Theme packages. Settings → Appearance can add a theme from a package (a
   zip with a `theme.json` and an optional logo) and remove it again, and
   every theme, built-in ones included, downloads as a package to start a

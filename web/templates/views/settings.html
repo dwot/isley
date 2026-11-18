@@ -398,7 +398,16 @@
                     </button>
                 </div>
                 <div class="card-body">
-                    <table class="table table-striped table-hover mb-0">
+                    <div class="p-2 border-bottom">
+                        <div class="list-search-wrap">
+                            <i class="fa-solid fa-search list-search-icon"></i>
+                            <input type="text" class="form-control form-control-sm" id="searchBreeders"
+                                   placeholder="{{ .lcl.search_breeders }}..."
+                                   aria-label="{{ .lcl.search_breeders }}" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="settings-table-scroll">
+                    <table class="table table-striped table-hover mb-0" id="breederTable">
                         <thead class="bg-themed">
                         <tr>
                             <th>{{ .lcl.breeder }}</th>
@@ -410,8 +419,12 @@
                             <td>{{ .Name }}</td>
                         </tr>
                         {{ end }}
+                        <tr id="noBreedersMatch" class="d-none">
+                            <td class="text-muted text-center py-3">{{ .lcl.no_breeders_match }}</td>
+                        </tr>
                         </tbody>
                     </table>
+                    </div>
                 </div>
             </div>
 

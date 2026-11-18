@@ -495,10 +495,40 @@ document.addEventListener("DOMContentLoaded", () => {
                     // and scroll position are untouched.
                     const row = document.querySelector(`.breeder-row[data-breeder-id="${breederId}"]`);
                     if (row) row.remove();
+                    // Re-run the filter so the "no match" row is right.
+                    const searchInput = document.getElementById("searchBreeders");
+                    if (searchInput) searchInput.dispatchEvent(new Event("input"));
                     editBreederModal.hide();
                     uiMessages.showToast(data.message || uiMessages.t('api_breeder_deleted', 'Breeder deleted'), 'success');
                 })
                 .catch(err => uiMessages.showToast(err.message || uiMessages.t('failed_to_delete_breeder', 'Failed to delete breeder. Please try again.'), 'danger'));
         });
     });
+});
+
+// Breeder list: filter by name as you type.
+document.addEventListener("DOMContentLoaded", () => {
+    const searchInput = document.getElementById("searchBreeders");
+    const breederTable = document.getElementById("breederTable");
+    const noMatchesRow = document.getElementById("noBreedersMatch");
+    if (!searchInput || !breederTable) return;
+
+    const applyBreederFilter = () => {
+        const query = searchInput.value.trim().toLowerCase();
+        const rows = breederTable.querySelectorAll(".breeder-row");
+        let visible = 0;
+
+        rows.forEach(row => {
+            const matches = query === "" ||
+                (row.textContent || "").toLowerCase().includes(query);
+            row.classList.toggle("d-none", !matches);
+            if (matches) visible++;
+        });
+
+        if (noMatchesRow) {
+            noMatchesRow.classList.toggle("d-none", visible > 0 || rows.length === 0);
+        }
+    };
+
+    searchInput.addEventListener("input", debounce(applyBreederFilter, 150));
 });

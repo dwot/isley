@@ -126,6 +126,18 @@
 .card-table .card-body { padding: 0; }
 .card-table .table { margin-bottom: 0; }
 
+/* A long table (breeders) scrolls inside its card and keeps its header. */
+.settings-table-scroll {
+    max-height: 400px;
+    overflow-y: auto;
+}
+.settings-table-scroll thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background-color: var(--color-table-header);
+}
+
 /* Colour pairs an installed theme leaves hard to read. */
 .theme-contrast {
     font-size: 0.8rem;
