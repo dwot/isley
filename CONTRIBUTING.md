@@ -210,7 +210,7 @@ isley/
 │   │   ├── common/          # Header, footer, shared modals
 │   │   └── views/           # Page templates (index, plant, sensors, etc.)
 │   └── static/
-│       ├── css/             # Stylesheets (isley.css)
+│       ├── css/             # Stylesheets: tokens, themes/, the Bootstrap bridge, then one file per area
 │       └── js/              # Client-side JavaScript
 ├── tests/
 │   └── integration/         # Integration test suite
@@ -226,6 +226,8 @@ isley/
 **Dual database support:** The app supports both SQLite and PostgreSQL. SQL queries use `$1` placeholder style (which works for both). Where dialect-specific SQL is needed, branch on `model.IsPostgres()`. Place new migration files in both `model/migrations/sqlite/` and `model/migrations/postgres/`.
 
 **Templates:** Gin loads Go HTML templates from `web/templates/`. Localized strings come from YAML files in `utils/locales/` and are passed to templates as `.lcl`.
+
+**Styling and themes:** Styles are split by area in `web/static/css/` (`base.css`, `lists.css`, `plants.css`, `plant.css`, `strains.css`, `dashboard.css`, `smoke-reports.css`, `settings.css`), all linked from `common/header.html`. The list pages share the `.list-*` classes in `lists.css`; a new list page uses those. No stylesheet names a colour, a corner radius or a font; they use the tokens in `web/static/css/tokens.css`, and `bootstrap-bridge.css` points Bootstrap at the same tokens. For a tint or a darker shade, mix it from a token with `color-mix()`. A theme is one file in `web/static/css/themes/`: its file name is its id, it starts with a `/* theme: Name` / `modes: light dark */` comment, and it restates the tokens it changes under `[data-theme="<id>"]` and `[data-theme="<id>"][data-bs-theme="dark"]` (see `walnut.css`). Adding the file is all it takes; `theme/theme.go` finds it at startup and the build fails its tests if the header is wrong. A token added to `tokens.css` also goes in the list in `theme/tokens.go`, with the kind of value it takes, so theme packages (`docs/themes.md`) can set it; a test fails until it does. JavaScript that paints with theme colours (charts) reads them with `IsleyTheme.color("--token")` and repaints on the `isley:themechange` event.
 
 **Environment variables:** Application behavior is configured via `ISLEY_*` environment variables (see README). Set `GIN_MODE=debug` during development for verbose logging.
 

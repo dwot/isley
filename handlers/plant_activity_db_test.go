@@ -144,6 +144,48 @@ func TestQueryActivityLog_FreeTextSearch(t *testing.T) {
 	assert.Equal(t, "note about leaves", page.Entries[0].Note)
 }
 
+// Search is the log page's box: unlike Query it also matches the names of
+// the plant, strain, zone and activity.
+func TestQueryActivityLog_SearchMatchesNamesAndNotes(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	seedActivityFixture(t, db)
+	svc := testutil.NewServices(t, db)
+
+	total := func(search string) int {
+		page, err := handlers.QueryActivityLog(context.Background(), svc, handlers.ActivityLogFilters{Search: search}, 1, 100)
+		require.NoError(t, err)
+		return page.Total
+	}
+	assert.Equal(t, 1, total("LEAVES"), "note, any case")
+	assert.Equal(t, 1, total("plant 2"), "plant name")
+	assert.Equal(t, 4, total("zone a"), "zone name")
+	assert.Equal(t, 1, total("feed"), "activity name and its note")
+	assert.Equal(t, 0, total("no such thing"))
+
+	// Query still matches notes alone.
+	page, err := handlers.QueryActivityLog(context.Background(), svc, handlers.ActivityLogFilters{Query: "zone a"}, 1, 100)
+	require.NoError(t, err)
+	assert.Equal(t, 0, page.Total)
+}
+
+func TestQueryActivityLog_OrderingByNameDescending(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	seedActivityFixture(t, db)
+	svc := testutil.NewServices(t, db)
+
+	page, err := handlers.QueryActivityLog(context.Background(), svc, handlers.ActivityLogFilters{Order: service.ByPlantDesc}, 1, 100)
+	require.NoError(t, err)
+	assert.Equal(t, "Plant 2", page.Entries[0].PlantName)
+
+	page, err = handlers.QueryActivityLog(context.Background(), svc, handlers.ActivityLogFilters{Order: service.ByTypeDesc}, 1, 100)
+	require.NoError(t, err)
+	assert.Equal(t, "Water", page.Entries[0].ActivityName)
+}
+
 func TestQueryActivityLog_Pagination(t *testing.T) {
 	t.Parallel()
 

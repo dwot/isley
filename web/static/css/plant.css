@@ -1,0 +1,943 @@
+/* plant.css — the plant page: hero, timeline, status ribbon, growth history,
+ * sensors, activities, measurements.
+ *
+ * Colours, corner radii and fonts come from tokens.css; nothing here names
+ * one directly. The exception is anything drawn on top of a photo or a
+ * video (the plant hero, stream thumbnails): that sits on a dark scrim in
+ * every theme, so its whites and blacks are literal.
+ */
+
+/* Growth History */
+.growth-history-card {
+    --growth-accent: var(--color-accent);
+    --growth-accent-soft: color-mix(in srgb, var(--color-accent) 25%, transparent);
+    --growth-row-bg: color-mix(in srgb, var(--color-fg) 4%, transparent);
+    --growth-row-bg-hover: color-mix(in srgb, var(--color-fg) 8%, transparent);
+}
+.growth-history-panel {
+    height: 100%;
+}
+.growth-section + .growth-section {
+    margin-top: 20px;
+}
+.growth-section-title {
+    color: var(--color-muted);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+}
+.growth-current-value {
+    font-size: 1.7rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+.growth-current-meta {
+    color: var(--color-muted);
+    font-size: 0.95rem;
+}
+.growth-stage-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.growth-stage-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: var(--radius-xl);
+    background: var(--growth-row-bg);
+    border: 1px solid var(--color-card-border);
+}
+.growth-stage-row.is-current {
+    border-color: var(--color-accent);
+    background: var(--growth-row-bg-hover);
+}
+.growth-stage-title {
+    font-weight: 600;
+}
+.growth-stage-pill {
+    padding: 4px 12px;
+    border-radius: var(--radius-pill);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 35%, transparent);
+    background: var(--growth-accent-soft);
+    color: var(--growth-accent);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+.growth-timeline-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.growth-total-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+    font-size: 0.75rem;
+    background: var(--color-bg);
+}
+.growth-total-pill strong {
+    color: var(--color-fg);
+}
+.growth-timeline {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-left: 34px;
+}
+.growth-timeline::before {
+    content: "";
+    position: absolute;
+    left: 13px;
+    top: 6px;
+    bottom: 6px;
+    width: 2px;
+    background: var(--growth-accent);
+    opacity: 0.35;
+    border-radius: var(--radius-pill);
+}
+.growth-timeline-item {
+    position: relative;
+    padding: 12px 14px;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--color-card-border);
+    background: var(--color-card);
+}
+.growth-timeline-item::before {
+    content: "";
+    position: absolute;
+    left: -27px;
+    top: 16px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--growth-accent);
+    box-shadow: 0 0 0 6px var(--growth-accent-soft);
+}
+.growth-timeline-item::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 45%, transparent), color-mix(in srgb, var(--color-accent) 4%, transparent));
+    opacity: 0.6;
+}
+.growth-timeline-item.is-current {
+    border-color: var(--growth-accent);
+}
+.growth-timeline-item.is-current::before {
+    box-shadow: 0 0 0 8px var(--growth-accent-soft);
+}
+.growth-timeline-stage {
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+.growth-timeline-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.growth-timeline-range {
+    color: var(--color-muted);
+    font-size: 0.85rem;
+}
+.growth-timeline-duration {
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 35%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    color: var(--growth-accent);
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+.growth-history-empty {
+    color: var(--color-muted);
+    text-align: center;
+    padding: 12px 0 4px;
+    font-size: 0.9rem;
+}
+
+@media (max-width: 991.98px) {
+    .growth-history-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Plant status ribbon */
+.plant-status-ribbon {
+    gap: 12px;
+    padding: 6px 4px;
+    overflow-x: auto; /* ensure horizontal scrolling when needed */
+    -webkit-overflow-scrolling: touch;
+    position: relative; /* positioning context for connector */
+    align-items: center; /* ensure vertical centering of steps */
+    /* defaults for connector variables (safe fallbacks before JS runs) */
+    --p-ribbon-left: 0px;
+    --p-ribbon-total-width: 100%;
+    --p-ribbon-progress: 0px;
+    --p-ribbon-top: 50%;
+}
+.plant-status-ribbon .status-step {
+    /* make each step a fixed-size column when possible but still allow overflow */
+    flex: 0 0 auto;
+    position: relative;
+    min-width: 72px;
+    /* Use grid to keep icon, name and date in fixed row positions so steps stay aligned */
+    display: grid;
+    grid-template-rows: auto 1.2rem auto;
+    align-items: center;
+    justify-items: center;
+    width: 110px;
+    min-height: 110px;
+    padding: 0.5rem;
+    box-sizing: border-box;
+    z-index: 2; /* above connector */
+}
+.plant-status-ribbon .status-step .status-icon,
+.plant-status-ribbon .status-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 2px solid var(--color-border);
+    background: var(--color-card);
+    color: var(--color-muted);
+    position: relative;
+    z-index: 3; /* icon should be above any progress bar */
+}
+.plant-status-ribbon .status-step .status-icon:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 15%, transparent);
+}
+.plant-status-ribbon .status-step .status-icon i,
+.plant-status-ribbon .status-icon i {
+    font-size: 24px !important;
+    line-height: 1;
+}
+.plant-status-ribbon .status-step .status-name,
+.plant-status-ribbon .status-name {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    height: 1.2rem; /* reserve space */
+    margin-top: 0.5rem;
+    font-weight: 600;
+}
+.plant-status-ribbon .status-step .status-date,
+.plant-status-ribbon .status-date {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    margin-top: 0.25rem;
+    min-height: 2.2rem; /* allow date block to size for two stacked lines */
+}
+.plant-status-ribbon .status-date .status-date-day {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+    width: 100%;
+    font-size: 0.85rem;
+    line-height: 1.1rem;
+}
+.plant-status-ribbon .status-date .status-date-time {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    display: block;
+    width: 100%;
+}
+/* Ensure buttons don't stretch */
+.plant-status-ribbon .status-step .btn.status-icon {
+    padding: 0;
+}
+/* Responsive: reduce width on small screens */
+@media (max-width: 575.98px) {
+    .plant-status-ribbon .status-step { width: 90px; min-height: 100px; }
+    .plant-status-ribbon .status-icon { width: 48px; height: 48px; }
+    .plant-status-ribbon .status-icon i { font-size: 20px !important; }
+}
+
+/* Connector baseline (grey) and progress overlay (accent) - controlled via CSS vars set by JS */
+.plant-status-ribbon::before,
+.plant-status-ribbon::after {
+    content: '';
+    position: absolute;
+    left: var(--p-ribbon-left, 0px);
+    height: 3px;
+    top: var(--p-ribbon-top, 50%);
+    transform: translateY(-50%);
+    border-radius: var(--radius-pill);
+    z-index: 0; /* behind steps */
+}
+/* grey baseline spanning from first to last step centers */
+.plant-status-ribbon::before {
+    width: var(--p-ribbon-total-width, 100%);
+    background: var(--color-border);
+    opacity: 1;
+}
+/* colored overlay: width set by JS via --p-ribbon-progress (px) measured from container left; subtract left to get overlay width */
+.plant-status-ribbon::after {
+    left: var(--p-ribbon-left, 0px);
+    width: calc(var(--p-ribbon-progress, 0px) - var(--p-ribbon-left, 0px));
+    background: linear-gradient(90deg, var(--color-accent), var(--color-accent-hover));
+    pointer-events: none;
+    z-index: 1; /* above baseline, below steps */
+}
+
+/* Ensure overlay doesn't render a negative width */
+.plant-status-ribbon[style*="--p-ribbon-progress: 0px"]::after {
+    width: 0px !important;
+}
+
+/* State styles (placed after Bootstrap to ensure cascade applies) */
+.plant-status-ribbon .status-step.status-past .status-icon,
+.plant-status-ribbon .status-step.status-past .btn.status-icon {
+    background: var(--color-accent);
+    color: var(--color-on-primary);
+    border-color: var(--color-accent);
+}
+.plant-status-ribbon .status-step.status-current .status-icon,
+.plant-status-ribbon .status-step.status-current .btn.status-icon {
+    background: var(--color-accent-hover);
+    color: var(--color-on-primary);
+    border-color: var(--color-accent-hover);
+}
+.plant-status-ribbon .status-step.status-future .status-icon {
+    background-color: var(--color-card);
+}
+.plant-status-ribbon .status-step.status-future .status-icon svg {
+    opacity: 0.45;
+}
+.plant-status-ribbon .status-step.status-pending .status-icon {
+    opacity: 0.7;
+    border-style: dashed;
+}
+
+/* Dead status color when active/current */
+.plant-status-ribbon .status-step.status-current.status-dead .status-icon,
+.plant-status-ribbon .status-step.status-current.status-dead .btn.status-icon {
+    background: var(--color-danger);
+    color: var(--color-on-danger);
+    border-color: var(--color-danger);
+}
+
+@media (max-width: 767.98px) {
+    .plant-status-ribbon {
+        flex-direction: row;
+        overflow-x: auto;
+        padding-bottom: 8px;
+    }
+    .plant-status-ribbon::before { left: 16px; right: 16px; }
+}
+
+/* ===== Plant Detail Page Infobox ===== */
+.plant-infobox {
+    border-left: 3px solid var(--color-accent);
+}
+.plant-infobox .card-title {
+    font-size: 1rem;
+    letter-spacing: 0.03em;
+}
+
+/* Large status badge for detail page */
+.pc-status-lg {
+    font-size: 0.9rem;
+    padding: 0.35em 1.2em;
+}
+
+/* ===== Plant Hero Banner ===== */
+.plant-hero {
+    position: relative;
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    min-height: 200px;
+    background-size: cover;
+    background-position: center 40%;
+    display: flex;
+    align-items: flex-end;
+}
+.plant-hero--no-img {
+    min-height: 140px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 15%, transparent) 0%, color-mix(in srgb, var(--color-accent) 4%, transparent) 100%);
+}
+.plant-hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.35) 50%, rgba(0,0,0,0.12) 100%);
+    pointer-events: none;
+}
+.plant-hero--no-img .plant-hero-overlay { display: none; }
+/* Hero carousel-style nav arrows */
+.plant-hero-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 3;
+    color: rgba(255,255,255,0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    line-height: 1;
+    text-decoration: none;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.45);
+    transition: color 0.18s, opacity 0.18s, transform 0.18s;
+    opacity: 0.8;
+    cursor: pointer;
+}
+.plant-hero-nav:hover {
+    color: #fff;
+    transform: translateY(-50%) scale(1.05);
+    opacity: 1;
+    text-decoration: none;
+}
+.plant-hero-nav--prev { left: 0.85rem; }
+.plant-hero-nav--next { right: 0.85rem; }
+.plant-hero--no-img .plant-hero-nav {
+    color: color-mix(in srgb, var(--color-fg) 60%, transparent);
+    text-shadow: none;
+}
+.plant-hero--no-img .plant-hero-nav:hover {
+    color: var(--color-accent);
+}
+.plant-hero-content {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    padding: 1.25rem 2.6rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+@media (max-width: 575.98px) {
+    .plant-hero-content {
+        padding: 1rem 2rem;
+    }
+}
+.plant-hero-title {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #fff;
+    margin: 0;
+    line-height: 1.15;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+.plant-hero--no-img .plant-hero-title { color: var(--color-fg); text-shadow: none; }
+.plant-hero-sub {
+    color: rgba(255,255,255,0.85);
+    font-size: 0.95rem;
+    margin: 0.25rem 0 0;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+.plant-hero--no-img .plant-hero-sub { color: var(--color-muted); text-shadow: none; }
+.plant-hero-sep { margin: 0 0.35rem; opacity: 0.6; }
+.plant-hero-link {
+    color: rgba(255,255,255,0.9);
+    text-decoration: none;
+}
+.plant-hero-link:hover { text-decoration: underline; color: #fff; }
+.plant-hero--no-img .plant-hero-link { color: var(--color-accent); }
+.plant-hero-badges {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* Hero sensor overlay */
+.plant-hero-sensors {
+    position: absolute;
+    top: 0.65rem;
+    right: 0.75rem;
+    z-index: 2;
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 60%;
+}
+.hero-sensor-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: var(--radius-pill);
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #fff;
+    text-decoration: none;
+    font-size: 0.72rem;
+    line-height: 1.3;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+}
+.hero-sensor-chip:hover {
+    background: rgba(0,0,0,0.65);
+    border-color: rgba(255,255,255,0.35);
+    color: #fff;
+}
+.hero-sensor-inherited {
+    border-style: dashed;
+    opacity: 0.8;
+}
+.hero-sensor-vpd-ideal {
+    border-color: #22c55e;
+}
+.hero-sensor-vpd-ideal .hero-sensor-val {
+    color: #22c55e;
+}
+.hero-sensor-vpd-low {
+    border-color: #3b82f6;
+}
+.hero-sensor-vpd-low .hero-sensor-val {
+    color: #3b82f6;
+}
+.hero-sensor-vpd-high {
+    border-color: #f87171;
+}
+.hero-sensor-vpd-high .hero-sensor-val {
+    color: #f87171;
+}
+.hero-sensor-name {
+    opacity: 0.7;
+    font-weight: 500;
+}
+.hero-sensor-val {
+    font-weight: 700;
+}
+.hero-sensor-unit {
+    font-weight: 400;
+    opacity: 0.7;
+    margin-left: 1px;
+    font-size: 0.65rem;
+}
+/* No-image hero: adjust sensor chip styling */
+.plant-hero--no-img .hero-sensor-chip {
+    background: var(--color-card);
+    border-color: var(--color-border);
+    color: var(--color-fg);
+    backdrop-filter: none;
+}
+.plant-hero--no-img .hero-sensor-chip:hover {
+    border-color: var(--color-accent);
+}
+
+/* Hero action buttons */
+.plant-hero-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+.plant-action-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.35);
+    background: rgba(0,0,0,0.4);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    backdrop-filter: blur(6px);
+    text-decoration: none;
+    cursor: pointer;
+}
+.plant-action-btn:hover {
+    background: rgba(255,255,255,0.2);
+    border-color: rgba(255,255,255,0.6);
+    color: #fff;
+    transform: translateY(-1px);
+}
+.plant-hero--no-img .plant-action-btn {
+    background: var(--color-card);
+    border-color: var(--color-border);
+    color: var(--color-fg);
+    backdrop-filter: none;
+}
+.plant-hero--no-img .plant-action-btn:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+.plant-action-edit { border-color: color-mix(in srgb, var(--color-accent) 60%, transparent); }
+.plant-action-measure { border-color: color-mix(in srgb, var(--color-accent) 40%, transparent); }
+.plant-action-activity { border-color: color-mix(in srgb, var(--color-success) 40%, transparent); }
+.plant-action-photo { border-color: rgba(255,255,255,0.3); }
+.plant-action-link { border-color: color-mix(in srgb, var(--color-info) 40%, transparent); }
+.plant-action-kill { border-color: color-mix(in srgb, var(--color-danger) 50%, transparent); color: #ff6b6b; }
+.plant-action-kill:hover { background: color-mix(in srgb, var(--color-danger) 30%, transparent); border-color: color-mix(in srgb, var(--color-danger) 70%, transparent); color: #ff4444; }
+.plant-hero--no-img .plant-action-kill { color: var(--color-danger-text); border-color: color-mix(in srgb, var(--color-danger) 40%, transparent); }
+.plant-hero--no-img .plant-action-kill:hover { border-color: var(--color-danger-text); color: var(--color-danger-text); }
+
+/* ===== Horizontal Timeline ===== */
+.htl-track {
+    display: flex;
+    align-items: flex-start;
+    overflow-x: auto;
+    padding: 0.5rem 0 0.75rem;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+}
+.htl-track::-webkit-scrollbar { height: 4px; }
+.htl-track::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 2px; }
+.htl-connector {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 2px;
+    background: var(--color-border);
+    margin-top: 19px;
+    flex-shrink: 0;
+}
+.htl-connector-filled {
+    background: var(--color-accent);
+}
+.htl-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    min-width: 64px;
+    flex-shrink: 0;
+    transition: opacity 0.2s;
+}
+.htl-node.htl-future { opacity: 0.35; }
+.htl-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    border: 2px solid var(--color-border);
+    background: var(--color-card);
+    color: var(--color-muted);
+    transition: all 0.2s;
+    position: relative;
+}
+.htl-reached .htl-icon {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-on-primary);
+}
+.htl-active .htl-icon {
+    background: var(--color-accent-hover);
+    border-color: var(--color-accent-hover);
+    color: var(--color-on-primary);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+.htl-node:hover .htl-icon {
+    transform: scale(1.08);
+}
+.htl-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    margin-top: 0.4rem;
+    color: var(--color-fg);
+    white-space: nowrap;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.htl-meta {
+    margin-top: 0.15rem;
+    min-height: 1.1em;
+}
+.htl-days {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+    padding: 0.1em 0.45em;
+    border-radius: var(--radius-pill);
+}
+.htl-active .htl-days {
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+}
+.htl-date {
+    font-size: 0.62rem;
+    color: var(--color-muted);
+}
+
+/* Responsive: collapse to vertical on narrow screens */
+@media (max-width: 575.98px) {
+    .htl-track {
+        flex-direction: column;
+        align-items: flex-start;
+        overflow-x: visible;
+        padding-left: 20px;
+        position: relative;
+    }
+    .htl-track::before {
+        content: "";
+        position: absolute;
+        left: 19px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--color-border);
+    }
+    .htl-connector {
+        width: 2px;
+        height: 16px;
+        margin-top: 0;
+        margin-left: 18px;
+    }
+    .htl-node {
+        flex-direction: row;
+        text-align: left;
+        gap: 0.65rem;
+        min-width: 0;
+        width: 100%;
+        padding: 0.25rem 0;
+    }
+    .htl-icon {
+        flex-shrink: 0;
+        z-index: 1;
+    }
+    .htl-label {
+        margin-top: 0;
+        font-size: 0.82rem;
+        max-width: none;
+    }
+    .htl-meta {
+        margin-top: 0;
+        margin-left: auto;
+    }
+    .plant-hero { min-height: 160px; }
+    .plant-hero-title { font-size: 1.4rem; }
+    .plant-hero-actions { gap: 0.35rem; }
+    .plant-action-btn { width: 34px; height: 34px; font-size: 0.78rem; }
+    .plant-hero-sensors { max-width: 100%; top: 0.4rem; right: 0.4rem; }
+    .hero-sensor-chip { font-size: 0.65rem; padding: 0.15rem 0.4rem; }
+}
+
+/* ===== Sensor Sidebar Grid ===== */
+.sensor-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+}
+.sensor-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.5rem 0.35rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    text-align: center;
+    transition: border-color 0.15s, background 0.15s;
+}
+.sensor-tile:hover {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 4%, transparent);
+}
+.sensor-name {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--color-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 0.15rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+.sensor-reading {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--color-fg);
+    line-height: 1.2;
+}
+.sensor-unit {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--color-muted);
+}
+.sensor-meta {
+    font-size: 0.65rem;
+    color: var(--color-muted);
+    font-style: italic;
+    margin-top: 0.1rem;
+}
+.sensor-inherited {
+    border-style: dashed;
+}
+
+/* ===== Plant Mini Table ===== */
+.plant-mini-table {
+    font-size: 0.85rem;
+}
+.plant-mini-table thead th {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-muted);
+    border-bottom-width: 1px;
+    padding: 0.4rem 0.5rem;
+}
+.plant-mini-table tbody td {
+    padding: 0.4rem 0.5rem;
+    vertical-align: middle;
+}
+.plant-mini-date {
+    white-space: nowrap;
+    font-size: 0.78rem;
+}
+.plant-mini-note {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+/* ===== Plant Activity Notebook (full-width, collapsible) ===== */
+.plant-activity-links .btn-link {
+    font-size: 0.8rem;
+}
+.plant-notebook-card .card-title {
+    font-weight: 600;
+}
+.plant-notebook-table {
+    font-size: 0.95rem;
+}
+.plant-notebook-table thead th {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-muted);
+    border-bottom-width: 1px;
+    background: transparent;
+}
+.plant-notebook-col-date {
+    width: 11rem;
+    white-space: nowrap;
+}
+.plant-notebook-col-type {
+    width: 9rem;
+}
+.plant-notebook-note {
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.45;
+}
+.plant-notebook-table .clickable-row {
+    cursor: pointer;
+}
+
+/* ===== Plant Measurements (grouped in sidebar) ===== */
+.pm-group {
+    border-bottom: 1px solid var(--color-border);
+    padding: 0.45rem 0;
+}
+.pm-group:last-child {
+    border-bottom: none;
+}
+.pm-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.2rem 0.35rem;
+    border-radius: var(--radius-sm);
+    transition: background 0.12s;
+}
+.pm-summary[style*="cursor"] {
+    /* clickable rows get a hover */
+}
+.pm-summary:hover {
+    background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+}
+.pm-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-fg);
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pm-latest {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    flex-shrink: 0;
+}
+.pm-val {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--color-accent);
+}
+.pm-date {
+    font-size: 0.72rem;
+    color: var(--color-muted);
+    white-space: nowrap;
+}
+.pm-toggle {
+    font-size: 0.7rem;
+    color: var(--color-muted);
+    margin-left: 0.25rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.pm-history {
+    padding-left: 0.6rem;
+    margin-top: 0.15rem;
+    border-left: 2px solid var(--color-border);
+    margin-left: 0.35rem;
+}
+.pm-history-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.2rem 0.35rem;
+    border-radius: var(--radius-sm);
+    transition: background 0.12s;
+}
+.pm-history-row:hover {
+    background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+}
+.pm-hist-date {
+    font-size: 0.75rem;
+    color: var(--color-muted);
+    white-space: nowrap;
+}
+.pm-hist-val {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-fg);
+}

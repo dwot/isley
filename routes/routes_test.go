@@ -84,7 +84,6 @@ func TestAddBasicRoutes_RegistersAllExpectedRoutes(t *testing.T) {
 		{"GET", "/strain/new"},
 		{"GET", "/strain/:id"},
 		{"GET", "/listFonts"},
-		{"GET", "/listLogos"},
 		{"GET", "/plants/living"},
 		{"GET", "/plants/harvested"},
 		{"GET", "/plants/dead"},
@@ -173,7 +172,7 @@ func TestAddProtectedApiRoutes_RegistersAllExpectedRoutes(t *testing.T) {
 
 		// Settings + backup + logs
 		{"POST", "/settings"},
-		{"POST", "/settings/upload-logo"},
+		{"POST", "/settings/theme"},
 		{"GET", "/settings/logs"},
 		{"GET", "/settings/logs/download"},
 		{"POST", "/settings/backup/create"},

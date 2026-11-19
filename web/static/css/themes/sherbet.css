@@ -1,0 +1,117 @@
+/* theme: Sherbet
+ * modes: light dark
+ *
+ * Scoops: raspberry, peach and mint on cream, with round corners and
+ * rounded type. Dark mode is the same tub after midnight.
+ */
+
+[data-theme="sherbet"] {
+    --logo: url("/static/img/logos/sherbet.png");
+    --color-bg: #fff4ec;
+    --color-card: #ffffff;
+    --color-card-border: #f6cfd9;
+    --color-table-header: #ffe8ee;
+    --color-row-hover: #fff0f4;
+    --color-border: #efbccb;
+    --color-fg: #3a2638;
+    --color-muted: #7d6079;
+    --color-input-bg: #fffafc;
+    --color-input-border: #e7a9bd;
+    --bg-image: linear-gradient(160deg, #ffe9d6 0%, #ffe3ee 45%, #e3f7ee 100%);
+
+    --color-primary: #d6336c;
+    --color-on-primary: #ffffff;
+    --color-accent: #c2255c;
+    --color-accent-hover: #9c1c49;
+    --color-link: #c2255c;
+    --color-link-hover: #9c1c49;
+
+    --color-secondary: #9a7f96;
+    --color-success: #1f9d76;
+    --color-success-text: #167a5b;
+    --color-warning: #ffb84d;
+    --color-warning-text: #a85d00;
+    --color-danger: #e03131;
+    --color-danger-text: #c92a2a;
+    --color-info: #74d7d0;
+    --color-info-text: #0f7a74;
+
+    --stage-germ: #ff9f43;
+    --stage-seedling: #a8d84e;
+    --stage-veg: #3ccf91;
+    --stage-flower: #b57bee;
+    --stage-dry: #ff7f6b;
+    --stage-cure: #f2c037;
+    --stage-harvest: #36c5c0;
+    --stage-dead: #a79aa6;
+    --color-on-stage: #33202f;
+    --color-auto: #ff9f43;
+    --color-photo: #36c5c0;
+    --color-fem: #ff7eb0;
+    --color-regular: #a79aa6;
+    --color-indica: #b57bee;
+    --color-indica-text: #8a4fd0;
+    --color-sativa: #3ccf91;
+    --color-sativa-text: #167a5b;
+    --shade: 8%;
+
+    --color-star: #f59f00;
+    --color-star-preview: #ffd58a;
+    --color-star-empty: #ecc9d4;
+
+    --radius: 14px;
+    --shadow-sm: 0 4px 10px rgba(214, 51, 108, 0.12);
+    --shadow-md: 0 8px 22px rgba(214, 51, 108, 0.18);
+    --font-body: ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN", "Nunito", "Varela Round", "Segoe UI", system-ui, sans-serif;
+
+    --chart-1: #d6336c;
+    --chart-2: #1f9d76;
+    --chart-3: #f59f00;
+    --chart-4: #8a4fd0;
+    --chart-5: #0f9aa8;
+    --chart-6: #ff7f6b;
+}
+
+[data-theme="sherbet"][data-bs-theme="dark"] {
+    --color-bg: #21152a;
+    --color-card: #2e1f39;
+    --color-card-border: #553a66;
+    --color-table-header: #38264a;
+    --color-row-hover: #3c2a4d;
+    --color-border: #644878;
+    --color-fg: #fff0f6;
+    --color-muted: #cdb3d0;
+    --color-input-bg: #261831;
+    --color-input-border: #7a5a90;
+    --bg-image: linear-gradient(160deg, #2c1830 0%, #21152a 50%, #142a2c 100%);
+
+    --color-primary: #d6336c;
+    --color-accent: #ff8fb6;
+    --color-accent-hover: #ffc2d7;
+    --color-link: #ff8fb6;
+    --color-link-hover: #ffc2d7;
+
+    --color-success: #2fb58a;
+    --color-success-text: #7be3bf;
+    --color-warning-text: #ffc670;
+    --color-danger: #f0506e;
+    --color-danger-text: #ff9aa9;
+    --color-info-text: #9be7e1;
+
+    --color-indica-text: #d3b0ff;
+    --color-sativa-text: #7be3bf;
+
+    --color-star: #ffc94d;
+    --color-star-preview: #8a6d2a;
+    --color-star-empty: #5f4770;
+
+    --shadow-sm: 0 4px 10px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 8px 22px rgba(0, 0, 0, 0.45);
+
+    --chart-1: #ff8fb6;
+    --chart-2: #7be3bf;
+    --chart-3: #ffc94d;
+    --chart-4: #d3b0ff;
+    --chart-5: #7fdfe8;
+    --chart-6: #ffa694;
+}

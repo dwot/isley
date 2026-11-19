@@ -1,0 +1,203 @@
+{{ define "views/theme-editor.html" }}
+{{ template "common/header.html" . }}
+<script src="{{ asset "/static/js/theme-editor.js" }}" defer></script>
+{{ template "common/header2.html" . }}
+
+<div class="container-fluid theme-editor" id="themeEditor"
+     data-package="{{ .manifest }}" data-from="{{ .from }}" data-new="{{ if .isNew }}true{{ else }}false{{ end }}">
+    <div class="te-head">
+        <div>
+            <p class="mb-1"><a href="/settings#logo-content"><i class="fa fa-arrow-left me-1"></i>{{ .lcl.theme_ref_back }}</a></p>
+            <h1 class="h3 mb-0">{{ if .isNew }}{{ .lcl.theme_editor_title_new }}{{ else }}{{ .lcl.theme_editor_title_edit }}{{ end }}</h1>
+        </div>
+        <div class="te-head-actions">
+            <div class="btn-group" role="group" aria-label="{{ .lcl.theme_mode }}">
+                <button type="button" class="btn btn-outline-secondary" data-edit-mode="light"><i class="fa fa-sun me-1"></i>{{ .lcl.theme_mode_light }}</button>
+                <button type="button" class="btn btn-outline-secondary" data-edit-mode="dark"><i class="fa fa-moon me-1"></i>{{ .lcl.theme_mode_dark }}</button>
+            </div>
+            <a class="btn btn-secondary" href="/settings#logo-content">{{ .lcl.theme_editor_cancel }}</a>
+            <button type="button" class="btn btn-primary" id="teSave"><i class="fa fa-floppy-disk me-1"></i>{{ .lcl.theme_editor_save }}</button>
+        </div>
+    </div>
+
+    <div class="te-layout">
+        <!-- Controls -->
+        <div class="te-controls">
+            <div class="card shadow-sm mb-3">
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="teName">{{ .lcl.theme_editor_name }}</label>
+                        <input type="text" class="form-control" id="teName" maxlength="40" autocomplete="off">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="teId">{{ .lcl.theme_editor_id }}</label>
+                        <input type="text" class="form-control" id="teId" maxlength="40" autocomplete="off" spellcheck="false"{{ if not .isNew }} readonly{{ end }}>
+                        <div class="form-text">{{ if .isNew }}{{ .lcl.theme_editor_id_help }}{{ else }}{{ .lcl.theme_editor_id_fixed }}{{ end }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="teDescription">{{ .lcl.theme_editor_description }}</label>
+                        <input type="text" class="form-control" id="teDescription" maxlength="300" autocomplete="off">
+                    </div>
+                    <fieldset class="mb-3">
+                        <legend class="form-label fs-6">{{ .lcl.theme_editor_modes }}</legend>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="teModeLight" data-has-mode="light">
+                            <label class="form-check-label" for="teModeLight">{{ .lcl.theme_mode_light }}</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="teModeDark" data-has-mode="dark">
+                            <label class="form-check-label" for="teModeDark">{{ .lcl.theme_mode_dark }}</label>
+                        </div>
+                        <div class="form-text">{{ .lcl.theme_editor_modes_help }}</div>
+                    </fieldset>
+                    <div class="row g-2">
+                        <div class="col-sm-6">
+                            <label class="form-label" for="teLogo">{{ .lcl.theme_editor_logo }}</label>
+                            <input type="file" class="form-control form-control-sm" id="teLogo" accept="image/png,image/jpeg,image/webp">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label" for="teLogoDark">{{ .lcl.theme_editor_logo_dark }}</label>
+                            <input type="file" class="form-control form-control-sm" id="teLogoDark" accept="image/png,image/jpeg,image/webp">
+                        </div>
+                        <div class="form-text">{{ .lcl.theme_editor_logo_help }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <p class="small text-muted mb-2">{{ .lcl.theme_editor_tokens_help }}
+                <a href="/settings/themes/reference" target="_blank" rel="noopener">{{ .lcl.theme_ref_title }}</a></p>
+
+            {{ range $i, $g := .groups }}
+            <details class="card shadow-sm mb-2 te-group"{{ if lt $i 2 }} open{{ end }}>
+                <summary class="card-header bg-themed">
+                    <span class="h6 mb-0">{{ $g.Title }}</span>
+                    <span class="badge text-bg-secondary te-group-count" hidden></span>
+                </summary>
+                <div class="card-body">
+                    {{ if $g.Note }}<p class="text-muted small mb-2">{{ $g.Note }}</p>{{ end }}
+                    {{ range $g.Tokens }}
+                    <div class="te-row" data-token="{{ .Name }}" data-kind="{{ .Kind }}">
+                        <div class="te-label">
+                            <code>{{ .Name }}</code>
+                            <small class="text-muted">{{ .Desc }}</small>
+                        </div>
+                        <div class="te-control">
+                            {{ if eq .Kind.String "color" }}
+                            <input type="color" class="form-control form-control-color te-pick" aria-label="{{ .Name }}">
+                            {{ else if eq .Kind.String "radius" }}
+                            <input type="range" class="form-range te-range" min="0" max="40" step="1" data-unit="px" aria-label="{{ .Name }}">
+                            {{ else if eq .Kind.String "font-size" }}
+                            <input type="range" class="form-range te-range" min="0.75" max="1.5" step="0.0625" data-unit="rem" aria-label="{{ .Name }}">
+                            {{ else if eq .Kind.String "percent" }}
+                            <input type="range" class="form-range te-range" min="0" max="100" step="1" data-unit="%" aria-label="{{ .Name }}">
+                            {{ end }}
+                            <input type="text" class="form-control form-control-sm te-text" spellcheck="false" autocomplete="off"
+                                   aria-label="{{ .Name }}" title="{{ .Kind.Accepts }}">
+                            <button type="button" class="btn btn-sm btn-outline-secondary te-reset" title="{{ $.lcl.theme_editor_reset }}" aria-label="{{ $.lcl.theme_editor_reset }}: {{ .Name }}"><i class="fa fa-rotate-left"></i></button>
+                        </div>
+                    </div>
+                    {{ end }}
+                </div>
+            </details>
+            {{ end }}
+        </div>
+
+        <!-- Preview -->
+        <div class="te-side">
+            <div class="te-status" id="teStatus" role="status" aria-live="polite"></div>
+            <div class="te-preview-label small text-muted mb-1"><i class="fa fa-eye me-1"></i>{{ .lcl.theme_editor_preview }}</div>
+            <!-- A theme scope of its own: Classic, with the editor's values laid over it. -->
+            <div class="te-preview" id="tePreview" data-theme="classic" data-bs-theme="dark" inert>
+                <div class="te-pv-header">
+                    <span class="site-logo"></span>
+                    <span class="te-pv-brand">Isley</span>
+                    <span class="te-pv-nav">
+                        <span class="btn btn-success btn-sm"><i class="fa fa-hand-holding-droplet"></i></span>
+                        <a href="#" class="nav-link"><i class="fa fa-cannabis"></i> Plants</a>
+                        <a href="#" class="nav-link active"><i class="fa fa-gear"></i> Settings</a>
+                    </span>
+                </div>
+
+                <div class="te-pv-grid">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-themed"><h2 class="h6 card-title mb-0">Raspberry Storm #4</h2></div>
+                        <div class="card-body">
+                            <p class="mb-1">Body text on a card, with <a href="#">a link</a> in it.</p>
+                            <p class="text-muted small mb-2">Secondary text: Week 10 / Day 68</p>
+                            <p class="mb-2">
+                                <span class="te-pv-stage" data-stage="germ">Germ</span>
+                                <span class="te-pv-stage" data-stage="seedling">Seedling</span>
+                                <span class="te-pv-stage" data-stage="veg">Veg</span>
+                                <span class="te-pv-stage" data-stage="flower">Flower</span>
+                                <span class="te-pv-stage" data-stage="dry">Dry</span>
+                                <span class="te-pv-stage" data-stage="cure">Cure</span>
+                                <span class="te-pv-stage" data-stage="harvest">Harvest</span>
+                                <span class="te-pv-stage" data-stage="dead">Dead</span>
+                            </p>
+                            <p class="mb-0 te-pv-status">
+                                <span class="te-pv-t" data-text="accent"><i class="fa fa-star"></i> Accent</span>
+                                <span class="te-pv-t" data-text="success-text"><i class="fa fa-check"></i> Watered</span>
+                                <span class="te-pv-t" data-text="warning-text"><i class="fa fa-droplet"></i> 3d</span>
+                                <span class="te-pv-t" data-text="danger-text"><i class="fa fa-flask"></i> 7d</span>
+                                <span class="te-pv-t" data-text="info-text"><i class="fa fa-circle-info"></i> Note</span>
+                                <span class="te-pv-t" data-text="indica-text">Indica</span>
+                                <span class="te-pv-t" data-text="sativa-text">Sativa</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                <span class="btn btn-primary btn-sm">Primary</span>
+                                <span class="btn btn-secondary btn-sm">Secondary</span>
+                                <span class="btn btn-success btn-sm">Success</span>
+                                <span class="btn btn-warning btn-sm">Warning</span>
+                                <span class="btn btn-danger btn-sm">Danger</span>
+                                <span class="btn btn-info btn-sm">Info</span>
+                                <span class="btn btn-outline-primary btn-sm">Outline</span>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-7"><input type="text" class="form-control form-control-sm" value="A text field" tabindex="-1"></div>
+                                <div class="col-5"><select class="form-select form-select-sm" tabindex="-1"><option>Grow Tent</option></select></div>
+                            </div>
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" checked tabindex="-1" id="tePvSwitch">
+                                <label class="form-check-label" for="tePvSwitch">A switch, on</label>
+                            </div>
+                            <p class="mb-0 te-pv-stars" aria-hidden="true">
+                                <i class="fa fa-star" data-star="star"></i><i class="fa fa-star" data-star="star"></i><i class="fa fa-star" data-star="star"></i><i class="fa fa-star" data-star="star-preview"></i><i class="fa fa-star" data-star="star-empty"></i>
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm te-pv-wide">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-sm mb-0">
+                                <thead class="bg-themed"><tr><th>Date</th><th>Plant</th><th>Activity</th><th>Note</th></tr></thead>
+                                <tbody>
+                                    <tr><td>Nov 18</td><td><a href="#">Sunset Mist #1</a></td><td>Water</td><td class="text-muted">2 L, pH 6.2</td></tr>
+                                    <tr><td>Nov 17</td><td><a href="#">Melon Mist #1</a></td><td>Feed</td><td class="text-muted">Bloom A+B</td></tr>
+                                    <tr><td>Nov 15</td><td><a href="#">Sticky Cake #5</a></td><td>Transplant</td><td class="text-muted">To 3 gal</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm te-pv-wide">
+                        <div class="card-body">
+                            <div class="te-pv-chart" aria-hidden="true">
+                                <span data-chart="1"></span><span data-chart="2"></span><span data-chart="3"></span>
+                                <span data-chart="4"></span><span data-chart="5"></span><span data-chart="6"></span>
+                            </div>
+                            <pre class="code-output mb-0 mt-2">GET /api/v1/plants  200  12ms</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{ template "common/footer.html" . }}
+{{ end }}

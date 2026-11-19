@@ -1,8 +1,11 @@
 // Strain page tasting card. Hidden entirely when the strain has no reports —
 // same convention as the descendants card above it.
 document.addEventListener("DOMContentLoaded", () => {
+    // The page names its strain on the element with data-strain-id.
+    const strainEl = document.querySelector("[data-strain-id]");
+    const currentStrainID = strainEl ? Number(strainEl.dataset.strainId) : undefined;
     const card = document.getElementById("smokeSummaryCard");
-    if (!card || typeof currentStrainID === "undefined") return;
+    if (!card || currentStrainID === undefined) return;
 
     function stars(value) {
         const n = Math.max(0, Math.min(5, Math.round(Number(value) || 0)));

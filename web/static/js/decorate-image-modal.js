@@ -94,8 +94,6 @@ document.addEventListener("DOMContentLoaded", () => {
 document.addEventListener("DOMContentLoaded", () => {
     const fontDropdown = document.getElementById("fontDropdown");
     const fontPreview = document.getElementById("fontPreview");
-    const logoDropdown = document.getElementById("logoDropdown");
-    const logoPreview = document.getElementById("logoPreview");
     const decorateImageButton = document.getElementById("decorateImage");
     const modalImage = document.getElementById("modalImage");
     const originalImageSrc = document.getElementById("originalImageSrc");
@@ -135,20 +133,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
-    // Load logos
-    fetch("/listLogos")
-        .then((response) => response.json())
-        .then((data) => {
-            if (data.success) {
-                data.logos.forEach((logo) => {
-                    const option = document.createElement("option");
-                    option.value = logo;
-                    option.textContent = logo.split("/").pop();
-                    logoDropdown.appendChild(option);
-                });
-            }
-        });
-
     // Font preview
     fontDropdown.addEventListener("change", () => {
         const selectedFont = fontDropdown.value;
@@ -164,17 +148,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
             // Apply the new font to the preview
             fontPreview.style.fontFamily = safeFontName;
-        }
-    });
-
-    // Logo preview — validate the path to prevent injection
-    logoDropdown.addEventListener("change", () => {
-        const logoPath = logoDropdown.value;
-        if (logoPath && /^[a-zA-Z0-9_\-\/. ]+$/.test(logoPath) && !logoPath.includes("..")) {
-            logoPreview.src = `/${logoPath}`;
-            logoPreview.style.display = "block";
-        } else {
-            logoPreview.style.display = "none";
         }
     });
 
@@ -195,7 +168,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const text2Input = document.getElementById("text2");
         const text1 = text1Dropdown.value === "Custom" ? text1Input.value : text1Dropdown.value;
         const text2 = text2Dropdown.value === "Custom" ? text2Input.value : text2Dropdown.value;
-        const logo = logoDropdown.value;
         const font = fontDropdown.value;
         const textColor = document.getElementById("textColor").value;
         const text1Corner = document.getElementById("text1Corner").value;
@@ -218,7 +190,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 text2,
                 text1Corner,
                 text2Corner,
-                logo,
                 font,
                 textColor,
             }),

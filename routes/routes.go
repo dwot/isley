@@ -5,6 +5,7 @@ import (
 	"isley/handlers"
 	"isley/model"
 	"isley/scope"
+	"isley/theme"
 	"isley/utils"
 	"net/http"
 
@@ -38,6 +39,7 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 		page(c, version, "views/activities.html", "Activity Log", gin.H{
 			"zones": store.Zones(), "strains": store.Strains(), "breeders": store.Breeders(),
 			"activityTypes": store.Activities(),
+			"logPlants":     handlers.ActivityLogPlants(c.Request.Context(), handlers.ServicesFromContext(c)),
 		})
 	})
 	r.GET("/activities/list", handlers.ListAllActivities)
@@ -107,7 +109,6 @@ func AddBasicRoutes(r *gin.RouterGroup, version string) {
 	})
 
 	r.GET("/listFonts", utils.ListFontsHandler)
-	r.GET("/listLogos", utils.ListLogosHandler)
 
 	r.GET("/plants/living", handlers.LivingPlantsHandler)
 	r.GET("/plants/harvested", handlers.HarvestedPlantsHandler)
@@ -204,7 +205,12 @@ func AddProtectedApiRoutes(r *gin.RouterGroup) {
 	r.PUT("/breeders/:id", handlers.UpdateBreederHandler)
 	r.DELETE("/breeders/:id", handlers.DeleteBreederHandler)
 
-	r.POST("/settings/upload-logo", handlers.UploadLogo)
+	r.POST("/settings/theme", handlers.SaveTheme)
+	r.POST("/settings/themes", handlers.InstallTheme)
+	r.POST("/settings/themes/check", handlers.CheckTheme)
+	r.POST("/settings/themes/save", handlers.SaveEditedTheme)
+	r.GET("/settings/themes/:id/export", handlers.ExportTheme)
+	r.DELETE("/settings/themes/:id", handlers.DeleteTheme)
 	r.GET("/settings/logs", handlers.GetLogs)
 	r.GET("/settings/logs/download", handlers.DownloadLogs)
 	r.POST("/settings/backup/create", handlers.CreateBackup)
@@ -256,6 +262,27 @@ func AddProtectedRoutes(r *gin.RouterGroup, version string) {
 		page(c, version, "views/strain-edit.html", "Edit Strain", gin.H{
 			"strain":   handlers.GetStrain(c.Request.Context(), handlers.ServicesFromContext(c), c.Param("id")),
 			"breeders": handlers.ConfigStoreFromContext(c).Breeders(),
+		})
+	})
+
+	// What a theme package may set, shown as the theme on screen has it.
+	r.GET("/settings/themes/reference", func(c *gin.Context) {
+		page(c, version, "views/theme-reference.html", "Theme tokens", gin.H{
+			"groups": theme.Reference(), "pairs": theme.ContrastPairs, "minContrast": theme.MinContrast,
+		})
+	})
+
+	// The theme editor: an installed theme, or a new one started from a
+	// built-in theme.
+	r.GET("/settings/themes/:id/edit", func(c *gin.Context) {
+		manifest, from, isNew, ok := handlers.ThemeEditorData(c, c.Param("id"))
+		if !ok {
+			c.Redirect(http.StatusFound, "/settings#logo-content")
+			return
+		}
+		page(c, version, "views/theme-editor.html", "Theme editor", gin.H{
+			"manifest": manifest, "from": from, "isNew": isNew,
+			"groups": theme.Reference(), "minContrast": theme.MinContrast,
 		})
 	})
 

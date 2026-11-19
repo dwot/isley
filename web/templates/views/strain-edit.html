@@ -2,7 +2,7 @@
 
 {{ template "common/header.html" .}}
 {{ template "common/header2.html" .}}
-<div class="container">
+<div class="container" data-strain-id="{{ .strain.ID }}" data-strain-name="{{ .strain.Name }}">
     <!-- Breadcrumbs -->
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
@@ -200,9 +200,6 @@
     </form>
 </div>
 
-<script nonce="{{ .cspNonce }}">
-    var currentStrainID = {{ .strain.ID }};
-</script>
 <script src="{{ asset "/static/js/strain-edit.js" }}"></script>
 <script src="{{ asset "/static/js/strain-lineage-edit.js" }}"></script>
 {{ template "common/footer.html" .}}

@@ -11,6 +11,30 @@ document.addEventListener("DOMContentLoaded", () => {
     let chart;
     let sensorNamesCache = {};
 
+    // Series colours come from the theme's --chart-1..6, round again after
+    // the sixth.
+    const SERIES_TOKENS = 6;
+    const seriesColor = (index) => IsleyTheme.color(`--chart-${(index % SERIES_TOKENS) + 1}`);
+
+    // A change of theme or mode repaints the chart in place, keeping its
+    // data and zoom.
+    document.addEventListener('isley:themechange', () => {
+        if (!chart) return;
+        const text = IsleyTheme.color('--chart-text');
+        const grid = IsleyTheme.color('--chart-grid');
+        chart.data.datasets.forEach((dataset, index) => {
+            dataset.borderColor = seriesColor(index);
+            dataset.backgroundColor = seriesColor(index);
+        });
+        chart.options.plugins.legend.labels.color = text;
+        ['x', 'y'].forEach((axis) => {
+            chart.options.scales[axis].title.color = text;
+            chart.options.scales[axis].ticks.color = text;
+            chart.options.scales[axis].grid.color = grid;
+        });
+        chart.update('none');
+    });
+
     // Retry fetch with exponential backoff
     const retryFetch = (url, retries = 3, delay = 500) => {
         return new Promise((resolve, reject) => {
@@ -100,13 +124,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     y: item.value
                 }));
 
-                const hue = (index * 60) % 360;
-
                 return {
                     label: `Sensor: ${sensorNamesCache[result.id] || 'Unknown'}`,
                     data: formattedData,
-                    borderColor: `hsl(${hue} 70% 50%)`,
-                    backgroundColor: `hsl(${hue} 70% 90% / 0.6)`,
+                    borderColor: seriesColor(index),
+                    backgroundColor: seriesColor(index),
                     borderWidth: 2,
                     pointRadius: 2,
                     pointHoverRadius: 5,
@@ -131,7 +153,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     plugins: {
                         legend: {
                             position: 'top',
-                            labels: { usePointStyle: true }
+                            labels: { usePointStyle: true, color: IsleyTheme.color('--chart-text') }
                         },
                         tooltip: {
                             mode: 'index',
@@ -160,13 +182,14 @@ document.addEventListener("DOMContentLoaded", () => {
                             // ticks (and the tooltip time) in the instance zone.
                             time: { unit: timeUnit },
                             afterBuildTicks: timeUnit === 'minute' ? roundMinuteTicks : undefined,
-                            title: { display: true, text: 'Date / Time' },
-                            ticks: { autoSkip: true, maxRotation: 0, autoSkipPadding: 10 },
-                            grid: { color: 'rgba(255,255,255,0.05)' }
+                            title: { display: true, text: 'Date / Time', color: IsleyTheme.color('--chart-text') },
+                            ticks: { autoSkip: true, maxRotation: 0, autoSkipPadding: 10, color: IsleyTheme.color('--chart-text') },
+                            grid: { color: IsleyTheme.color('--chart-grid') }
                         },
                         y: {
-                            title: { display: true, text: 'Sensor Value' },
-                            grid: { color: 'rgba(255,255,255,0.03)' },
+                            title: { display: true, text: 'Sensor Value', color: IsleyTheme.color('--chart-text') },
+                            ticks: { color: IsleyTheme.color('--chart-text') },
+                            grid: { color: IsleyTheme.color('--chart-grid') },
                         }
                     }
                 }

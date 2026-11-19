@@ -19,12 +19,12 @@ document.addEventListener("DOMContentLoaded", () => {
             body: JSON.stringify(payload),
         })
             .then(response => {
-                if (!response.ok) throw new Error("{{ .lcl.failed_to_link_sensors }}");
+                if (!response.ok) throw new Error(uiMessages.t("failed_to_link_sensors"));
                 location.reload();
             })
             .catch(error => {
                 console.error("Error:", error);
-                uiMessages.showToast(uiMessages.t('failed_to_link_sensors') || '{{ .lcl.failed_to_link_sensors }}', 'danger');
+                uiMessages.showToast(uiMessages.t("failed_to_link_sensors"), 'danger');
             });
     });
 

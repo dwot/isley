@@ -58,7 +58,7 @@ document.addEventListener("DOMContentLoaded", () => {
         })
             .then((response) => {
                 if (!response.ok) {
-                    throw new Error("{{ .lcl.strain_add_fail }}");
+                    throw new Error(uiMessages.t("strain_add_fail"));
                 }
                 return response.json();
             })
@@ -108,7 +108,7 @@ document.addEventListener("DOMContentLoaded", () => {
             })
             .catch((error) => {
                 console.error("Error:", error);
-                uiMessages.showToast(uiMessages.t('strain_add_error') || '{{ .lcl.strain_add_error }}', 'danger');
+                uiMessages.showToast(uiMessages.t("strain_add_error"), 'danger');
             });
     });
 });

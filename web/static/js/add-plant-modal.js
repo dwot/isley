@@ -57,19 +57,19 @@ document.addEventListener("DOMContentLoaded", () => {
             parentPlantDropdown.classList.remove("d-none");
         } else {
             parentPlantDropdown.classList.add("d-none");
-            parentPlantSelect.innerHTML = '<option value="0">{{ .lcl.title_none }}</option>';
+            parentPlantSelect.innerHTML = `<option value="0">${esc(uiMessages.t("title_none"))}</option>`;
         }
     });
 
     strainSelect.addEventListener("change", () => {
         if (strainSelect.value === "new") {
             parentPlantDropdown.classList.add("d-none");
-            parentPlantSelect.innerHTML = '<option value="0">{{ .lcl.title_none }}</option>';
+            parentPlantSelect.innerHTML = `<option value="0">${esc(uiMessages.t("title_none"))}</option>`;
         } else {
             fetch(`/plants/by-strain/${strainSelect.value}`)
                 .then(response => response.json())
                 .then(plants => {
-                    parentPlantSelect.innerHTML = '<option value="0">{{ .lcl.title_none }}</option>';
+                    parentPlantSelect.innerHTML = `<option value="0">${esc(uiMessages.t("title_none"))}</option>`;
                     plants.forEach(plant => {
                         const opt = document.createElement('option');
                         opt.value = plant.id;

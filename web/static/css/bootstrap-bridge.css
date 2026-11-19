@@ -1,0 +1,303 @@
+/* bootstrap-bridge.css — points Bootstrap at the tokens in tokens.css.
+ *
+ * Bootstrap 5.3 reads its colours from three places: root variables
+ * (--bs-body-bg), variables set on a component class (--bs-btn-bg on
+ * .btn-primary, compiled to a literal), and "r,g,b" triples inside rgba()
+ * (--bs-primary-rgb in .text-primary). A token is one colour, not a triple,
+ * so this file sets the first two kinds and restates the few utilities of
+ * the third kind that the templates use.
+ *
+ * Load order: bootstrap.min.css, tokens.css, themes/*.css, this file, then
+ * Isley's own stylesheets (base.css first).
+ */
+
+/* ---- Root variables ---------------------------------------------------- */
+
+:root,
+[data-theme],
+[data-bs-theme] {
+    /* Bootstrap paints every surface it owns (cards, modals, menus, inputs,
+       tables) with --bs-body-bg, so that is the card colour. The page
+       itself takes --color-bg from the body rule below. */
+    --bs-body-bg: var(--color-card);
+    --bs-body-color: var(--color-fg);
+    --bs-emphasis-color: var(--color-fg);
+    --bs-secondary-color: var(--color-muted);
+    --bs-tertiary-color: color-mix(in srgb, var(--color-muted) 70%, transparent);
+    --bs-secondary-bg: var(--color-table-header);
+    --bs-tertiary-bg: var(--color-row-hover);
+    --bs-border-color: var(--color-border);
+    --bs-border-color-translucent: var(--color-card-border);
+
+    --bs-primary: var(--color-primary);
+    --bs-secondary: var(--color-secondary);
+    --bs-success: var(--color-success);
+    --bs-warning: var(--color-warning);
+    --bs-danger: var(--color-danger);
+    --bs-info: var(--color-info);
+
+    --bs-link-color: var(--color-link);
+    --bs-link-hover-color: var(--color-link-hover);
+    --bs-focus-ring-color: var(--color-focus-ring);
+    --bs-form-valid-color: var(--color-success-text);
+    --bs-form-valid-border-color: var(--color-success-text);
+    --bs-form-invalid-color: var(--color-danger-text);
+    --bs-form-invalid-border-color: var(--color-danger-text);
+
+    /* Alerts and other "subtle" surfaces */
+    --bs-primary-text-emphasis: var(--color-accent);
+    --bs-primary-bg-subtle: color-mix(in srgb, var(--color-primary) 15%, var(--color-card));
+    --bs-primary-border-subtle: color-mix(in srgb, var(--color-primary) 40%, var(--color-card));
+    --bs-success-text-emphasis: var(--color-success-text);
+    --bs-success-bg-subtle: color-mix(in srgb, var(--color-success) 15%, var(--color-card));
+    --bs-success-border-subtle: color-mix(in srgb, var(--color-success) 40%, var(--color-card));
+    --bs-warning-text-emphasis: var(--color-warning-text);
+    --bs-warning-bg-subtle: color-mix(in srgb, var(--color-warning) 15%, var(--color-card));
+    --bs-warning-border-subtle: color-mix(in srgb, var(--color-warning) 40%, var(--color-card));
+    --bs-danger-text-emphasis: var(--color-danger-text);
+    --bs-danger-bg-subtle: color-mix(in srgb, var(--color-danger) 15%, var(--color-card));
+    --bs-danger-border-subtle: color-mix(in srgb, var(--color-danger) 40%, var(--color-card));
+    --bs-info-text-emphasis: var(--color-info-text);
+    --bs-info-bg-subtle: color-mix(in srgb, var(--color-info) 15%, var(--color-card));
+    --bs-info-border-subtle: color-mix(in srgb, var(--color-info) 40%, var(--color-card));
+
+    --bs-border-radius: var(--radius);
+    --bs-border-radius-sm: var(--radius-sm);
+    --bs-border-radius-lg: var(--radius-lg);
+    --bs-border-radius-xl: var(--radius-xl);
+    --bs-border-radius-pill: var(--radius-pill);
+
+    --bs-body-font-family: var(--font-body);
+    --bs-body-font-size: var(--font-size);
+    --bs-font-monospace: var(--font-mono);
+}
+
+body {
+    background-color: var(--color-bg);
+    background-image: var(--bg-image);
+    background-attachment: fixed;
+    color: var(--color-fg);
+}
+
+h1, h2, h3, h4, h5, h6,
+.h1, .h2, .h3, .h4, .h5, .h6 {
+    font-family: var(--font-heading);
+}
+
+a {
+    color: var(--color-link);
+}
+a:hover {
+    color: var(--color-link-hover);
+}
+
+/* ---- Buttons ----------------------------------------------------------- */
+
+.btn {
+    --bs-btn-focus-box-shadow: 0 0 0 0.25rem var(--color-focus-ring);
+}
+
+/* Solid buttons: --btn-fill and --btn-on name the role, the rest follows. */
+.btn-primary   { --btn-fill: var(--color-primary);   --btn-on: var(--color-on-primary); }
+.btn-success   { --btn-fill: var(--color-success);   --btn-on: var(--color-on-success); }
+.btn-warning   { --btn-fill: var(--color-warning);   --btn-on: var(--color-on-warning); }
+.btn-danger    { --btn-fill: var(--color-danger);    --btn-on: var(--color-on-danger); }
+.btn-info      { --btn-fill: var(--color-info);      --btn-on: var(--color-on-info); }
+
+.btn-primary,
+.btn-success,
+.btn-warning,
+.btn-danger,
+.btn-info {
+    --btn-fill-hover: color-mix(in srgb, var(--btn-fill), #000 var(--shade));
+    --bs-btn-color: var(--btn-on);
+    --bs-btn-bg: var(--btn-fill);
+    --bs-btn-border-color: var(--btn-fill);
+    --bs-btn-hover-color: var(--btn-on);
+    --bs-btn-hover-bg: var(--btn-fill-hover);
+    --bs-btn-hover-border-color: var(--btn-fill-hover);
+    --bs-btn-active-color: var(--btn-on);
+    --bs-btn-active-bg: var(--btn-fill-hover);
+    --bs-btn-active-border-color: var(--btn-fill-hover);
+    --bs-btn-disabled-color: var(--btn-on);
+    --bs-btn-disabled-bg: var(--btn-fill);
+    --bs-btn-disabled-border-color: var(--btn-fill);
+}
+
+/* The neutral button is a quiet surface, not a grey fill. */
+.btn-secondary {
+    --bs-btn-color: var(--color-btn-secondary-fg);
+    --bs-btn-bg: var(--color-btn-secondary-bg);
+    --bs-btn-border-color: var(--color-btn-secondary-border);
+    --bs-btn-hover-color: var(--color-btn-secondary-fg);
+    --bs-btn-hover-bg: var(--color-btn-secondary-hover-bg);
+    --bs-btn-hover-border-color: var(--color-btn-secondary-border);
+    --bs-btn-active-color: var(--color-btn-secondary-fg);
+    --bs-btn-active-bg: var(--color-btn-secondary-hover-bg);
+    --bs-btn-active-border-color: var(--color-btn-secondary-border);
+    --bs-btn-disabled-color: var(--color-btn-secondary-fg);
+    --bs-btn-disabled-bg: var(--color-btn-secondary-bg);
+    --bs-btn-disabled-border-color: var(--color-btn-secondary-border);
+}
+
+/* Outline buttons: --btn-line is the text and border, --btn-fill and
+   --btn-on the hover state. */
+.btn-outline-primary   { --btn-line: var(--color-accent);       --btn-fill: var(--color-accent);    --btn-on: var(--color-on-primary); }
+.btn-outline-secondary { --btn-line: var(--color-muted);        --btn-fill: var(--color-secondary); --btn-on: var(--color-on-secondary); }
+.btn-outline-success   { --btn-line: var(--color-success-text); --btn-fill: var(--color-success);   --btn-on: var(--color-on-success); }
+.btn-outline-warning   { --btn-line: var(--color-warning-text); --btn-fill: var(--color-warning);   --btn-on: var(--color-on-warning); }
+.btn-outline-danger    { --btn-line: var(--color-danger-text);  --btn-fill: var(--color-danger);    --btn-on: var(--color-on-danger); }
+.btn-outline-info      { --btn-line: var(--color-info-text);    --btn-fill: var(--color-info);      --btn-on: var(--color-on-info); }
+
+.btn-outline-primary,
+.btn-outline-secondary,
+.btn-outline-success,
+.btn-outline-warning,
+.btn-outline-danger,
+.btn-outline-info {
+    --bs-btn-color: var(--btn-line);
+    --bs-btn-border-color: var(--btn-line);
+    --bs-btn-hover-color: var(--btn-on);
+    --bs-btn-hover-bg: var(--btn-fill);
+    --bs-btn-hover-border-color: var(--btn-fill);
+    --bs-btn-active-color: var(--btn-on);
+    --bs-btn-active-bg: var(--btn-fill);
+    --bs-btn-active-border-color: var(--btn-fill);
+    --bs-btn-disabled-color: var(--btn-line);
+    --bs-btn-disabled-border-color: var(--btn-line);
+}
+
+.btn-link {
+    --bs-btn-disabled-color: var(--color-muted);
+}
+
+/* ---- Colour utilities -------------------------------------------------- */
+
+.text-primary   { color: var(--color-accent) !important; }
+.text-secondary { color: var(--color-muted) !important; }
+.text-success   { color: var(--color-success-text) !important; }
+.text-warning   { color: var(--color-warning-text) !important; }
+.text-danger    { color: var(--color-danger-text) !important; }
+.text-info      { color: var(--color-info-text) !important; }
+
+.bg-primary   { background-color: var(--color-primary) !important; }
+.bg-secondary { background-color: var(--color-secondary) !important; }
+.bg-success   { background-color: var(--color-success) !important; }
+.bg-warning   { background-color: var(--color-warning) !important; }
+.bg-danger    { background-color: var(--color-danger) !important; }
+.bg-info      { background-color: var(--color-info) !important; }
+.bg-body-secondary { background-color: var(--color-table-header) !important; }
+
+.border-primary   { border-color: var(--color-primary) !important; }
+.border-secondary { border-color: var(--color-secondary) !important; }
+.border-success   { border-color: var(--color-success) !important; }
+.border-warning   { border-color: var(--color-warning) !important; }
+.border-danger    { border-color: var(--color-danger) !important; }
+.border-info      { border-color: var(--color-info) !important; }
+
+.link-body-emphasis { color: var(--color-fg) !important; }
+
+/* ---- Forms ------------------------------------------------------------- */
+
+.form-control,
+.form-select {
+    color: var(--color-input-fg);
+    background-color: var(--color-input-bg);
+    border-color: var(--color-input-border);
+}
+.form-control:focus,
+.form-select:focus {
+    color: var(--color-input-fg);
+    background-color: var(--color-input-bg);
+    border-color: var(--color-input-focus-border);
+    box-shadow: 0 0 0 0.25rem var(--color-focus-ring);
+}
+.form-control:disabled,
+.form-select:disabled {
+    background-color: var(--color-table-header);
+}
+.form-control::placeholder {
+    color: var(--color-muted);
+}
+.input-group-text {
+    color: var(--color-fg);
+    background-color: var(--color-table-header);
+    border-color: var(--color-input-border);
+}
+
+.form-check-input {
+    background-color: var(--color-input-bg);
+    border-color: var(--color-input-border);
+}
+.form-check-input:checked {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+.form-check-input:focus {
+    border-color: var(--color-input-focus-border);
+    box-shadow: 0 0 0 0.25rem var(--color-focus-ring);
+}
+
+.form-range::-webkit-slider-thumb { background-color: var(--color-primary); }
+.form-range::-moz-range-thumb     { background-color: var(--color-primary); }
+.form-range::-webkit-slider-runnable-track { background-color: var(--color-table-header); }
+.form-range::-moz-range-track              { background-color: var(--color-table-header); }
+
+/* ---- Components -------------------------------------------------------- */
+
+.nav-pills {
+    --bs-nav-pills-link-active-color: var(--color-on-primary);
+    --bs-nav-pills-link-active-bg: var(--color-primary);
+}
+.nav-tabs {
+    --bs-nav-tabs-link-active-color: var(--color-on-primary);
+    --bs-nav-tabs-link-active-bg: var(--color-primary);
+    --bs-nav-tabs-link-active-border-color: var(--color-primary) var(--color-primary) var(--color-card);
+}
+
+.dropdown-menu {
+    --bs-dropdown-color: var(--color-dropdown-fg);
+    --bs-dropdown-bg: var(--color-dropdown-bg);
+    --bs-dropdown-border-color: var(--color-dropdown-border);
+    --bs-dropdown-link-color: var(--color-dropdown-fg);
+    --bs-dropdown-link-hover-color: var(--color-dropdown-fg);
+    --bs-dropdown-link-hover-bg: var(--color-row-hover);
+    --bs-dropdown-link-active-color: var(--color-on-primary);
+    --bs-dropdown-link-active-bg: var(--color-primary);
+}
+
+.modal {
+    --bs-modal-bg: var(--color-card);
+    --bs-modal-color: var(--color-fg);
+}
+
+.toast {
+    --bs-toast-bg: var(--color-card);
+    --bs-toast-header-bg: var(--color-card);
+    --bs-toast-color: var(--color-fg);
+}
+
+.table {
+    --bs-table-color: var(--color-fg);
+    --bs-table-bg: var(--color-table-bg);
+    --bs-table-border-color: var(--color-border);
+    --bs-table-striped-color: var(--color-fg);
+    --bs-table-striped-bg: color-mix(in srgb, var(--color-fg) 5%, transparent);
+    --bs-table-active-color: var(--color-fg);
+    --bs-table-active-bg: color-mix(in srgb, var(--color-fg) 10%, transparent);
+    --bs-table-hover-color: var(--color-fg);
+    --bs-table-hover-bg: color-mix(in srgb, var(--color-fg) 7.5%, transparent);
+}
+
+.progress,
+.progress-stacked {
+    --bs-progress-bg: var(--color-table-header);
+    --bs-progress-bar-color: var(--color-on-primary);
+    --bs-progress-bar-bg: var(--color-primary);
+}
+
+.list-group {
+    --bs-list-group-active-color: var(--color-on-primary);
+    --bs-list-group-active-bg: var(--color-primary);
+    --bs-list-group-active-border-color: var(--color-primary);
+}

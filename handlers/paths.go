@@ -39,7 +39,7 @@ func DefaultStreamDir(uploadDir string) string {
 
 // UploadDirFromContext returns the per-engine upload root the
 // middleware injected. Handlers compose subdirectories
-// (<UploadDir>/plants, <UploadDir>/logos) off the returned path.
+// (<UploadDir>/plants, <UploadDir>/themes) off the returned path.
 func UploadDirFromContext(c *gin.Context) string {
 	v, _ := c.Get(contextKeyUploadDir)
 	if s, ok := v.(string); ok && s != "" {

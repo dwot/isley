@@ -23,6 +23,8 @@ type BackupService struct {
 	db      *sql.DB
 	dataDir string
 	version string
+	// afterRestore runs once a restore has put the uploads back.
+	afterRestore func()
 
 	mu      sync.Mutex
 	backup  BackupStatus
@@ -43,6 +45,11 @@ func NewBackupService(db *sql.DB, dataDir string) *BackupService {
 // SetVersion sets the release version written into backup manifests. Call
 // it before the service is shared; it is read without the lock.
 func (s *BackupService) SetVersion(v string) { s.version = v }
+
+// SetAfterRestore sets a function to run when a restore has finished
+// replacing the uploads folder, for whatever holds its contents in
+// memory. Call it before the service is shared.
+func (s *BackupService) SetAfterRestore(fn func()) { s.afterRestore = fn }
 
 // Version is the release version backups record, or "unknown".
 func (s *BackupService) Version() string {

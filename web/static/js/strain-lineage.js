@@ -6,11 +6,15 @@
  * Red link = strain not yet added (links to add-strain flow)
  */
 document.addEventListener("DOMContentLoaded", () => {
+    // The page names its strain on the element with data-strain-id.
+    const strainEl = document.querySelector("[data-strain-id]");
+    const currentStrainID = strainEl ? Number(strainEl.dataset.strainId) : undefined;
+    const currentStrainName = strainEl ? strainEl.dataset.strainName : "";
     const treeContainer = document.getElementById("lineageTree");
     const emptyMsg = document.getElementById("lineageEmpty");
     const lineageCard = document.getElementById("lineageCard");
 
-    if (!treeContainer || !lineageCard || typeof currentStrainID === "undefined") return;
+    if (!treeContainer || !lineageCard || currentStrainID === undefined) return;
 
     // Fetch lineage data via API
     fetch(`/strains/${currentStrainID}/lineage`)
@@ -34,7 +38,7 @@ document.addEventListener("DOMContentLoaded", () => {
             // Current strain is bold, not a link (we're already on its page)
             const label = document.createElement("strong");
             label.textContent = currentStrainName;
-            label.style.color = "var(--color-text)";
+            label.style.color = "var(--color-fg)";
             rootName.appendChild(label);
 
             // Add collapse toggle

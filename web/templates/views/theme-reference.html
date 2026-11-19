@@ -1,0 +1,90 @@
+{{ define "views/theme-reference.html" }}
+{{ template "common/header.html" . }}
+<script src="{{ asset "/static/js/theme-reference.js" }}" defer></script>
+{{ template "common/header2.html" . }}
+
+<div class="container theme-ref" id="themeReference" data-min-contrast="{{ .minContrast }}">
+    <p class="mb-2"><a href="/settings#logo-content"><i class="fa fa-arrow-left me-1"></i>{{ .lcl.theme_ref_back }}</a></p>
+    <h1 class="h2 mb-2">{{ .lcl.theme_ref_title }}</h1>
+    <p class="text-muted theme-ref-intro">{{ .lcl.theme_ref_intro }}</p>
+    <p class="theme-ref-now">
+        <i class="fa fa-palette me-1"></i>{{ .lcl.theme_ref_showing }}
+        <strong id="themeRefCurrent"></strong>
+    </p>
+
+    <nav class="theme-ref-jump" aria-label="{{ .lcl.theme_ref_title }}">
+        {{ range $i, $g := .groups }}<a href="#tokens-{{ $i }}">{{ $g.Title }}</a>{{ end }}
+        <a href="#contrast">{{ .lcl.theme_contrast_title }}</a>
+    </nav>
+
+    {{ range $i, $g := .groups }}
+    <section class="card shadow-sm mb-4" id="tokens-{{ $i }}">
+        <div class="card-header bg-themed">
+            <h2 class="h5 card-title mb-0">{{ $g.Title }}</h2>
+        </div>
+        <div class="card-body">
+            {{ if $g.Note }}<p class="text-muted small">{{ $g.Note }}</p>{{ end }}
+            <div class="table-responsive">
+                <table class="table table-sm align-middle theme-ref-table mb-0">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="theme-ref-col-preview"><span class="visually-hidden">{{ $.lcl.theme_ref_col_preview }}</span></th>
+                            <th scope="col">{{ $.lcl.theme_ref_col_token }}</th>
+                            <th scope="col">{{ $.lcl.theme_ref_col_what }}</th>
+                            <th scope="col">{{ $.lcl.theme_ref_col_accepts }}</th>
+                            <th scope="col">{{ $.lcl.theme_ref_col_value }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{ range $g.Tokens }}
+                        <tr>
+                            <td><span class="theme-ref-preview theme-ref-preview--{{ .Kind }}" data-token="{{ .Name }}" data-kind="{{ .Kind }}" aria-hidden="true"></span></td>
+                            <td><code class="theme-ref-name">{{ .Name }}</code></td>
+                            <td>{{ .Desc }}</td>
+                            <td class="small text-muted">{{ .Kind.Accepts }}</td>
+                            <td><code class="theme-ref-value" data-value-of="{{ .Name }}"></code></td>
+                        </tr>
+                        {{ end }}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+    {{ end }}
+
+    <section class="card shadow-sm mb-4" id="contrast">
+        <div class="card-header bg-themed">
+            <h2 class="h5 card-title mb-0">{{ .lcl.theme_contrast_title }}</h2>
+        </div>
+        <div class="card-body">
+            <p class="text-muted small">{{ .lcl.theme_contrast_intro }}</p>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle theme-ref-table mb-0">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="theme-ref-col-preview"><span class="visually-hidden">{{ .lcl.theme_ref_col_preview }}</span></th>
+                            <th scope="col">{{ .lcl.theme_ref_col_where }}</th>
+                            <th scope="col">{{ .lcl.theme_ref_col_text }}</th>
+                            <th scope="col">{{ .lcl.theme_ref_col_background }}</th>
+                            <th scope="col" class="text-end">{{ .lcl.theme_ref_col_ratio }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{ range .pairs }}
+                        <tr data-pair-text="{{ .Text }}" data-pair-background="{{ .Background }}">
+                            <td><span class="theme-ref-sample" aria-hidden="true">Aa</span></td>
+                            <td>{{ .What }}</td>
+                            <td><code>{{ .Text }}</code></td>
+                            <td><code>{{ .Background }}</code></td>
+                            <td class="text-end text-nowrap"><span class="theme-ref-ratio"></span></td>
+                        </tr>
+                        {{ end }}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+</div>
+
+{{ template "common/footer.html" . }}
+{{ end }}

@@ -546,7 +546,7 @@ Isley stores data in two Docker volumes that should be backed up regularly.
 | Volume | Contents | Path inside container |
 |---|---|---|
 | `postgres-data` (or `isley-db` for SQLite) | Database — all plants, sensors, settings, and history | `/var/lib/postgresql/data` (Postgres) or `/app/data` (SQLite) |
-| `isley-uploads` | Plant photos, stream snapshots, and logo images | `/app/uploads` |
+| `isley-uploads` | Plant photos, stream snapshots, and installed themes | `/app/uploads` |
 
 ### Backing up
 

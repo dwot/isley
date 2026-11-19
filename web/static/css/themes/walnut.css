@@ -1,0 +1,101 @@
+/* theme: Walnut
+ * modes: dark
+ *
+ * The Walnut desktop theme (dwot/dotfiles), on Isley: near-black with a
+ * brown cast and one accent, copper. Dark only, as the desktop is.
+ *
+ * Every colour is from that palette. Fills take its normal colours with
+ * the background colour as their text, the way the desktop's selection
+ * does; text and icons on a surface take its bright variants.
+ *
+ *   background #12100e   surface #1b1815   raised #24201c   border #2a2520
+ *   selection  #3a2d22   text    #d6ccbf   muted  #85786a   dim    #5c5248
+ *   copper     #b3703f   copper, as text   #d08a55
+ *   red #b5564a / #cf6f61      green   #7d8c5a / #98a872
+ *   yellow #c9a05a / #dcb878   blue    #5f7f93 / #7b9bb0
+ *   magenta #96697f / #b0849a  cyan    #5f8f86 / #7aaaa0
+ *
+ * Type is Inter and JetBrains Mono where they are installed.
+ */
+
+[data-theme="walnut"],
+[data-theme="walnut"][data-bs-theme="dark"] {
+    --logo: url("/static/img/logos/walnut.png");
+    --color-bg: #12100e;
+    --color-card: #1b1815;
+    --color-card-border: #2a2520;
+    --color-table-header: #24201c;
+    --color-row-hover: #24201c;
+    --color-border: #3a2d22;
+    --color-fg: #d6ccbf;
+    --color-muted: #85786a;
+    --color-input-bg: #12100e;
+    --color-input-border: #5c5248;
+    --color-spinner-overlay: rgba(18, 16, 14, 0.88);
+    --bg-image: none;
+
+    --color-primary: #b3703f;
+    --color-on-primary: #12100e;
+    --color-accent: #d08a55;
+    --color-accent-hover: #e0a472;
+    --color-link: #d08a55;
+    --color-link-hover: #e0a472;
+
+    --color-secondary: #5c5248;
+    --color-on-secondary: #d6ccbf;
+    --color-success: #7d8c5a;
+    --color-on-success: #12100e;
+    --color-success-text: #98a872;
+    --color-warning: #c9a05a;
+    --color-on-warning: #12100e;
+    --color-warning-text: #dcb878;
+    --color-danger: #b5564a;
+    --color-on-danger: #12100e;
+    --color-danger-text: #cf6f61;
+    --color-info: #5f7f93;
+    --color-on-info: #12100e;
+    --color-info-text: #7b9bb0;
+
+    --stage-germ: #dcb878;
+    --stage-seedling: #98a872;
+    --stage-veg: #7d8c5a;
+    --stage-flower: #b0849a;
+    --stage-dry: #b3703f;
+    --stage-cure: #c9a05a;
+    --stage-harvest: #7aaaa0;
+    --stage-dead: #85786a;
+    --color-on-stage: #12100e;
+    --color-auto: #c9a05a;
+    --color-photo: #7aaaa0;
+    --color-fem: #b0849a;
+    --color-regular: #85786a;
+    --color-indica: #96697f;
+    --color-indica-text: #b0849a;
+    --color-sativa: #7d8c5a;
+    --color-sativa-text: #98a872;
+    --shade: 10%;
+
+    --color-star: #c9a05a;
+    --color-star-preview: #6b5340;
+    --color-star-empty: #3a2d22;
+
+    --radius: 6px;
+    --shadow-sm: 0 3px 8px rgba(0, 0, 0, 0.45);
+    --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.55);
+    --shadow-hover: 0 0 0 1px #b3703f;
+    --color-focus-ring: rgba(179, 112, 63, 0.5);
+    --color-view-btn-hover-bg: #3a2d22;
+    --color-btn-secondary-bg: #24201c;
+    --color-btn-secondary-hover-bg: #3a2d22;
+    --color-btn-secondary-border: #3a2d22;
+
+    --font-body: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif;
+    --font-mono: "JetBrainsMono Nerd Font", "JetBrains Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+    --chart-1: #d08a55;
+    --chart-2: #7aaaa0;
+    --chart-3: #dcb878;
+    --chart-4: #b0849a;
+    --chart-5: #98a872;
+    --chart-6: #7b9bb0;
+}

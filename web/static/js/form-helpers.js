@@ -81,5 +81,13 @@
         if (el) el.value = IsleyTime.nowInput();
     }
 
+    // <input type="datetime-local" data-default-now> starts at the current
+    // time. Left alone if something has already given it a value.
+    document.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll("input[data-default-now]").forEach((el) => {
+            if (!el.value) el.value = IsleyTime.nowInput();
+        });
+    });
+
     window.formHelpers = { withLoading, setFieldError, clearFieldError, clearFormErrors, formatDateTimeLocal, setDateTimeNow };
 })();

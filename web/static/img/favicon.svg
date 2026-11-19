@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Isley's favicon: a five-leaflet leaf on a dark tile. It belongs to no theme, so it stays the
+       same whichever one a browser is showing. Drawn by hand; docs/brand/README.md. -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#1c2126"/>
+  <g fill="#43d17a">
+    <path d="M32 46 C28.6 39.2 29.3 32.7 32 29 C34.7 32.7 35.4 39.2 32 46 Z" transform="rotate(-82 32 46)"/>
+    <path d="M32 46 C28.6 39.2 29.3 32.7 32 29 C34.7 32.7 35.4 39.2 32 46 Z" transform="rotate(82 32 46)"/>
+    <path d="M32 46 C27.6 36.0 28.5 26.5 32 21 C35.5 26.5 36.4 36.0 32 46 Z" transform="rotate(-44 32 46)"/>
+    <path d="M32 46 C27.6 36.0 28.5 26.5 32 21 C35.5 26.5 36.4 36.0 32 46 Z" transform="rotate(44 32 46)"/>
+    <path d="M32 46 C26.8 32.8 27.8 20.3 32 13 C36.2 20.3 37.2 32.8 32 46 Z"/>
+  </g>
+  <path d="M32 45 V54" fill="none" stroke="#43d17a" stroke-width="3.6" stroke-linecap="round"/>
+</svg>

@@ -150,14 +150,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (!response.ok) {
                     let serverMsg = "";
                     try { const data = await response.json(); serverMsg = (data && data.error) || ""; } catch (e) {}
-                    const err = new Error(serverMsg || "{{ .lcl.strain_update_fail }}");
+                    const err = new Error(serverMsg || uiMessages.t("strain_update_fail"));
                     err.serverMessage = serverMsg;
                     throw err;
                 }
                 location.reload();
             })
             .catch(error => {
-                console.error("{{ .lcl.strain_update_error }}", error);
+                console.error(uiMessages.t("strain_update_error"), error);
                 const msg = (error && error.serverMessage) || uiMessages.t('update_error') || 'Update failed';
                 uiMessages.showToast(msg, 'danger');
             });

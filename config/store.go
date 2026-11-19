@@ -40,6 +40,7 @@ type Store struct {
 	logLevel           string
 	maxBackupSize      int64
 	timezone           string
+	theme              string
 	cannadbEnabled     int
 	cannadbBaseURL     string
 	smokeCriteria      []types.SmokeReportCriterion
@@ -262,6 +263,20 @@ func (s *Store) SetTimezone(v string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.timezone = v
+}
+
+// Theme is the id of the instance's default theme, or "" for the built-in
+// default.
+func (s *Store) Theme() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.theme
+}
+
+func (s *Store) SetTheme(v string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.theme = v
 }
 
 // ----------------------------------------------------------------------

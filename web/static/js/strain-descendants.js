@@ -4,10 +4,14 @@
  * Two-line layout: strain name + cross on top, breeder below.
  */
 document.addEventListener("DOMContentLoaded", () => {
+    // The page names its strain on the element with data-strain-id.
+    const strainEl = document.querySelector("[data-strain-id]");
+    const currentStrainID = strainEl ? Number(strainEl.dataset.strainId) : undefined;
+    const currentStrainName = strainEl ? strainEl.dataset.strainName : "";
     const descendantsCard = document.getElementById("descendantsCard");
     const descendantsList = document.getElementById("descendantsList");
 
-    if (!descendantsCard || !descendantsList || typeof currentStrainID === "undefined") return;
+    if (!descendantsCard || !descendantsList || currentStrainID === undefined) return;
 
     fetch(`/strains/${currentStrainID}/descendants`)
         .then(res => res.json())
