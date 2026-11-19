@@ -1,0 +1,293 @@
+/* plants.css — the plants list: cards, status badges, table view.
+ */
+
+/* ============================================
+   PLANTS LIST PAGE
+   Mirrors strains-* pattern for consistency
+   ============================================ */
+
+/* Controls bar */
+
+/* Card grid */
+.plants-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+.plants-grid .pc-card-link {
+    flex: 1 1 340px;
+    max-width: calc(33.333% - 0.667rem);
+    min-width: 300px;
+}
+@media (max-width: 1199.98px) {
+    .plants-grid .pc-card-link {
+        max-width: calc(50% - 0.5rem);
+    }
+}
+@media (max-width: 767.98px) {
+    .plants-grid .pc-card-link {
+        max-width: 100%;
+        flex-basis: 100%;
+    }
+}
+
+/* Individual plant card */
+.pc-card-link {
+    display: block;
+    cursor: pointer;
+}
+.pc-card-link:hover .pc-card {
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-1px);
+}
+.pc-card {
+    background: var(--color-card);
+    border: 1px solid var(--color-card-border);
+    border-radius: var(--radius-xl);
+    padding: 1rem 1.15rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+    cursor: pointer;
+    width: 100%;
+    min-height: 155px;
+}
+/* Card header */
+.pc-card-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+.pc-card-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+.pc-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--color-accent);
+    line-height: 1.3;
+}
+.pc-subtitle {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+}
+.pc-strain {
+    font-size: 0.84rem;
+    color: var(--color-fg);
+    font-weight: 500;
+    opacity: 0.85;
+}
+.pc-breeder {
+    font-size: 0.78rem;
+    color: var(--color-muted);
+}
+
+/* Card body */
+.pc-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+.pc-info-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.pc-zone {
+    font-size: 0.78rem;
+    color: var(--color-muted);
+    white-space: nowrap;
+}
+
+/* Status badges */
+.pc-status-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.15em 0.6em;
+    border-radius: var(--radius-pill);
+    white-space: nowrap;
+    text-transform: capitalize;
+}
+.pc-status-germ {
+    background: linear-gradient(135deg, var(--stage-germ), color-mix(in srgb, var(--stage-germ), #000 var(--shade)));
+    color: var(--color-on-stage);
+}
+.pc-status-seed {
+    background: linear-gradient(135deg, var(--stage-seedling), color-mix(in srgb, var(--stage-seedling), #000 var(--shade)));
+    color: var(--color-on-stage);
+}
+.pc-status-veg {
+    background: linear-gradient(135deg, var(--stage-veg), color-mix(in srgb, var(--stage-veg), #000 var(--shade)));
+    color: var(--color-on-stage);
+}
+.pc-status-flower {
+    background: linear-gradient(135deg, var(--stage-flower), color-mix(in srgb, var(--stage-flower), #000 var(--shade)));
+    color: var(--color-on-stage);
+}
+.pc-status-dry {
+    background: linear-gradient(135deg, var(--stage-dry), color-mix(in srgb, var(--stage-dry), #000 var(--shade)));
+    color: var(--color-on-stage);
+}
+.pc-status-cure {
+    background: linear-gradient(135deg, var(--stage-cure), color-mix(in srgb, var(--stage-cure), #000 var(--shade)));
+    color: var(--color-on-stage);
+}
+.pc-status-harvest {
+    background: linear-gradient(135deg, var(--stage-harvest), color-mix(in srgb, var(--stage-harvest), #000 var(--shade)));
+    color: var(--color-on-stage);
+}
+.pc-status-dead {
+    background: linear-gradient(135deg, var(--stage-dead), color-mix(in srgb, var(--stage-dead), #000 var(--shade)));
+    color: var(--color-on-stage);
+}
+.pc-status-default {
+    background: var(--color-btn-secondary-bg);
+    color: var(--color-fg);
+}
+
+/* Clone badge */
+.pc-clone-badge {
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 0.1em 0.5em;
+    border-radius: var(--radius-pill);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+    white-space: nowrap;
+}
+
+/* Card footer */
+.pc-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    flex-wrap: nowrap;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--color-card-border);
+    margin-top: auto;
+}
+.pc-meta-left {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex-shrink: 0;
+}
+.pc-meta-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+.pc-stat {
+    font-size: 0.78rem;
+    color: var(--color-muted);
+    white-space: nowrap;
+    font-weight: 500;
+}
+.pc-flower-days {
+    color: var(--stage-flower);
+}
+
+/* Water/feed indicators */
+.pc-water-indicator,
+.pc-feed-indicator {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.1em 0.45em;
+    border-radius: var(--radius-pill);
+    white-space: nowrap;
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    color: var(--color-accent);
+}
+.pc-water-warn {
+    background: color-mix(in srgb, var(--color-danger-text) 12%, transparent);
+    color: var(--color-danger);
+}
+.pc-feed-indicator {
+    background: color-mix(in srgb, var(--color-success-text) 10%, transparent);
+    color: var(--color-success-text);
+}
+.pc-feed-warn {
+    background: color-mix(in srgb, var(--color-danger-text) 12%, transparent);
+    color: var(--color-danger);
+}
+
+/* Quick action buttons (card) */
+.pc-quick-actions {
+    display: flex;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
+.pc-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-card-border);
+    background: transparent;
+    color: var(--color-muted);
+    font-size: 0.72rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    padding: 0;
+}
+.pc-action-btn:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+}
+
+/* ===== Plants Table View ===== */
+.pt-plant-name {
+    font-weight: 600;
+    color: var(--color-accent);
+    text-decoration: none;
+}
+.pt-plant-name:hover {
+    text-decoration: underline;
+}
+.pt-short-desc {
+    font-size: 0.78rem;
+    color: var(--color-muted);
+    line-height: 1.35;
+    margin-top: 0.15rem;
+}
+.pt-cell-strain {
+    white-space: nowrap;
+}
+.pt-th-name { min-width: 160px; }
+.pt-th-strain { min-width: 140px; }
+.pt-th-zone { min-width: 100px; }
+.pt-th-status { min-width: 100px; }
+.pt-th-age { min-width: 80px; }
+.pt-th-detail { min-width: 80px; }
+.pt-th-actions { min-width: 100px; text-align: center; }
+
+/* Empty state */
+.plants-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1rem;
+}
+
+/* Touch: the card's quick actions */
+@media (pointer: coarse) {
+    .pc-action-btn {
+        width: 38px;
+        height: 38px;
+        font-size: 0.85rem;
+    }
+}

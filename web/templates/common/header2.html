@@ -4,63 +4,71 @@
 
 <body>
 <a class="skip-to-content" href="#main-content">Skip to content</a>
-<header class="d-flex flex-wrap justify-content-between align-items-center py-3 mb-4 border-bottom container">
-    <!-- Logo and Title -->
-    <a href="/" class="d-flex align-items-center text-decoration-none link-body-emphasis">
-        <img src="{{ asset "/static/img/isley_logo.png" }}" alt="Isley" width="60" height="60" class="me-2">
-        <span class="fs-4">Isley</span>
-    </a>
+<header class="site-header container border-bottom mb-4">
+    <nav class="navbar navbar-expand-lg py-3" aria-label="{{ .lcl.nav_main }}">
+        <!-- Logo and Title -->
+        <a href="/" class="navbar-brand d-flex align-items-center text-decoration-none link-body-emphasis me-0">
+            <span class="site-logo me-2" aria-hidden="true"></span>
+            <span class="fs-4">Isley</span>
+        </a>
 
-    <!-- Navigation Links -->
-    <ul class="nav nav-pills">
-        {{ if .loggedIn }}
-        <li class="nav-item">
-            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addMultiPlantActivityModal" title="{{ .lcl.multiple_action_desc }}">
-                <i class="fa-solid fa-hand-holding-droplet"></i>
+        <!-- Always visible: the quick action, and the menu button on small screens -->
+        <div class="site-header-actions d-flex align-items-center gap-2 ms-auto">
+            {{ if .loggedIn }}
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addMultiPlantActivityModal" title="{{ .lcl.multiple_action_desc }}" aria-label="{{ .lcl.multiple_action_desc }}">
+                <i class="fa-solid fa-hand-holding-droplet" aria-hidden="true"></i>
             </button>
-        </li>
-        {{ end }}
-        <li class="nav-item">
-            <a href="/plants" class="text-center nav-link{{ if hasPrefix .currentPath "/plant" }} active{{ end }}" aria-label="{{ .lcl.title_plants }}">
-                <i class="fa fa-cannabis" title="{{ .lcl.title_plants }}"></i>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="/strains" class="text-center nav-link{{ if hasPrefix .currentPath "/strain" }} active{{ end }}" aria-label="{{ .lcl.title_strains }}">
-                <i class="fa fa-dna" title="{{ .lcl.title_strains }}"></i>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="/activities" class="text-center nav-link{{ if hasPrefix .currentPath "/activities" }} active{{ end }}" aria-label="{{ .lcl.activity_log_title }}">
-                <i class="fa fa-clipboard-list" title="{{ .lcl.activity_log_title }}"></i>
-            </a>
-        </li>
-        {{ if .loggedIn }}
-        <li class="nav-item">
-            <a href="/sensors" class="text-center nav-link{{ if hasPrefix .currentPath "/sensors" }} active{{ end }}" aria-label="{{ .lcl.title_sensors }}">
-                <i class="fa fa-thermometer-half" title="{{ .lcl.title_sensors }}"></i>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="/settings" class="text-center nav-link{{ if hasPrefix .currentPath "/settings" }} active{{ end }}" aria-label="{{ .lcl.title_settings }}">
-                <i class="fa fa-cog" title="{{ .lcl.title_settings }}"></i>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="/logout" class="text-center nav-link" aria-label="{{ .lcl.title_logout }}">
-                <i class="fa fa-sign-out" title="{{ .lcl.title_logout }}"></i>
-            </a>
-        </li>
-        {{ else }}
-        <li class="nav-item">
-            <a href="/login" class="text-center nav-link" aria-label="{{ .lcl.title_login }}">
-                <i class="fa fa-sign-in" title="{{ .lcl.title_login }}"></i>
-            </a>
-        </li>
-        {{ end }}
+            {{ end }}
+            <button class="btn btn-outline-secondary d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="{{ .lcl.nav_menu }}">
+                <i class="fa fa-bars" aria-hidden="true"></i>
+            </button>
+        </div>
 
-        <!-- Grouped Language Selector and Dark/Light Mode Toggle -->
-        <div class="btn-group ms-2" role="group" aria-label="Language and Theme">
+        <!-- Links: a row on large screens, a menu under the header on small ones -->
+        <div class="collapse navbar-collapse flex-grow-0" id="mainNav">
+            <ul class="navbar-nav nav-pills site-nav">
+            <li class="nav-item">
+                <a href="/plants" class="nav-link{{ if hasPrefix .currentPath "/plant" }} active{{ end }}" title="{{ .lcl.title_plants }}"{{ if hasPrefix .currentPath "/plant" }} aria-current="page"{{ end }}>
+                    <i class="fa fa-cannabis fa-fw" aria-hidden="true"></i><span class="nav-label">{{ .lcl.title_plants }}</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="/strains" class="nav-link{{ if hasPrefix .currentPath "/strain" }} active{{ end }}" title="{{ .lcl.title_strains }}"{{ if hasPrefix .currentPath "/strain" }} aria-current="page"{{ end }}>
+                    <i class="fa fa-dna fa-fw" aria-hidden="true"></i><span class="nav-label">{{ .lcl.title_strains }}</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="/activities" class="nav-link{{ if hasPrefix .currentPath "/activities" }} active{{ end }}" title="{{ .lcl.activity_log_title }}"{{ if hasPrefix .currentPath "/activities" }} aria-current="page"{{ end }}>
+                    <i class="fa fa-clipboard-list fa-fw" aria-hidden="true"></i><span class="nav-label">{{ .lcl.activity_log_title }}</span>
+                </a>
+            </li>
+            {{ if .loggedIn }}
+            <li class="nav-item">
+                <a href="/sensors" class="nav-link{{ if hasPrefix .currentPath "/sensors" }} active{{ end }}" title="{{ .lcl.title_sensors }}"{{ if hasPrefix .currentPath "/sensors" }} aria-current="page"{{ end }}>
+                    <i class="fa fa-thermometer-half fa-fw" aria-hidden="true"></i><span class="nav-label">{{ .lcl.title_sensors }}</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="/settings" class="nav-link{{ if hasPrefix .currentPath "/settings" }} active{{ end }}" title="{{ .lcl.title_settings }}"{{ if hasPrefix .currentPath "/settings" }} aria-current="page"{{ end }}>
+                    <i class="fa fa-cog fa-fw" aria-hidden="true"></i><span class="nav-label">{{ .lcl.title_settings }}</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="/logout" class="nav-link" title="{{ .lcl.title_logout }}">
+                    <i class="fa fa-sign-out fa-fw" aria-hidden="true"></i><span class="nav-label">{{ .lcl.title_logout }}</span>
+                </a>
+            </li>
+            {{ else }}
+            <li class="nav-item">
+                <a href="/login" class="nav-link" title="{{ .lcl.title_login }}">
+                    <i class="fa fa-sign-in fa-fw" aria-hidden="true"></i><span class="nav-label">{{ .lcl.title_login }}</span>
+                </a>
+            </li>
+            {{ end }}
+            </ul>
+
+            <!-- Language and theme -->
+            <div class="btn-group site-header-prefs" role="group" aria-label="{{ .lcl.nav_prefs }}">
             <!-- Language Selector -->
             <div class="dropdown">
                 <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="languageDropdown" data-bs-toggle="dropdown" aria-expanded="false">
@@ -76,12 +84,28 @@
                     {{ end }}
                 </ul>
             </div>
-            <!-- Dark/Light Mode Toggle -->
-            <button id="themeToggle" class="btn btn-outline-secondary" title="Toggle dark/light mode" aria-label="Toggle dark/light mode">
-                <i id="themeToggleIcon" class="fa fa-moon"></i>
-            </button>
+            <!-- Theme menu: light/dark/system, and this browser's theme.
+                 theme.js fills in the state and handles the clicks. -->
+            <div class="dropdown">
+                <button id="themeMenuButton" class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="{{ .lcl.theme_menu }}" aria-label="{{ .lcl.theme_menu }}">
+                    <i id="themeToggleIcon" class="fa fa-moon"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end theme-menu" id="themeMenu" aria-labelledby="themeMenuButton">
+                    <li><h6 class="dropdown-header">{{ .lcl.theme_mode }}</h6></li>
+                    <li><button class="dropdown-item" type="button" data-theme-mode="light"><i class="fa fa-sun fa-fw me-2"></i>{{ .lcl.theme_mode_light }}</button></li>
+                    <li><button class="dropdown-item" type="button" data-theme-mode="dark"><i class="fa fa-moon fa-fw me-2"></i>{{ .lcl.theme_mode_dark }}</button></li>
+                    <li><button class="dropdown-item" type="button" data-theme-mode="system"><i class="fa fa-circle-half-stroke fa-fw me-2"></i>{{ .lcl.theme_mode_system }}</button></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><h6 class="dropdown-header">{{ .lcl.theme_label }}</h6></li>
+                    <li><button class="dropdown-item" type="button" data-theme-id=""><i class="fa fa-house fa-fw me-2"></i>{{ .lcl.theme_instance_default }} ({{ (instanceTheme).Name }})</button></li>
+                    {{ range themes }}
+                    <li><button class="dropdown-item" type="button" data-theme-id="{{ .ID }}"><i class="fa fa-palette fa-fw me-2"></i>{{ .Name }}</button></li>
+                    {{ end }}
+                </ul>
+            </div>
+            </div>
         </div>
-    </ul>
+    </nav>
 </header>
 
 <script src="{{ asset "/static/js/header.js" }}"></script>

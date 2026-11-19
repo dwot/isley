@@ -997,6 +997,9 @@ func runRestore(svc *BackupService, payload BackupPayload, zipBody []byte, maxBa
 	}
 
 	fieldLogger.Infof("Restore complete: %d files extracted", filesRestored)
+	if svc.afterRestore != nil {
+		svc.afterRestore()
+	}
 
 	// Reload in-memory config from the newly restored DB. The restore
 	// replaced api_keys, so cached key checks no longer hold.

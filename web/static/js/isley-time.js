@@ -12,7 +12,15 @@
 (function () {
     const meta = document.querySelector('meta[name="isley-time-zone"]');
     const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const zone = (meta && meta.content) || browserZone;
+    // The server names its zone when it can. A name the browser does not
+    // know (the server could only say "Local") must not take the page down
+    // with it: fall back to the browser's zone.
+    let zone = (meta && meta.content) || browserZone;
+    try {
+        new Intl.DateTimeFormat("en-US", { timeZone: zone });
+    } catch (e) {
+        zone = browserZone;
+    }
 
     const partsFormat = new Intl.DateTimeFormat("en-US", {
         timeZone: zone, hourCycle: "h23",

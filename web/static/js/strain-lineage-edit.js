@@ -4,10 +4,13 @@
  * Wikipedia-style: matched strains get a blue link, unmatched get a red link.
  */
 document.addEventListener("DOMContentLoaded", () => {
+    // The page names its strain on the element with data-strain-id.
+    const strainEl = document.querySelector("[data-strain-id]");
+    const currentStrainID = strainEl ? Number(strainEl.dataset.strainId) : undefined;
     const entriesContainer = document.getElementById("lineageEntries");
     const addParentBtn = document.getElementById("addParentBtn");
 
-    if (!entriesContainer || !addParentBtn || typeof currentStrainID === "undefined") return;
+    if (!entriesContainer || !addParentBtn || currentStrainID === undefined) return;
 
     let allStrains = [];
 

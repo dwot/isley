@@ -1,0 +1,201 @@
+/* tokens.css — every themable value in Isley.
+ *
+ * A theme is a set of values for the tokens in sections 1 to 5, once for
+ * light and once for dark. Nothing else in the stylesheets names a colour,
+ * a font or a corner radius: bootstrap-bridge.css points Bootstrap at these
+ * tokens, and Isley's own stylesheets use them directly.
+ *
+ * Roles come in two flavours. The plain token (--color-primary,
+ * --color-danger) is a fill: a button, a badge, a checked switch, with
+ * --color-on-<role> as the text on top of it. The text flavour
+ * (--color-accent, --color-danger-text) is that role as text, an icon or a
+ * thin border on a surface, where a fill colour is often too dark or too
+ * light to read.
+ *
+ * Tints, glows and gradient ends are mixed from these with color-mix(), so
+ * a theme gives one colour per role and the shades follow.
+ *
+ * The values here are the default theme, Classic. Section 7 holds tokens
+ * for single components; they default to the tokens above them and a theme
+ * sets one only where it wants that component to differ.
+ *
+ * Other themes are files in themes/, one each. A theme restates the tokens
+ * it changes under [data-theme="<id>"] (light) and
+ * [data-theme="<id>"][data-bs-theme="dark"] (dark); anything it leaves out
+ * keeps Classic's value. See theme/theme.go for the file's header.
+ *
+ * A theme can also be installed from a package of token values (see
+ * docs/themes.md). A token added here goes in theme/tokens.go too, or a
+ * package cannot set it.
+ *
+ * Every block matches [data-theme] as well as the root, so an element with
+ * its own data-theme and data-bs-theme (a preview swatch) is a complete
+ * theme scope: the mixed tokens in section 7 are worked out again there.
+ */
+
+:root,
+[data-theme] {
+    /* 1. Surfaces and text */
+    --color-bg: #f8f9fa;            /* the page */
+    --color-card: #fff;             /* cards, modals, menus, tables */
+    --color-card-border: #dee2e6;
+    --color-table-header: #e9ecef;  /* a raised strip on a card: table heads, .bg-themed */
+    --color-row-hover: #e9ecef;
+    --color-border: #ced4da;
+    --color-fg: #212529;
+    --color-muted: #636a70;
+    --color-input-bg: #fff;
+    --color-input-border: #ced4da;
+    --color-spinner-overlay: rgba(0, 0, 0, 0.5);
+    /* Drawn over --color-bg on the page itself: a gradient, a glow, a
+       grain. "none" for a flat page. */
+    --bg-image: none;
+
+    /* 2. Roles */
+    --color-primary: #0d6efd;
+    --color-on-primary: #fff;
+    --color-accent: #0b6fdf;        /* primary as text */
+    --color-accent-hover: #0056b3;
+    --color-link: #0d6efd;
+    --color-link-hover: #0a58ca;
+
+    --color-secondary: #6c757d;
+    --color-on-secondary: #fff;
+
+    --color-success: #198754;
+    --color-on-success: #fff;
+    --color-success-text: #198754;
+
+    --color-warning: #ffc107;
+    --color-on-warning: #000;
+    --color-warning-text: #d97706;
+
+    --color-danger: #dc3545;
+    --color-on-danger: #fff;
+    --color-danger-text: #c9302c;
+
+    --color-info: #0dcaf0;
+    --color-on-info: #000;
+    --color-info-text: #087990;
+
+    /* 3. Grow stages and strain types. --color-on-stage is the text on any
+       of these as a fill. */
+    --stage-germ: #f59e0b;
+    --stage-seedling: #84cc16;
+    --stage-veg: #22c55e;
+    --stage-flower: #a855f7;
+    --stage-dry: #f97316;
+    --stage-cure: #eab308;
+    --stage-harvest: #10b981;
+    --stage-dead: #6b7280;
+    --color-on-stage: #fff;
+
+    --color-auto: #f59e0b;
+    --color-photo: #10b981;
+    --color-fem: #ec4899;
+    --color-regular: #64748b;
+    --color-indica: #a855f7;
+    --color-indica-text: #a855f7;
+    --color-sativa: #22c55e;
+    --color-sativa-text: #22c55e;
+
+    /* Smoke-report star ratings. --color-star-preview is the hover/focus
+       shade, deliberately weaker than the committed colour so a preview is
+       never mistaken for a saved score. */
+    --color-star: #e0a80d;
+    --color-star-preview: #f0cf72;
+    --color-star-empty: #c2c7cc;
+
+    /* 4. Shape. --radius is the corner of a control; the others scale from
+       it, so a theme sets one number. */
+    --radius: 6px;
+    --radius-sm: calc(var(--radius) * 2 / 3);
+    --radius-lg: calc(var(--radius) * 4 / 3);
+    --radius-xl: calc(var(--radius) * 5 / 3);
+    --radius-pill: 999px;
+
+    --shadow-sm: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.2);
+
+    /* 5. Type and the logo */
+    --font-size: 1rem;
+    /* The mark in the header, 60px square. A path from the site root. */
+    --logo: url("/static/img/logos/classic.png");
+    --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    --font-heading: var(--font-body);
+    --font-mono: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+    /* 6. Charts. Series colours in order; a chart with more series starts
+       again from the first. */
+    --chart-1: hsl(0 70% 50%);
+    --chart-2: hsl(60 70% 50%);
+    --chart-3: hsl(120 70% 50%);
+    --chart-4: hsl(180 70% 50%);
+    --chart-5: hsl(240 70% 50%);
+    --chart-6: hsl(300 70% 50%);
+
+    /* 7. Component tokens. Defaults only: these follow the tokens above. */
+    --shade: 15%;  /* how far a gradient end or a hover darkens its colour */
+    --color-primary-hover: color-mix(in srgb, var(--color-primary), #000 var(--shade));
+    --color-focus-ring: color-mix(in srgb, var(--color-primary) 35%, transparent);
+    --shadow-hover: 0 2px 12px color-mix(in srgb, var(--color-accent) 14%, transparent);
+
+    --color-table-bg: var(--color-card);
+    --color-table-th: var(--color-table-header);
+    --color-dropdown-bg: var(--color-card);
+    --color-dropdown-fg: var(--color-fg);
+    --color-dropdown-border: var(--color-border);
+    --color-dropdown-menu-shadow: var(--shadow-sm);
+    --color-input-fg: var(--color-fg);
+    --color-input-focus-border: var(--color-accent);
+    --color-btn-secondary-bg: color-mix(in srgb, var(--color-fg) 10%, var(--color-card));
+    --color-btn-secondary-fg: var(--color-fg);
+    --color-btn-secondary-border: var(--color-input-border);
+    --color-btn-secondary-hover-bg: color-mix(in srgb, var(--color-fg) 16%, var(--color-card));
+    --color-view-btn-border: var(--color-border);
+    --color-view-btn-hover-bg: var(--color-row-hover);
+    --color-view-btn-hover-fg: var(--color-fg);
+    --color-view-btn-active-bg: var(--color-primary);
+    --color-view-btn-active-fg: var(--color-on-primary);
+    --color-view-btn-active-border: var(--color-primary);
+    --color-thumb-hover: var(--color-row-hover);
+    --color-success-bg: color-mix(in srgb, var(--color-success) 20%, var(--color-card));
+    --chart-text: var(--color-muted);
+    --chart-grid: color-mix(in srgb, var(--color-fg) 8%, transparent);
+}
+
+[data-bs-theme="dark"] {
+    --color-bg: #121212;
+    --color-card: #212529;
+    --color-card-border: #707070;
+    --color-table-header: #2e2e2e;
+    --color-row-hover: #222232;
+    --color-border: #707070;
+    --color-fg: #ffffff;
+    --color-muted: #aaaaaa;
+    --color-input-bg: #2e2e2e;
+    --color-input-border: #7e7e7e;
+    --color-spinner-overlay: rgba(0, 0, 0, 0.85);
+
+    --color-accent: #4d9aff;
+    --color-accent-hover: #63a4d4;
+    --color-link: #6ea8fe;
+    --color-link-hover: #8bb9fe;
+
+    --color-success-text: #22c55e;
+    --color-warning-text: #f59e0b;
+    --color-danger-text: #ff6b6b;
+    --color-info-text: #6edff6;
+
+    --color-indica-text: #c4b5fd;
+    --color-sativa-text: #6ee7b7;
+
+    /* Brighter star gold on the dark card, and an empty state that stays
+       visible against the card without competing with the lit stars. */
+    --color-star: #ffc93c;
+    --color-star-preview: #8a6d1f;
+    --color-star-empty: #565c62;
+
+    --shadow-sm: 0 4px 6px rgba(0, 0, 0, 0.3);
+    --color-view-btn-hover-bg: color-mix(in srgb, var(--color-fg) 16%, var(--color-card));
+}

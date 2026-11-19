@@ -51,6 +51,9 @@ const (
 	OldestFirst ActivityOrder = "oldest"
 	ByPlant     ActivityOrder = "plant"
 	ByType      ActivityOrder = "type"
+	// The same two, Z to A.
+	ByPlantDesc ActivityOrder = "plant_desc"
+	ByTypeDesc  ActivityOrder = "type_desc"
 )
 
 // ActivityFilter selects activities for the log. Zero fields don't filter.
@@ -62,7 +65,10 @@ type ActivityFilter struct {
 	// both inclusive.
 	From, To *chrono.Date
 	// Query matches notes, ignoring case.
-	Query  string
+	Query string
+	// Search matches the note or the plant, strain, zone or activity
+	// name, ignoring case: the activity log page's search box.
+	Search string
 	Order  ActivityOrder
 	Offset int
 	// Limit 0 returns every match.
@@ -354,6 +360,11 @@ func (s *ActivityService) Log(ctx context.Context, f ActivityFilter) ([]Activity
 	if q := strings.TrimSpace(f.Query); q != "" {
 		add("LOWER(pa.note) LIKE ?", "%"+strings.ToLower(q)+"%")
 	}
+	if q := strings.TrimSpace(f.Search); q != "" {
+		like := "%" + strings.ToLower(q) + "%"
+		add(`(LOWER(pa.note) LIKE ? OR LOWER(COALESCE(p.name, '')) LIKE ? OR LOWER(COALESCE(st.name, '')) LIKE ?
+		      OR LOWER(COALESCE(z.name, '')) LIKE ? OR LOWER(COALESCE(a.name, '')) LIKE ?)`, like, like, like, like, like)
+	}
 	cond := "1 = 1"
 	if len(where) > 0 {
 		cond = strings.Join(where, " AND ")
@@ -391,6 +402,10 @@ func (s *ActivityService) query(ctx context.Context, where string, args []any, o
 		orderBy = "COALESCE(p.name, '') ASC, pa.date DESC, pa.id DESC"
 	case ByType:
 		orderBy = "COALESCE(a.name, '') ASC, pa.date DESC, pa.id DESC"
+	case ByPlantDesc:
+		orderBy = "COALESCE(p.name, '') DESC, pa.date DESC, pa.id DESC"
+	case ByTypeDesc:
+		orderBy = "COALESCE(a.name, '') DESC, pa.date DESC, pa.id DESC"
 	}
 	q := `SELECT pa.id, pa.activity_id, COALESCE(a.name, ''), pa.note, pa.date,
 	             COALESCE(a.is_watering, FALSE), COALESCE(a.is_feeding, FALSE),

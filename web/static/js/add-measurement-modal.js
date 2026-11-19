@@ -35,7 +35,7 @@ document.addEventListener("DOMContentLoaded", () => {
         })
             .then((response) => {
                 if (!response.ok) {
-                    throw new Error("{{ .lcl.failed_to_add_measurement }}");
+                    throw new Error(uiMessages.t("failed_to_add_measurement"));
                 }
                 return response.json();
             })
@@ -47,7 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
             })
             .catch((error) => {
                 console.error("Error:", error);
-                uiMessages.showToast(uiMessages.t('failed_to_add_measurement') || '{{ .lcl.failed_to_add_measurement }}', 'danger');
+                uiMessages.showToast(uiMessages.t("failed_to_add_measurement"), 'danger');
             });
     });
 });

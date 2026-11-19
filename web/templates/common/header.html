@@ -1,7 +1,8 @@
 {{ define "common/header.html" }}
 
 <!doctype html>
-<html lang="en" data-bs-theme="dark">
+{{ $theme := instanceTheme }}
+<html lang="{{ if .currentLanguage }}{{ .currentLanguage }}{{ else }}en{{ end }}" data-theme="{{ $theme.ID }}" data-theme-default="{{ $theme.ID }}" data-bs-theme="{{ $theme.DefaultMode }}">
 
 <head>
 
@@ -12,15 +13,34 @@
 
     {{ if .csrfToken }}<meta name="csrf-token" content="{{ .csrfToken }}">{{ end }}
     <meta name="isley-time-zone" content="{{ instanceZone }}">
+    <!-- Every theme and its modes, for theme.js: "id:modes;id:modes" -->
+    <meta name="isley-themes" content="{{ range themes }}{{ .ID }}:{{ .Modes }};{{ end }}">
     <title>Isley {{ .title }}</title>
+    <link rel="icon" href="{{ asset "/static/img/favicon.svg" }}" type="image/svg+xml">
+    <link rel="alternate icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
     <!-- Bootstrap core CSS -->
     <link href="{{ asset "/static/vendor/bootstrap/bootstrap.min.css" }}" rel="stylesheet">
     <!-- Font Awesome icons -->
     <link rel="stylesheet" href="{{ asset "/static/vendor/fontawesome/css/all.min.css" }}">
-    <link rel="stylesheet" href="{{ asset "/static/css/isley.css" }}">
+    <!-- Theme tokens, the themes, Bootstrap pointed at them, then Isley's own components -->
+    <link rel="stylesheet" href="{{ asset "/static/css/tokens.css" }}">
+    {{ range themes }}{{ if .File }}<link rel="stylesheet" href="{{ asset .File }}">
+    {{ end }}{{ end }}
+    {{ with userThemesCSS }}<link rel="stylesheet" href="{{ . }}">
+    {{ end }}    <link rel="stylesheet" href="{{ asset "/static/css/bootstrap-bridge.css" }}">
+    <link rel="stylesheet" href="{{ asset "/static/css/base.css" }}">
+    <link rel="stylesheet" href="{{ asset "/static/css/lists.css" }}">
+    <link rel="stylesheet" href="{{ asset "/static/css/plants.css" }}">
+    <link rel="stylesheet" href="{{ asset "/static/css/plant.css" }}">
+    <link rel="stylesheet" href="{{ asset "/static/css/strains.css" }}">
+    <link rel="stylesheet" href="{{ asset "/static/css/dashboard.css" }}">
+    <link rel="stylesheet" href="{{ asset "/static/css/smoke-reports.css" }}">
+    <link rel="stylesheet" href="{{ asset "/static/css/settings.css" }}">
     <script src="{{ asset "/static/js/theme.js" }}"></script>
     <script src="{{ asset "/static/js/csrf.js" }}"></script>
     <script src="{{ asset "/static/js/isley-time.js" }}"></script>
+    <!-- Harvest weight display units (grams/ounces) -->
+    <script src="{{ asset "/static/js/weight-units.js" }}"></script>
     <!-- Reusable autocomplete select widget (loaded early for page scripts) -->
     <script src="{{ asset "/static/js/isley-autocomplete.js" }}"></script>
     <!-- Reusable sortable table arrows (loaded early for page scripts) -->

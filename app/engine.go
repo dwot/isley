@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,6 +34,7 @@ import (
 	"isley/model"
 	"isley/ratelimit"
 	"isley/service"
+	"isley/theme"
 	"isley/utils"
 )
 
@@ -112,13 +114,24 @@ func NewEngineAndServices(cfg Config) (*gin.Engine, *service.Services, error) {
 	r.Use(securityHeadersMiddleware(configStore, hstsHeaderValue(cfg)))
 	r.Use(currentPathMiddleware())
 
-	templ, err := parseTemplates(cfg.Assets, configStore, cfg.Clock)
+	themes, err := theme.Load(cfg.Assets)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load themes: %w", err)
+	}
+	// Installed themes sit beside the other uploads. One that cannot be
+	// read is left out and logged; it does not stop the server.
+	for _, skipped := range themes.SetUserDir(filepath.Join(cfg.UploadDir, theme.UserDirName)) {
+		logger.Log.WithError(skipped).Warn("Installed theme skipped")
+	}
+
+	templ, err := parseTemplates(cfg.Assets, configStore, cfg.Clock, themes)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse templates: %w", err)
 	}
 	r.SetHTMLTemplate(templ)
 
 	registerStaticRoutes(r, cfg.Assets)
+	registerThemeRoutes(r, themes)
 
 	store := cookie.NewStore(cfg.SessionSecret)
 	store.Options(sessions.Options{
@@ -132,12 +145,22 @@ func NewEngineAndServices(cfg Config) (*gin.Engine, *service.Services, error) {
 	r.Use(dbMiddleware(cfg.DB))
 	r.Use(configStoreMiddleware(configStore))
 	r.Use(pathDirsMiddleware(cfg.UploadDir, cfg.StreamDir, cfg.LogsDir))
+	r.Use(func(c *gin.Context) {
+		handlers.SetThemesOnContext(c, themes)
+		c.Next()
+	})
 
 	backupSvc := cfg.BackupService
 	if backupSvc == nil {
 		backupSvc = handlers.NewBackupService(cfg.DB, cfg.DataDir)
 	}
 	backupSvc.SetVersion(releaseVersion(cfg))
+	// A restore replaces the uploads folder, installed themes included.
+	backupSvc.SetAfterRestore(func() {
+		for _, skipped := range themes.Reload() {
+			logger.Log.WithError(skipped).Warn("Installed theme skipped")
+		}
+	})
 	r.Use(backupServiceMiddleware(backupSvc))
 
 	rateLimiterSvc := cfg.RateLimiterService
@@ -497,9 +520,22 @@ func pathDirsMiddleware(uploadDir, streamDir, logsDir string) gin.HandlerFunc {
 // Templates and static assets
 // ---------------------------------------------------------------------------
 
-func parseTemplates(assets fs.FS, store *config.Store, clock chrono.Clock) (*template.Template, error) {
+func parseTemplates(assets fs.FS, store *config.Store, clock chrono.Clock, themes *theme.Registry) (*template.Template, error) {
 	funcMap := buildFuncMap(store, clock)
 	funcMap["asset"] = assetURL(assets)
+	// themes lists every theme, for the stylesheet links and the pickers.
+	// instanceTheme is the one this instance defaults to; header.html
+	// writes it on <html> so the first paint is already themed.
+	funcMap["themes"] = themes.All
+	funcMap["instanceTheme"] = func() theme.Theme { return themes.Resolve(store.Theme()) }
+	// userThemesCSS is the URL of the installed themes' stylesheet, or ""
+	// when none is installed.
+	funcMap["userThemesCSS"] = func() string {
+		if _, version := themes.UserCSS(); version != "" {
+			return userThemesPath + "?v=" + version
+		}
+		return ""
+	}
 	return template.New("").Funcs(funcMap).ParseFS(assets, "web/templates/**/*.html")
 }
 
@@ -563,6 +599,11 @@ func buildFuncMap(store *config.Store, clock chrono.Clock) template.FuncMap {
 		"isZeroDate": func(t time.Time) bool {
 			return utils.IsZeroDate(t)
 		},
+		// weightValue renders a gram value (the storage unit) in the unit a
+		// page chose to display, e.g. 56.7 -> "2" for ounces.
+		"weightValue": func(grams float64, unit string) string {
+			return utils.FormatWeight(grams, unit)
+		},
 		"div": func(a, b int) int { return a / b },
 		"add": func(a, b int) int { return a + b },
 		"sub": func(a, b int) int { return a - b },
@@ -598,7 +639,10 @@ func buildFuncMap(store *config.Store, clock chrono.Clock) template.FuncMap {
 		"now": func() time.Time { return zones.Now(clock) },
 		// instanceZone names the zone pages show and read times in, for
 		// isley-time.js.
-		"instanceZone": func() string { return zones.Instance().String() },
+		// InstanceName, not Instance().String(): with no zone set in
+		// Settings the instance zone is time.Local, whose String() is
+		// "Local", which no browser accepts as a zone.
+		"instanceZone": func() string { return zones.InstanceName() },
 		"markdownify": func(t string) template.HTML {
 			unsafe := blackfriday.Run([]byte(t))
 			safe := bluemonday.UGCPolicy().SanitizeBytes(unsafe)
@@ -661,6 +705,50 @@ func serveEmbeddedAsset(assets fs.FS, root string) gin.HandlerFunc {
 		// the modtime.
 		http.ServeContent(c.Writer, c.Request, filePath, assetStartTime, strings.NewReader(string(data)))
 	}
+}
+
+const userThemesPath = "/themes/user.css"
+
+// registerThemeRoutes serves what installed themes need on a page: one
+// stylesheet for all of them, written from their packages, and each one's
+// logo. Like /static, they are public: the login page is themed too.
+func registerThemeRoutes(r *gin.Engine, themes *theme.Registry) {
+	r.GET(userThemesPath, func(c *gin.Context) {
+		css, version := themes.UserCSS()
+		h := c.Writer.Header()
+		h.Set("ETag", `"`+version+`"`)
+		if v := c.Query("v"); v != "" && v == version {
+			h.Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			// An old page asking for a version that has since changed
+			// gets the current rules and must not keep them.
+			h.Set("Cache-Control", "no-cache")
+		}
+		h.Set("Content-Type", "text/css; charset=utf-8")
+		http.ServeContent(c.Writer, c.Request, "", time.Time{}, strings.NewReader(string(css)))
+	})
+	r.GET("/themes/:id/:file", func(c *gin.Context) {
+		name := c.Param("file")
+		if name != "logo" && name != "logo-dark" {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		file, ok := themes.LogoFile(c.Param("id"), name == "logo-dark")
+		if !ok {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		h := c.Writer.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		if c.Query("v") != "" {
+			h.Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			h.Set("Cache-Control", "no-cache")
+		}
+		// The type comes from the extension the installer gave the file
+		// after reading its content.
+		c.File(file)
+	})
 }
 
 // registerStaticRoutes wires up /static/, /fonts/, /uploads, and /favicon.ico.

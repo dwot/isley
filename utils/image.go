@@ -3,7 +3,6 @@ package utils
 import (
 	"bytes"
 	"embed"
-	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -12,7 +11,6 @@ import (
 	"io"
 	"io/fs"
 	"isley/logger"
-	"math"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -102,17 +100,10 @@ type TextObject struct {
 	FontScale   float64 // Scaling factor for font size, baseline is 1.0
 }
 
-type ImageObject struct {
-	ImagePath string
-	Corner    string  // "top-left", "top-right", "bottom-left", "bottom-right"
-	Opacity   float64 // 0.0 (fully transparent) to 1.0 (fully opaque)
-}
-
 type TextOverlayRequest struct {
-	ImagePath    string
-	OutputPath   string
-	TextObjects  []TextObject
-	ImageObjects []ImageObject
+	ImagePath   string
+	OutputPath  string
+	TextObjects []TextObject
 }
 
 func ProcessImageWithTextOverlay(req TextOverlayRequest) error {
@@ -145,52 +136,6 @@ func ProcessImageWithTextOverlay(req TextOverlayRequest) error {
 
 	padding := imgHeight / 100 // Reduce padding for tighter placement
 	shadowOffset := imgHeight / 200
-
-	// Helper to calculate scaled dimensions for overlays
-	scaleDimension := func(targetWidth, targetHeight, maxWidth, maxHeight float64) (float64, float64) {
-		scale := math.Min(maxWidth/targetWidth, maxHeight/targetHeight)
-		return targetWidth * scale, targetHeight * scale
-	}
-
-	// Process Image Objects
-	for _, imgObj := range req.ImageObjects {
-		if err := validateImageFile(imgObj.ImagePath); err != nil {
-			fieldLogger.WithError(err).Error("Overlay image validation failed")
-			return fmt.Errorf("overlay image validation failed: %w", err)
-		}
-		overlayImg, err := gg.LoadImage(imgObj.ImagePath)
-		if err != nil {
-			fieldLogger.WithError(err).Error("Failed to load overlay image")
-			return fmt.Errorf("failed to load overlay image: %w", err)
-		}
-
-		// Scale the overlay image
-		overlayWidth := float64(overlayImg.Bounds().Dx())
-		overlayHeight := float64(overlayImg.Bounds().Dy())
-		scaledWidth, scaledHeight := scaleDimension(overlayWidth, overlayHeight, imgWidth/6, imgHeight/6) // Increased scale factor for logo
-
-		// Calculate overlay position
-		var x, y float64
-		switch imgObj.Corner {
-		case "top-left":
-			x, y = padding, padding
-		case "top-right":
-			x, y = imgWidth-scaledWidth-padding, padding
-		case "bottom-left":
-			x, y = padding, imgHeight-scaledHeight-padding
-		case "bottom-right":
-			x, y = imgWidth-scaledWidth-padding, imgHeight-scaledHeight-padding
-		default:
-			fieldLogger.WithField("corner", imgObj.Corner).Error("Invalid corner specified")
-			return fmt.Errorf("invalid corner specified: %s", imgObj.Corner)
-		}
-
-		// Draw the scaled overlay image
-		dc.Push()
-		dc.ScaleAbout(scaledWidth/overlayWidth, scaledHeight/overlayHeight, x, y)
-		dc.DrawImageAnchored(overlayImg, int(x), int(y), 0, 0)
-		dc.Pop()
-	}
 
 	// Process Text Objects
 	for _, textObj := range req.TextObjects {
@@ -294,7 +239,6 @@ func DecorateImageHandler(c *gin.Context) {
 		Text2       string `json:"text2"`
 		Text1Corner string `json:"text1Corner"`
 		Text2Corner string `json:"text2Corner"`
-		Logo        string `json:"logo"`
 		Font        string `json:"font"`
 		TextColor   string `json:"textColor"`
 	}
@@ -311,7 +255,6 @@ func DecorateImageHandler(c *gin.Context) {
 		"text2":       req.Text2,
 		"text1Corner": req.Text1Corner,
 		"text2Corner": req.Text2Corner,
-		"logo":        req.Logo,
 		"font":        req.Font,
 		"textColor":   req.TextColor,
 	})
@@ -326,13 +269,6 @@ func DecorateImageHandler(c *gin.Context) {
 	if !isPathWithinDir(req.ImagePath, "./uploads") {
 		logger.Log.WithField("imagePath", req.ImagePath).Warn("Path traversal attempt blocked on ImagePath")
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Invalid image path"})
-		return
-	}
-
-	// SECURITY: Validate that Logo resolves within the uploads/logos directory
-	if req.Logo != "" && !isPathWithinDir(req.Logo, "./uploads/logos") {
-		logger.Log.WithField("logo", req.Logo).Warn("Path traversal attempt blocked on Logo")
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Invalid logo path"})
 		return
 	}
 
@@ -382,20 +318,10 @@ func DecorateImageHandler(c *gin.Context) {
 		},
 	}
 
-	imageObjects := []ImageObject{}
-	if req.Logo != "" {
-		imageObjects = append(imageObjects, ImageObject{
-			ImagePath: req.Logo,
-			Corner:    "bottom-left",
-			Opacity:   0.8,
-		})
-	}
-
 	overlayReq := TextOverlayRequest{
-		ImagePath:    req.ImagePath,
-		OutputPath:   outputPath,
-		TextObjects:  textObjects,
-		ImageObjects: imageObjects,
+		ImagePath:   req.ImagePath,
+		OutputPath:  outputPath,
+		TextObjects: textObjects,
 	}
 
 	logger.Log.Info("Starting image processing")
@@ -452,40 +378,6 @@ func ListFontsHandler(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "fonts": fonts})
-}
-
-// logosDir is where user-uploaded watermark logos live. It is not embedded
-// and only exists once a logo has been uploaded (see handlers/settings.go).
-const logosDir = "./uploads/logos/"
-
-// listLogos returns the files under dir. A missing directory just means no
-// logo has been uploaded yet, so it yields an empty list rather than an
-// error, and the result is never nil so it encodes as [] instead of null.
-func listLogos(dir string) ([]string, error) {
-	logos := []string{}
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			logos = append(logos, path)
-		}
-		return nil
-	})
-	if errors.Is(err, fs.ErrNotExist) {
-		return []string{}, nil
-	}
-	return logos, err
-}
-
-func ListLogosHandler(c *gin.Context) {
-	logos, err := listLogos(logosDir)
-	if err != nil {
-		logger.Log.WithError(err).Error("Failed to list logos")
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Unable to list logos"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "logos": logos})
 }
 
 // maxFrameSize limits the amount of data read for a single image frame

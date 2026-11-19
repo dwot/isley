@@ -1,0 +1,4 @@
+leaf|a single stylised cannabis fan leaf with seven pointed serrated leaflets, symmetric, upright
+sprout|a young seedling with two round leaves sprouting from a small mound of soil, symmetric
+journal|an open notebook with a small cannabis leaf growing up out of its pages, front view
+drop|a cannabis fan leaf inside a large water droplet shape, symmetric

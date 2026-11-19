@@ -9,6 +9,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const newStrainName = document.getElementById("newStrainName");
     const newBreederName = document.getElementById("newBreederName");
     const harvestWeight = document.getElementById("harvestWeight");
+    const harvestWeightUnit = document.getElementById("harvestWeightUnit");
+
+    // Keep the same physical weight when the entry unit changes.
+    if (harvestWeight && harvestWeightUnit) {
+        let lastUnit = harvestWeightUnit.value;
+        harvestWeightUnit.addEventListener("change", () => {
+            harvestWeight.value = IsleyWeight.convert(harvestWeight.value, lastUnit, harvestWeightUnit.value);
+            lastUnit = harvestWeightUnit.value;
+        });
+    }
 
     // Initialize autocomplete on strain and zone selects
     const zoneAC = new IsleyAutocomplete(zoneSelect, {
@@ -71,7 +81,8 @@ document.addEventListener("DOMContentLoaded", () => {
             } : null,
             clone: document.getElementById("cloneCheckbox").checked,
             start_date: startDate,
-            harvest_weight: parseFloat(harvestWeight.value),
+            harvest_weight: parseFloat(harvestWeight.value) || 0,
+            harvest_weight_unit: harvestWeightUnit.value,
         };
 
         fetch("/plant", {
@@ -83,7 +94,7 @@ document.addEventListener("DOMContentLoaded", () => {
         })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error("{{ .lcl.failed_to_change_status }}");
+                    throw new Error(uiMessages.t("failed_to_change_status"));
                 }
                 return response.json();
             })
@@ -92,7 +103,7 @@ document.addEventListener("DOMContentLoaded", () => {
             })
             .catch(error => {
                 console.error("Error:", error);
-                uiMessages.showToast(uiMessages.t('failed_to_change_status') || '{{ .lcl.failed_to_change_status }}', 'danger');
+                uiMessages.showToast(uiMessages.t("failed_to_change_status"), 'danger');
             });
     });
 });

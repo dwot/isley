@@ -437,7 +437,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     function summaryCard(label, value, sub, warn) {
         return `<div class="dash-summary-stat">
             <span class="dash-summary-label">${esc(label)}</span>
-            <span class="dash-summary-value"${warn ? ' style="color:#f59e0b"' : ''}>${value}</span>
+            <span class="dash-summary-value${warn ? ' dash-summary-value--warn' : ''}">${value}</span>
             ${sub ? `<span class="dash-summary-sub">${esc(sub)}</span>` : ''}
         </div>`;
     }

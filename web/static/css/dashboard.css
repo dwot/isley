@@ -1,0 +1,537 @@
+/* dashboard.css — the dashboard: summary bar, zones, streams, sensor chips,
+ * plant mini-cards.
+ *
+ * Colours, corner radii and fonts come from tokens.css; nothing here names
+ * one directly. The exception is anything drawn on top of a photo or a
+ * video (the plant hero, stream thumbnails): that sits on a dark scrim in
+ * every theme, so its whites and blacks are literal.
+ */
+
+/* ===================================================================
+   DASHBOARD
+   =================================================================== */
+
+/* Summary bar - top-level KPI strip */
+.dash-summary {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+}
+.dash-summary-stat {
+    background: var(--color-card);
+    border: 1px solid var(--color-card-border);
+    border-radius: var(--radius-xl);
+    padding: 0.85rem 1.1rem;
+    flex: 1;
+    min-width: 140px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+.dash-summary-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-muted);
+}
+.dash-summary-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--color-fg);
+    line-height: 1.1;
+}
+.dash-summary-value--warn {
+    color: var(--color-warning-text);
+}
+.dash-summary-sub {
+    font-size: 0.72rem;
+    color: var(--color-muted);
+}
+
+/* Zone sections */
+.dash-zone {
+    margin-bottom: 2.5rem;
+}
+.dash-zone-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.65rem;
+    border-bottom: 1px solid var(--color-card-border);
+}
+.dash-zone-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, var(--stage-veg), color-mix(in srgb, var(--stage-veg), #000 var(--shade)));
+    color: var(--color-on-stage);
+}
+.dash-zone-name {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--color-fg);
+}
+.dash-zone-meta {
+    font-size: 0.78rem;
+    color: var(--color-muted);
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+.dash-zone-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+/* Zone content — stacked sections */
+.dash-zone-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* Unified top grid: stream cards + plant cards flow together */
+.dash-top-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 0.65rem;
+    align-items: start;
+}
+/* Stream card wrapper inside the top grid */
+.dash-top-stream {
+    min-width: 0;
+}
+
+/* Stream card */
+.dash-stream-card {
+    background: var(--color-card);
+    border: 1px solid var(--color-card-border);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.dash-stream-card:hover {
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-hover);
+}
+.dash-stream-thumb {
+    position: relative;
+    background: #0a0a0a;
+    aspect-ratio: 16 / 9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    overflow: hidden;
+}
+.dash-stream-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.dash-stream-play {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.35);
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+.dash-stream-thumb:hover .dash-stream-play {
+    opacity: 1;
+}
+.dash-stream-play i {
+    font-size: 2.5rem;
+    color: #fff;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
+}
+.dash-stream-label {
+    padding: 0.55rem 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.dash-stream-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-fg);
+}
+.dash-stream-live {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-success-text);
+    animation: dash-pulse 2s infinite;
+}
+@keyframes dash-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+/* Active player state — remove pointer cursor, let Video.js own clicks */
+.dash-stream-thumb--playing {
+    cursor: default;
+}
+/* Stop / collapse button overlaid on the active player */
+.dash-stream-stop {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 10;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s, background 0.15s;
+}
+.dash-stream-thumb:hover .dash-stream-stop {
+    opacity: 1;
+}
+.dash-stream-stop:hover {
+    background: color-mix(in srgb, var(--color-danger) 85%, transparent);
+}
+/* Zone data panel (no longer used, sensors are direct children of content) */
+
+/* Sensor group header */
+.dash-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.65rem;
+}
+.dash-group-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.dash-group-title i {
+    font-size: 0.78rem;
+}
+.dash-group-link {
+    font-size: 0.78rem;
+    color: var(--color-accent);
+    text-decoration: none;
+    font-weight: 500;
+}
+.dash-group-link:hover {
+    text-decoration: underline;
+}
+
+/* Sensor chips */
+/* Sensor sub-groups — flow horizontally on wide screens, wrap on narrow */
+.dash-sensor-groups {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+/* Each bucket (sublabel + strip) is a flex item; flex-grow set dynamically
+   in JS proportional to sensor count. Basis is small so buckets can sit
+   side-by-side on desktop, wrapping naturally on narrow screens. */
+.dash-sensor-bucket {
+    flex: 1 1 200px;
+    min-width: 0;
+}
+
+.dash-sensor-sublabel {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-muted);
+    opacity: 0.7;
+    padding: 0.3rem 0 0.1rem;
+    border-bottom: 1px solid var(--color-card-border);
+    margin-bottom: 0.35rem;
+}
+.dash-sensor-sublabel:first-child {
+    padding-top: 0;
+}
+
+.dash-sensor-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.5rem;
+}
+
+.dash-sensor-chip {
+    background: var(--color-card);
+    border: 1px solid var(--color-card-border);
+    border-radius: var(--radius-xl);
+    padding: 0.5rem 0.65rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+.dash-sensor-chip:hover {
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-1px);
+}
+/* Sensor label row with optional type dot */
+.dash-sensor-label-row {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+.dash-sensor-type-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.dash-dot-acip { background: var(--stage-flower); }
+.dash-dot-soil { background: var(--stage-veg); }
+.dash-sensor-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--color-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.dash-sensor-value {
+    display: flex;
+    align-items: baseline;
+    gap: 0.3rem;
+}
+.dash-sensor-reading {
+    font-size: 1.35rem;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--color-fg);
+}
+.dash-sensor-unit {
+    font-size: 0.72rem;
+    color: var(--color-muted);
+    font-weight: 400;
+}
+.dash-sensor-trend {
+    font-size: 0.65rem;
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+}
+.dash-trend-up { color: var(--color-success-text); }
+.dash-trend-down { color: var(--color-danger-text); }
+.dash-trend-flat { color: var(--color-muted); }
+
+/* Mini sparkline */
+.dash-sparkline {
+    height: 40px;
+    border-radius: var(--radius);
+    margin-top: 0.25rem;
+    position: relative;
+    overflow: hidden;
+}
+.dash-sparkline svg {
+    width: 100%;
+    height: 100%;
+}
+.dash-spark-line {
+    fill: none;
+    stroke: var(--color-accent);
+    stroke-width: 1.5;
+    opacity: 0.6;
+}
+.dash-spark-area {
+    opacity: 0.15;
+}
+
+/* Plant mini-cards (legacy class, grid now handled by .dash-top-grid) */
+.dash-plants-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 0.65rem;
+}
+.dash-pc {
+    background: var(--color-card);
+    border: 1px solid var(--color-card-border);
+    border-radius: var(--radius-xl);
+    padding: 0.75rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+    text-decoration: none;
+    color: inherit;
+}
+.dash-pc:hover {
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-1px);
+}
+.dash-pc-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+.dash-pc-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--color-accent);
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.dash-pc-status {
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.12em 0.55em;
+    border-radius: var(--radius-pill);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.dash-pc-strain {
+    font-size: 0.78rem;
+    color: var(--color-fg);
+    opacity: 0.8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* Inline linked-sensor badges inside plant cards */
+.dash-pc-sensors {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+}
+.dash-pc-sensor {
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 0.15em 0.5em;
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--color-success-text) 10%, transparent);
+    color: var(--color-success-text);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    white-space: nowrap;
+}
+.dash-pc-sensor i:first-child {
+    font-size: 0.58rem;
+    opacity: 0.7;
+}
+.dash-pc-sensor i:last-child {
+    font-size: 0.55rem;
+}
+.dash-pc-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 0.35rem;
+    border-top: 1px solid var(--color-card-border);
+    margin-top: auto;
+}
+.dash-pc-stat {
+    font-size: 0.72rem;
+    color: var(--color-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+.dash-pc-stat i { font-size: 0.62rem; }
+.dash-pc-indicators {
+    display: flex;
+    gap: 0.5rem;
+}
+.dash-pc-ind {
+    font-size: 0.68rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+}
+.dash-ind-ok { color: var(--color-muted); }
+.dash-ind-warn { color: var(--color-warning-text); }
+.dash-ind-alert { color: var(--color-danger-text); }
+
+/* Reuse existing status badge colors */
+.dash-status-germinating { background: linear-gradient(135deg, var(--stage-germ), color-mix(in srgb, var(--stage-germ), #000 var(--shade))); color: var(--color-on-stage); }
+.dash-status-planted     { background: linear-gradient(135deg, var(--stage-germ), color-mix(in srgb, var(--stage-germ), #000 var(--shade))); color: var(--color-on-stage); }
+.dash-status-seedling    { background: linear-gradient(135deg, var(--stage-seedling), color-mix(in srgb, var(--stage-seedling), #000 var(--shade))); color: var(--color-on-stage); }
+.dash-status-veg         { background: linear-gradient(135deg, var(--stage-veg), color-mix(in srgb, var(--stage-veg), #000 var(--shade))); color: var(--color-on-stage); }
+.dash-status-flower      { background: linear-gradient(135deg, var(--stage-flower), color-mix(in srgb, var(--stage-flower), #000 var(--shade))); color: var(--color-on-stage); }
+.dash-status-drying      { background: linear-gradient(135deg, var(--stage-dry), color-mix(in srgb, var(--stage-dry), #000 var(--shade))); color: var(--color-on-stage); }
+.dash-status-curing      { background: linear-gradient(135deg, var(--stage-cure), color-mix(in srgb, var(--stage-cure), #000 var(--shade))); color: var(--color-on-stage); }
+.dash-status-success     { background: linear-gradient(135deg, var(--stage-harvest), color-mix(in srgb, var(--stage-harvest), #000 var(--shade))); color: var(--color-on-stage); }
+.dash-status-dead        { background: linear-gradient(135deg, var(--stage-dead), color-mix(in srgb, var(--stage-dead), #000 var(--shade))); color: var(--color-on-stage); }
+.dash-status-default     { background: var(--color-btn-secondary-bg); color: var(--color-fg); }
+
+/* ── Live-update transition animations ────────────────────── */
+@keyframes dash-pulse {
+    0%   { background-color: transparent; }
+    20%  { background-color: color-mix(in srgb, var(--color-accent) 12%, transparent); }
+    100% { background-color: transparent; }
+}
+.dash-updated {
+    animation: dash-pulse 1.2s ease-out;
+}
+.dash-badge-updated {
+    animation: dash-pulse 1.2s ease-out;
+}
+.dash-sensor-reading,
+.dash-sensor-unit,
+.dash-sensor-trend,
+.dash-summary-value {
+    transition: opacity 0.3s ease;
+}
+
+/* Empty state */
+.dash-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+}
+.dash-empty i {
+    font-size: 2.5rem;
+    color: var(--color-muted);
+    margin-bottom: 1rem;
+    display: block;
+}
+.dash-empty p {
+    color: var(--color-muted);
+    font-size: 0.92rem;
+}
+
+/* Dashboard responsive */
+@media (max-width: 767.98px) {
+    .dash-summary { flex-direction: column; }
+    .dash-sensor-strip { grid-template-columns: repeat(2, 1fr); }
+    .dash-top-grid { grid-template-columns: 1fr; }
+    .dash-plants-grid { grid-template-columns: 1fr; }
+    .dash-sensor-groups { flex-direction: column; }
+    .dash-zone-header { flex-wrap: wrap; }
+    .dash-zone-meta { margin-left: 0; margin-top: 0.35rem; width: 100%; }
+}

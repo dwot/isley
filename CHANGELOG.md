@@ -32,6 +32,108 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [2.7.0] - 2026-11-19
+
+### Added
+
+- Themes. Settings → Appearance sets the instance's default theme, and the
+  theme menu in the header lets each browser pick its own theme and
+  light, dark or match-the-system mode. Five themes: Classic (the existing
+  look), Walnut (a warm copper-on-walnut palette, dark only), Clarity (high
+  contrast, colour-blind-safe stage colours, larger type), Blacklight (dark
+  only) and Sherbet. A theme is one stylesheet
+  in `web/static/css/themes/`, and can bring its own page background, type
+  size and logo.
+- A new logo for each theme, replacing the stock leaf: a fan leaf (Classic), a
+  leaf growing from a notebook on a copper-on-walnut tile (Walnut), a leaf in a
+  water drop (Clarity), a neon leaf (Blacklight) and a sprout (Sherbet).
+  `docs/brand/` records how they were made.
+- Theme packages. Settings → Appearance can add a theme from a package (a
+  zip with a `theme.json` and an optional logo) and remove it again, and
+  every theme, built-in ones included, downloads as a package to start a
+  new one from. A package holds token values only; Isley checks them and
+  writes the stylesheet, so a package cannot carry styles or scripts.
+  Installed themes live in `uploads/themes/` and travel with a backup that
+  includes images. The format is in `docs/themes.md`.
+- A theme editor. Customize on any theme (Edit on an installed one, or
+  Create a theme) opens every token with a colour picker, slider or text
+  field beside a live preview, with the contrast check running as you
+  change things. Customizing a built-in theme makes a new theme; a logo
+  can be replaced there too. It saves through the same checks as an
+  uploaded package.
+- A theme token reference, linked from Settings → Appearance: every token
+  a theme can set, what it paints and accepts, and its value in the theme
+  on screen, with the contrast of each text-on-surface pair.
+- Contrast check for installed themes. Text colours a package sets are
+  measured against their surfaces; pairs under 4.5:1 are reported when the
+  theme is added and listed under it in Settings. A theme is never refused
+  for contrast.
+- Harvest weights can be shown and entered in grams or ounces. A new
+  **Weight Unit** setting picks the unit the plant forms and lists start
+  with, and clicking any displayed weight flips it between the two. Weights
+  are still stored in grams, so nothing changes until you change the
+  setting. (#274, thanks @platentgrows)
+- The breeder list in Settings → Customization scrolls inside its card and has a
+  search box, so a long list no longer pushes the rest of the page down.
+  The edit-breeder dialog has its title back. (#273, thanks @platentgrows)
+- Sensor graphs take their colours from the theme and repaint when it changes.
+- The header's links have labels: beside the icons on wide screens, and in a
+  menu that opens from a button on tablets and phones.
+- On phones the list pages fold their filters behind a Filters button that
+  shows how many are set.
+- The activity log shows 50 activities per page, and on phones and tablets
+  shows each activity as a block instead of a six-column table. The server
+  does the paging, searching, filtering and sorting, so the page no longer
+  downloads the whole log; its exports follow the same search and sort.
+- A favicon that matches no one theme: a green leaf on a dark tile, as an SVG.
+
+### Changed
+
+- Every colour, corner radius and font now comes from the tokens in
+  `web/static/css/tokens.css`, including Bootstrap's buttons, forms and tabs.
+  In dark mode, primary buttons use the same blue as the navigation, headings
+  use the accent blue and form inputs are slightly lighter.
+- Small controls are larger on touch screens, and every layout changes at the
+  same four screen widths.
+- Page scripts moved out of the HTML templates into `web/static/js/`, so
+  browsers cache them; the settings page's script is split by tab.
+- Stylesheets are split by area (`base.css`, `lists.css`, `plant.css`, ...)
+  in place of one `isley.css`.
+- Settings tabs and headings use the icon font instead of emoji, and the log
+  viewer follows the theme instead of always being dark.
+- Pages are rendered in the instance's theme by the server, so a light-mode
+  browser no longer shows a dark page first.
+- Dependencies: libopenapi 0.42.5 (#276), golang.org/x/image 0.48.0 (#277).
+
+### Deprecated
+
+### Removed
+
+- The logo image upload in Settings → Appearance, and the watermark logo
+  option in the plant photo decorator that used those uploads. A theme
+  carries its own logo now. Files already in `uploads/logos/` are left
+  where they are; nothing reads them.
+
+### Fixed
+
+- Pages broke (empty plants list, activity log and graphs) on an instance with
+  no time zone chosen in Settings whose server zone came from `TZ` or
+  `/etc/localtime`: the page was told the zone was called "Local". It is now
+  told the zone's real name, and falls back to the browser's zone if it still
+  cannot use it.
+- The Backup tab showed raw `<strong>` and `&amp;` in its warning and
+  drag-and-drop hints; the Logs tab label is translated.
+- `<html lang>` follows the selected language instead of always saying `en`.
+- Text and hover colours that used undefined CSS variables on the plant page,
+  sensor tiles and lineage tree.
+- Error messages in the add-plant, add-strain, edit-strain, edit-plant,
+  activity, measurement and link-sensor dialogs showed raw template text
+  (`{{ .lcl... }}`) instead of the translated message.
+- The start date on the add-plant page and dialog now defaults to the current
+  time; the script that set it was blocked by the content security policy.
+
+### Security
+
 ## [2.6.1] - 2026-11-17
 
 ### Added

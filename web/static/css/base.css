@@ -1,0 +1,521 @@
+/* base.css — what every page shares: utilities, cards, tables, menus,
+ * forms, the header, the autocomplete select.
+ *
+ * Colours, corner radii and fonts come from tokens.css; nothing here names
+ * one directly. The exception is anything drawn on top of a photo or a
+ * video (the plant hero, stream thumbnails): that sits on a dark scrim in
+ * every theme, so its whites and blacks are literal.
+ */
+
+/* FontAwesome SVG sizing fallback — prevents oversized icons if CSP blocks
+   FA's dynamically injected <style> element (which has no nonce). */
+.svg-inline--fa {
+    display: var(--fa-display, inline-block);
+    height: 1em;
+    overflow: visible;
+    vertical-align: -0.125em;
+}
+
+/* Theme-aware utility classes that replace hardcoded Bootstrap bg-light/text-dark etc. */
+.bg-themed {
+    background-color: var(--color-table-header);
+    color: var(--color-fg);
+}
+
+.table-themed thead {
+    background-color: var(--color-table-th);
+    color: var(--color-fg);
+}
+
+.text-themed {
+    color: var(--color-fg) !important;
+}
+
+.drop-highlight {
+    background-color: var(--color-row-hover);
+}
+
+/* ===== Site header ===== */
+/* Links are a row of pills from the lg breakpoint up, with their labels
+   from xl; below lg they are a labelled menu that the menu button opens. */
+.site-header .navbar {
+    --bs-navbar-color: var(--color-link);
+    --bs-navbar-hover-color: var(--color-link-hover);
+    --bs-navbar-active-color: var(--color-on-primary);
+    --bs-navbar-nav-link-padding-x: 0.6rem;
+    --bs-navbar-padding-x: 0;
+    gap: 0.5rem;
+}
+.site-nav {
+    gap: 0.15rem;
+}
+/* The mark is the theme's: --logo in tokens.css, restated by a theme that
+   has its own. */
+.site-logo {
+    display: inline-block;
+    width: 60px;
+    height: 60px;
+    background: var(--logo) center / contain no-repeat;
+}
+.site-header .navbar-brand {
+    margin-right: 0.5rem;
+}
+.site-nav .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+}
+.site-header-prefs #languageDropdown {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+@media (min-width: 992px) {
+    .site-header-actions {
+        order: 0;
+    }
+    .site-header .navbar-collapse {
+        gap: 0.5rem;
+    }
+    .site-nav .nav-label {
+        display: none;
+    }
+}
+@media (min-width: 1200px) {
+    .site-nav .nav-label {
+        display: inline;
+    }
+}
+@media (max-width: 991.98px) {
+    .site-header .navbar-collapse {
+        padding-top: 0.75rem;
+    }
+    .site-nav .nav-link {
+        padding: 0.6rem 0.75rem;
+    }
+    .site-header-prefs {
+        margin-top: 0.75rem;
+    }
+}
+
+/* Cards and containers */
+.card {
+    padding: 20px;
+    background: var(--color-card);
+    color: var(--color-fg);
+    border: 1px solid var(--color-card-border);
+}
+
+/* ROWS, HOVER, TABLES */
+.clickable-row {
+    cursor: pointer;
+}
+.clickable-row:hover {
+    background-color: var(--color-row-hover);
+}
+.table {
+    background-color: var(--color-table-bg);
+    border-color: var(--color-border);
+    color: var(--color-fg);
+}
+.table thead, .table .table-dark, .table-dark th {
+    background-color: var(--color-table-th);
+    color: var(--color-fg);
+}
+
+th, td {
+    color: var(--color-fg);
+}
+
+/* Responsive Images */
+@media (max-width: 767.98px) {
+    .mb-3 img {
+        margin-bottom: 1rem;
+    }
+}
+
+/* VIDEO.JS OVERRIDES */
+.video-js {
+    border-radius: var(--radius);
+    box-shadow: var(--color-dropdown-menu-shadow);
+}
+
+/* COMPONENTS: DROPDOWN */
+.dropdown {
+    position: relative;
+}
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    background: var(--color-dropdown-bg);
+    border: 1px solid var(--color-dropdown-border);
+    box-shadow: var(--color-dropdown-menu-shadow);
+    padding: 10px;
+    z-index: 10;
+    color: var(--color-dropdown-fg);
+}
+.dropdown.open .dropdown-menu {
+    display: block;
+}
+.dropdown-button {
+    cursor: pointer;
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    padding: 10px 15px;
+    border: none;
+    border-radius: var(--radius);
+    display: inline-flex;
+    align-items: center;
+}
+.dropdown-button i {
+    margin-left: 5px;
+}
+
+/* INPUTS/DATES */
+.date-picker-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.date-picker-container input {
+    width: 100%;
+    background: var(--color-input-bg);
+    border: 1px solid var(--color-input-border);
+    color: var(--color-input-fg);
+}
+.date-picker-container input:focus {
+    outline: none;
+    border-color: var(--color-input-focus-border);
+}
+
+/* CUSTOM BUTTONS */
+.view-button {
+    background-color: transparent;
+    color: var(--color-muted);
+    border: 1px solid var(--color-view-btn-border);
+    transition: background-color 0.3s, color 0.3s;
+}
+.view-button:hover {
+    background-color: var(--color-view-btn-hover-bg);
+    color: var(--color-view-btn-hover-fg);
+}
+.view-button.active {
+    background-color: var(--color-view-btn-active-bg);
+    color: var(--color-view-btn-active-fg);
+    border-color: var(--color-view-btn-active-border);
+}
+
+/* MISC */
+.sortable {
+    cursor: pointer;
+    white-space: nowrap;
+}
+.sortable .fa-sort,
+.sortable .fa-sort-up,
+.sortable .fa-sort-down {
+    margin-left: 0.35rem;
+    vertical-align: middle;
+}
+.sortable .fa-sort-up,
+.sortable .fa-sort-down {
+    display: none;
+}
+.sortable.asc .fa-sort,
+.sortable.desc .fa-sort {
+    display: none;
+}
+.sortable.asc .fa-sort-up {
+    display: inline-block;
+}
+.sortable.desc .fa-sort-down {
+    display: inline-block;
+}
+.thumbnail-img {
+    cursor: pointer;
+    object-fit: contain;
+    height: 220px;
+    width: 100%;
+    transition: transform 0.2s;
+}
+.thumbnail-img:hover {
+    transform: scale(1.05);
+}
+
+/* Drop Area */
+#dropArea {
+    cursor: pointer;
+    background-color: var(--color-bg);
+    transition: background-color 0.3s;
+}
+#dropArea.border-success {
+    background-color: var(--color-success-bg);
+}
+
+/* Spinner Overlay */
+.spinner-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: var(--color-spinner-overlay);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1056;
+}
+
+/* Share Options */
+#shareOptions a {
+    display: inline-block;
+    margin: 0.5em 0;
+}
+#shareOptions {
+    text-align: center;
+}
+
+/* Flex controls */
+.controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+}
+
+/* Graph Container */
+.graph-container {
+    height: 500px;
+    background-color: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 15px;
+}
+
+/* ===== Skip to content link ===== */
+.skip-to-content {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 9999;
+    padding: 0.75rem 1.5rem;
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    text-decoration: none;
+    font-weight: 600;
+    border-radius: 0 0 var(--radius) 0;
+}
+.skip-to-content:focus {
+    left: 0;
+    outline: 2px solid var(--color-accent-hover);
+    outline-offset: 2px;
+}
+
+/* ===== Breadcrumbs ===== */
+.breadcrumb {
+    background: transparent;
+    padding: 0;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+.breadcrumb-item a {
+    color: var(--color-accent);
+    text-decoration: none;
+}
+.breadcrumb-item a:hover {
+    text-decoration: underline;
+}
+.breadcrumb-item.active {
+    color: var(--color-muted);
+}
+
+/* ===== Required field indicator ===== */
+.form-label.required::after {
+    content: ' *';
+    color: var(--color-danger-text);
+    font-weight: 700;
+}
+
+/* ===== Form validation feedback ===== */
+.form-control.is-invalid,
+.form-select.is-invalid {
+    border-color: var(--color-danger-text);
+}
+.invalid-feedback {
+    color: var(--color-danger-text);
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+}
+
+/* ===== Submit button spinner ===== */
+.btn .btn-spinner {
+    display: none;
+    width: 1rem;
+    height: 1rem;
+    margin-right: 0.5rem;
+}
+.btn.is-loading .btn-spinner {
+    display: inline-block;
+}
+.btn.is-loading {
+    pointer-events: none;
+    opacity: 0.75;
+}
+
+/* ===== Touch target sizing ===== */
+/* Ensure icon-only action buttons meet the 44px touch target guideline.
+   Applies to .btn-sm buttons that contain only an icon (no visible text). */
+.btn-icon-action {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.375rem;
+}
+
+/* ===== Empty state ===== */
+.empty-state {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: var(--color-muted);
+}
+.empty-state i {
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+    display: block;
+    opacity: 0.5;
+}
+.empty-state p {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+/* ===== Reusable Autocomplete Select ===== */
+.isley-ac-wrapper {
+    position: relative;
+}
+.isley-ac-input {
+    background: var(--color-input-bg);
+    color: var(--color-input-fg);
+    border-color: var(--color-input-border);
+}
+.isley-ac-input:focus {
+    border-color: var(--color-input-focus-border);
+}
+.isley-ac-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1050;
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius);
+    box-shadow: var(--shadow-md);
+    max-height: 240px;
+    overflow-y: auto;
+}
+.isley-ac-item {
+    padding: 0.45rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-fg);
+}
+.isley-ac-item:last-child {
+    border-bottom: none;
+}
+.isley-ac-item:hover,
+.isley-ac-item.active {
+    background: var(--color-row-hover);
+}
+.isley-ac-item strong {
+    color: var(--color-accent);
+}
+.isley-ac-new-item {
+    color: var(--color-accent);
+    font-weight: 500;
+}
+.isley-ac-separator {
+    height: 1px;
+    background: var(--color-border);
+    margin: 0;
+}
+
+/* ===== Theme menu (header) ===== */
+.theme-menu .dropdown-item {
+    white-space: nowrap;
+}
+
+/* ===== Raw output: logs, JSON dumps ===== */
+.code-output,
+.log-output {
+    overflow: auto;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--color-fg);
+    background: var(--color-bg);
+    border: 1px solid var(--color-card-border);
+    border-radius: var(--radius-sm);
+}
+.code-output {
+    max-height: 60vh;
+    padding: 1rem;
+}
+.log-output {
+    max-height: 600px;
+    border: 0;
+    border-radius: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* ===== Breakpoints =====
+   One scale, Bootstrap's, written as max-width queries:
+     575.98px  phones
+     767.98px  large phones, small tablets (the "small screen" layout)
+     991.98px  tablets (the header's links fold into the menu)
+     1199.98px small laptops
+   Use these and no others, so layouts change together. */
+
+/* ===== Harvest weights ===== */
+/* A displayed weight flips between grams and ounces when clicked. */
+.isley-weight-toggle {
+    cursor: pointer;
+    display: inline-block;
+    padding: 0 0.15rem;
+    margin: 0 -0.15rem;
+    border-radius: var(--radius-sm, 0.25rem);
+    text-decoration: underline dotted;
+    text-underline-offset: 0.2em;
+    user-select: none;
+    transition: background-color 140ms ease, color 140ms ease;
+}
+.isley-weight-toggle:hover,
+.isley-weight-toggle:focus-visible {
+    background-color: var(--color-row-hover);
+    color: var(--color-accent);
+    outline: none;
+}
+.isley-weight-toggle:focus-visible {
+    box-shadow: 0 0 0 0.15rem var(--color-focus-ring);
+}
+.isley-weight-toggle[data-swapping="true"] {
+    pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+    .isley-weight-toggle {
+        transition: none;
+    }
+}
+
+/* ===== Touch ===== */
+/* Fingers need more room than a mouse pointer: small controls grow on touch
+   screens, whatever the screen's width. Each stylesheet does this for its
+   own controls, after their normal size, in a (pointer: coarse) block. */
+@media (pointer: coarse) {
+    .dropdown-item {
+        padding-top: 0.55rem;
+        padding-bottom: 0.55rem;
+    }
+}

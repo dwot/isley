@@ -7,14 +7,17 @@
     <h1 class="visually-hidden">{{ .lcl.activity_log_title }}</h1>
 
     <!-- Top Controls Bar -->
-    <div class="activities-controls">
+    <div class="list-controls activities-controls">
         <!-- Search + export row -->
-        <div class="activities-controls-row">
-            <div class="activities-search-wrap">
-                <i class="fa-solid fa-search activities-search-icon"></i>
+        <div class="list-controls-row activities-controls-row">
+            <div class="list-search-wrap activities-search-wrap">
+                <i class="fa-solid fa-search list-search-icon activities-search-icon"></i>
                 <input type="text" class="form-control form-control-sm" id="searchActivities"
                        placeholder="{{ .lcl.activity_filter_search_hint }}...">
             </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary list-filters-toggle" data-bs-toggle="collapse" data-bs-target="#activitiesFilters" aria-controls="activitiesFilters" aria-expanded="false">
+                <i class="fa-solid fa-sliders me-1" aria-hidden="true"></i>{{ .lcl.list_filters }}<span class="list-filters-count badge rounded-pill ms-1" hidden></span>
+            </button>
 
             {{ if .loggedIn }}
             <div class="btn-group btn-group-sm" role="group" aria-label="{{ .lcl.activity_export }}">
@@ -31,47 +34,53 @@
         </div>
 
         <!-- Filters row -->
-        <div class="activities-filters-row">
-            <div class="activities-filter-group" id="filterPlantGroup">
-                <label class="activities-filter-label">{{ .lcl.activity_filter_plant }}</label>
+        <div class="list-filters-row activities-filters-row collapse" id="activitiesFilters">
+            <div class="list-filter-group activities-filter-group" id="filterPlantGroup">
+                <label class="list-filter-label activities-filter-label">{{ .lcl.activity_filter_plant }}</label>
                 <select id="filterPlant" class="form-select form-select-sm">
                     <option value="">{{ .lcl.activity_filter_any }}</option>
+                    {{ range .logPlants }}<option value="{{ .ID }}">{{ .Name }}</option>
+                    {{ end }}
                 </select>
             </div>
-            <div class="activities-filter-group" id="filterActivityGroup">
-                <label class="activities-filter-label">{{ .lcl.activity_filter_type }}</label>
+            <div class="list-filter-group activities-filter-group" id="filterActivityGroup">
+                <label class="list-filter-label activities-filter-label">{{ .lcl.activity_filter_type }}</label>
                 <select id="filterActivity" class="form-select form-select-sm">
                     <option value="">{{ .lcl.activity_filter_any }}</option>
+                    {{ range .activityTypes }}<option value="{{ .ID }}">{{ .Name }}</option>
+                    {{ end }}
                 </select>
             </div>
-            <div class="activities-filter-group" id="filterZoneGroup">
-                <label class="activities-filter-label">{{ .lcl.activity_filter_zone }}</label>
+            <div class="list-filter-group activities-filter-group" id="filterZoneGroup">
+                <label class="list-filter-label activities-filter-label">{{ .lcl.activity_filter_zone }}</label>
                 <select id="filterZone" class="form-select form-select-sm">
                     <option value="">{{ .lcl.activity_filter_any }}</option>
+                    {{ range .zones }}<option value="{{ .ID }}">{{ .Name }}</option>
+                    {{ end }}
                 </select>
             </div>
-            <div class="activities-filter-group">
-                <label class="activities-filter-label">{{ .lcl.activity_filter_from }}</label>
+            <div class="list-filter-group activities-filter-group">
+                <label class="list-filter-label activities-filter-label">{{ .lcl.activity_filter_from }}</label>
                 <input type="date" class="form-control form-control-sm" id="filterFrom">
             </div>
-            <div class="activities-filter-group">
-                <label class="activities-filter-label">{{ .lcl.activity_filter_to }}</label>
+            <div class="list-filter-group activities-filter-group">
+                <label class="list-filter-label activities-filter-label">{{ .lcl.activity_filter_to }}</label>
                 <input type="date" class="form-control form-control-sm" id="filterTo">
             </div>
-            <div class="activities-filter-group">
+            <div class="list-filter-group activities-filter-group">
                 <button id="clearFilters" class="btn btn-sm btn-outline-secondary" title="{{ .lcl.filter_clear_all }}">
                     <i class="fa-solid fa-filter-circle-xmark me-1"></i> {{ .lcl.filter_clear }}
                 </button>
             </div>
-            <div class="activities-result-count ms-auto">
+            <div class="list-result-count activities-result-count ms-auto">
                 <span id="resultCount" class="text-muted"></span>
             </div>
         </div>
     </div>
 
     <!-- Activities Table -->
-    <div id="activitiesTable" class="activities-table-wrap">
-        <table class="table table-hover align-top activities-table">
+    <div id="activitiesTable" class="list-table-wrap activities-table-wrap">
+        <table class="table table-hover align-top list-table activities-table">
             <thead>
                 <tr>
                     <th scope="col" class="al-th-date al-sortable" data-sort="date">{{ .lcl.title_date }} <i class="fa-solid fa-sort ms-1 text-muted"></i></th>
@@ -87,6 +96,8 @@
         </table>
     </div>
 
+    <nav id="activitiesPager" class="list-pager" aria-label="{{ .lcl.activity_log_title }}" hidden></nav>
+
     <!-- Empty state -->
     <div id="emptyState" class="activities-empty" style="display:none;">
         <i class="fa-solid fa-clipboard-list fa-3x text-muted mb-3"></i>
@@ -96,186 +107,7 @@
 
 {{ template "modals/activity-edit-modal.html" . }}
 
-<script nonce="{{ .cspNonce }}">
-document.addEventListener("DOMContentLoaded", () => {
-    const tableBody = document.getElementById("activitiesTableBody");
-    const emptyState = document.getElementById("emptyState");
-    const searchInput = document.getElementById("searchActivities");
-    const filterPlant = document.getElementById("filterPlant");
-    const filterActivity = document.getElementById("filterActivity");
-    const filterZone = document.getElementById("filterZone");
-    const filterFrom = document.getElementById("filterFrom");
-    const filterTo = document.getElementById("filterTo");
-    const clearBtn = document.getElementById("clearFilters");
-    const resultCount = document.getElementById("resultCount");
-    const exportCsv = document.getElementById("exportCsv");
-    const exportXlsx = document.getElementById("exportXlsx");
-
-    // Table header sorting
-    const sortableTable = new IsleySortableTable(null, { prefix: "al", onChange: applyFilters });
-
-    clearBtn.addEventListener("click", () => {
-        clearFilters({
-            searchInput,
-            selects: [filterPlant, filterActivity, filterZone],
-            inputs: [filterFrom, filterTo],
-            onClear: () => sortableTable.resetToDefault()
-        });
-        applyFilters();
-    });
-
-    let allActivities = [];
-
-    // ----- Fetch activities -----
-    async function fetchActivities() {
-        tableBody.innerHTML = `<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>`;
-        try {
-            const res = await fetch("/activities/list?page_size=10000");
-            const data = await res.json();
-            allActivities = (data.entries || []);
-            populateFilters();
-            applyFilters();
-        } catch (e) {
-            tableBody.innerHTML = `<tr><td colspan="6" class="text-danger text-center">Failed to load activities.</td></tr>`;
-        }
-    }
-
-    // ----- Populate filter dropdowns -----
-    function populateFilters() {
-        populateFilter(filterPlant, allActivities, "plant_name");
-        populateFilter(filterActivity, allActivities, "activity_name");
-        populateFilter(filterZone, allActivities, "zone_name");
-    }
-
-    // ----- Filter + Sort -----
-    function applyFilters() {
-        let data = [...allActivities];
-        const query = searchInput.value.toLowerCase().trim();
-        const plant = filterPlant.value;
-        const activity = filterActivity.value;
-        const zone = filterZone.value;
-        const fromStr = filterFrom.value;
-        const toStr = filterTo.value;
-
-        // Search across multiple fields
-        data = list.filterByText(data, query, ["plant_name", "strain_name", "zone_name", "activity_name", "note"]);
-
-        // Apply filters
-        if (plant) data = data.filter(a => a.plant_name === plant);
-        if (activity) data = data.filter(a => a.activity_name === activity);
-        if (zone) data = data.filter(a => a.zone_name === zone);
-
-        // Date range filter: whole days in the instance zone, both ends
-        // included, as the export and the API count them.
-        if (fromStr) data = data.filter(a => IsleyTime.dayOf(a.date) >= fromStr);
-        if (toStr) data = data.filter(a => IsleyTime.dayOf(a.date) <= toStr);
-
-        // Sort by table header or default to date descending
-        let { key: sortKey, asc: sortAsc } = sortableTable.getSort();
-        if (!sortKey) { sortKey = "date"; sortAsc = false; } // default when nothing's been clicked yet
-
-        data.sort((a, b) => {
-            let va, vb;
-            switch (sortKey) {
-                case "date":
-                    va = new Date(a.date).getTime();
-                    vb = new Date(b.date).getTime();
-                    return sortAsc ? va - vb : vb - va;
-                case "plant":
-                    va = a.plant_name.toLowerCase();
-                    vb = b.plant_name.toLowerCase();
-                    return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
-                case "activity":
-                    va = a.activity_name.toLowerCase();
-                    vb = b.activity_name.toLowerCase();
-                    return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
-                default:
-                    return 0;
-            }
-        });
-
-        resultCount.textContent = pluralize(data.length, "activity", "activities");
-
-        if (data.length === 0) {
-            tableBody.innerHTML = "";
-            emptyState.style.display = "flex";
-            return;
-        }
-        emptyState.style.display = "none";
-        renderTable(data);
-        updateExportLinks(data);
-    }
-
-    // ----- Format date helper -----
-    function formatDateTime(dateStr) {
-        return IsleyTime.formatDateTime(dateStr);
-    }
-
-    // ----- Render table -----
-    function renderTable(data) {
-        tableBody.innerHTML = data.map(a => `
-            <tr class="al-row" data-activity='${JSON.stringify(a).replace(/'/g, "&apos;")}' style="cursor:pointer">
-                <td class="al-cell-date">${formatDateTime(a.date)}</td>
-                <td class="al-cell-plant">
-                    <a href="/plant/${a.plant_id}" class="text-decoration-none">
-                        ${esc(a.plant_name)}
-                    </a>
-                </td>
-                <td class="al-cell-strain">${esc(a.strain_name || "")}</td>
-                <td class="al-cell-zone">${esc(a.zone_name || "")}</td>
-                <td class="al-cell-activity">${esc(a.activity_name)}</td>
-                <td class="al-cell-note">${esc(a.note || "")}</td>
-            </tr>
-        `).join("");
-    }
-
-    // ----- Update export links -----
-    function updateExportLinks(data) {
-        if (!exportCsv || !exportXlsx) return; // guests can't export
-        const query = new URLSearchParams();
-        if (searchInput.value) query.append("q", searchInput.value);
-        if (filterPlant.value) {
-            const plant = allActivities.find(a => a.plant_name === filterPlant.value);
-            if (plant) query.append("plant_id", plant.plant_id);
-        }
-        if (filterActivity.value) {
-            const activity = allActivities.find(a => a.activity_name === filterActivity.value);
-            if (activity) query.append("activity_id", activity.activity_id);
-        }
-        // Note: Zone filtering in exports uses zone_name through query string matching
-        if (filterFrom.value) query.append("from", filterFrom.value);
-        if (filterTo.value) query.append("to", filterTo.value);
-
-        const queryStr = query.toString();
-        exportCsv.href = `/activities/export/csv${queryStr ? "?" + queryStr : ""}`;
-        exportXlsx.href = `/activities/export/xlsx${queryStr ? "?" + queryStr : ""}`;
-    }
-
-    // ----- Row click delegation -----
-    document.getElementById("activitiesTable").addEventListener("click", (e) => {
-        const row = e.target.closest(".al-row");
-        if (row && !e.target.closest("a")) {
-            const activity = JSON.parse(row.dataset.activity);
-            // Trigger the modal for editing if it exists
-            const modal = document.getElementById("activityEditModal");
-            if (modal && typeof showActivityModal === "function") {
-                showActivityModal(activity);
-            }
-        }
-    });
-
-    // ----- Event listeners -----
-    searchInput.addEventListener("input", debounce(applyFilters, 200));
-    filterPlant.addEventListener("change", applyFilters);
-    filterActivity.addEventListener("change", applyFilters);
-    filterZone.addEventListener("change", applyFilters);
-    filterFrom.addEventListener("change", applyFilters);
-    filterTo.addEventListener("change", applyFilters);
-
-    // ----- Initial load -----
-    fetchActivities();
-});
-</script>
+<script src="{{ asset "/static/js/activities.js" }}"></script>
 
 {{ template "common/footer.html" .}}
 

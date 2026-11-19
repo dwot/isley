@@ -121,8 +121,7 @@
                             <!-- Date Picker -->
                             <div class="col-md-6">
                                 <label for="startDate" class="form-label required">{{ .lcl.start_date }}</label>
-                                <input type="datetime-local" step="1" class="form-control" id="startDate" required>
-                                <script>formHelpers.setDateTimeNow("startDate");</script>
+                                <input type="datetime-local" step="1" class="form-control" id="startDate" data-default-now required>
                             </div>
 
                             <div class="col-md-6"></div>

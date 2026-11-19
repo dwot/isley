@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -90,13 +91,25 @@ func ParseActivityLogFilters(c *gin.Context) (ActivityLogFilters, error) {
 		}
 		f.Query = q
 	}
+	// search is the log page's box: it also matches the plant, strain,
+	// zone and activity names, where q matches notes alone.
+	if q := strings.TrimSpace(c.Query("search")); q != "" {
+		if err := utils.ValidateStringLength("search", q, utils.MaxNameLength); err != nil {
+			return f, err
+		}
+		f.Search = q
+	}
 	switch c.Query("order") {
 	case "date_asc":
 		f.Order = service.OldestFirst
 	case "plant":
 		f.Order = service.ByPlant
+	case "plant_desc":
+		f.Order = service.ByPlantDesc
 	case "activity":
 		f.Order = service.ByType
+	case "activity_desc":
+		f.Order = service.ByTypeDesc
 	}
 	return f, nil
 }
@@ -161,6 +174,28 @@ func QueryActivityLog(ctx context.Context, svc *service.Services, f ActivityLogF
 		PageSize:   pageSize,
 		TotalPages: totalPages,
 	}, nil
+}
+
+// ActivityLogPlant is one entry in the activity log page's plant filter.
+type ActivityLogPlant struct {
+	ID   int
+	Name string
+}
+
+// ActivityLogPlants lists every plant, by name, for the activity log page's
+// plant filter: living, harvested and dead alike, since all have a log.
+func ActivityLogPlants(ctx context.Context, svc *service.Services) []ActivityLogPlant {
+	plants, _, err := svc.Plants.List(ctx, service.PlantFilter{})
+	if err != nil {
+		logger.Log.WithField("func", "ActivityLogPlants").WithError(err).Error("Failed to list plants")
+		return nil
+	}
+	out := make([]ActivityLogPlant, len(plants))
+	for i, p := range plants {
+		out[i] = ActivityLogPlant{ID: p.ID, Name: p.Name}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name) })
+	return out
 }
 
 // ListAllActivities is the public JSON endpoint backing programmatic access

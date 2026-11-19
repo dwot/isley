@@ -1,0 +1,151 @@
+/* theme: Clarity
+ * modes: light dark
+ *
+ * Built to be read. Text on its background is 7:1 or better, borders are
+ * strong enough to see, and every coloured pill carries dark text on a
+ * bright fill. Stage and type colours are the Okabe-Ito set, which stays
+ * distinct with the common kinds of colour blindness. Type is a size up.
+ */
+
+[data-theme="clarity"] {
+    --logo: url("/static/img/logos/clarity.png");
+    --color-bg: #ffffff;
+    --color-card: #ffffff;
+    --color-card-border: #595959;
+    --color-table-header: #ececec;
+    --color-row-hover: #e6f0ff;
+    --color-border: #595959;
+    --color-fg: #000000;
+    --color-muted: #3d3d3d;
+    --color-input-bg: #ffffff;
+    --color-input-border: #1f1f1f;
+
+    --color-primary: #0047b3;
+    --color-on-primary: #ffffff;
+    --color-accent: #003c99;
+    --color-accent-hover: #002a6b;
+    --color-link: #003c99;
+    --color-link-hover: #002a6b;
+
+    --color-secondary: #4a4a4a;
+    --color-on-secondary: #ffffff;
+    --color-success: #00662f;
+    --color-on-success: #ffffff;
+    --color-success-text: #005a2b;
+    --color-warning: #ffcc33;
+    --color-on-warning: #000000;
+    --color-warning-text: #7a4b00;
+    --color-danger: #b00020;
+    --color-on-danger: #ffffff;
+    --color-danger-text: #9b001c;
+    --color-info: #7fd4f5;
+    --color-on-info: #000000;
+    --color-info-text: #004f6e;
+
+    /* Okabe-Ito, lightened where needed so black text sits on every one. */
+    --stage-germ: #e69f00;
+    --stage-seedling: #f0e442;
+    --stage-veg: #2fd0a5;
+    --stage-flower: #e3a1cb;
+    --stage-dry: #ff9466;
+    --stage-cure: #d9c15a;
+    --stage-harvest: #56b4e9;
+    --stage-dead: #c4c4c4;
+    --color-on-stage: #000000;
+    --color-auto: #e69f00;
+    --color-photo: #56b4e9;
+    --color-fem: #e3a1cb;
+    --color-regular: #c4c4c4;
+    --color-indica: #9a4d86;
+    --color-indica-text: #7a2f68;
+    --color-sativa: #008f6b;
+    --color-sativa-text: #006048;
+
+    --color-star: #8a5a00;
+    --color-star-preview: #c79a45;
+    --color-star-empty: #8c8c8c;
+
+    --color-focus-ring: #ffbf00;
+    --color-input-focus-border: #000000;
+    --color-view-btn-hover-bg: #e6f0ff;
+    --shadow-hover: 0 0 0 3px #0047b3;
+    --radius: 8px;
+    --font-size: 1.0625rem;
+
+    --chart-1: #0072b2;
+    --chart-2: #d55e00;
+    --chart-3: #009e73;
+    --chart-4: #cc79a7;
+    --chart-5: #000000;
+    --chart-6: #e69f00;
+    --chart-text: #000000;
+    --chart-grid: rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="clarity"][data-bs-theme="dark"] {
+    --logo: url("/static/img/logos/clarity-dark.png");
+    --color-bg: #000000;
+    --color-card: #0d0d0d;
+    --color-card-border: #9a9a9a;
+    --color-table-header: #1f1f1f;
+    --color-row-hover: #10233f;
+    --color-border: #9a9a9a;
+    --color-fg: #ffffff;
+    --color-muted: #d4d4d4;
+    --color-input-bg: #000000;
+    --color-input-border: #e0e0e0;
+
+    --color-primary: #7ab8ff;
+    --color-on-primary: #000000;
+    --color-accent: #9ccaff;
+    --color-accent-hover: #c5e0ff;
+    --color-link: #9ccaff;
+    --color-link-hover: #c5e0ff;
+
+    --color-secondary: #c8c8c8;
+    --color-on-secondary: #000000;
+    --color-success: #4ade80;
+    --color-on-success: #000000;
+    --color-success-text: #6ee7a0;
+    --color-warning: #ffd24d;
+    --color-warning-text: #ffd24d;
+    --color-danger: #ff8080;
+    --color-on-danger: #000000;
+    --color-danger-text: #ff9c9c;
+    --color-info: #7fd4f5;
+    --color-info-text: #9fe0fa;
+
+    --color-indica: #e3a1cb;
+    --color-indica-text: #efbfdd;
+    --color-sativa: #2fd0a5;
+    --color-sativa-text: #6fe3c3;
+
+    --color-star: #ffd24d;
+    --color-star-preview: #8a6d1f;
+    --color-star-empty: #7a7a7a;
+
+    --color-input-focus-border: #ffffff;
+    --color-view-btn-hover-bg: #10233f;
+    --shadow-hover: 0 0 0 3px #7ab8ff;
+
+    --chart-1: #56b4e9;
+    --chart-2: #ff9466;
+    --chart-3: #2fd0a5;
+    --chart-4: #e3a1cb;
+    --chart-5: #ffffff;
+    --chart-6: #f0e442;
+    --chart-text: #ffffff;
+    --chart-grid: rgba(255, 255, 255, 0.3);
+}
+
+/* Beyond the tokens: text links are underlined, so colour is never the
+   only sign of one (cards and chips that are links as a whole are left
+   alone), and keyboard focus gets a ring nothing can miss. */
+[data-theme="clarity"] a:not(.btn):not(.nav-link):not(.dropdown-item):not(.navbar-brand):not(.dash-pc):not(.dash-sensor-chip):not(.dash-stream-card):not(.hero-sensor-chip):not(.plant-action-btn) {
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+}
+[data-theme="clarity"] :focus-visible {
+    outline: 3px solid var(--color-focus-ring);
+    outline-offset: 2px;
+}

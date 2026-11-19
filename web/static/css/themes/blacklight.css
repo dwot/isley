@@ -1,0 +1,77 @@
+/* theme: Blacklight
+ * modes: dark
+ *
+ * The tent at night with the UV on: violet dark, neon green for anything
+ * you can click, hot pink for anything that needs you. Dark only.
+ */
+
+[data-theme="blacklight"],
+[data-theme="blacklight"][data-bs-theme="dark"] {
+    --logo: url("/static/img/logos/blacklight.png");
+    --color-bg: #0b0616;
+    --color-card: #160d29;
+    --color-card-border: #3a2670;
+    --color-table-header: #1f1238;
+    --color-row-hover: #241542;
+    --color-border: #4b3391;
+    --color-fg: #f4ecff;
+    --color-muted: #b3a2d9;
+    --color-input-bg: #0f0820;
+    --color-input-border: #5a3fb0;
+    --color-spinner-overlay: rgba(8, 3, 18, 0.88);
+    --bg-image: radial-gradient(900px 480px at 12% -80px, rgba(139, 61, 255, 0.32), transparent),
+                radial-gradient(800px 420px at 95% 0, rgba(57, 255, 136, 0.10), transparent);
+
+    --color-primary: #8b3dff;
+    --color-on-primary: #ffffff;
+    --color-accent: #5dff8f;
+    --color-accent-hover: #a5ffc0;
+    --color-link: #5dff8f;
+    --color-link-hover: #a5ffc0;
+
+    --color-secondary: #7d6ab0;
+    --color-success: #1fbf5f;
+    --color-on-success: #04140a;
+    --color-success-text: #5dff8f;
+    --color-warning: #ffe14d;
+    --color-warning-text: #ffe14d;
+    --color-danger: #ff2e88;
+    --color-danger-text: #ff6fae;
+    --color-info: #37e6ff;
+    --color-info-text: #7cf0ff;
+
+    --stage-germ: #ffb020;
+    --stage-seedling: #c6ff3d;
+    --stage-veg: #39ff88;
+    --stage-flower: #c06bff;
+    --stage-dry: #ff7a3d;
+    --stage-cure: #ffe14d;
+    --stage-harvest: #37e6ff;
+    --stage-dead: #8d86a3;
+    --color-on-stage: #0b0616;
+    --color-auto: #ffb020;
+    --color-photo: #37e6ff;
+    --color-fem: #ff6fae;
+    --color-regular: #8d86a3;
+    --color-indica: #c06bff;
+    --color-indica-text: #d49cff;
+    --color-sativa: #39ff88;
+    --color-sativa-text: #5dff8f;
+
+    --color-star: #ffe14d;
+    --color-star-preview: #7d6a1c;
+    --color-star-empty: #4a3d73;
+
+    --radius: 10px;
+    --shadow-sm: 0 4px 14px rgba(139, 61, 255, 0.28);
+    --shadow-md: 0 8px 28px rgba(139, 61, 255, 0.4);
+    --shadow-hover: 0 0 0 1px #5dff8f, 0 0 22px rgba(93, 255, 143, 0.35);
+    --color-focus-ring: rgba(93, 255, 143, 0.55);
+
+    --chart-1: #5dff8f;
+    --chart-2: #ff6fae;
+    --chart-3: #37e6ff;
+    --chart-4: #ffe14d;
+    --chart-5: #c06bff;
+    --chart-6: #ff7a3d;
+}

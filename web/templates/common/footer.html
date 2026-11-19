@@ -40,18 +40,8 @@
 <script src="{{ asset "/static/js/activity-metrics.js" }}"></script>
 <!-- Accessible focus trapping for all Bootstrap modals -->
 <script src="{{ asset "/static/js/focus-trap.js" }}"></script>
-<!-- Global modal backdrop cleanup: Bootstrap's backdrop can linger when
-     the page reloads while a modal fade-out animation is in progress.
-     This listener removes any orphaned backdrops on every modal close. -->
-<script nonce="{{ .cspNonce }}">
-document.addEventListener("DOMContentLoaded", () => {
-    document.addEventListener('hidden.bs.modal', () => {
-        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
-        document.body.classList.remove('modal-open');
-        document.body.style.overflow = '';
-    });
-});
-</script>
+<!-- Removes modal backdrops left behind when a page reloads mid-fade -->
+<script src="{{ asset "/static/js/modal-backdrop-cleanup.js" }}"></script>
 </body>
 </html>
 

@@ -15,6 +15,7 @@ import (
 
 	"isley/chrono"
 	"isley/service"
+	"isley/utils"
 )
 
 // parseWhen reads a date the web forms send: a bare day ("2026-11-01")
@@ -132,18 +133,19 @@ func AddPlant(c *gin.Context) {
 // and a status change when status_id is set.
 func UpdatePlant(c *gin.Context) {
 	var in struct {
-		PlantID          int             `json:"plant_id"`
-		PlantName        string          `json:"plant_name"`
-		PlantDescription string          `json:"plant_description"`
-		StatusID         int             `json:"status_id"`
-		Date             string          `json:"date"`
-		ZoneID           *int            `json:"zone_id"`
-		NewZone          string          `json:"new_zone"`
-		StrainID         *int            `json:"strain_id"`
-		NewStrain        *newStrainInput `json:"new_strain"`
-		IsClone          bool            `json:"clone"`
-		StartDT          string          `json:"start_date"`
-		HarvestWeight    float64         `json:"harvest_weight"`
+		PlantID           int             `json:"plant_id"`
+		PlantName         string          `json:"plant_name"`
+		PlantDescription  string          `json:"plant_description"`
+		StatusID          int             `json:"status_id"`
+		Date              string          `json:"date"`
+		ZoneID            *int            `json:"zone_id"`
+		NewZone           string          `json:"new_zone"`
+		StrainID          *int            `json:"strain_id"`
+		NewStrain         *newStrainInput `json:"new_strain"`
+		IsClone           bool            `json:"clone"`
+		StartDT           string          `json:"start_date"`
+		HarvestWeight     float64         `json:"harvest_weight"`
+		HarvestWeightUnit string          `json:"harvest_weight_unit"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
 		apiBadRequest(c, "api_invalid_input")
@@ -164,12 +166,15 @@ func UpdatePlant(c *gin.Context) {
 	if !ok {
 		return
 	}
+	// The forms let the user enter grams or ounces; the database only ever
+	// stores grams. An absent unit means the historical gram behaviour.
+	harvestWeightG := utils.WeightToGrams(in.HarvestWeight, in.HarvestWeightUnit)
 	upd := service.PlantUpdate{
 		Name:           service.Put(&in.PlantName),
 		Description:    service.Put(&in.PlantDescription),
 		StrainID:       service.Put(strainID),
 		ZoneID:         service.Put(zoneID),
-		HarvestWeightG: service.Put(&in.HarvestWeight),
+		HarvestWeightG: service.Put(&harvestWeightG),
 		Clone:          service.Put(&in.IsClone),
 	}
 	if !start.IsZero() {

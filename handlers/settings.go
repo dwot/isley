@@ -11,6 +11,8 @@ import (
 	"isley/logger"
 	"isley/model/types"
 	"isley/service"
+	"isley/theme"
+	"isley/utils"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -46,6 +48,9 @@ func SaveSettings(c *gin.Context) {
 		{"stream_grab_interval", settings.StreamGrabInterval},
 		{"sensor_retention_days", settings.SensorRetentionDays},
 		{"log_level", settings.LogLevel},
+		// Harvest weights are stored in grams; this only sets the unit the
+		// web UI displays and offers first in the plant forms.
+		{"weight_unit", utils.NormalizeWeightUnit(settings.WeightUnit)},
 		// Empty means the default api.cannadb.net endpoint.
 		{"cannadb.base_url", settings.Cannadb.BaseURL},
 		// Empty means the system zone.
@@ -82,6 +87,25 @@ func SaveSettings(c *gin.Context) {
 	store.SetTimezone(settings.Timezone)
 	LoadSettings(db, store)
 
+	apiOK(c, "api_settings_saved")
+}
+
+// SaveTheme sets the instance's default theme: the one every visitor gets
+// until they pick their own in the header. The id is checked for shape
+// only; a page falls back to the built-in theme when it names none it has.
+func SaveTheme(c *gin.Context) {
+	var body struct {
+		Theme string `json:"theme"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil || !theme.ValidID(body.Theme) {
+		apiBadRequest(c, "api_invalid_settings_payload")
+		return
+	}
+	if err := UpdateSetting(DBFromContext(c), ConfigStoreFromContext(c), "theme", body.Theme); err != nil {
+		logger.Log.WithField("func", "SaveTheme").WithError(err).Error("Failed to save theme")
+		apiInternalError(c, "api_failed_to_save_settings")
+		return
+	}
 	apiOK(c, "api_settings_saved")
 }
 
@@ -123,7 +147,7 @@ func writeSetting(q execQuerier, name, value string) error {
 func GetSettings(db *sql.DB) types.SettingsData {
 	fieldLogger := logger.Log.WithField("func", "GetSettings")
 
-	settingsData := types.SettingsData{}
+	settingsData := types.SettingsData{WeightUnit: utils.WeightUnitGrams}
 
 	rows, err := db.Query("SELECT * FROM settings")
 	if err != nil {
@@ -178,6 +202,10 @@ func GetSettings(db *sql.DB) types.SettingsData {
 			settingsData.MaxBackupSizeMB, _ = strconv.Atoi(value)
 		case "timezone":
 			settingsData.Timezone = value
+		case "theme":
+			// Read from the config store by the page templates.
+		case "weight_unit":
+			settingsData.WeightUnit = utils.NormalizeWeightUnit(value)
 		default:
 			fieldLogger.WithField("name", name).Debug("Unrecognised setting skipped")
 		}
@@ -268,6 +296,12 @@ func LoadSettings(db *sql.DB, store *config.Store) {
 	}
 	if v, err := GetSetting(db, "timezone"); err == nil && v != "" {
 		store.SetTimezone(v)
+	}
+	if v, err := GetSetting(db, "theme"); err == nil {
+		store.SetTheme(v)
+	}
+	if v, err := GetSetting(db, "weight_unit"); err == nil {
+		store.SetWeightUnit(utils.NormalizeWeightUnit(v))
 	}
 	if v, err := GetSetting(db, "log_level"); err == nil && v != "" {
 		store.SetLogLevel(v)

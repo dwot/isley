@@ -10,7 +10,6 @@ package handlers_test
 // Routes covered (all on the api-protected group):
 //
 //   POST   /settings                    → SaveSettings
-//   POST   /settings/upload-logo        → UploadLogo
 //   GET    /settings/logs               → GetLogs
 //   GET    /settings/logs/download      → DownloadLogs
 //   POST   /zones                       → AddZoneHandler
@@ -29,7 +28,6 @@ import (
 	"image"
 	"image/png"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -42,9 +40,8 @@ import (
 	"isley/tests/testutil"
 )
 
-// pngFixture returns the bytes of a 1×1 PNG, used for the upload-logo
-// happy path. Kept file-local because no other test exercises image
-// upload — moving it to testutil would be premature generalization.
+// pngFixture returns the bytes of a 1×1 PNG, for the tests that upload an
+// image (theme logos).
 func pngFixture(t *testing.T) []byte {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
@@ -68,7 +65,6 @@ func TestSettingsHTTP_AuthGating(t *testing.T) {
 		method, path string
 	}{
 		{http.MethodPost, "/settings"},
-		{http.MethodPost, "/settings/upload-logo"},
 		{http.MethodGet, "/settings/logs"},
 		{http.MethodGet, "/settings/logs/download"},
 		{http.MethodPost, "/zones"},
@@ -118,6 +114,7 @@ func TestSettingsHTTP_SaveSettings_HappyPath(t *testing.T) {
 		"sensor_retention_days": "90",
 		"log_level":             "info",
 		"timezone":              "America/Los_Angeles",
+		"weight_unit":           "oz",
 		"guest_mode":            false,
 	})
 	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings", apiKey, body, "application/json"))
@@ -126,7 +123,7 @@ func TestSettingsHTTP_SaveSettings_HappyPath(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// DB-level: each persisted key should now be readable.
-	for _, k := range []string{"polling_interval", "stream_grab_interval", "sensor_retention_days", "log_level", "timezone"} {
+	for _, k := range []string{"polling_interval", "stream_grab_interval", "sensor_retention_days", "log_level", "timezone", "weight_unit"} {
 		var v string
 		err := db.QueryRow(`SELECT value FROM settings WHERE name = $1`, k).Scan(&v)
 		require.NoErrorf(t, err, "setting %q must be persisted", k)
@@ -149,6 +146,85 @@ func TestSettingsHTTP_SaveSettings_RejectsMalformedJSON(t *testing.T) {
 	require.NoError(t, err)
 	defer testutil.DrainAndClose(resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+// ---------------------------------------------------------------------------
+// SaveTheme (POST /settings/theme)
+// ---------------------------------------------------------------------------
+
+// The saved theme is the one the next page is rendered with.
+func TestSettingsHTTP_SaveTheme_PagesRenderIt(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db)
+
+	const apiKey = "save-theme-key"
+	testutil.SeedAPIKey(t, db, apiKey)
+	c := server.NewClient(t)
+
+	loginPage := func() string {
+		resp := c.Get("/login")
+		defer testutil.DrainAndClose(resp)
+		page, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		return string(page)
+	}
+	assert.Contains(t, loginPage(), `data-theme="classic"`)
+
+	body := testutil.JSONBody(t, map[string]interface{}{"theme": "walnut"})
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/theme", apiKey, body, "application/json"))
+	require.NoError(t, err)
+	defer testutil.DrainAndClose(resp)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	page := loginPage()
+	assert.Contains(t, page, `data-theme="walnut"`)
+	assert.Contains(t, page, `/static/css/themes/walnut.css`)
+}
+
+// A theme the build does not have is saved (its shape is fine) but pages
+// fall back to Classic.
+func TestSettingsHTTP_SaveTheme_UnknownFallsBack(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db)
+
+	const apiKey = "save-theme-unknown-key"
+	testutil.SeedAPIKey(t, db, apiKey)
+	c := server.NewClient(t)
+
+	body := testutil.JSONBody(t, map[string]interface{}{"theme": "no-such-theme"})
+	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/theme", apiKey, body, "application/json"))
+	require.NoError(t, err)
+	defer testutil.DrainAndClose(resp)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	page := c.Get("/login")
+	defer testutil.DrainAndClose(page)
+	html, err := io.ReadAll(page.Body)
+	require.NoError(t, err)
+	assert.Contains(t, string(html), `data-theme="classic"`)
+}
+
+func TestSettingsHTTP_SaveTheme_RejectsBadID(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewTestDB(t)
+	server := testutil.NewTestServer(t, db)
+
+	const apiKey = "save-theme-bad-key"
+	testutil.SeedAPIKey(t, db, apiKey)
+	c := server.NewClient(t)
+
+	for _, bad := range []string{"", "Forest", `x" onload="y`, "../etc"} {
+		body := testutil.JSONBody(t, map[string]interface{}{"theme": bad})
+		resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/theme", apiKey, body, "application/json"))
+		require.NoError(t, err)
+		assert.Equalf(t, http.StatusBadRequest, resp.StatusCode, "theme %q", bad)
+		testutil.DrainAndClose(resp)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -475,96 +551,6 @@ func TestSettingsHTTP_DeleteActivity_HappyPath(t *testing.T) {
 	var n int
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM activity WHERE id = $1`, id).Scan(&n))
 	assert.Zero(t, n)
-}
-
-// ---------------------------------------------------------------------------
-// UploadLogo (POST /settings/upload-logo)
-//
-// UploadLogo writes into <UploadDir>/logos. Tests pass WithUploadDir to
-// scope the writes to an isolated tempdir without mutating CWD, which
-// is what allows them to call t.Parallel().
-// ---------------------------------------------------------------------------
-
-func TestSettingsHTTP_UploadLogo_HappyPath(t *testing.T) {
-	t.Parallel()
-
-	uploadDir := t.TempDir()
-	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db, testutil.WithUploadDir(uploadDir))
-
-	const apiKey = "logo-happy-key"
-	testutil.SeedAPIKey(t, db, apiKey)
-
-	body, ct := buildLogoMultipart(t, "logo.png", pngFixture(t))
-
-	c := server.NewClient(t)
-	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/upload-logo", apiKey, body, ct))
-	require.NoError(t, err)
-	defer testutil.DrainAndClose(resp)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	// A file was written under <UploadDir>/logos/.
-	entries, err := os.ReadDir(filepath.Join(uploadDir, "logos"))
-	require.NoError(t, err)
-	require.NotEmpty(t, entries, "uploads/logos must contain the new logo file")
-}
-
-func TestSettingsHTTP_UploadLogo_RejectsNonImage(t *testing.T) {
-	t.Parallel()
-
-	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db, testutil.WithUploadDir(t.TempDir()))
-
-	const apiKey = "logo-bad-key"
-	testutil.SeedAPIKey(t, db, apiKey)
-
-	// 600 bytes of 0x00 → DetectContentType returns application/octet-stream.
-	body, ct := buildLogoMultipart(t, "not-an-image.png", make([]byte, 600))
-
-	c := server.NewClient(t)
-	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/upload-logo", apiKey, body, ct))
-	require.NoError(t, err)
-	defer testutil.DrainAndClose(resp)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
-		"non-image MIME types must be rejected before disk write")
-}
-
-func TestSettingsHTTP_UploadLogo_RejectsMissingField(t *testing.T) {
-	t.Parallel()
-
-	db := testutil.NewTestDB(t)
-	server := testutil.NewTestServer(t, db)
-
-	const apiKey = "logo-nofield-key"
-	testutil.SeedAPIKey(t, db, apiKey)
-
-	// Multipart body with the wrong field name.
-	body, ct := buildLogoMultipart(t, "x.png", pngFixture(t))
-	// Replace 'logo' field name with 'wrong'. Easiest: rebuild from scratch.
-	body, ct = buildLogoMultipartCustomField(t, "wrong", "x.png", pngFixture(t))
-
-	c := server.NewClient(t)
-	resp, err := c.Do(testutil.APIReq(t, http.MethodPost, c.BaseURL+"/settings/upload-logo", apiKey, body, ct))
-	require.NoError(t, err)
-	defer testutil.DrainAndClose(resp)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-}
-
-func buildLogoMultipart(t *testing.T, filename string, payload []byte) (*bytes.Buffer, string) {
-	t.Helper()
-	return buildLogoMultipartCustomField(t, "logo", filename, payload)
-}
-
-func buildLogoMultipartCustomField(t *testing.T, fieldName, filename string, payload []byte) (*bytes.Buffer, string) {
-	t.Helper()
-	var buf bytes.Buffer
-	w := multipart.NewWriter(&buf)
-	part, err := w.CreateFormFile(fieldName, filename)
-	require.NoError(t, err)
-	_, err = part.Write(payload)
-	require.NoError(t, err)
-	require.NoError(t, w.Close())
-	return &buf, w.FormDataContentType()
 }
 
 // ---------------------------------------------------------------------------

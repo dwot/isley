@@ -1,0 +1,531 @@
+/* strains.css — strains: infobox, type badges, list cards and table, the
+ * edit page, lineage tree and editor.
+ */
+
+/* ===== Strain Infobox ===== */
+.strain-infobox {
+    border-left: 3px solid var(--color-accent);
+}
+.strain-infobox .card-title {
+    font-size: 1rem;
+    letter-spacing: 0.03em;
+}
+
+/* Strain type badges */
+.strain-badge-auto, .strain-badge-photo, .strain-badge-feminized, .strain-badge-regular {
+    color: var(--color-on-stage);
+    font-size: 0.85rem;
+    padding: 0.4em 1em;
+    border-radius: var(--radius-pill);
+    font-weight: 600;
+}
+.strain-badge-auto {
+    background: linear-gradient(135deg, var(--color-auto), color-mix(in srgb, var(--color-auto), #000 var(--shade)));
+}
+.strain-badge-photo {
+    background: linear-gradient(135deg, var(--color-photo), color-mix(in srgb, var(--color-photo), #000 var(--shade)));
+}
+.strain-badge-feminized {
+    background: linear-gradient(135deg, var(--color-fem), color-mix(in srgb, var(--color-fem), #000 var(--shade)));
+}
+.strain-badge-regular {
+    background: linear-gradient(135deg, var(--color-regular), color-mix(in srgb, var(--color-regular), #000 var(--shade)));
+}
+
+/* Indica/Sativa gradient ratio bar */
+.strain-ratio-bar {
+    height: 10px;
+    border-radius: var(--radius-pill);
+    background: var(--color-sativa);
+    overflow: hidden;
+    position: relative;
+}
+.strain-ratio-fill {
+    height: 100%;
+    border-radius: var(--radius-pill) 0 0 var(--radius-pill);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--color-indica), #000 var(--shade)), var(--color-indica));
+    transition: width 0.3s ease;
+}
+.strain-indica-text {
+    color: var(--color-indica-text);
+}
+.strain-sativa-text {
+    color: var(--color-sativa-text);
+}
+/* Strain info list */
+.strain-info-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.55rem 0;
+    border-bottom: 1px solid var(--color-card-border);
+}
+.strain-info-list li:last-child {
+    border-bottom: none;
+}
+.strain-info-label {
+    color: var(--color-muted);
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+.strain-info-value {
+    font-weight: 500;
+    text-align: right;
+}
+
+/* Strain ratio section */
+.strain-ratio-section {
+    padding: 0.5rem 0;
+}
+
+/* ===== Strains List Page ===== */
+
+/* Card grid — flex rows with uniform card height */
+.strains-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+.strains-grid .sc-card-link {
+    flex: 1 1 340px;
+    max-width: calc(33.333% - 0.667rem);
+    min-width: 300px;
+}
+@media (max-width: 1199.98px) {
+    .strains-grid .sc-card-link {
+        max-width: calc(50% - 0.5rem);
+    }
+}
+@media (max-width: 767.98px) {
+    .strains-grid .sc-card-link {
+        max-width: 100%;
+        flex-basis: 100%;
+    }
+}
+
+/* Individual card */
+.sc-card-link {
+    display: block;
+    cursor: pointer;
+}
+.sc-card-link:hover .sc-card {
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-1px);
+}
+.sc-card {
+    background: var(--color-card);
+    border: 1px solid var(--color-card-border);
+    border-radius: var(--radius-xl);
+    padding: 1rem 1.15rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+    cursor: pointer;
+    width: 100%;
+    min-height: 165px;
+}
+/* Card header */
+.sc-card-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+.sc-card-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+.sc-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--color-accent);
+    line-height: 1.3;
+}
+.sc-breeder {
+    font-size: 0.82rem;
+    color: var(--color-muted);
+    font-weight: 500;
+}
+.sc-ext-link {
+    color: var(--color-muted);
+    font-size: 0.75rem;
+    flex-shrink: 0;
+    transition: color 0.15s;
+}
+.sc-ext-link:hover {
+    color: var(--color-accent);
+}
+
+/* Card body */
+.sc-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.sc-desc {
+    font-size: 0.84rem;
+    color: var(--color-fg);
+    opacity: 0.85;
+    margin: 0;
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.sc-lineage {
+    font-size: 0.78rem;
+    color: var(--color-muted);
+    line-height: 1.4;
+    padding: 0.3rem 0.55rem;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    border: 1px solid var(--color-card-border);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sc-lineage i {
+    opacity: 0.6;
+}
+
+/* Card footer */
+.sc-card-footer {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex-wrap: nowrap;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--color-card-border);
+    margin-top: auto;
+}
+.sc-meta-left {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-shrink: 0;
+}
+.sc-meta-left .strain-badge-auto,
+.sc-meta-left .strain-badge-photo,
+.sc-meta-left .strain-badge-feminized,
+.sc-meta-left .strain-badge-regular {
+    font-size: 0.7rem;
+    padding: 0.2em 0.6em;
+}
+.sc-dominance {
+    font-size: 0.75rem;
+    color: var(--color-muted);
+    font-weight: 500;
+    white-space: nowrap;
+}
+.sc-ratio-mini {
+    flex: 1;
+    height: 5px;
+    min-width: 40px;
+    border-radius: var(--radius-pill);
+    background: var(--color-sativa);
+    overflow: hidden;
+}
+.sc-ratio-mini-fill {
+    height: 100%;
+    border-radius: var(--radius-pill) 0 0 var(--radius-pill);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--color-indica), #000 var(--shade)), var(--color-indica));
+}
+.sc-meta-right {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.82rem;
+    color: var(--color-muted);
+    flex-shrink: 0;
+}
+
+/* ===== Strains Table View ===== */
+.st-strain-name {
+    font-weight: 600;
+    color: var(--color-accent);
+    text-decoration: none;
+}
+.st-strain-name:hover {
+    text-decoration: underline;
+}
+.st-short-desc {
+    font-size: 0.78rem;
+    color: var(--color-muted);
+    line-height: 1.35;
+    margin-top: 0.15rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.st-cell-breeder {
+    white-space: nowrap;
+}
+.st-cell-lineage {
+    font-size: 0.82rem;
+    color: var(--color-muted);
+    max-width: 250px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.st-ratio-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.st-ratio-label {
+    font-size: 0.78rem;
+    color: var(--color-muted);
+    white-space: nowrap;
+}
+.st-th-name { min-width: 180px; }
+.st-th-lineage { min-width: 150px; }
+
+/* Empty state */
+.strains-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1rem;
+}
+
+/* ===== Strain Edit Page ===== */
+.strain-preview-card {
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+}
+.strain-preview-card .markdown-body {
+    font-size: 0.92rem;
+}
+
+/* Markdown body base styling */
+.markdown-body {
+    line-height: 1.7;
+    word-wrap: break-word;
+}
+.markdown-body h1, .markdown-body h2, .markdown-body h3,
+.markdown-body h4, .markdown-body h5, .markdown-body h6 {
+    margin-top: 1.25em;
+    margin-bottom: 0.5em;
+    font-weight: 600;
+    color: var(--color-fg);
+}
+.markdown-body h1 { font-size: 1.6rem; border-bottom: 1px solid var(--color-border); padding-bottom: 0.3em; }
+.markdown-body h2 { font-size: 1.35rem; border-bottom: 1px solid var(--color-border); padding-bottom: 0.3em; }
+.markdown-body h3 { font-size: 1.15rem; }
+.markdown-body p { margin-bottom: 0.75em; }
+.markdown-body ul, .markdown-body ol { padding-left: 1.5em; margin-bottom: 0.75em; }
+.markdown-body li { margin-bottom: 0.25em; }
+.markdown-body code {
+    background: var(--color-bg);
+    padding: 0.15em 0.4em;
+    border-radius: var(--radius-sm);
+    font-size: 0.88em;
+}
+.markdown-body pre {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 1em;
+    overflow-x: auto;
+}
+.markdown-body pre code {
+    background: transparent;
+    padding: 0;
+}
+.markdown-body a {
+    color: var(--color-accent);
+}
+.markdown-body hr {
+    border: none;
+    border-top: 1px solid var(--color-border);
+    margin: 1.5em 0;
+}
+.markdown-body img {
+    max-width: 100%;
+    border-radius: var(--radius);
+}
+.markdown-body blockquote {
+    border-left: 3px solid var(--color-accent);
+    padding-left: 1em;
+    margin-left: 0;
+    color: var(--color-muted);
+}
+
+/* ===== Lineage Tree (View) ===== */
+.lineage-tree {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+/* Nested subtrees */
+.lineage-tree .lineage-tree {
+    padding-left: 0;
+    margin-left: 1rem;
+    margin-top: 0;
+}
+.lineage-node {
+    position: relative;
+    padding: 0.15rem 0 0.15rem 0;
+}
+/* Connector lines for nested nodes */
+.lineage-tree .lineage-tree > .lineage-node {
+    padding-left: 1.25rem;
+}
+.lineage-tree .lineage-tree > .lineage-node::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 50%;
+    width: 1rem;
+    border-left: 2px solid var(--color-border);
+    border-bottom: 2px solid var(--color-border);
+    border-bottom-left-radius: 4px;
+}
+/* Vertical line connecting siblings */
+.lineage-tree .lineage-tree > .lineage-node:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    border-left: 2px solid var(--color-border);
+}
+/* Extend vertical line to connect to next sibling */
+.lineage-tree .lineage-tree > .lineage-node:last-child::after {
+    display: none;
+}
+.lineage-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.92rem;
+    line-height: 1.5;
+}
+.lineage-toggle {
+    background: none;
+    border: none;
+    color: var(--color-muted);
+    padding: 0 0.25rem;
+    cursor: pointer;
+    font-size: 0.7rem;
+    line-height: 1;
+}
+.lineage-toggle:hover {
+    color: var(--color-accent);
+}
+.lineage-subtree.collapsed {
+    display: none;
+}
+
+/* Wikipedia-style links */
+.lineage-link-exists {
+    color: var(--color-accent);
+    text-decoration: none;
+}
+.lineage-link-exists:hover {
+    text-decoration: underline;
+}
+.lineage-link-missing {
+    color: var(--color-danger-text);
+    text-decoration: none;
+}
+.lineage-link-missing:hover {
+    text-decoration: underline;
+}
+
+/* ===== Descendants List ===== */
+.descendants-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+.descendant-item {
+    padding: 0.45rem 0;
+    border-bottom: 1px solid var(--color-border);
+}
+.descendant-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+.descendant-item:first-child {
+    padding-top: 0;
+}
+.descendant-top {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+.descendant-icon {
+    color: var(--color-muted);
+    opacity: 0.45;
+}
+.descendant-cross {
+    font-size: 0.82rem;
+    color: var(--color-muted);
+}
+.descendant-breeder {
+    font-size: 0.78rem;
+    color: var(--color-muted);
+    opacity: 0.55;
+    padding-left: 1.15rem;
+}
+
+/* ===== Lineage Editor ===== */
+.lineage-entry-row {
+    position: relative;
+}
+.lineage-match-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 0.7rem;
+    flex-shrink: 0;
+}
+.lineage-matched {
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+}
+.lineage-unmatched {
+    color: var(--color-danger-text);
+    background: color-mix(in srgb, var(--color-danger-text) 15%, transparent);
+}
+/* Autocomplete dropdown */
+.lineage-autocomplete-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1050;
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: 0 0 var(--radius) var(--radius);
+    box-shadow: var(--shadow-md);
+    max-height: 200px;
+    overflow-y: auto;
+}
+.lineage-autocomplete-item {
+    padding: 0.4rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.88rem;
+    border-bottom: 1px solid var(--color-border);
+}
+.lineage-autocomplete-item:last-child {
+    border-bottom: none;
+}
+.lineage-autocomplete-item:hover {
+    background: var(--color-bg);
+}

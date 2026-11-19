@@ -2,6 +2,7 @@
 // Lightweight UI messaging helper used across templates. Provides:
 // - uiMessages.t(key, fallback) -> translation if loaded, else fallback, else key
 // - uiMessages.has(key) -> true if a translation for key is loaded
+// - uiMessages.ready -> Promise, settled once translations have loaded
 // - uiMessages.showToast(message, level)
 // - uiMessages.confirmDelete(message, title) -> showConfirm with danger "Delete" button
 // - uiMessages.showConfirm(message, opts) -> Promise<boolean>
@@ -199,5 +200,8 @@
         showConfirm: showConfirm,
         confirmDelete: confirmDelete,
         _ready: () => readyPromise,
+        // Resolves once the translations have loaded (or failed to). A page
+        // that draws translated text on load waits for this first.
+        ready: readyPromise,
     };
 })();
