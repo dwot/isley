@@ -22,6 +22,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [2.7.0] - 2026-11-19
+
+### Added
+
 - Themes. Settings → Appearance sets the instance's default theme, and the
   theme menu in the header lets each browser pick its own theme and
   light, dark or match-the-system mode. Five themes: Classic (the existing
