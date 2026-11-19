@@ -22,14 +22,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Harvest weights can be shown and entered in grams or ounces. A new
-  **Weight Unit** setting picks the unit the plant forms and lists start
-  with, and clicking any displayed weight flips it between the two. Weights
-  are still stored in grams, so nothing changes until you change the
-  setting. (#274, thanks @platentgrows)
-- The breeder list in Settings → Tables scrolls inside its card and has a
-  search box, so a long list no longer pushes the rest of the page down.
-  The edit-breeder dialog has its title back. (#273, thanks @platentgrows)
+- Themes. Settings → Appearance sets the instance's default theme, and the
+  theme menu in the header lets each browser pick its own theme and
+  light, dark or match-the-system mode. Five themes: Classic (the existing
+  look), Walnut (a warm copper-on-walnut palette, dark only), Clarity (high
+  contrast, colour-blind-safe stage colours, larger type), Blacklight (dark
+  only) and Sherbet. A theme is one stylesheet
+  in `web/static/css/themes/`, and can bring its own page background, type
+  size and logo.
+- A new logo for each theme, replacing the stock leaf: a fan leaf (Classic), a
+  leaf growing from a notebook on a copper-on-walnut tile (Walnut), a leaf in a
+  water drop (Clarity), a neon leaf (Blacklight) and a sprout (Sherbet).
+  `docs/brand/` records how they were made.
 - Theme packages. Settings → Appearance can add a theme from a package (a
   zip with a `theme.json` and an optional logo) and remove it again, and
   every theme, built-in ones included, downloads as a package to start a
@@ -50,17 +54,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   measured against their surfaces; pairs under 4.5:1 are reported when the
   theme is added and listed under it in Settings. A theme is never refused
   for contrast.
-- Themes. Settings → Appearance sets the instance's default theme, and the
-  theme menu in the header lets each browser pick its own theme and
-  light, dark or match-the-system mode. Five themes: Classic (the existing
-  look), Walnut (the dwot/dotfiles desktop palette, dark only), Clarity (high contrast, colour-blind-safe stage colours,
-  larger type), Blacklight (dark only) and Sherbet. A theme is one stylesheet
-  in `web/static/css/themes/`, and can bring its own page background, type
-  size and logo.
-- A new logo for each theme, replacing the stock leaf: a fan leaf (Classic), a
-  leaf growing from a notebook on a copper-on-walnut tile (Walnut), a leaf in a
-  water drop (Clarity), a neon leaf (Blacklight) and a sprout (Sherbet).
-  `docs/brand/` records how they were made.
+- Harvest weights can be shown and entered in grams or ounces. A new
+  **Weight Unit** setting picks the unit the plant forms and lists start
+  with, and clicking any displayed weight flips it between the two. Weights
+  are still stored in grams, so nothing changes until you change the
+  setting. (#274, thanks @platentgrows)
+- The breeder list in Settings → Customization scrolls inside its card and has a
+  search box, so a long list no longer pushes the rest of the page down.
+  The edit-breeder dialog has its title back. (#273, thanks @platentgrows)
 - Sensor graphs take their colours from the theme and repaint when it changes.
 - The header's links have labels: beside the icons on wide screens, and in a
   menu that opens from a button on tablets and phones.
