@@ -274,17 +274,18 @@ func (r *Registry) Remove(id string) error {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	found := false
+	// The directory removed is named by the registry's own record of the
+	// theme, never by the id the caller passed in.
+	dir := ""
 	for _, u := range r.user {
 		if u.theme.ID == id {
-			found = true
+			dir = u.theme.ID
 		}
 	}
-	if !found {
+	if dir == "" {
 		return ErrNotFound
 	}
-	// id is one the registry loaded, so it is a plain directory name.
-	if err := os.RemoveAll(filepath.Join(r.userDir, id)); err != nil {
+	if err := os.RemoveAll(filepath.Join(r.userDir, dir)); err != nil {
 		return fmt.Errorf("remove theme: %w", err)
 	}
 	r.reload()
