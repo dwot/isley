@@ -88,6 +88,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   viewer follows the theme instead of always being dark.
 - Pages are rendered in the instance's theme by the server, so a light-mode
   browser no longer shows a dark page first.
+- Dependencies: libopenapi 0.42.5 (#276), golang.org/x/image 0.48.0 (#277).
 
 ### Deprecated
 
