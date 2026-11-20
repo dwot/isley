@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
             uiMessages.showToast(uiMessages.t('theme_default_saved', 'Default theme saved'), 'success');
             // Show it now if this browser follows the instance default.
             document.documentElement.setAttribute('data-theme-default', id);
-            if (!IsleyTheme.current().themeChoice) window.location.reload();
+            if (!IsleyTheme.current().themeChoice) reloadKeepingPlace();
         } catch (err) {
             uiMessages.showToast(err.message || uiMessages.t('api_failed_to_save_settings', 'Failed to save settings'), 'danger');
         }
