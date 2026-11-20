@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Settings → Appearance: changing the default theme no longer reloads the
+  page onto the Settings tab; it comes back to Appearance (#279, #280).
+
 ### Security
 
 ## [2.7.0] - 2026-11-19
