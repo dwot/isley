@@ -11,7 +11,7 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/nicksnyder/go-i18n/v2 v2.7.0
-	github.com/pb33f/libopenapi v0.42.5
+	github.com/pb33f/libopenapi v0.44.0
 	github.com/pb33f/libopenapi-validator v0.16.3
 	github.com/russross/blackfriday/v2 v2.1.0
 	github.com/sirupsen/logrus v1.10.2
@@ -57,7 +57,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/ncruces/go-strftime v1.1.0 // indirect
-	github.com/pb33f/go-yaml v0.1.1 // indirect
+	github.com/pb33f/go-yaml v0.2.0 // indirect
 	github.com/pb33f/jsonpath v0.8.5 // indirect
 	github.com/pb33f/jsonschema/v6 v6.0.3 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.2 // indirect
